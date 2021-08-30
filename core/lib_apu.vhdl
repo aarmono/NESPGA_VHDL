@@ -2,19 +2,20 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
+use work.apu_bus_types.all;
 use work.utilities.all;
 
 package lib_apu is
 
-    -- Sequencer {
-    
+    -- Sequencer
+
     type frame_seq_t is record
         divider     : unsigned(12 downto 0);
         mode_5      : boolean;
         irq_disable : boolean;
         step        : unsigned(2 downto 0);
     end record;
-    
+
     constant RESET_FRAME_SEQ : frame_seq_t :=
     (
       divider => (others => '0'),
@@ -22,27 +23,25 @@ package lib_apu is
       irq_disable => false,
       step => (others => '0')
     );
-    
+
     function update_envelope(seq : frame_seq_t) return boolean;
-    
+
     function update_length(seq : frame_seq_t) return boolean;
-    
+
     function irq(seq : frame_seq_t) return boolean;
-    
+
     function next_sequence(cur_val : frame_seq_t) return frame_seq_t;
-    
+
     function write_reg
     (
         val : frame_seq_t;
         reg : std_logic_vector(1 downto 0)
     )
     return frame_seq_t;
-    
+
     constant DIV_START : unsigned(12 downto 0) := to_unsigned(7456, 13);
-    
-    -- }
-    
-    -- Envelope {
+
+    -- Envelope
     type envelope_t is record
         reset    : boolean;
         loop_env : boolean;
@@ -51,7 +50,7 @@ package lib_apu is
         divider  : unsigned(3 downto 0);
         period   : unsigned(3 downto 0);
     end record;
-    
+
     constant RESET_ENVELOPE : envelope_t :=
     (
         reset => false,
@@ -61,45 +60,46 @@ package lib_apu is
         divider => (others => '0'),
         period => (others => '0')
     );
-    
+
     function audio(envelope : envelope_t) return audio_t;
-    
+
     function next_envelope(cur_val : envelope_t) return envelope_t;
-    
+
     function write_reg
     (
         val : envelope_t;
         reg : std_logic_vector(5 downto 0)
     )
     return envelope_t;
-    
+
     function reload(val : envelope_t) return envelope_t;
-    -- }
-    
-    -- Length Counter {
+
+    -- Length Counter
     type length_t is record
         count  : unsigned(7 downto 0);
         halt   : boolean;
         enable : boolean;
     end record;
-    
+
     constant RESET_LENGTH : length_t :=
     (
         count => (others => '0'),
         halt => false,
         enable => false
     );
-    
+
     function get_length_val
     (
         idx : std_logic_vector(4 downto 0)
     )
     return unsigned;
+
     function enable_output(length : length_t) return boolean;
+
     function next_length(cur_val : length_t) return length_t;
+
     function is_zero(val : length_t) return boolean;
-    -- }
-    
+
     -- Linear Counter {
     type linear_t is record
         halt       : boolean;
@@ -107,7 +107,7 @@ package lib_apu is
         count      : unsigned(6 downto 0);
         reload_val : unsigned(6 downto 0);
     end record;
-    
+
     constant RESET_LINEAR : linear_t :=
     (
         halt => false,
@@ -115,29 +115,29 @@ package lib_apu is
         count => (others => '0'),
         reload_val => (others => '0')
     );
-    
+
     function enable_output(linear : linear_t) return boolean;
+
     function next_linear(cur_val : linear_t) return linear_t;
+
     function write_reg(val : linear_t; reg : data_t) return linear_t;
-    -- }
-    
-    -- Triangle Channel {
-    
-    -- Triangle Sequencer {
+
+    -- Triangle Channel
+
+    -- Triangle Sequencer
     type triangle_seq_t is record
         value      : unsigned(3 downto 0);
         descending : boolean;
     end record;
-    
+
     constant RESET_TRIANGLE_SEQ : triangle_seq_t :=
     (
         value => (others => '1'),
         descending => true
     );
-    
+
     function next_triangle_seq(cur_val : triangle_seq_t) return triangle_seq_t;
-    -- }
-    
+
     type triangle_t is record
         count  : unsigned(10 downto 0);
         period : unsigned(10 downto 0);
@@ -145,7 +145,7 @@ package lib_apu is
         length : length_t;
         seq    : triangle_seq_t;
     end record;
-    
+
     constant RESET_TRIANGLE : triangle_t :=
     (
         count => (others => '0'),
@@ -154,8 +154,9 @@ package lib_apu is
         length => RESET_LENGTH,
         seq => RESET_TRIANGLE_SEQ
     );
-    
+
     function audio(triangle : triangle_t) return audio_t;
+
     function next_triangle
     (
         cur_val       : triangle_t;
@@ -163,23 +164,21 @@ package lib_apu is
         update_length : boolean
     )
     return triangle_t;
-    
+
     function write_reg_0(val : triangle_t; reg : data_t) return triangle_t;
-    
+
     function write_reg_1(val : triangle_t; reg : data_t) return triangle_t;
-    
+
     function write_reg_2(val : triangle_t; reg : data_t) return triangle_t;
-    
+
     function write_reg_3(val : triangle_t; reg : std_logic) return triangle_t;
-    
+
     function get_status(val : triangle_t) return std_logic;
-    
-    -- }
-    
-    -- Square Channel {
-    
-    -- Sweep Unit {
-    
+
+    -- Square Channel
+
+    -- Sweep Unit
+
     type sweep_t is record
         divider   : unsigned(2 downto 0);
         div_count : unsigned(2 downto 0);
@@ -189,7 +188,7 @@ package lib_apu is
         reset     : boolean;
         shift     : std_logic_vector(2 downto 0);
     end record;
-    
+
     constant RESET_SWEEP : sweep_t :=
     (
         divider => (others => '0'),
@@ -200,86 +199,83 @@ package lib_apu is
         reset => false,
         shift => (others => '0')
     );
-    
+
     function enable_output
     (
         sweep : sweep_t;
         incr : unsigned(0 downto 0)
     )
     return boolean;
-    
+
     function next_sweep
     (
         cur_val : sweep_t;
         incr  : unsigned(0 downto 0)
     )
     return sweep_t;
-    
+
     function shift_period
     (
         sweep : sweep_t;
         incr  : unsigned(0 downto 0)
     )
     return unsigned;
-    
+
     function write_reg_0(val : sweep_t; reg : data_t) return sweep_t;
-    
+
     function write_reg_1(val : sweep_t; reg : data_t) return sweep_t;
-    
+
     function write_reg_2
     (
         val : sweep_t;
         reg : std_logic_vector(2 downto 0)
     )
     return sweep_t;
-    
-    -- }
-    
-    -- Sequencer {
+
+    -- Sequencer
     type square_seq_t is record
         timer : unsigned(11 downto 0);
         cycle : unsigned(2 downto 0);
         duty  : std_logic_vector(1 downto 0);
     end record;
-    
+
     constant RESET_SQUARE_SEQ : square_seq_t :=
     (
         timer => (others => '0'),
         cycle => (others => '0'),
         duty => (others => '0')
     );
-    
+
     function enable_output(seq : square_seq_t) return boolean;
-    
+
     function next_square_seq
     (
         cur_val : square_seq_t;
         period  : unsigned(10 downto 0)
     )
     return square_seq_t;
-    
+
     function write_reg
     (
         val : square_seq_t;
         reg : std_logic_vector(1 downto 0)
     )
     return square_seq_t;
-    
+
     function reload
     (
         val    : square_seq_t;
         period : unsigned(10 downto 0)
     )
     return square_seq_t;
-    -- }
-    
+
     type square_t is record
         envelope : envelope_t;
         sweep    : sweep_t;
         seq      : square_seq_t;
         length   : length_t;
     end record;
-    
+
     constant RESET_SQUARE : square_t :=
     (
         envelope => RESET_ENVELOPE,
@@ -287,13 +283,14 @@ package lib_apu is
         seq => RESET_SQUARE_SEQ,
         length => RESET_LENGTH
     );
-    
+
     function audio
     (
         square : square_t;
         incr   : unsigned(0 downto 0)
     )
     return audio_t;
+
     function next_square
     (
         cur_val         : square_t;
@@ -302,32 +299,30 @@ package lib_apu is
         incr            : unsigned(0 downto 0)
     )
     return square_t;
-    
+
     function write_reg_0(val : square_t; reg : data_t) return square_t;
-    
+
     function write_reg_1(val : square_t; reg : data_t) return square_t;
-    
+
     function write_reg_2(val : square_t; reg : data_t) return square_t;
-    
+
     function write_reg_3(val : square_t; reg : data_t) return square_t;
-    
+
     function write_reg_4(val : square_t; reg : std_logic) return square_t;
-    
+
     function get_status(val : square_t) return std_logic;
-    
-    -- }
-    
-    -- Noise Channel {
-    
-    -- Random Shifter {
-    
+
+    -- Noise Channel
+
+    -- Random Shifter
+
     type random_t is record
         period_idx : std_logic_vector(3 downto 0);
         count      : unsigned(11 downto 0);
         short_mode : boolean;
         shift      : std_logic_vector(14 downto 0);
     end record;
-    
+
     constant RESET_RANDOM : random_t :=
     (
         period_idx => (others => '0'),
@@ -335,35 +330,34 @@ package lib_apu is
         short_mode => false,
         shift => b"000_0000_0000_0001"
     );
-    
+
     function enable_output(val : random_t) return boolean;
-    
+
     function get_random_period
     (
         idx : std_logic_vector(3 downto 0)
     )
     return unsigned;
-    
+
     function next_random(cur_val : random_t) return random_t;
-    
+
     function write_reg(val : random_t; reg : data_t) return random_t;
-    -- }
-    
+
     type noise_t is record
         envelope : envelope_t;
         random   : random_t;
         length   : length_t;
     end record;
-    
+
     constant RESET_NOISE : noise_t :=
     (
         envelope => RESET_ENVELOPE,
         random => RESET_RANDOM,
         length => RESET_LENGTH
     );
-    
+
     function audio(noise : noise_t) return audio_t;
-    
+
     function next_noise
     (
         cur_val         : noise_t;
@@ -371,23 +365,46 @@ package lib_apu is
         update_length   : boolean
     )
     return noise_t;
-    
+
     function write_reg_0(val : noise_t; reg : data_t) return noise_t;
-    
+
     function write_reg_1(val : noise_t; reg : data_t) return noise_t;
-    
+
     function write_reg_2(val : noise_t; reg : data_t) return noise_t;
-    
+
     function write_reg_3(val : noise_t; reg : std_logic) return noise_t;
-    
+
     function get_status(val : noise_t) return std_logic;
-    
-    -- }
-    
+
+    type reg_t is record
+        frame_seq : frame_seq_t;
+        square_1  : square_t;
+        square_2  : square_t;
+        triangle  : triangle_t;
+        noise     : noise_t;
+        irq       : boolean;
+    end record;
+
+    type apu_output_t is record
+        reg          : reg_t;
+        audio        : apu_out_t;
+        cpu_data_out : data_t;
+        irq          : boolean;
+    end record;
+
+    function cycle_apu
+    (
+        reg         : reg_t;
+        cpu_bus     : apu_bus_t;
+        cpu_data_in : data_t;
+        reset       : boolean
+    )
+    return apu_output_t;
+
 end lib_apu;
 
 package body lib_apu is
-    
+
     -- Sequencer {
     function update_envelope(seq : frame_seq_t) return boolean
     is
@@ -395,7 +412,7 @@ package body lib_apu is
         return seq.divider = ZERO(seq.divider) and
                seq.step <= "011";
     end;
-    
+
     function update_length(seq : frame_seq_t) return boolean
     is
     begin
@@ -403,7 +420,7 @@ package body lib_apu is
                ((not seq.mode_5 and (seq.step = "001" or seq.step = "011")) or
                 (seq.mode_5 and (seq.step = "000" or seq.step = "010")));
     end;
-    
+
     function irq(seq : frame_seq_t) return boolean
     is
     begin
@@ -412,7 +429,7 @@ package body lib_apu is
                not seq.irq_disable and
                seq.divider = ZERO(seq.divider);
     end;
-    
+
     function next_sequence(cur_val : frame_seq_t) return frame_seq_t
     is
         variable next_val : frame_seq_t;
@@ -431,10 +448,10 @@ package body lib_apu is
         else
             next_val.divider := cur_val.divider - "1";
         end if;
-        
+
         return next_val;
     end;
-    
+
     function write_reg
     (
         val : frame_seq_t;
@@ -455,14 +472,12 @@ package body lib_apu is
         else
             ret.divider := DIV_START;
         end if;
-        
+
         return ret;
     end;
-    
-    -- }
-    
+
     -- Envelope {
-    
+
     -- audio function {
     function audio(envelope : envelope_t) return audio_t
     is
@@ -476,8 +491,7 @@ package body lib_apu is
             return std_logic_vector(envelope.count);
         end if;
     end;
-    -- }
-    
+
     -- next_envelope function {
     function next_envelope(cur_val : envelope_t) return envelope_t
     is
@@ -509,11 +523,10 @@ package body lib_apu is
         else
             next_val.divider := cur_val.divider - "1";
         end if;
-        
+
         return next_val;
     end;
-    -- }
-    
+
     -- write_reg function {
     function write_reg
     (
@@ -528,11 +541,10 @@ package body lib_apu is
         ret.loop_env := reg(5) = '1';
         ret.disable := reg(4) = '1';
         ret.period := unsigned(reg(3 downto 0));
-    
+
         return ret;
     end;
-    -- }
-    
+
     -- reload function {
     function reload(val : envelope_t) return envelope_t
     is
@@ -540,15 +552,12 @@ package body lib_apu is
     begin
         ret := val;
         ret.reset := true;
-        
+
         return ret;
     end;
-    -- }
-        
-    -- }
-    
+
     -- Length Counter {
-    
+
     -- get_length_val function {
     function get_length_val
     (
@@ -593,16 +602,14 @@ package body lib_apu is
             when others => return x"00";
         end case;
     end;
-    -- }
-    
+
     -- enable_output function {
     function enable_output(length : length_t) return boolean
     is
     begin
         return length.count /= ZERO(length.count);
     end;
-    -- }
-    
+
     -- next_length function {
     function next_length(cur_val : length_t) return length_t
     is
@@ -615,19 +622,17 @@ package body lib_apu is
         then
             next_val.count := cur_val.count - "1";
         end if;
-        
+
         return next_val;
     end;
-    -- }
-    
+
     -- is_zero function {
     function is_zero(val : length_t) return boolean
     is
     begin
         return val.count = ZERO(val.count);
     end;
-    -- }
-    
+
     -- write_reg_0 function {
     function write_reg_0(val : length_t; reg : std_logic) return length_t
     is
@@ -635,11 +640,10 @@ package body lib_apu is
     begin
         ret := val;
         ret.halt := reg = '1';
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_1 function {
     function write_reg_1
     (
@@ -655,11 +659,10 @@ package body lib_apu is
         then
             ret.count := get_length_val(reg);
         end if;
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_2 function {
     function write_reg_2
     (
@@ -676,13 +679,10 @@ package body lib_apu is
         then
             ret.count := ZERO(ret.count);
         end if;
-        
+
         return ret;
     end;
-    -- }
-    
-    -- }
-    
+
     -- Linear Counter {
     function enable_output(linear : linear_t) return boolean
     is
@@ -690,7 +690,7 @@ package body lib_apu is
         -- Pass through output when count is non-zero
         return linear.count /= ZERO(linear.count);
     end;
-    
+
     function next_linear(cur_val : linear_t) return linear_t
     is
         variable next_val : linear_t;
@@ -705,16 +705,16 @@ package body lib_apu is
         then
             next_val.count := cur_val.count - "1";
         end if;
-        
+
         -- If control flag is clear, clear halt flag
         if not cur_val.control
         then
             next_val.halt := false;
         end if;
-        
+
         return next_val;
     end;
-    
+
     function write_reg(val : linear_t; reg : data_t) return linear_t
     is
         variable ret : linear_t;
@@ -722,13 +722,12 @@ package body lib_apu is
         ret := val;
         ret.reload_val := unsigned(reg(6 downto 0));
         ret.control := reg(7) = '1';
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- Triangle Channel {
-    
+
     -- next_triangle_seq function {
     function next_triangle_seq(cur_val : triangle_seq_t) return triangle_seq_t
     is
@@ -751,27 +750,24 @@ package body lib_apu is
                 next_val.value := cur_val.value + "1";
             end if;
         end if;
-        
+
         return next_val;
     end;
-    -- }
-    
+
     -- audio function {
     function audio(triangle : triangle_t) return audio_t
     is
     begin
         return audio_t(triangle.seq.value);
     end;
-    -- }
-    
+
     -- get_status function
     function get_status(val : triangle_t) return std_logic
     is
     begin
         return to_std_logic(not is_zero(val.length));
     end;
-    -- }
-    
+
     -- next_triangle function {
     function next_triangle
     (
@@ -791,17 +787,17 @@ package body lib_apu is
         else
             next_val.count := cur_val.count - "1";
         end if;
-        
+
         if update_linear
         then
             next_val.linear := next_linear(cur_val.linear);
         end if;
-        
+
         if update_length
         then
             next_val.length := next_length(cur_val.length);
         end if;
-        
+
         update_sequence := cur_val.count = ZERO(cur_val.count) and
                            enable_output(cur_val.linear) and
                            enable_output(cur_val.length);
@@ -809,11 +805,10 @@ package body lib_apu is
         then
             next_val.seq := next_triangle_seq(cur_val.seq);
         end if;
-        
+
         return next_val;
     end;
-    -- }
-    
+
     -- write_reg_0 function {
     function write_reg_0(val : triangle_t; reg : data_t) return triangle_t
     is
@@ -822,11 +817,10 @@ package body lib_apu is
         ret := val;
         ret.linear := write_reg(val.linear, reg);
         ret.length := write_reg_0(val.length, reg(7));
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_1 function {
     function write_reg_1(val : triangle_t; reg : data_t) return triangle_t
     is
@@ -834,11 +828,10 @@ package body lib_apu is
     begin
         ret := val;
         ret.period(7 downto 0) := unsigned(reg);
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_2 function {
     function write_reg_2(val : triangle_t; reg : data_t) return triangle_t
     is
@@ -849,11 +842,10 @@ package body lib_apu is
         ret.period(10 downto 8) := unsigned(reg(2 downto 0));
         -- when register $400B is written to, the halt flag is set
         ret.linear.halt := true;
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_3 function {
     function write_reg_3(val : triangle_t; reg : std_logic) return triangle_t
     is
@@ -861,17 +853,14 @@ package body lib_apu is
     begin
         ret := val;
         ret.length := write_reg_2(val.length, reg);
-        
+
         return ret;
     end;
-    -- }
 
-    -- }
-    
     -- Square Channel {
-    
+
     -- Sweep Unit {
-    
+
     -- shift_period function {
     function shift_period
     (
@@ -889,7 +878,7 @@ package body lib_apu is
         then
             shift_res := not shift_res;
         end if;
-        
+
         -- On the second square channel the value is incremented by
         -- 1
         shift_res := shift_res + incr;
@@ -897,8 +886,7 @@ package body lib_apu is
         -- period, yielding the final result
         return sweep.period + shift_res;
     end;
-    -- }
-    
+
     -- enable_output function {
     function enable_output
     (
@@ -913,8 +901,7 @@ package body lib_apu is
         return not (sweep.period < to_unsigned(8, 11) or
                     shift_val > b"111_1111_1111");
     end;
-    -- }
-    
+
     -- next_sweep function {
     function next_sweep
     (
@@ -955,11 +942,10 @@ package body lib_apu is
             next_val.reset := false;
             next_val.div_count := cur_val.divider;
         end if;
-        
+
         return next_val;
     end;
-    -- }
-    
+
     -- write_reg_0 function {
     function write_reg_0(val : sweep_t; reg : data_t) return sweep_t
     is
@@ -970,11 +956,10 @@ package body lib_apu is
         ret.divider := unsigned(reg(6 downto 4));
         ret.negate := reg(3) = '1';
         ret.shift := reg(2 downto 0);
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_1 function {
     function write_reg_1(val : sweep_t; reg : data_t) return sweep_t
     is
@@ -982,11 +967,10 @@ package body lib_apu is
     begin
         ret := val;
         ret.period(7 downto 0) := unsigned(reg);
-        
+
         return ret;
     end;
-    -- }
-    
+
     -- write_reg_2 function {
     function write_reg_2
     (
@@ -1000,13 +984,10 @@ package body lib_apu is
         ret := val;
         ret.period(10 downto 8) := unsigned(reg);
         ret.reset := true;
-        
+
         return ret;
     end;
-    -- }
-    
-    -- }
-    
+
     function enable_output(seq : square_seq_t) return boolean
     is
     begin
@@ -1018,7 +999,7 @@ package body lib_apu is
             when others => return false;
         end case;
     end;
-    
+
     function reload
     (
         val : square_seq_t;
@@ -1031,10 +1012,10 @@ package body lib_apu is
         ret := val;
         ret.timer := period & '0';
         ret.cycle := ZERO(val.cycle);
-        
+
         return ret;
     end;
-    
+
     function next_square_seq
     (
         cur_val : square_seq_t;
@@ -1052,10 +1033,10 @@ package body lib_apu is
         else
             next_val.timer := cur_val.timer - "1";
         end if;
-        
+
         return next_val;
     end;
-    
+
     function write_reg
     (
         val : square_seq_t;
@@ -1067,10 +1048,10 @@ package body lib_apu is
     begin
         ret := val;
         ret.duty := reg;
-        
+
         return ret;
     end;
-    
+
     function audio
     (
         square : square_t;
@@ -1088,15 +1069,14 @@ package body lib_apu is
             return (others => '0');
         end if;
     end;
-    
+
     -- get_status function
     function get_status(val : square_t) return std_logic
     is
     begin
         return to_std_logic(not is_zero(val.length));
     end;
-    -- }
-    
+
     function next_square
     (
         cur_val         : square_t;
@@ -1114,20 +1094,20 @@ package body lib_apu is
             next_val.sweep := next_sweep(cur_val.sweep, incr);
             next_val.length := next_length(cur_val.length);
         end if;
-        
+
         -- Period calculated by sweep module is fed into 
         -- sequencer when it needs to be reloaded
         next_val.seq := next_square_seq(cur_val.seq,
                                         cur_val.sweep.period);
-        
+
         if update_envelope
         then
             next_val.envelope := next_envelope(cur_val.envelope);
         end if;
-        
+
         return next_val;
     end;
-    
+
     function write_reg_0(val : square_t; reg : data_t) return square_t
     is
         variable ret : square_t;
@@ -1136,30 +1116,30 @@ package body lib_apu is
         ret.seq := write_reg(val.seq, reg(7 downto 6));
         ret.envelope := write_reg(val.envelope, reg(5 downto 0));
         ret.length := write_reg_0(val.length, reg(5));
-        
+
         return ret;
     end;
-    
+
     function write_reg_1(val : square_t; reg : data_t) return square_t
     is
         variable ret : square_t;
     begin
         ret := val;
         ret.sweep := write_reg_0(val.sweep, reg);
-        
+
         return ret;
     end;
-    
+
     function write_reg_2(val : square_t; reg : data_t) return square_t
     is
         variable ret : square_t;
     begin
         ret := val;
         ret.sweep := write_reg_1(val.sweep, reg);
-        
+
         return ret;
     end;
-    
+
     function write_reg_3(val : square_t; reg : data_t) return square_t
     is
         variable ret : square_t;
@@ -1171,28 +1151,26 @@ package body lib_apu is
         -- of sequencer period
         ret.envelope := reload(val.envelope);
         ret.seq := reload(val.seq, ret.sweep.period);
-        
+
         return ret;
     end;
-    
+
     function write_reg_4(val : square_t; reg : std_logic) return square_t
     is
         variable ret : square_t;
     begin
         ret := val;
         ret.length := write_reg_2(val.length, reg);
-        
+
         return ret;
     end;
-    
-    -- }
-    
+
     function enable_output(val : random_t) return boolean
     is
     begin
         return val.shift(0) = '1';
     end;
-    
+
     function next_random(cur_val : random_t) return random_t
     is
         variable next_val : random_t;
@@ -1208,15 +1186,15 @@ package body lib_apu is
             else
                 shift_in := cur_val.shift(1) xor cur_val.shift(0);
             end if;
-            
+
             next_val.shift := shift_in & cur_val.shift(14 downto 1);
         else
             next_val.count := cur_val.count - "1";
         end if;
-        
+
         return next_val;
     end;
-    
+
     function write_reg(val : random_t; reg : data_t) return random_t
     is
         variable ret : random_t;
@@ -1224,10 +1202,10 @@ package body lib_apu is
         ret := val;
         ret.period_idx := reg(3 downto 0);
         ret.short_mode := reg(7) = '1';
-        
+
         return ret;
     end;
-    
+
     function get_random_period
     (
         idx : std_logic_vector(3 downto 0)
@@ -1255,7 +1233,7 @@ package body lib_apu is
             when others => return x"000";
         end case;
     end;
-    
+
     function next_noise
     (
         cur_val         : noise_t;
@@ -1271,25 +1249,24 @@ package body lib_apu is
         then
             next_val.envelope := next_envelope(cur_val.envelope);
         end if;
-        
+
         if update_length
         then
             next_val.length := next_length(cur_val.length);
         end if;
-        
+
         next_val.random := next_random(cur_val.random);
-        
+
         return next_val;
     end;
-    
+
     -- get_status function
     function get_status(val : noise_t) return std_logic
     is
     begin
         return to_std_logic(not is_zero(val.length));
     end;
-    -- }
-    
+
     function audio(noise : noise_t) return audio_t
     is
     begin
@@ -1301,7 +1278,7 @@ package body lib_apu is
             return (others => '0');
         end if;
     end;
-    
+
     function write_reg_0(val : noise_t; reg : data_t) return noise_t
     is
         variable ret : noise_t;
@@ -1309,38 +1286,179 @@ package body lib_apu is
         ret := val;
         ret.envelope := write_reg(val.envelope, reg(5 downto 0));
         ret.length := write_reg_0(val.length, reg(5));
-        
+
         return ret;
     end;
-    
+
     function write_reg_1(val : noise_t; reg : data_t) return noise_t
     is
         variable ret : noise_t;
     begin
         ret := val;
         ret.random := write_reg(val.random, reg);
-        
+
         return ret;
     end;
-    
+
     function write_reg_2(val : noise_t; reg : data_t) return noise_t
     is
         variable ret : noise_t;
     begin
         ret := val;
         ret.length := write_reg_1(val.length, reg(7 downto 3));
-        
+
         return ret;
     end;
-    
+
     function write_reg_3(val : noise_t; reg : std_logic) return noise_t
     is
         variable ret : noise_t;
     begin
         ret := val;
         ret.length := write_reg_2(val.length, reg);
-        
+
         return ret;
     end;
-    
+
+    function cycle_apu
+    (
+        reg         : reg_t;
+        cpu_bus     : apu_bus_t;
+        cpu_data_in : data_t;
+        reset       : boolean
+    )
+    return apu_output_t
+    is
+        -- Internal variables
+        variable v_audio           : apu_out_t;
+        variable v_update_envelope : boolean;
+        variable v_update_length   : boolean;
+        variable v_reg             : reg_t;
+        variable v_cpu_data_out    : data_t;
+
+        -- Return value
+        variable ret : apu_output_t;
+    begin
+        v_cpu_data_out   := (others => '-');
+        v_reg            := reg;
+        v_audio.square_1 := work.lib_apu.audio(reg.square_1, "0");
+        v_audio.square_2 := work.lib_apu.audio(reg.square_2, "1");
+        v_audio.triangle := work.lib_apu.audio(reg.triangle);
+        v_audio.noise    := work.lib_apu.audio(reg.noise);
+        
+        if work.lib_apu.irq(reg.frame_seq)
+        then
+            v_reg.irq := true;
+        end if;
+        
+        v_update_envelope := update_envelope(reg.frame_seq);
+        v_update_length := update_length(reg.frame_seq);
+        
+        v_reg.triangle := next_triangle(reg.triangle,
+                                        v_update_envelope,
+                                        v_update_length);
+        v_reg.square_1 := next_square(reg.square_1,
+                                      v_update_envelope,
+                                      v_update_length,
+                                      "0");
+        v_reg.square_2 := next_square(reg.square_2,
+                                      v_update_envelope,
+                                      v_update_length,
+                                      "1");
+        v_reg.noise := next_noise(reg.noise,
+                                  v_update_envelope,
+                                  v_update_length);
+        v_reg.frame_seq := next_sequence(reg.frame_seq);
+        
+        -- Memory map {
+        if is_bus_write(cpu_bus)
+        then
+            case cpu_bus.address is
+                -- Square Channel 1
+                when "00000" =>
+                    v_reg.square_1 := write_reg_0(v_reg.square_1, cpu_data_in);
+                when "00001" =>
+                    v_reg.square_1 := write_reg_1(v_reg.square_1, cpu_data_in);
+                when "00010" =>
+                    v_reg.square_1 := write_reg_2(v_reg.square_1, cpu_data_in);
+                when "00011" =>
+                    v_reg.square_1 := write_reg_3(v_reg.square_1, cpu_data_in);
+
+                -- Square Channel 2
+                when "00100" =>
+                    v_reg.square_2 := write_reg_0(v_reg.square_2, cpu_data_in);
+                when "00101" =>
+                    v_reg.square_2 := write_reg_1(v_reg.square_2, cpu_data_in);
+                when "00110" =>
+                    v_reg.square_2 := write_reg_2(v_reg.square_2, cpu_data_in);
+                when "00111" =>
+                    v_reg.square_2 := write_reg_3(v_reg.square_2, cpu_data_in);
+
+                -- Triangle Channel
+                -- Linear Counter registers
+                when "01000" =>
+                    v_reg.triangle := write_reg_0(v_reg.triangle, cpu_data_in);
+                -- Timer period low
+                when "01010" =>
+                    v_reg.triangle := write_reg_1(v_reg.triangle, cpu_data_in);
+                -- Timer period high and length counter reload
+                when "01011" =>
+                    v_reg.triangle := write_reg_2(v_reg.triangle, cpu_data_in);
+
+                -- Noise Channel
+                when "01100" =>
+                    v_reg.noise := write_reg_0(v_reg.noise, cpu_data_in);
+                when "01110" =>
+                    v_reg.noise := write_reg_1(v_reg.noise, cpu_data_in);
+                when "01111" =>
+                    v_reg.noise := write_reg_2(v_reg.noise, cpu_data_in);
+                -- DMC Channel
+                when "10000" =>
+                when "10001" =>
+                when "10010" =>
+                when "10011" =>
+                -- Common
+                when "10101" =>
+                    v_reg.square_1 := write_reg_4(reg.square_1, cpu_data_in(0));
+                    v_reg.square_2 := write_reg_4(reg.square_2, cpu_data_in(1));
+                    v_reg.triangle := write_reg_3(reg.triangle, cpu_data_in(2));
+                    v_reg.noise := write_reg_3(reg.noise, cpu_data_in(3));
+                when "10111" =>
+                    v_reg.frame_seq := write_reg(v_reg.frame_seq, 
+                                                 cpu_data_in(7 downto 6));
+                when others =>
+            end case;
+        elsif is_bus_read(cpu_bus) and
+              cpu_bus.address = "10101"
+        then
+            v_cpu_data_out := 
+            (
+                6 => to_std_logic(reg.irq),
+                3 => get_status(reg.noise),
+                2 => get_status(reg.triangle),
+                1 => get_status(reg.square_2),
+                0 => get_status(reg.square_1),
+                others => '0'
+            );
+            v_reg.irq := false;
+        end if;
+        -- }
+        
+        if reset then
+            v_reg.frame_seq := RESET_FRAME_SEQ;
+            v_reg.square_1 := RESET_SQUARE;
+            v_reg.square_2 := RESET_SQUARE;
+            v_reg.triangle := RESET_TRIANGLE;
+            v_reg.noise := RESET_NOISE;
+            v_reg.irq := false;
+        end if;
+        
+        ret.reg := v_reg;
+        ret.audio := v_audio;
+        ret.cpu_data_out := v_cpu_data_out;
+        ret.irq := reg.irq;
+
+        return ret;
+    end;
+
 end package body;
