@@ -1,0 +1,51 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+
+#import os
+#import math
+#from binascii import hexlify
+#set $NAME = $os.environ['NAME']
+#set $FILE = $os.environ['FILE']
+
+#set $contents = $open($FILE, 'rb').read()
+#set $addr_size = $int($math.ceil($math.log($len($contents), 2)))
+#set $high = $addr_size - 1
+package lib_${NAME}_rom is
+
+    function get_${NAME}_byte
+    (
+        addr : std_logic_vector($high downto 0)
+    )
+    return std_logic_vector;
+
+
+end lib_${NAME}_rom;
+
+package body lib_${NAME}_rom is
+
+    #def $format_addr($val, $size)
+    #return (($bin($val))[2:]).zfill($size)
+    #end def
+
+    function get_${NAME}_byte
+    (
+        addr : std_logic_vector($high downto 0)
+    )
+    return std_logic_vector
+    is
+        variable ret : std_logic_vector(7 downto 0);
+    begin
+        case addr is
+            #set $addr = 0
+            #for $byte in $contents
+            #set $f_byte = $hexlify($byte)
+            when "$format_addr($addr, $addr_size)" => ret := x"${f_byte}";
+            #set $addr = $addr + 1
+            #end for
+            when others => ret := (others => '-');
+        end case;
+
+        return ret;
+    end;
+
+end package body;

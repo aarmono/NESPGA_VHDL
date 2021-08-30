@@ -1,0 +1,105 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+
+#import os
+#set $prefix = $os.environ['PREFIX']
+#set $high_bit = $int($os.environ['SIZE']) - 1
+#set $addr_type = "%s_addr_t" % ($prefix)
+#set $bus_type = "%s_bus_t" % ($prefix)
+package ${prefix}_bus_types is
+   
+    subtype $addr_type is std_logic_vector($high_bit downto 0);
+    type $bus_type is record
+        address  : $addr_type;
+        read     : boolean;
+        write    : boolean;
+    end record;
+    
+	function bus_read(addr_in : $addr_type) return ${bus_type};
+    function bus_read(addr_in : unsigned(${addr_type}'RANGE)) return ${bus_type};
+	function bus_write(addr_in : $addr_type) return ${bus_type};
+    function bus_write(addr_in : unsigned(${addr_type}'RANGE)) return ${bus_type};
+	function bus_idle(bus_in : $bus_type) return $bus_type;
+	
+	function is_bus_active(bus_in : $bus_type) return boolean;
+	function is_bus_write(bus_in : $bus_type) return boolean;
+    function is_bus_read(bus_in :$bus_type) return boolean;
+	
+	procedure bus_assert_check(bus_in : in $bus_type);
+
+end ${prefix}_bus_types;
+
+package body ${prefix}_bus_types is
+    
+    function bus_read(addr_in : unsigned(${addr_type}'RANGE)) return $bus_type
+    is
+    begin
+        return bus_read(std_logic_vector(addr_in));
+    end;
+    
+    function bus_read(addr_in : $addr_type) return $bus_type
+    is
+        variable ret : $bus_type;
+    begin
+        ret.address := addr_in;
+        ret.read := true;
+        ret.write := false;
+        
+        return ret;
+    end;
+    
+    function bus_write(addr_in : unsigned(${addr_type}'RANGE)) return $bus_type
+    is
+    begin
+        return bus_write(std_logic_vector(addr_in));
+    end;
+    
+    function bus_write(addr_in : $addr_type) return $bus_type
+    is
+        variable ret : $bus_type;
+    begin
+        ret.address := addr_in;
+        ret.read := false;
+        ret.write := true;
+        
+        return ret;
+    end;
+    
+    function bus_idle(bus_in : $bus_type) return $bus_type
+    is
+        variable ret : $bus_type;
+    begin
+        ret.address := (others => '-');
+        ret.read := false;
+        ret.write := false;
+        
+        return ret;
+    end;
+    
+    function is_bus_active(bus_in : $bus_type) return boolean
+    is
+    begin
+        return bus_in.read or bus_in.write;
+    end;
+    
+    function is_bus_read(bus_in : $bus_type) return boolean
+    is
+    begin
+        bus_assert_check(bus_in);
+        return bus_in.read;
+    end;
+    
+    function is_bus_write(bus_in : $bus_type) return boolean
+    is
+    begin
+        bus_assert_check(bus_in);
+        return bus_in.write;
+    end;
+    
+    procedure bus_assert_check(bus_in : in $bus_type)
+    is
+    begin
+        assert not (bus_in.read and bus_in.write) report "Read and Write both True";
+    end;
+end package body;
