@@ -20,7 +20,7 @@ package utilities is
     function resize(val : std_logic_vector; len : natural) return std_logic_vector;
     function to_std_logic_vector(val : character) return std_logic_vector;
 
-    procedure shift_right(signal val : std_logic_vector);
+    --procedure shift_right(signal val : std_logic_vector);
     
 end utilities;
 
@@ -88,10 +88,10 @@ package body utilities is
         return std_logic_vector(to_unsigned(character'pos(val), 8));
     end;
 
-    procedure shift_right(signal val : std_logic_vector)
-    is
-    begin
-        val <= "0" & val(val'high downto 1);
-    end procedure;
+    --procedure shift_right(signal val : std_logic_vector)
+    --is
+    --begin
+    --    val <= "0" & val(val'high downto 1);
+    --end procedure;
     
 end package body;

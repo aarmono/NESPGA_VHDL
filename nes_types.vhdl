@@ -12,6 +12,7 @@ package nes_types is
     
     subtype data_t is std_logic_vector(7 downto 0);
     subtype audio_t is std_logic_vector(3 downto 0);
+    subtype mixed_audio_t is std_logic_vector(6 downto 0);
     
     type apu_out_t is record
         square_1 : audio_t;
@@ -19,7 +20,7 @@ package nes_types is
         triangle : audio_t;
         noise    : audio_t;
     end record;
-    function mix_audio(audio_in : apu_out_t) return std_logic_vector;
+    function mix_audio(audio_in : apu_out_t) return mixed_audio_t;
     
     function is_ram_addr(addr : cpu_addr_t) return boolean;
     function get_ram_addr(addr : cpu_addr_t) return ram_addr_t;
@@ -33,8 +34,8 @@ package nes_types is
     function is_sram_addr(addr : cpu_addr_t) return boolean;
     function get_sram_addr(addr : cpu_addr_t) return sram_addr_t;
     
-    function is_prg_addr(addr : cpu_addr_t) return boolean;
-    function get_prg_addr(addr : cpu_addr_t) return prg_addr_t;
+    --function is_prg_addr(addr : cpu_addr_t) return boolean;
+    --function get_prg_addr(addr : cpu_addr_t) return prg_addr_t;
     
     component cpu is
     port
@@ -71,7 +72,7 @@ end nes_types;
 
 package body nes_types is
     
-    function mix_audio(audio_in : apu_out_t) return std_logic_vector
+    function mix_audio(audio_in : apu_out_t) return mixed_audio_t
     is
         variable result : unsigned(6 downto 0);
     begin
@@ -80,7 +81,7 @@ package body nes_types is
                       resize(unsigned(audio_in.triangle), 7) +
                       resize(unsigned(audio_in.noise), 7);
         
-        return std_logic_vector(result);
+        return mixed_audio_t(result);
     end;
     
     function is_ram_addr(addr : cpu_addr_t) return boolean
