@@ -247,6 +247,7 @@ package lib_cpu is
         reg     : registers_t;
         data_in : data_t;
         ready   : boolean;
+        irq     : boolean;
         nmi     : boolean;
         reset   : boolean
     )
@@ -1284,6 +1285,7 @@ package body lib_cpu is
         reg     : registers_t;
         data_in : data_t;
         ready   : boolean;
+        irq     : boolean;
         nmi     : boolean;
         reset   : boolean
     )
@@ -1307,7 +1309,7 @@ package body lib_cpu is
         v_arith_scratch := (others => '-');
         v_data_out := (others => '-');
         v_data_bus := bus_idle(v_data_bus);
-        v_reg := input.reg;
+        v_reg := reg;
         v_sync := false;
         v_exec := false;
 

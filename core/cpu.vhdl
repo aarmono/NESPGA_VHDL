@@ -34,7 +34,7 @@ begin
         -- Internal variables
         variable v_output : cpu_output_t;
     begin
-        v_output := cycle_cpu(reg, data_in, ready, nmi, reset);
+        v_output := cycle_cpu(reg, data_in, ready, irq, nmi, reset);
 
         reg_in <= v_output.reg;
         data_bus <= v_output.data_bus;
