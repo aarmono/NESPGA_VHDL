@@ -1,0 +1,6 @@
+
+work/**
+**/*.au
+**/transcript
+**/*.wlf
+**/*.mti
