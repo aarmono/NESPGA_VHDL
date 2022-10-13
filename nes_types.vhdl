@@ -60,10 +60,13 @@ package nes_types is
     (
         clk          : in  std_logic;
         reset        : in  boolean;
+
         cpu_bus      : in  apu_bus_t;
         cpu_data_in  : in  data_t;
         cpu_data_out : out data_t;
+
         audio        : out apu_out_t;
+
         irq          : out boolean
     );
     end component apu;
