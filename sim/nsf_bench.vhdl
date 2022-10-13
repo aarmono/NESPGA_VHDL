@@ -60,7 +60,7 @@ begin
     if rising_edge(bclk) then
         if not aud_initialized
         then
-            au_fopen_16(audio_file, "C:\\NES_TNG\\out.au", x"00017700");
+            au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\sim\\out.au", x"00017700");
             aud_initialized <= true;
         end if;
         
@@ -71,7 +71,7 @@ begin
             if aud_count = x"0"
             then
                 au_fwrite_16(audio_file, aud_out);
-                flush(audio_file);
+                --flush(audio_file);
             end if;
             
             aud_shift <= aud_out;
@@ -88,7 +88,7 @@ begin
     begin
         if not mem_initialized
         then
-            byte_fopen(test_mem, "C:\\NES_TNG\\NSF\\Mario.nsf", read_mode);
+            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\Mario.nsf", read_mode);
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then
