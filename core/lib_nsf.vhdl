@@ -95,7 +95,7 @@ package lib_nsf is
         ram_data_out : out data_t;
         ram_data_in  : in data_t;
         
-        audio : out apu_out_t
+        audio : out mixed_audio_t
     );
     end component nsf_soc;
 

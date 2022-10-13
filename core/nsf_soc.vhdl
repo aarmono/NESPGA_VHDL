@@ -31,7 +31,7 @@ port
     ram_data_out : out data_t;
     ram_data_in  : in data_t;
     
-    audio : out apu_out_t
+    audio : out mixed_audio_t
 );
 end nsf_soc;
 
@@ -81,6 +81,8 @@ architecture behavioral of nsf_soc is
     signal irq : boolean;
     signal nmi : boolean;
     signal reset : boolean;
+    
+    signal audio_out : apu_out_t;
 begin
     
     fl_we_n <= '1';
@@ -117,10 +119,12 @@ begin
         cpu_data_in => apu_data_out,
         cpu_data_out => apu_data_in,
         
-        audio => audio,
+        audio => audio_out,
         irq => irq
     );
     -- }
+    
+    audio <= mix_audio(audio_out);
     
     process
     (

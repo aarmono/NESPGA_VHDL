@@ -52,7 +52,7 @@ architecture behavioral of nsf_de1 is
     signal ram_data_out_in  : data_t;
     signal ram_data_in      : data_t;
     
-    signal audio_out : apu_out_t;
+    signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
     
     signal reset : boolean;
@@ -90,8 +90,7 @@ begin
         audio => audio_out
     );
     
-    -- Mix audio
-    audio <= "0" & mix_audio(audio_out) & "00000000";
+    audio <= "0" & audio_out & "00000000";
     
     -- WM8731 interface {
     aud_out : wm8731

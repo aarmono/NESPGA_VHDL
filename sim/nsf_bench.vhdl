@@ -27,7 +27,7 @@ architecture behavioral of test_bench is
     signal ram_data_out     : data_t;
     signal ram_data_in      : data_t;
     
-    signal audio_out : apu_out_t;
+    signal audio_out : mixed_audio_t;
     
     signal reset : boolean;
     
@@ -76,7 +76,7 @@ begin
             wait for 10416 ns;
             if not reset
             then
-                aud_out := "0" & mix_audio(audio_out) & "00000000";
+                aud_out := "0" & audio_out & "00000000";
                 au_fwrite_16(audio_file, aud_out);
             end if;
         end loop;
