@@ -44,6 +44,22 @@ package lib_wm8731 is
     function reset_val(val : wm8731_aud_t) return wm8731_aud_t;
     function next_aud(cur_val : wm8731_aud_t) return wm8731_aud_t;
     
+    component wm8731 is
+    port
+    (
+        clk      : in std_logic;
+        reset    : in boolean;
+        
+        audio    : in wm_audio_t;
+        
+        sclk     : out std_logic;
+        sdat     : out std_logic;
+        bclk     : out std_logic;
+        dac_dat  : out std_logic;
+        dac_lrck : out std_logic
+    );
+    end component wm8731;
+    
 end lib_wm8731;
 
 package body lib_wm8731 is
