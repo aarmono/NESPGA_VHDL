@@ -9,10 +9,33 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.lib_nsf_rom.all;
 
-package lib_nsf is
+entity nsf_soc is
+port
+(
+    clk_cpu : in std_logic;
+    clk_nsf : in std_logic;
+    
+    reset_out : out boolean;
+    
+    fl_dq    : in std_logic_vector(7 downto 0);
+    fl_addr  : out std_logic_vector(21 downto 0);
+    fl_we_n  : out std_logic;
+    fl_oe_n  : out std_logic;
+    fl_rst_n : out std_logic;
+    
+    sram_bus      : out sram_bus_t;
+    sram_data_out : out data_t;
+    sram_data_in  : in data_t;
+    
+    ram_bus      : out ram_bus_t;
+    ram_data_out : out data_t;
+    ram_data_in  : in data_t;
+    
+    audio : out apu_out_t
+);
+end nsf_soc;
 
-    subtype fl_addr_t is std_logic_vector(21 downto 0);
-
+architecture behavioral of nsf_soc is
     type state_t is
     (
         STATE_RESET,
@@ -31,8 +54,8 @@ package lib_nsf is
         song_type   : std_logic;
         cur_state   : state_t;
     end record;
-
-    constant RESET_REG : reg_t :=
+    
+    signal reg : reg_t :=
     (
         total_songs => x"00",
         start_song => x"00",
@@ -45,77 +68,70 @@ package lib_nsf is
         cur_state => STATE_RESET
     );
     
-    type nsf_out_t is record
-        reg           : reg_t;
-        apu_bus       : apu_bus_t;
-        apu_data_out  : data_t;
-        sram_bus      : sram_bus_t;
-        sram_data_out : data_t;
-        ram_bus       : ram_bus_t;
-        ram_data_out  : data_t;
-        cpu_data_out  : data_t;
-        fl_addr       : fl_addr_t;
-        audio         : mixed_audio_t;
-        reset         : boolean;
-        nmi           : boolean;
-    end record;
-
-    function cycle_nsf
-    (
-        reg          : reg_t;
-        fl_dq        : data_t;
-        cpu_bus      : cpu_bus_t;
-        cpu_data_in  : data_t;
-        ram_data_in  : data_t;
-        sram_data_in : data_t;
-        apu_data_in  : data_t;
-        audio_out    : apu_out_t
-    )
-    return nsf_out_t;
+    signal reg_in : reg_t;
     
-    component nsf_soc is
-    port
+    signal apu_bus     : apu_bus_t;
+    signal cpu_bus     : cpu_bus_t;
+    
+    signal cpu_data_out     : data_t;
+    signal cpu_data_in      : data_t;
+    signal apu_data_out     : data_t;
+    signal apu_data_in      : data_t;
+    
+    signal irq : boolean;
+    signal nmi : boolean;
+    signal reset : boolean;
+begin
+    
+    fl_we_n <= '1';
+    fl_oe_n <= '0';
+    fl_rst_n <= '1';
+    
+    reset_out <= reset;
+    
+    -- CPU {
+    nsf_cpu : cpu
+    port map
     (
-        clk_cpu : in std_logic;
-        clk_nsf : in std_logic;
+        clk => clk_cpu,
+        reset => reset,
         
-        reset_out : out boolean;
+        data_bus => cpu_bus,
+        data_in => cpu_data_out,
+        data_out => cpu_data_in,
         
-        fl_dq    : in std_logic_vector(7 downto 0);
-        fl_addr  : out std_logic_vector(21 downto 0);
-        fl_we_n  : out std_logic;
-        fl_oe_n  : out std_logic;
-        fl_rst_n : out std_logic;
-        
-        sram_bus      : out sram_bus_t;
-        sram_data_out : out data_t;
-        sram_data_in  : in data_t;
-        
-        ram_bus      : out ram_bus_t;
-        ram_data_out : out data_t;
-        ram_data_in  : in data_t;
-        
-        audio : out apu_out_t
+        ready => true,
+        irq => irq,
+        nmi => nmi
     );
-    end component nsf_soc;
-
-end lib_nsf;
-
-package body lib_nsf is
-
-    function cycle_nsf
+    -- }
+    
+    -- APU {
+    nsf_apu : apu
+    port map
     (
-        reg          : reg_t;
-        fl_dq        : data_t;
-        cpu_bus      : cpu_bus_t;
-        cpu_data_in  : data_t;
-        ram_data_in  : data_t;
-        sram_data_in : data_t;
-        apu_data_in  : data_t;
-        audio_out    : apu_out_t
+        clk => clk_cpu,
+        reset => reset,
+        
+        cpu_bus => apu_bus,
+        cpu_data_in => apu_data_out,
+        cpu_data_out => apu_data_in,
+        
+        audio => audio,
+        irq => irq
+    );
+    -- }
+    
+    process
+    (
+        reg,
+        fl_dq,
+        cpu_bus,
+        ram_data_in,
+        sram_data_in,
+        cpu_data_in,
+        apu_data_in
     )
-    return nsf_out_t
-    is
         variable v_ram_bus       : ram_bus_t;
         variable v_sram_bus      : sram_bus_t;
         variable v_apu_bus       : apu_bus_t;
@@ -124,17 +140,13 @@ package body lib_nsf is
         variable v_apu_data_out  : data_t;
         variable v_cpu_data_out  : data_t;
         variable v_reg           : reg_t;
-        variable v_flash_addr    : fl_addr_t;
+        variable v_flash_addr    : std_logic_vector(fl_addr'RANGE);
         
         variable v_reset : boolean;
         variable v_nmi   : boolean;
         
-        variable v_audio : mixed_audio_t;
-        
         constant RESET_ADDR : cpu_addr_t := x"3800";
         constant NMI_ADDR : cpu_addr_t := x"3880";
-        
-        variable ret : nsf_out_t;
     begin
         v_reg := reg;
         v_ram_bus := bus_idle(v_ram_bus);
@@ -146,8 +158,6 @@ package body lib_nsf is
         v_cpu_data_out := (others => '-');
         v_apu_data_out := (others => '-');
         v_flash_addr := (others => '-');
-        
-        v_audio := (others => '-');
         
         v_reset := false;
         v_nmi := false;
@@ -223,7 +233,6 @@ package body lib_nsf is
                     v_nmi := false;
                     v_reg.cur_time := reg.cur_time - "1";
                 end if;
-                v_audio := mix_audio(audio_out);
                 
                 case cpu_bus.address is
                     --Current Song
@@ -296,23 +305,29 @@ package body lib_nsf is
                 end case;
         end case;
         
-        ret.apu_bus := v_apu_bus;
-        ret.sram_bus := v_sram_bus;
-        ret.ram_bus := v_ram_bus;
+        apu_bus <= v_apu_bus;
+        sram_bus <= v_sram_bus;
+        ram_bus <= v_ram_bus;
         
-        ret.sram_data_out := v_sram_data_out;
-        ret.apu_data_out := v_apu_data_out;
-        ret.ram_data_out := v_ram_data_out;
-        ret.cpu_data_out := v_cpu_data_out;
+        sram_data_out <= v_sram_data_out;
+        apu_data_out <= v_apu_data_out;
+        ram_data_out <= v_ram_data_out;
+        cpu_data_out <= v_cpu_data_out;
         
-        ret.reg := v_reg;
-        ret.audio := v_audio;
-        ret.reset := v_reset;
-        ret.nmi := v_nmi;
+        reg_in <= v_reg;
+        reset <= v_reset;
+        nmi <= v_nmi;
         
-        ret.fl_addr := v_flash_addr;
-        
-        return ret;
-    end;
-
-end package body;
+        fl_addr <= v_flash_addr;
+    end process;
+    
+    -- Register update process {
+    process(clk_nsf)
+    begin
+    if rising_edge(clk_nsf) then
+        reg <= reg_in;
+    end if;
+    end process;
+    -- }
+    
+end behavioral;
