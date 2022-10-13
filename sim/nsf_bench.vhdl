@@ -2,82 +2,84 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
+use work.ram_bus_types.all;
+use work.sram_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
 use work.utilities.all;
+use work.lib_nsf.all;
 
 entity test_bench is
 end test_bench;
 
 architecture behavioral of test_bench is
-    signal clk_50 : std_logic := '0';
-    signal clk_aud : std_logic := '0';
+    type ram_t is array(0 to 16#7FF#) of data_t;
+    type sram_t is array(0 to 16#1FFF#) of data_t;
     
-    signal i2c_sdat : std_logic;
-    signal i2c_sclk : std_logic;
+    signal ram : ram_t;
+    signal sram : sram_t;
     
-    signal sw : std_logic_vector(3 downto 0);
+    signal ram_bus     : ram_bus_t;
+    signal sram_bus    : sram_bus_t;
+    
+    signal sram_data_out    : data_t;
+    signal sram_data_in     : data_t;
+    signal ram_data_out     : data_t;
+    signal ram_data_in      : data_t;
+    
+    signal audio_out : apu_out_t;
+    
+    signal reset : boolean;
+    
+    signal cpu_clk : std_logic := '0';
+    signal nsf_clk : std_logic := '0';
     
     signal fl_dq   : std_logic_vector(7 downto 0);
     signal fl_addr : std_logic_vector(21 downto 0);
-    
-    signal bclk    : std_logic;
-    signal dacdat  : std_logic;
-    signal daclrck : std_logic;
     
     type memory_t is array (0 to 65535) of data_t;
     signal mem : memory_t;
     signal mem_initialized : boolean := false;
     
     file audio_file : byte_file_t;
-    signal aud_initialized : boolean := false;
-    signal aud_shift : std_logic_vector(15 downto 0) := x"0000";
     signal aud_count : unsigned(3 downto 0) := x"F";
 begin
 
-    nsf : entity work.nsf_de1(behavioral)
+    soc : nsf_soc
     port map
     (
-        clk_50 => clk_50,
-        clk_aud => clk_aud,
+        clk_cpu => cpu_clk,
+        clk_nsf => nsf_clk,
         
-        i2c_sdat => i2c_sdat,
-        i2c_sclk => i2c_sclk,
-        
-        sw => "1111",
+        reset_out => reset,
         
         fl_dq => fl_dq,
         fl_addr => fl_addr,
         
-        aud_bclk => bclk,
-        aud_dacdat => dacdat,
-        aud_daclrck => daclrck
+        sram_bus => sram_bus,
+        sram_data_out => sram_data_out,
+        sram_data_in => sram_data_in,
+        
+        ram_bus => ram_bus,
+        ram_data_out => ram_data_out,
+        ram_data_in => ram_data_in,
+        
+        audio => audio_out
     );
     
-    process(bclk)
+    process
         variable aud_out : std_logic_vector(15 downto 0);
     begin
-    if rising_edge(bclk) then
-        if not aud_initialized
-        then
-            au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\sim\\out.au", x"00017700");
-            aud_initialized <= true;
-        end if;
+        au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\sim\\out.au", x"00017700");
         
-        aud_out := aud_shift;
-        if daclrck = '1'
-        then
-            aud_out(to_integer(aud_count)) := dacdat;
-            if aud_count = x"0"
+        while true loop
+            wait for 10416 ns;
+            if not reset
             then
+                aud_out := "0" & mix_audio(audio_out) & "00000000";
                 au_fwrite_16(audio_file, aud_out);
-                --flush(audio_file);
             end if;
-            
-            aud_shift <= aud_out;
-            aud_count <= aud_count - "1";
-        end if;
-    end if;
+        end loop;
     end process;
             
     
@@ -100,9 +102,33 @@ begin
             byte_fclose(test_mem);
             
             mem_initialized <= true;
-        else
-            fl_dq <= mem(to_integer(fl_addr(15 downto 0)));
         end if;
+        
+        fl_dq <= mem(to_integer(fl_addr(15 downto 0)));
+    end process;
+    -- }
+    
+    -- RAM {
+    process(cpu_clk)
+    begin
+    if falling_edge(cpu_clk)
+    then
+        if is_bus_write(sram_bus)
+        then
+            sram(to_integer(sram_bus.address)) <= sram_data_out;
+        elsif is_bus_read(sram_bus)
+        then
+            sram_data_in <= sram(to_integer(sram_bus.address));
+        end if;
+        
+        if is_bus_write(ram_bus)
+        then
+            ram(to_integer(ram_bus.address)) <= ram_data_out;
+        elsif is_bus_read(ram_bus)
+        then
+            ram_data_in <= ram(to_integer(ram_bus.address));
+        end if;
+    end if;
     end process;
     -- }
     
@@ -110,19 +136,22 @@ begin
     process
     begin
         while true loop
-            clk_50 <= not clk_50;
-            wait for 10 ns;
+            wait for 279 ns;
+            cpu_clk <= '1';
+            wait for 280 ns;
+            cpu_clk <= '0';
         end loop;
     end process;
     
     process
     begin
         while true loop
-            clk_aud <= not clk_aud;
-            wait for 27 ns;
+            wait for 500 ns;
+            nsf_clk <= '1';
+            wait for 500 ns;
+            nsf_clk <= '0';
         end loop;
     end process;
-    
     -- }
 
 end behavioral;
