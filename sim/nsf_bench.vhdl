@@ -109,10 +109,8 @@ begin
     -- }
     
     -- RAM {
-    process(cpu_clk)
+    process(sram_bus, sram_data_out)
     begin
-    if falling_edge(cpu_clk)
-    then
         if is_bus_write(sram_bus)
         then
             sram(to_integer(sram_bus.address)) <= sram_data_out;
@@ -120,7 +118,10 @@ begin
         then
             sram_data_in <= sram(to_integer(sram_bus.address));
         end if;
-        
+    end process;
+    
+    process(ram_bus, ram_data_out)
+    begin
         if is_bus_write(ram_bus)
         then
             ram(to_integer(ram_bus.address)) <= ram_data_out;
@@ -128,7 +129,6 @@ begin
         then
             ram_data_in <= ram(to_integer(ram_bus.address));
         end if;
-    end if;
     end process;
     -- }
     
