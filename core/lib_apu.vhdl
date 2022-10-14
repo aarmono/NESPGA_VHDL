@@ -5,6 +5,8 @@ use work.nes_types.all;
 use work.apu_bus_types.all;
 use work.utilities.all;
 
+-- This file heavily quotes Blargg's NES APU Sound Hardware Reference:
+-- https://www.nesdev.org/apu_ref.txt
 package lib_apu is
 
     -- Sequencer
@@ -220,6 +222,13 @@ package lib_apu is
         incr  : unsigned(0 downto 0)
     )
     return unsigned;
+    
+    function sweep_valid
+    (
+        cur_period    : unsigned(10 downto 0);
+        target_period : unsigned(11 downto 0)
+    )
+    return boolean;
 
     function write_reg_0(val : sweep_t; reg : data_t) return sweep_t;
 
@@ -869,22 +878,32 @@ package body lib_apu is
     )
     return unsigned
     is
+        variable overflow : std_logic;
         variable shift_res : unsigned(10 downto 0);
     begin
         -- The channel's period is first shifted right by shift bits
         shift_res := sweep.period srl to_integer(sweep.shift);
-        -- If negate is set, the shifted value's bits are inverted
+        -- If negate is set, the shifted value's bits are inverted and
+        -- on the second square channel the inverted value is incremented
+        -- by 1
         if sweep.negate
         then
-            shift_res := not shift_res;
+            shift_res := (not shift_res) + incr;
         end if;
 
-        -- On the second square channel the value is incremented by
-        -- 1
-        shift_res := shift_res + incr;
+        -- In particular, if the negate flag is false, the shift count is
+        -- zero, and the current period is at least $400, the target period
+        -- will be large enough to mute the channel.
+        
+        -- We interpret this as the MSB being an overflow bit set if ths MSB of
+        -- both the current period and target period are high and the negate
+        -- bit isn't set
+        overflow := sweep.period(sweep.period'high) and
+                    shift_res(shift_res'high) and
+                    not to_std_logic(sweep.negate);
         -- The resulting value is added with the channel's current
         -- period, yielding the final result
-        return sweep.period + shift_res;
+        return overflow & (sweep.period + shift_res);
     end;
 
     -- enable_output function {
@@ -895,11 +914,12 @@ package body lib_apu is
     )
     return boolean
     is
-        variable shift_val : unsigned(10 downto 0);
+        variable shift_val : unsigned(11 downto 0);
     begin
         shift_val := shift_period(sweep, incr);
-        return not (sweep.period < to_unsigned(8, 11) or
-                    shift_val > b"111_1111_1111");
+        -- When the channel's period is less than 8 or the result of the shifter is
+        -- greater than $7FF, the channel's DAC receives 0
+        return sweep_valid(sweep.period, shift_val);
     end;
 
     -- next_sweep function {
@@ -911,7 +931,7 @@ package body lib_apu is
     return sweep_t
     is
         variable next_val : sweep_t;
-        variable shift_val : unsigned(10 downto 0);
+        variable shift_val : unsigned(11 downto 0);
     begin
         next_val := cur_val;
         shift_val := shift_period(cur_val, incr);
@@ -930,12 +950,11 @@ package body lib_apu is
         then
             next_val.reset := false;
             next_val.div_count := cur_val.divider;
-            if (not (cur_val.period < to_unsigned(8, 11) or
-                     shift_val > to_unsigned(16#7FF#, 11))) and
+            if sweep_valid(cur_val.period, shift_val) and
                cur_val.enable and
                cur_val.shift /= ZERO(cur_val.shift)
             then
-                next_val.period := shift_val;
+                next_val.period := shift_val(next_val.period'range);
             end if;
         elsif cur_val.reset
         then
@@ -945,6 +964,23 @@ package body lib_apu is
 
         return next_val;
     end;
+    
+    -- sweep_valid function {
+    function sweep_valid
+    (
+        cur_period    : unsigned(10 downto 0);
+        target_period : unsigned(11 downto 0)
+    )
+    return boolean
+    is
+    begin
+        -- When the channel's period is less than 8 or the result of the
+        -- shifter is greater than $7FF, the channel's DAC receives 0 and
+        -- the sweep unit doesn't change the channel's period.
+        return (cur_period >= to_unsigned(8, cur_period'length)) and
+               (target_period <= to_unsigned(16#7FF#, target_period'length));
+    end;
+    -- }
 
     -- write_reg_0 function {
     function write_reg_0(val : sweep_t; reg : data_t) return sweep_t
