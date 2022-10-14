@@ -76,7 +76,7 @@ begin
             wait for 10416 ns;
             if not reset
             then
-                aud_out := "0" & audio_out & "00000000";
+                aud_out := std_logic_vector("0" & audio_out & "00000000");
                 au_fwrite_16(audio_file, aud_out);
             end if;
         end loop;
@@ -90,7 +90,7 @@ begin
     begin
         if not mem_initialized
         then
-            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\Mario.nsf", read_mode);
+            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\WorldCup.nsf", read_mode);
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then

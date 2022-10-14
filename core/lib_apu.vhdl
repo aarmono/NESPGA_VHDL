@@ -183,7 +183,7 @@ package lib_apu is
 
     type sweep_t is record
         divider   : unsigned(2 downto 0);
-        div_count : unsigned(2 downto 0);
+        div_count : unsigned(3 downto 0);
         period    : unsigned(10 downto 0);
         enable    : boolean;
         negate    : boolean;
@@ -254,6 +254,12 @@ package lib_apu is
         cycle => (others => '0'),
         duty => (others => '0')
     );
+    
+    function square_timer_from_period
+    (
+        period : unsigned(10 downto 0)
+    )
+    return unsigned;
 
     function enable_output(seq : square_seq_t) return boolean;
 
@@ -494,10 +500,10 @@ package body lib_apu is
         -- When disable is set, the channel's volume is n (the period)
         if envelope.disable
         then
-            return std_logic_vector(envelope.period);
+            return envelope.period;
         -- otherwise it is the value in the counter
         else
-            return std_logic_vector(envelope.count);
+            return envelope.count;
         end if;
     end;
 
@@ -879,7 +885,8 @@ package body lib_apu is
     return unsigned
     is
         variable overflow : std_logic;
-        variable shift_res : unsigned(10 downto 0);
+        variable shift_res : unsigned(sweep.period'range);
+        variable result : unsigned(sweep.period'high+1 downto 0);
     begin
         -- The channel's period is first shifted right by shift bits
         shift_res := sweep.period srl to_integer(sweep.shift);
@@ -891,19 +898,18 @@ package body lib_apu is
             shift_res := (not shift_res) + incr;
         end if;
 
+        result := resize(sweep.period, result'length) +
+                  resize(shift_res, result'length);
         -- In particular, if the negate flag is false, the shift count is
         -- zero, and the current period is at least $400, the target period
         -- will be large enough to mute the channel.
         
         -- We interpret this as the MSB being an overflow bit set if ths MSB of
-        -- both the current period and target period are high and the negate
-        -- bit isn't set
-        overflow := sweep.period(sweep.period'high) and
-                    shift_res(shift_res'high) and
-                    not to_std_logic(sweep.negate);
+        -- the target period is high and the negate bit isn't set
+        overflow := result(result'high) and not to_std_logic(sweep.negate);
         -- The resulting value is added with the channel's current
         -- period, yielding the final result
-        return overflow & (sweep.period + shift_res);
+        return overflow & result(sweep.period'range);
     end;
 
     -- enable_output function {
@@ -932,9 +938,12 @@ package body lib_apu is
     is
         variable next_val : sweep_t;
         variable shift_val : unsigned(11 downto 0);
+        variable next_div_count : unsigned(cur_val.div_count'range);
     begin
         next_val := cur_val;
         shift_val := shift_period(cur_val, incr);
+        -- The divider's period is set to p + 1.
+        next_div_count := resize(cur_val.divider, next_div_count'length) + "1";
         -- When the sweep unit is clocked, the divider is first clocked
         -- and if there was a write to the sweep register since the
         -- last sweep clock, the divider is reset.
@@ -949,17 +958,19 @@ package body lib_apu is
         if cur_val.div_count = ZERO(cur_val.div_count)
         then
             next_val.reset := false;
-            next_val.div_count := cur_val.divider;
-            if sweep_valid(cur_val.period, shift_val) and
-               cur_val.enable and
-               cur_val.shift /= ZERO(cur_val.shift)
+            next_val.div_count := next_div_count;
+            if cur_val.enable and
+               cur_val.shift /= ZERO(cur_val.shift) and
+               sweep_valid(cur_val.period, shift_val)
             then
                 next_val.period := shift_val(next_val.period'range);
             end if;
         elsif cur_val.reset
         then
             next_val.reset := false;
-            next_val.div_count := cur_val.divider;
+            next_val.div_count := next_div_count;
+        else
+            next_val.div_count := cur_val.div_count - "1";
         end if;
 
         return next_val;
@@ -1035,6 +1046,18 @@ package body lib_apu is
             when others => return false;
         end case;
     end;
+    
+    function square_timer_from_period
+    (
+        period : unsigned(10 downto 0)
+    )
+    return unsigned
+    is
+    begin
+        -- the third and fourth registers form an 11-bit value
+        -- and the divider's period is set to this value *plus one*.
+        return (period + "1") & '0';
+    end;
 
     function reload
     (
@@ -1046,7 +1069,7 @@ package body lib_apu is
         variable ret : square_seq_t;
     begin
         ret := val;
-        ret.timer := period & '0';
+        ret.timer := square_timer_from_period(period);
         ret.cycle := ZERO(val.cycle);
 
         return ret;
@@ -1064,7 +1087,7 @@ package body lib_apu is
         next_val := cur_val;
         if cur_val.timer = ZERO(cur_val.timer)
         then
-            next_val.timer := period & '0';
+            next_val.timer := square_timer_from_period(period);
             next_val.cycle := cur_val.cycle + "1";
         else
             next_val.timer := cur_val.timer - "1";
@@ -1134,7 +1157,7 @@ package body lib_apu is
         -- Period calculated by sweep module is fed into 
         -- sequencer when it needs to be reloaded
         next_val.seq := next_square_seq(cur_val.seq,
-                                        cur_val.sweep.period);
+                                        next_val.sweep.period);
 
         if update_envelope
         then
