@@ -52,7 +52,6 @@ architecture behavioral of nsf_de1 is
     signal ram_data_out     : data_t;
     signal ram_data_out_in  : data_t;
     signal ram_data_in      : data_t;
-    signal nsf_data_in      : data_t;
     
     signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
