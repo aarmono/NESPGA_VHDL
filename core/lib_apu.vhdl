@@ -11,11 +11,14 @@ package lib_apu is
 
     -- Sequencer
 
+    subtype frame_seq_div_t is unsigned(12 downto 0);
+    subtype frame_seq_step_t is unsigned(2 downto 0);
+
     type frame_seq_t is record
-        divider     : unsigned(12 downto 0);
+        divider     : frame_seq_div_t;
         mode_5      : boolean;
         irq_disable : boolean;
-        step        : unsigned(2 downto 0);
+        step        : frame_seq_step_t;
     end record;
 
     constant RESET_FRAME_SEQ : frame_seq_t :=
@@ -41,16 +44,22 @@ package lib_apu is
     )
     return frame_seq_t;
 
-    constant DIV_START : unsigned(12 downto 0) := to_unsigned(7456, 13);
+    constant DIV_START : frame_seq_div_t :=
+        to_unsigned(7456, frame_seq_div_t'length);
 
     -- Envelope
+    
+    subtype envelope_count_t is unsigned(3 downto 0);
+    subtype envelope_divider_t is unsigned(3 downto 0);
+    subtype envelope_period_t is unsigned(3 downto 0);
+    
     type envelope_t is record
         reset    : boolean;
         loop_env : boolean;
         disable  : boolean;
-        count    : unsigned(3 downto 0);
-        divider  : unsigned(3 downto 0);
-        period   : unsigned(3 downto 0);
+        count    : envelope_count_t;
+        divider  : envelope_divider_t;
+        period   : envelope_period_t;
     end record;
 
     constant RESET_ENVELOPE : envelope_t :=
@@ -77,8 +86,12 @@ package lib_apu is
     function reload(val : envelope_t) return envelope_t;
 
     -- Length Counter
+    
+    subtype length_count_t is unsigned(7 downto 0);
+    subtype length_idx_t is std_logic_vector(4 downto 0);
+    
     type length_t is record
-        count  : unsigned(7 downto 0);
+        count  : length_count_t;
         halt   : boolean;
         enable : boolean;
     end record;
@@ -92,9 +105,9 @@ package lib_apu is
 
     function get_length_val
     (
-        idx : std_logic_vector(4 downto 0)
+        idx : length_idx_t
     )
-    return unsigned;
+    return length_count_t;
 
     function enable_output(length : length_t) return boolean;
 
@@ -103,11 +116,14 @@ package lib_apu is
     function is_zero(val : length_t) return boolean;
 
     -- Linear Counter {
+    
+    subtype linear_count_t is unsigned(6 downto 0);
+    
     type linear_t is record
         halt       : boolean;
         control    : boolean;
-        count      : unsigned(6 downto 0);
-        reload_val : unsigned(6 downto 0);
+        count      : linear_count_t;
+        reload_val : linear_count_t;
     end record;
 
     constant RESET_LINEAR : linear_t :=
@@ -127,8 +143,11 @@ package lib_apu is
     -- Triangle Channel
 
     -- Triangle Sequencer
+    
+    subtype triangle_seq_val_t is unsigned(3 downto 0);
+    
     type triangle_seq_t is record
-        value      : unsigned(3 downto 0);
+        value      : triangle_seq_val_t;
         descending : boolean;
     end record;
 
@@ -139,10 +158,12 @@ package lib_apu is
     );
 
     function next_triangle_seq(cur_val : triangle_seq_t) return triangle_seq_t;
+    
+    subtype triangle_count_t is unsigned(10 downto 0);
 
     type triangle_t is record
-        count  : unsigned(10 downto 0);
-        period : unsigned(10 downto 0);
+        count  : triangle_count_t;
+        period : triangle_count_t;
         linear : linear_t;
         length : length_t;
         seq    : triangle_seq_t;
@@ -180,15 +201,22 @@ package lib_apu is
     -- Square Channel
 
     -- Sweep Unit
+    
+    subtype sweep_divider_t is unsigned(2 downto 0);
+    subtype sweep_count_t is unsigned(3 downto 0);
+    subtype sweep_period_t is unsigned(10 downto 0);
+    subtype sweep_tgt_period_t is unsigned(11 downto 0);
+    subtype sweep_shift_t is unsigned(2 downto 0);
+    subtype sweep_incr_t is unsigned(0 downto 0);
 
     type sweep_t is record
-        divider   : unsigned(2 downto 0);
-        div_count : unsigned(3 downto 0);
-        period    : unsigned(10 downto 0);
+        divider   : sweep_divider_t;
+        div_count : sweep_count_t;
+        period    : sweep_period_t;
         enable    : boolean;
         negate    : boolean;
         reset     : boolean;
-        shift     : std_logic_vector(2 downto 0);
+        shift     : sweep_shift_t;
     end record;
 
     constant RESET_SWEEP : sweep_t :=
@@ -205,28 +233,28 @@ package lib_apu is
     function enable_output
     (
         sweep : sweep_t;
-        incr : unsigned(0 downto 0)
+        incr : sweep_incr_t
     )
     return boolean;
 
     function next_sweep
     (
         cur_val : sweep_t;
-        incr  : unsigned(0 downto 0)
+        incr  : sweep_incr_t
     )
     return sweep_t;
 
     function shift_period
     (
         sweep : sweep_t;
-        incr  : unsigned(0 downto 0)
+        incr  : sweep_incr_t
     )
-    return unsigned;
+    return sweep_tgt_period_t;
     
     function sweep_valid
     (
-        cur_period    : unsigned(10 downto 0);
-        target_period : unsigned(11 downto 0)
+        cur_period    : sweep_period_t;
+        target_period : sweep_tgt_period_t
     )
     return boolean;
 
@@ -242,10 +270,15 @@ package lib_apu is
     return sweep_t;
 
     -- Sequencer
+    
+    subtype square_seq_timer_t is unsigned(11 downto 0);
+    subtype square_seq_cycle_t is unsigned(2 downto 0);
+    subtype square_seq_duty_t is std_logic_vector(1 downto 0);
+    
     type square_seq_t is record
-        timer : unsigned(11 downto 0);
-        cycle : unsigned(2 downto 0);
-        duty  : std_logic_vector(1 downto 0);
+        timer : square_seq_timer_t;
+        cycle : square_seq_cycle_t;
+        duty  : square_seq_duty_t;
     end record;
 
     constant RESET_SQUARE_SEQ : square_seq_t :=
@@ -257,16 +290,16 @@ package lib_apu is
     
     function square_timer_from_period
     (
-        period : unsigned(10 downto 0)
+        period : sweep_period_t
     )
-    return unsigned;
+    return square_seq_timer_t;
 
     function enable_output(seq : square_seq_t) return boolean;
 
     function next_square_seq
     (
         cur_val : square_seq_t;
-        period  : unsigned(10 downto 0)
+        period  : sweep_period_t
     )
     return square_seq_t;
 
@@ -280,7 +313,7 @@ package lib_apu is
     function reload
     (
         val    : square_seq_t;
-        period : unsigned(10 downto 0)
+        period : sweep_period_t
     )
     return square_seq_t;
 
@@ -302,7 +335,7 @@ package lib_apu is
     function audio
     (
         square : square_t;
-        incr   : unsigned(0 downto 0)
+        incr   : sweep_incr_t
     )
     return audio_t;
 
@@ -311,7 +344,7 @@ package lib_apu is
         cur_val         : square_t;
         update_envelope : boolean;
         update_length   : boolean;
-        incr            : unsigned(0 downto 0)
+        incr            : sweep_incr_t
     )
     return square_t;
 
@@ -331,11 +364,15 @@ package lib_apu is
 
     -- Random Shifter
 
+    subtype random_idx_t is std_logic_vector(3 downto 0);
+    subtype random_count_t is unsigned(11 downto 0);
+    subtype random_shift_t is std_logic_vector(14 downto 0);
+
     type random_t is record
-        period_idx : std_logic_vector(3 downto 0);
-        count      : unsigned(11 downto 0);
+        period_idx : random_idx_t;
+        count      : random_count_t;
         short_mode : boolean;
-        shift      : std_logic_vector(14 downto 0);
+        shift      : random_shift_t;
     end record;
 
     constant RESET_RANDOM : random_t :=
@@ -350,9 +387,9 @@ package lib_apu is
 
     function get_random_period
     (
-        idx : std_logic_vector(3 downto 0)
+        idx : random_idx_t
     )
-    return unsigned;
+    return random_count_t;
 
     function next_random(cur_val : random_t) return random_t;
 
@@ -481,7 +518,7 @@ package body lib_apu is
         ret.irq_disable := reg(0) = '1';
         ret.step := "000";
         -- If the mode flag is set, the sequencer is immediately clocked once
-        if reg(1) = '1'
+        if ret.mode_5
         then
             ret.divider := ZERO(val.divider);
         else
@@ -511,20 +548,23 @@ package body lib_apu is
     function next_envelope(cur_val : envelope_t) return envelope_t
     is
         variable next_val : envelope_t;
+        variable next_divider : envelope_divider_t;
     begin
         next_val := cur_val;
+        -- The divider's period is set to n + 1
+        next_divider := resize(cur_val.period, next_val.divider'length) + "1";
         -- If there was a write to the fourth channel register
         -- since the last clock, the counter is set to 15 and
         -- the divider is reset
         if cur_val.reset
         then
             next_val.count := x"F";
-            next_val.divider := cur_val.period;
+            next_val.divider := next_divider;
             next_val.reset := false;
         -- otherwise, the divider is clocked
         elsif cur_val.divider = ZERO(cur_val.divider)
         then
-            next_val.divider := cur_val.period;
+            next_val.divider := next_divider;
             -- if loop is set and counter is zero, it is
             -- set to 15
             if cur_val.loop_env and cur_val.count = ZERO(cur_val.count)
@@ -576,9 +616,9 @@ package body lib_apu is
     -- get_length_val function {
     function get_length_val
     (
-        idx : std_logic_vector(4 downto 0)
+        idx : length_idx_t
     )
-    return unsigned
+    return length_count_t
     is
     begin
         case idx is
@@ -614,7 +654,7 @@ package body lib_apu is
             when "11101" => return x"1C";
             when "11110" => return x"20";
             when "11111" => return x"1E";
-            when others => return x"00";
+            when others  => return x"--";
         end case;
     end;
 
@@ -880,13 +920,13 @@ package body lib_apu is
     function shift_period
     (
         sweep : sweep_t;
-        incr  : unsigned(0 downto 0)
+        incr  : sweep_incr_t
     )
-    return unsigned
+    return sweep_tgt_period_t
     is
         variable overflow : std_logic;
-        variable shift_res : unsigned(sweep.period'range);
-        variable result : unsigned(sweep.period'high+1 downto 0);
+        variable shift_res : sweep_period_t;
+        variable result : sweep_tgt_period_t;
     begin
         -- The channel's period is first shifted right by shift bits
         shift_res := sweep.period srl to_integer(sweep.shift);
@@ -909,18 +949,18 @@ package body lib_apu is
         overflow := result(result'high) and not to_std_logic(sweep.negate);
         -- The resulting value is added with the channel's current
         -- period, yielding the final result
-        return overflow & result(sweep.period'range);
+        return overflow & result(sweep_period_t'range);
     end;
 
     -- enable_output function {
     function enable_output
     (
         sweep : sweep_t;
-        incr  : unsigned(0 downto 0)
+        incr  : sweep_incr_t
     )
     return boolean
     is
-        variable shift_val : unsigned(11 downto 0);
+        variable shift_val : sweep_tgt_period_t;
     begin
         shift_val := shift_period(sweep, incr);
         -- When the channel's period is less than 8 or the result of the shifter is
@@ -932,13 +972,13 @@ package body lib_apu is
     function next_sweep
     (
         cur_val : sweep_t;
-        incr    : unsigned(0 downto 0)
+        incr    : sweep_incr_t
     )
     return sweep_t
     is
         variable next_val : sweep_t;
-        variable shift_val : unsigned(11 downto 0);
-        variable next_div_count : unsigned(cur_val.div_count'range);
+        variable shift_val : sweep_tgt_period_t;
+        variable next_div_count : sweep_count_t;
     begin
         next_val := cur_val;
         shift_val := shift_period(cur_val, incr);
@@ -979,8 +1019,8 @@ package body lib_apu is
     -- sweep_valid function {
     function sweep_valid
     (
-        cur_period    : unsigned(10 downto 0);
-        target_period : unsigned(11 downto 0)
+        cur_period    : sweep_period_t;
+        target_period : sweep_tgt_period_t
     )
     return boolean
     is
@@ -1002,7 +1042,7 @@ package body lib_apu is
         ret.enable := reg(7) = '1';
         ret.divider := unsigned(reg(6 downto 4));
         ret.negate := reg(3) = '1';
-        ret.shift := reg(2 downto 0);
+        ret.shift := unsigned(reg(2 downto 0));
 
         return ret;
     end;
@@ -1049,9 +1089,9 @@ package body lib_apu is
     
     function square_timer_from_period
     (
-        period : unsigned(10 downto 0)
+        period : sweep_period_t
     )
-    return unsigned
+    return square_seq_timer_t
     is
     begin
         -- the third and fourth registers form an 11-bit value
@@ -1061,8 +1101,8 @@ package body lib_apu is
 
     function reload
     (
-        val : square_seq_t;
-        period : unsigned(10 downto 0)
+        val    : square_seq_t;
+        period : sweep_period_t
     )
     return square_seq_t
     is
@@ -1078,7 +1118,7 @@ package body lib_apu is
     function next_square_seq
     (
         cur_val : square_seq_t;
-        period  : unsigned(10 downto 0)
+        period  : sweep_period_t
     )
     return square_seq_t
     is
@@ -1114,7 +1154,7 @@ package body lib_apu is
     function audio
     (
         square : square_t;
-        incr   : unsigned(0 downto 0)
+        incr   : sweep_incr_t
     )
     return audio_t
     is
@@ -1141,7 +1181,7 @@ package body lib_apu is
         cur_val         : square_t;
         update_envelope : boolean;
         update_length   : boolean;
-        incr            : unsigned(0 downto 0)
+        incr            : sweep_incr_t
     )
     return square_t
     is
@@ -1267,9 +1307,9 @@ package body lib_apu is
 
     function get_random_period
     (
-        idx : std_logic_vector(3 downto 0)
+        idx : random_idx_t
     )
-    return unsigned
+    return random_count_t
     is
     begin
         case idx is
