@@ -11,17 +11,17 @@ package ram_bus_types is
         write    : boolean;
     end record;
     
-	function bus_read(addr_in : ram_addr_t) return ram_bus_t;
+    function bus_read(addr_in : ram_addr_t) return ram_bus_t;
     function bus_read(addr_in : unsigned(ram_addr_t'RANGE)) return ram_bus_t;
-	function bus_write(addr_in : ram_addr_t) return ram_bus_t;
+    function bus_write(addr_in : ram_addr_t) return ram_bus_t;
     function bus_write(addr_in : unsigned(ram_addr_t'RANGE)) return ram_bus_t;
-	function bus_idle(bus_in : ram_bus_t) return ram_bus_t;
-	
-	function is_bus_active(bus_in : ram_bus_t) return boolean;
-	function is_bus_write(bus_in : ram_bus_t) return boolean;
+    function bus_idle(bus_in : ram_bus_t) return ram_bus_t;
+    
+    function is_bus_active(bus_in : ram_bus_t) return boolean;
+    function is_bus_write(bus_in : ram_bus_t) return boolean;
     function is_bus_read(bus_in :ram_bus_t) return boolean;
-	
-	procedure bus_assert_check(bus_in : in ram_bus_t);
+    
+    procedure bus_assert_check(bus_in : in ram_bus_t);
 
 end ram_bus_types;
 

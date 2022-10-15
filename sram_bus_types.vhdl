@@ -11,17 +11,17 @@ package sram_bus_types is
         write    : boolean;
     end record;
     
-	function bus_read(addr_in : sram_addr_t) return sram_bus_t;
+    function bus_read(addr_in : sram_addr_t) return sram_bus_t;
     function bus_read(addr_in : unsigned(sram_addr_t'RANGE)) return sram_bus_t;
-	function bus_write(addr_in : sram_addr_t) return sram_bus_t;
+    function bus_write(addr_in : sram_addr_t) return sram_bus_t;
     function bus_write(addr_in : unsigned(sram_addr_t'RANGE)) return sram_bus_t;
-	function bus_idle(bus_in : sram_bus_t) return sram_bus_t;
-	
-	function is_bus_active(bus_in : sram_bus_t) return boolean;
-	function is_bus_write(bus_in : sram_bus_t) return boolean;
+    function bus_idle(bus_in : sram_bus_t) return sram_bus_t;
+    
+    function is_bus_active(bus_in : sram_bus_t) return boolean;
+    function is_bus_write(bus_in : sram_bus_t) return boolean;
     function is_bus_read(bus_in :sram_bus_t) return boolean;
-	
-	procedure bus_assert_check(bus_in : in sram_bus_t);
+    
+    procedure bus_assert_check(bus_in : in sram_bus_t);
 
 end sram_bus_types;
 

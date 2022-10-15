@@ -16,17 +16,17 @@ package ${prefix}_bus_types is
         write    : boolean;
     end record;
     
-	function bus_read(addr_in : $addr_type) return ${bus_type};
+    function bus_read(addr_in : $addr_type) return ${bus_type};
     function bus_read(addr_in : unsigned(${addr_type}'RANGE)) return ${bus_type};
-	function bus_write(addr_in : $addr_type) return ${bus_type};
+    function bus_write(addr_in : $addr_type) return ${bus_type};
     function bus_write(addr_in : unsigned(${addr_type}'RANGE)) return ${bus_type};
-	function bus_idle(bus_in : $bus_type) return $bus_type;
-	
-	function is_bus_active(bus_in : $bus_type) return boolean;
-	function is_bus_write(bus_in : $bus_type) return boolean;
+    function bus_idle(bus_in : $bus_type) return $bus_type;
+    
+    function is_bus_active(bus_in : $bus_type) return boolean;
+    function is_bus_write(bus_in : $bus_type) return boolean;
     function is_bus_read(bus_in :$bus_type) return boolean;
-	
-	procedure bus_assert_check(bus_in : in $bus_type);
+    
+    procedure bus_assert_check(bus_in : in $bus_type);
 
 end ${prefix}_bus_types;
 

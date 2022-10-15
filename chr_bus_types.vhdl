@@ -11,17 +11,17 @@ package chr_bus_types is
         write    : boolean;
     end record;
     
-	function bus_read(addr_in : chr_addr_t) return chr_bus_t;
+    function bus_read(addr_in : chr_addr_t) return chr_bus_t;
     function bus_read(addr_in : unsigned(chr_addr_t'RANGE)) return chr_bus_t;
-	function bus_write(addr_in : chr_addr_t) return chr_bus_t;
+    function bus_write(addr_in : chr_addr_t) return chr_bus_t;
     function bus_write(addr_in : unsigned(chr_addr_t'RANGE)) return chr_bus_t;
-	function bus_idle(bus_in : chr_bus_t) return chr_bus_t;
-	
-	function is_bus_active(bus_in : chr_bus_t) return boolean;
-	function is_bus_write(bus_in : chr_bus_t) return boolean;
+    function bus_idle(bus_in : chr_bus_t) return chr_bus_t;
+    
+    function is_bus_active(bus_in : chr_bus_t) return boolean;
+    function is_bus_write(bus_in : chr_bus_t) return boolean;
     function is_bus_read(bus_in :chr_bus_t) return boolean;
-	
-	procedure bus_assert_check(bus_in : in chr_bus_t);
+    
+    procedure bus_assert_check(bus_in : in chr_bus_t);
 
 end chr_bus_types;
 

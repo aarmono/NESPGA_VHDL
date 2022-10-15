@@ -11,17 +11,17 @@ package cpu_bus_types is
         write    : boolean;
     end record;
     
-	function bus_read(addr_in : cpu_addr_t) return cpu_bus_t;
+    function bus_read(addr_in : cpu_addr_t) return cpu_bus_t;
     function bus_read(addr_in : unsigned(cpu_addr_t'RANGE)) return cpu_bus_t;
-	function bus_write(addr_in : cpu_addr_t) return cpu_bus_t;
+    function bus_write(addr_in : cpu_addr_t) return cpu_bus_t;
     function bus_write(addr_in : unsigned(cpu_addr_t'RANGE)) return cpu_bus_t;
-	function bus_idle(bus_in : cpu_bus_t) return cpu_bus_t;
-	
-	function is_bus_active(bus_in : cpu_bus_t) return boolean;
-	function is_bus_write(bus_in : cpu_bus_t) return boolean;
+    function bus_idle(bus_in : cpu_bus_t) return cpu_bus_t;
+    
+    function is_bus_active(bus_in : cpu_bus_t) return boolean;
+    function is_bus_write(bus_in : cpu_bus_t) return boolean;
     function is_bus_read(bus_in :cpu_bus_t) return boolean;
-	
-	procedure bus_assert_check(bus_in : in cpu_bus_t);
+    
+    procedure bus_assert_check(bus_in : in cpu_bus_t);
 
 end cpu_bus_types;
 

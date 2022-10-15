@@ -11,17 +11,17 @@ package prg_bus_types is
         write    : boolean;
     end record;
     
-	function bus_read(addr_in : prg_addr_t) return prg_bus_t;
+    function bus_read(addr_in : prg_addr_t) return prg_bus_t;
     function bus_read(addr_in : unsigned(prg_addr_t'RANGE)) return prg_bus_t;
-	function bus_write(addr_in : prg_addr_t) return prg_bus_t;
+    function bus_write(addr_in : prg_addr_t) return prg_bus_t;
     function bus_write(addr_in : unsigned(prg_addr_t'RANGE)) return prg_bus_t;
-	function bus_idle(bus_in : prg_bus_t) return prg_bus_t;
-	
-	function is_bus_active(bus_in : prg_bus_t) return boolean;
-	function is_bus_write(bus_in : prg_bus_t) return boolean;
+    function bus_idle(bus_in : prg_bus_t) return prg_bus_t;
+    
+    function is_bus_active(bus_in : prg_bus_t) return boolean;
+    function is_bus_write(bus_in : prg_bus_t) return boolean;
     function is_bus_read(bus_in :prg_bus_t) return boolean;
-	
-	procedure bus_assert_check(bus_in : in prg_bus_t);
+    
+    procedure bus_assert_check(bus_in : in prg_bus_t);
 
 end prg_bus_types;
 
