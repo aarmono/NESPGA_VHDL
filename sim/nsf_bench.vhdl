@@ -10,10 +10,10 @@ use work.au_file.all;
 use work.utilities.all;
 use work.lib_nsf.all;
 
-entity test_bench is
-end test_bench;
+entity nsf_bench is
+end nsf_bench;
 
-architecture behavioral of test_bench is
+architecture behavioral of nsf_bench is
     type ram_t is array(0 to 16#7FF#) of data_t;
     type sram_t is array(0 to 16#1FFF#) of data_t;
     
