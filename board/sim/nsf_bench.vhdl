@@ -1,14 +1,15 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.nes_types.all;
+use work.nes_core.all;
+use work.nes_audio_mixer.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.cpu_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
 use work.utilities.all;
-use work.lib_nsf.all;
+use work.soc.all;
 
 entity nsf_bench is
 end nsf_bench;

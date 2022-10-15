@@ -5,7 +5,8 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.nes_types.all;
+use work.nes_core.all;
+use work.nes_audio_mixer.all;
 use work.utilities.all;
 use work.lib_nsf_rom.all;
 

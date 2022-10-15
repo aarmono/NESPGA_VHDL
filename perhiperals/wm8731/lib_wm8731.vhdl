@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
+use work.perhipherals.all;
 
 package lib_wm8731 is
     
@@ -31,8 +32,6 @@ package lib_wm8731 is
         dacdat  : std_logic;
     end record;
     
-    subtype wm_audio_t is std_logic_vector(15 downto 0);
-    
     type wm8731_aud_t is record
         fifo  : wm_audio_t;
         count : unsigned(5 downto 0);
@@ -43,22 +42,6 @@ package lib_wm8731 is
     function is_idle(val : wm8731_aud_t) return boolean;
     function reset_val(val : wm8731_aud_t) return wm8731_aud_t;
     function next_aud(cur_val : wm8731_aud_t) return wm8731_aud_t;
-    
-    component wm8731 is
-    port
-    (
-        clk      : in std_logic;
-        reset    : in boolean;
-        
-        audio    : in wm_audio_t;
-        
-        sclk     : out std_logic;
-        sdat     : out std_logic;
-        bclk     : out std_logic;
-        dac_dat  : out std_logic;
-        dac_lrck : out std_logic
-    );
-    end component wm8731;
     
 end lib_wm8731;
 

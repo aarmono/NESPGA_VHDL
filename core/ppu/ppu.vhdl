@@ -5,7 +5,7 @@ use work.lib_ppu.all;
 use work.ppu_bus_types.all;
 use work.chr_bus_types.all;
 use work.palette_bus_types.all;
-use work.nes_types.all;
+use work.nes_core.all;
 use work.utilities.all;
 
 entity ppu is

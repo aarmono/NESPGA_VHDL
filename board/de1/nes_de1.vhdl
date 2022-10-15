@@ -5,11 +5,11 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.nes_types.all;
+use work.nes_core.all;
 use work.lib_ppu.all;
 use work.utilities.all;
 use work.lib_nsf_rom.all;
-use work.lib_wm8731.all;
+use work.perhipherals.all;
 
 entity nsf_de1 is
 port
