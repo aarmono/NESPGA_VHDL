@@ -76,7 +76,7 @@ begin
             wait for 10416 ns;
             if not reset
             then
-                aud_out := std_logic_vector("0" & audio_out & "00000000");
+                aud_out := std_logic_vector("0" & audio_out & "0000000");
                 au_fwrite_16(audio_file, aud_out);
             end if;
         end loop;

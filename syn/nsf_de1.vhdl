@@ -94,7 +94,7 @@ begin
     fl_rst_n <= '1';
     
     
-    audio <= "0" & std_logic_vector(audio_out) & "00000000";
+    audio <= "0" & std_logic_vector(audio_out) & "0000000";
     
     -- WM8731 interface {
     aud_out : wm8731
