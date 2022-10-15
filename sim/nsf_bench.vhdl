@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
+use work.cpu_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
 use work.utilities.all;
@@ -21,11 +22,13 @@ architecture behavioral of test_bench is
     
     signal ram_bus     : ram_bus_t;
     signal sram_bus    : sram_bus_t;
+    signal nsf_bus     : cpu_bus_t;
     
     signal sram_data_out    : data_t;
     signal sram_data_in     : data_t;
     signal ram_data_out     : data_t;
     signal ram_data_in      : data_t;
+    signal nsf_data_in      : data_t;
     
     signal audio_out : mixed_audio_t;
     
@@ -33,9 +36,6 @@ architecture behavioral of test_bench is
     
     signal cpu_clk : std_logic := '0';
     signal nsf_clk : std_logic := '0';
-    
-    signal fl_dq   : std_logic_vector(7 downto 0);
-    signal fl_addr : std_logic_vector(21 downto 0);
     
     type memory_t is array (0 to 65535) of data_t;
     signal mem : memory_t;
@@ -53,8 +53,8 @@ begin
         
         reset_out => reset,
         
-        fl_dq => fl_dq,
-        fl_addr => fl_addr,
+        nsf_bus => nsf_bus,
+        nsf_data_in => nsf_data_in,
         
         sram_bus => sram_bus,
         sram_data_out => sram_data_out,
@@ -84,7 +84,7 @@ begin
             
     
     -- Memory {
-    process(fl_addr, mem_initialized)
+    process(nsf_bus, mem_initialized)
         file test_mem     : byte_file_t;
         variable read_val : byte;
     begin
@@ -104,7 +104,10 @@ begin
             mem_initialized <= true;
         end if;
         
-        fl_dq <= mem(to_integer(fl_addr(15 downto 0)));
+        if is_bus_read(nsf_bus)
+        then
+            nsf_data_in <= mem(to_integer(nsf_bus.address));
+        end if;
     end process;
     -- }
     

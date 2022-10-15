@@ -17,11 +17,8 @@ port
     
     reset_out : out boolean;
     
-    fl_dq    : in std_logic_vector(7 downto 0);
-    fl_addr  : out std_logic_vector(21 downto 0);
-    fl_we_n  : out std_logic;
-    fl_oe_n  : out std_logic;
-    fl_rst_n : out std_logic;
+    nsf_bus     : out cpu_bus_t;
+    nsf_data_in : in data_t;
     
     sram_bus      : out sram_bus_t;
     sram_data_out : out data_t;
@@ -85,10 +82,6 @@ architecture behavioral of nsf_soc is
     signal audio_out : apu_out_t;
 begin
     
-    fl_we_n <= '1';
-    fl_oe_n <= '0';
-    fl_rst_n <= '1';
-    
     reset_out <= reset;
     
     -- CPU {
@@ -129,22 +122,22 @@ begin
     process
     (
         reg,
-        fl_dq,
         cpu_bus,
         ram_data_in,
         sram_data_in,
         cpu_data_in,
-        apu_data_in
+        apu_data_in,
+        nsf_data_in
     )
         variable v_ram_bus       : ram_bus_t;
         variable v_sram_bus      : sram_bus_t;
         variable v_apu_bus       : apu_bus_t;
+        variable v_nsf_bus       : cpu_bus_t;
         variable v_ram_data_out  : data_t;
         variable v_sram_data_out : data_t;
         variable v_apu_data_out  : data_t;
         variable v_cpu_data_out  : data_t;
         variable v_reg           : reg_t;
-        variable v_flash_addr    : std_logic_vector(fl_addr'RANGE);
         
         variable v_reset : boolean;
         variable v_nmi   : boolean;
@@ -156,12 +149,12 @@ begin
         v_ram_bus := bus_idle(v_ram_bus);
         v_sram_bus := bus_idle(v_sram_bus);
         v_apu_bus := bus_idle(v_apu_bus);
+        v_nsf_bus := bus_idle(v_nsf_bus);
         
         v_ram_data_out := (others => '-');
         v_sram_data_out := (others => '-');
         v_cpu_data_out := (others => '-');
         v_apu_data_out := (others => '-');
-        v_flash_addr := (others => '-');
         
         v_reset := false;
         v_nmi := false;
@@ -182,41 +175,41 @@ begin
                 end if;
             when STATE_LOAD =>
                 v_reset := true;
-                v_flash_addr := resize(std_logic_vector(reg.cur_time),
-                                       v_flash_addr'LENGTH);
+                v_nsf_bus :=
+                    bus_read(resize(reg.cur_time, v_nsf_bus.address'length));
                 case reg.cur_time is
                     -- Total Songs
                     when x"0006" =>
-                        v_reg.total_songs := unsigned(fl_dq);
+                        v_reg.total_songs := unsigned(nsf_data_in);
                     -- Starting Song
                     when x"0007" =>
-                        v_reg.start_song := unsigned(fl_dq);
+                        v_reg.start_song := unsigned(nsf_data_in);
                     -- Load Addr Low
                     when x"0008" =>
-                        v_reg.load_addr(7 downto 0) := fl_dq;
+                        v_reg.load_addr(7 downto 0) := nsf_data_in;
                     -- Load Addr High
                     when x"0009" =>
-                        v_reg.load_addr(15 downto 8) := fl_dq;
+                        v_reg.load_addr(15 downto 8) := nsf_data_in;
                     -- Init Addr Low
                     when x"000A" =>
-                        v_reg.init_addr(7 downto 0) := fl_dq;
+                        v_reg.init_addr(7 downto 0) := nsf_data_in;
                     -- Init Addr High
                     when x"000B" =>
-                        v_reg.init_addr(15 downto 8) := fl_dq;
+                        v_reg.init_addr(15 downto 8) := nsf_data_in;
                     -- Play Addr Low
                     when x"000C" =>
-                        v_reg.play_addr(7 downto 0) := fl_dq;
+                        v_reg.play_addr(7 downto 0) := nsf_data_in;
                     -- Play Addr High
                     when x"000D" =>
-                        v_reg.play_addr(15 downto 8) := fl_dq;
+                        v_reg.play_addr(15 downto 8) := nsf_data_in;
                     -- Speed Low, NTSC
                     when x"006E" =>
-                        v_reg.speed(7 downto 0) := unsigned(fl_dq);
+                        v_reg.speed(7 downto 0) := unsigned(nsf_data_in);
                     -- Speed High, NTSC
                     when x"006F" =>
-                        v_reg.speed(15 downto 8) := unsigned(fl_dq);
+                        v_reg.speed(15 downto 8) := unsigned(nsf_data_in);
                     when x"007A" =>
-                        v_reg.song_type := fl_dq(0);
+                        v_reg.song_type := nsf_data_in(0);
                     when others =>
                 end case;
                 
@@ -300,11 +293,11 @@ begin
                             v_apu_data_out := cpu_data_in;
                         elsif cpu_bus.address >= reg.load_addr
                         then
-                            v_flash_addr := 
-                                resize(std_logic_vector(unsigned(cpu_bus.address) -
-                                                        unsigned(reg.load_addr) +
-                                                        x"80"), v_flash_addr'LENGTH);
-                            v_cpu_data_out := fl_dq;
+                            v_nsf_bus :=
+                                bus_read(unsigned(cpu_bus.address) -
+                                         unsigned(reg.load_addr) +
+                                         x"80");
+                            v_cpu_data_out := nsf_data_in;
                         end if;
                 end case;
         end case;
@@ -312,6 +305,7 @@ begin
         apu_bus <= v_apu_bus;
         sram_bus <= v_sram_bus;
         ram_bus <= v_ram_bus;
+        nsf_bus <= v_nsf_bus;
         
         sram_data_out <= v_sram_data_out;
         apu_data_out <= v_apu_data_out;
@@ -321,8 +315,6 @@ begin
         reg_in <= v_reg;
         reset <= v_reset;
         nmi <= v_nmi;
-        
-        fl_addr <= v_flash_addr;
     end process;
     
     -- Register update process {

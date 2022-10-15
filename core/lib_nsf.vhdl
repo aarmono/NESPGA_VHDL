@@ -81,11 +81,8 @@ package lib_nsf is
         
         reset_out : out boolean;
         
-        fl_dq    : in std_logic_vector(7 downto 0);
-        fl_addr  : out std_logic_vector(21 downto 0);
-        fl_we_n  : out std_logic;
-        fl_oe_n  : out std_logic;
-        fl_rst_n : out std_logic;
+        nsf_bus     : out cpu_bus_t;
+        nsf_data_in : in data_t;
         
         sram_bus      : out sram_bus_t;
         sram_data_out : out data_t;

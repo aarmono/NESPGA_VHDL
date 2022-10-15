@@ -44,6 +44,7 @@ architecture behavioral of nsf_de1 is
     signal ram_bus_in  : ram_bus_t;
     signal sram_bus_in : sram_bus_t;
     signal sram_bus    : sram_bus_t;
+    signal nsf_bus     : cpu_bus_t;
     
     signal sram_data_out    : data_t;
     signal sram_data_out_in : data_t;
@@ -51,6 +52,7 @@ architecture behavioral of nsf_de1 is
     signal ram_data_out     : data_t;
     signal ram_data_out_in  : data_t;
     signal ram_data_in      : data_t;
+    signal nsf_data_in      : data_t;
     
     signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
@@ -73,11 +75,8 @@ begin
         
         reset_out => reset,
         
-        fl_dq => fl_dq,
-        fl_addr => fl_addr,
-        fl_we_n => fl_we_n,
-        fl_oe_n => fl_oe_n,
-        fl_rst_n => fl_rst_n,
+        nsf_bus => nsf_bus,
+        nsf_data_in => fl_dq,
         
         sram_bus => sram_bus_in,
         sram_data_out => sram_data_out_in,
@@ -90,7 +89,13 @@ begin
         audio => audio_out
     );
     
-    audio <= "0" & audio_out & "00000000";
+    fl_addr <= resize(nsf_bus.address, fl_addr'length);
+    fl_we_n <= '1';
+    fl_oe_n <= '0';
+    fl_rst_n <= '1';
+    
+    
+    audio <= "0" & std_logic_vector(audio_out) & "00000000";
     
     -- WM8731 interface {
     aud_out : wm8731
