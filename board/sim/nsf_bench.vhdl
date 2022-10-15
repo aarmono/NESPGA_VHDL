@@ -70,7 +70,7 @@ begin
     process
         variable aud_out : std_logic_vector(15 downto 0);
     begin
-        au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\sim\\out.au", x"00017700");
+        au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au", x"00017700");
         
         while true loop
             wait for 10416 ns;
