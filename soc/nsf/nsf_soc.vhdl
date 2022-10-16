@@ -8,6 +8,7 @@ use work.sram_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.lib_nsf.all;
+use work.simulation.all;
 
 entity nsf_soc is
 port
@@ -84,6 +85,19 @@ begin
         
         audio => audio_out,
         irq => irq
+    );
+    -- }
+    
+    -- Bus Recorder (for testbench) {
+    apu_recorder : apu_bus_record
+    generic map
+    (
+        FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\core\\apu\\Sequence.dat"
+    )
+    port map
+    (
+        apu_bus => apu_bus,
+        apu_data_in => apu_data_out
     );
     -- }
     

@@ -6,10 +6,10 @@ use work.nes_audio_mixer.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.cpu_bus_types.all;
-use work.binary_io.all;
-use work.au_file.all;
 use work.utilities.all;
 use work.soc.all;
+use work.binary_io.all;
+use work.simulation.all;
 
 entity nsf_bench is
 end nsf_bench;
@@ -42,7 +42,6 @@ architecture behavioral of nsf_bench is
     signal mem : memory_t;
     signal mem_initialized : boolean := false;
     
-    file audio_file : byte_file_t;
     signal aud_count : unsigned(3 downto 0) := x"F";
 begin
 
@@ -68,21 +67,17 @@ begin
         audio => audio_out
     );
     
-    process
-        variable aud_out : std_logic_vector(15 downto 0);
-    begin
-        au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au", x"00017700");
-        
-        while true loop
-            wait for 10416 ns;
-            if not reset
-            then
-                aud_out := std_logic_vector("0" & audio_out & "0000000");
-                au_fwrite_16(audio_file, aud_out);
-            end if;
-        end loop;
-    end process;
-            
+    apu_recorder : apu_audio_record
+    generic map
+    (
+        FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au"
+    )
+    port map
+    (
+        audio => audio_out,
+        ready => not reset,
+        done => false
+    );
     
     -- Memory {
     process(nsf_bus, mem_initialized)

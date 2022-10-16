@@ -4,3 +4,4 @@ board/sim/work/**
 **/transcript
 **/*.wlf
 **/*.mti
+**/*.dat
