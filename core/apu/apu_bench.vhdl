@@ -16,7 +16,7 @@ architecture behavioral of apu_bench is
     
     signal audio_out : apu_out_t;
     
-    signal reset : boolean := true;
+    signal reset : boolean;
     
     signal cpu_clk : std_logic := '0';
     
@@ -63,16 +63,17 @@ begin
     );
     
     -- Clock {
-    process
-    begin
-        while not done loop
-            wait for 279 ns;
-            cpu_clk <= '1';
-            wait for 280 ns;
-            cpu_clk <= '0';
-            reset <= false;
-        end loop;
-    end process;
+    cpu_clk_gen : clock
+    generic map
+    (
+        PERIOD => 559 ns
+    )
+    port map
+    (
+        done => done,
+        clk => cpu_clk,
+        reset => reset
+    );
     -- }
 
 end behavioral;

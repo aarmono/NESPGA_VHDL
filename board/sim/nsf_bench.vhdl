@@ -132,25 +132,27 @@ begin
     -- }
     
     -- Clock {
-    process
-    begin
-        while true loop
-            wait for 279 ns;
-            cpu_clk <= '1';
-            wait for 280 ns;
-            cpu_clk <= '0';
-        end loop;
-    end process;
+    cpu_clk_gen : clock
+    generic map
+    (
+        PERIOD => 559 ns
+    )
+    port map
+    (
+        clk => cpu_clk,
+        done => false
+    );
     
-    process
-    begin
-        while true loop
-            wait for 500 ns;
-            nsf_clk <= '1';
-            wait for 500 ns;
-            nsf_clk <= '0';
-        end loop;
-    end process;
+    nsf_clk_gen : clock
+    generic map
+    (
+        PERIOD => 1 us
+    )
+    port map
+    (
+        clk => nsf_clk,
+        done => false
+    );
     -- }
 
 end behavioral;

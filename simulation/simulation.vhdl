@@ -44,6 +44,19 @@ package simulation is
         done  : in boolean
     );
     end component apu_audio_record;
+    
+    component clock is
+    generic
+    (
+        PERIOD : time
+    );
+    port
+    (
+        done  : in boolean;
+        clk   : out std_logic;
+        reset : out boolean
+    );
+    end component clock;
 
 end simulation;
 
