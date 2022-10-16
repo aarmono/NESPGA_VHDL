@@ -4,17 +4,25 @@ use IEEE.numeric_std.all;
 use work.binary_io.all;
 
 package au_file is
+
+    subtype au_file_t is byte_file_t;
+
     procedure au_fopen_16
     (
-        file byte_file : byte_file_t;
+        file byte_file : au_file_t;
         filename       : string;
         sample_rate    : std_logic_vector(31 downto 0)
     );
     
     procedure au_fwrite_16
     (
-        file file_in : byte_file_t; 
+        file file_in : au_file_t; 
         val          : std_logic_vector(15 downto 0)
+    );
+    
+    procedure au_fclose_16
+    (
+        file file_in : au_file_t
     );
     
 end au_file;
@@ -22,7 +30,7 @@ end au_file;
 package body au_file is
     procedure au_fwrite_word
     (
-        file byte_file : byte_file_t;
+        file byte_file : au_file_t;
         word           : std_logic_vector(31 downto 0)
     )
     is
@@ -35,7 +43,7 @@ package body au_file is
     
     procedure au_fopen_16
     (
-        file byte_file : byte_file_t;
+        file byte_file : au_file_t;
         filename       : string;
         sample_rate    : std_logic_vector(31 downto 0)
     )
@@ -58,12 +66,21 @@ package body au_file is
     
     procedure au_fwrite_16
     (
-        file file_in : byte_file_t; 
+        file file_in : au_file_t; 
         val          : std_logic_vector(15 downto 0)
     )
     is
     begin
         byte_fwrite(file_in, val(15 downto 8));
         byte_fwrite(file_in, val(7 downto 0));
+    end;
+    
+    procedure au_fclose_16
+    (
+        file file_in : au_file_t
+    )
+    is
+    begin
+        byte_fclose(file_in);
     end;
 end package body;
