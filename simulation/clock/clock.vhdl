@@ -19,13 +19,17 @@ begin
 
     process
         variable v_clk : std_logic := '0';
+        -- Compute low and high time this way to prevent
+        -- rounding errors
+        constant low_time  : time := PERIOD / 2;
+        constant high_time : time := PERIOD - low_time;
     begin
         clk <= '0';
         reset <= true;
         while not done loop
-            wait for PERIOD / 2;
+            wait for low_time;
             clk <= '1';
-            wait for PERIOD / 2;
+            wait for high_time;
             clk <= '0';
             reset <= false;
         end loop;
