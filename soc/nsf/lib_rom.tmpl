@@ -3,7 +3,6 @@ use IEEE.std_logic_1164.all;
 
 #import os
 #import math
-#from binascii import hexlify
 #set $NAME = $os.environ['NAME']
 #set $FILE = $os.environ['FILE']
 
@@ -38,7 +37,7 @@ package body lib_${NAME}_rom is
         case addr is
             #set $addr = 0
             #for $byte in $contents
-            #set $f_byte = $hexlify($byte)
+            #set $f_byte = $format($byte, '02x')
             when "$format_addr($addr, $addr_size)" => ret := x"${f_byte}";
             #set $addr = $addr + 1
             #end for
