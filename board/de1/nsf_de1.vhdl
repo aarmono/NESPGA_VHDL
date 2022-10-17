@@ -74,6 +74,9 @@ begin
         
         reset_out => reset,
         
+        next_stb => '0',
+        prev_stb => '0',
+        
         nsf_bus => nsf_bus,
         nsf_data_in => fl_dq,
         

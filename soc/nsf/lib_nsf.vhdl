@@ -12,6 +12,49 @@ use work.lib_nsf_rom.all;
 
 package lib_nsf is
 
+    type song_sel_t is
+    (
+        SONG_SAME,
+        SONG_NEXT,
+        SONG_PREV
+    );
+    
+    subtype silent_counter_t is unsigned(20 downto 0);
+    constant SILENT_START : silent_counter_t :=
+        to_unsigned(2000000, silent_counter_t'length);
+    
+    subtype play_counter_t is unsigned(26 downto 0);
+    constant PLAY_START : play_counter_t :=
+        to_unsigned(120000000, play_counter_t'length);
+    
+    type song_sel_reg_t is record
+        next_prev    : std_logic;
+        prev_prev    : std_logic;
+        prev_audio   : mixed_audio_t;
+        silent_count : silent_counter_t;
+        play_count   : play_counter_t;
+        song_sel     : song_sel_t;
+    end record;
+    
+    constant RESET_SONG_SEL : song_sel_reg_t :=
+    (
+        next_prev    => '0',
+        prev_prev    => '0',
+        prev_audio   => (others => '0'),
+        silent_count => SILENT_START,
+        play_count   => PLAY_START,
+        song_sel     => SONG_SAME
+    );
+    
+    function cycle_song_sel
+    (
+        reg      : song_sel_reg_t;
+        next_stb : std_logic;
+        prev_stb : std_logic;
+        audio    : mixed_audio_t
+    )
+    return song_sel_reg_t;
+
     type state_t is
     (
         STATE_RESET,
@@ -68,7 +111,8 @@ package lib_nsf is
         sram_data_in : data_t;
         apu_data_in  : data_t;
         nsf_data_in  : data_t;
-        audio        : apu_out_t
+        audio        : apu_out_t;
+        song_sel     : song_sel_t
     )
     return nsf_out_t;
 
@@ -85,7 +129,8 @@ package body lib_nsf is
         sram_data_in : data_t;
         apu_data_in  : data_t;
         nsf_data_in  : data_t;
-        audio        : apu_out_t
+        audio        : apu_out_t;
+        song_sel     : song_sel_t
     )
     return nsf_out_t
     is
@@ -121,7 +166,15 @@ package body lib_nsf is
                 ret.reg.cur_time := reg.cur_time + "1";
                 if reg.cur_time = x"1FFF"
                 then
-                    ret.reg.cur_time := x"0000";
+                    -- If the NSF file hasn't already been loaded, set
+                    -- the counter to zero to load it
+                    if reg.start_song = ZERO(reg.total_songs)
+                    then
+                        ret.reg.cur_time := x"0000";
+                    -- Otherwise set the counter to 7F to skip the loading
+                    else
+                        ret.reg.cur_time := x"007F";
+                    end if;
                     ret.reg.cur_state := STATE_LOAD;
                 end if;
             when STATE_LOAD =>
@@ -252,7 +305,81 @@ package body lib_nsf is
                             ret.cpu_data_out := nsf_data_in;
                         end if;
                 end case;
+                
+                case song_sel is
+                    when SONG_NEXT =>
+                        ret.reg.cur_state := STATE_RESET;
+                        ret.reg.cur_time := (others => '0');
+                        if reg.start_song = reg.total_songs
+                        then
+                            ret.reg.start_song := x"01";
+                        else
+                            ret.reg.start_song := reg.start_song + "1";
+                        end if;
+                    when SONG_PREV =>
+                        ret.reg.cur_state := STATE_RESET;
+                        ret.reg.cur_time := (others => '0');
+                        if reg.start_song = x"01"
+                        then
+                            ret.reg.start_song := reg.total_songs;
+                        else
+                            ret.reg.start_song := reg.start_song - "1";
+                        end if;
+                    when others =>
+                end case;
         end case;
+        
+        return ret;
+    end;
+    
+    function cycle_song_sel
+    (
+        reg      : song_sel_reg_t;
+        next_stb : std_logic;
+        prev_stb : std_logic;
+        audio    : mixed_audio_t
+    )
+    return song_sel_reg_t
+    is
+        variable ret : song_sel_reg_t;
+        variable next_edge : boolean;
+        variable prev_edge : boolean;
+    begin
+        ret := reg;
+        
+        next_edge := next_stb = '1' and reg.next_prev = '0';
+        prev_edge := prev_stb = '1' and reg.prev_prev = '0';
+        
+        if prev_edge and not next_edge
+        then
+            ret.song_sel := SONG_PREV;
+        elsif (next_edge and not prev_edge) or
+              reg.play_count = ZERO(reg.play_count) or
+              reg.silent_count = ZERO(reg.play_count)
+        then
+            ret.song_sel := SONG_NEXT;
+        else
+            ret.song_sel := SONG_SAME;
+        end if;
+    
+        if audio = reg.prev_audio
+        then
+            if reg.silent_count > ZERO(reg.silent_count)
+            then
+                ret.silent_count := reg.silent_count - "1";
+            end if;
+        else
+            ret.prev_audio := audio;
+            ret.silent_count := SILENT_START;
+        end if;
+        
+        if reg.play_count > ZERO(reg.play_count)
+        then
+            ret.play_count := reg.play_count - "1";
+        end if;
+        
+        ret.next_prev := next_stb;
+        ret.prev_prev := prev_stb;
         
         return ret;
     end;

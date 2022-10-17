@@ -18,6 +18,9 @@ port
     
     reset_out : out boolean;
     
+    next_stb : in std_logic;
+    prev_stb : in std_logic;
+    
     nsf_bus     : out cpu_bus_t;
     nsf_data_in : in data_t;
     
@@ -38,6 +41,9 @@ architecture behavioral of nsf_soc is
     signal reg : reg_t := RESET_REG;
     signal reg_in : reg_t;
     
+    signal song_sel_reg : song_sel_reg_t := RESET_SONG_SEL;
+    signal song_sel     : song_sel_t;
+    
     signal apu_bus     : apu_bus_t;
     signal cpu_bus     : cpu_bus_t;
     
@@ -50,10 +56,13 @@ architecture behavioral of nsf_soc is
     signal nmi : boolean;
     signal reset : boolean;
     
-    signal audio_out : apu_out_t;
+    signal audio_out   : apu_out_t;
+    signal mixed_audio : mixed_audio_t;
 begin
     
     reset_out <= reset;
+    audio <= mixed_audio;
+    song_sel <= song_sel_reg.song_sel;
     
     -- CPU {
     nsf_cpu : cpu
@@ -110,7 +119,8 @@ begin
         cpu_data_in,
         apu_data_in,
         nsf_data_in,
-        audio_out
+        audio_out,
+        song_sel
     )
         variable nsf_out : nsf_out_t;
     begin
@@ -121,7 +131,8 @@ begin
                              sram_data_in,
                              apu_data_in,
                              nsf_data_in,
-                             audio_out);
+                             audio_out,
+                             song_sel);
         
         apu_bus <= nsf_out.apu_bus;
         sram_bus <= nsf_out.sram_bus;
@@ -137,7 +148,7 @@ begin
         reset <= nsf_out.reset;
         nmi <= nsf_out.nmi;
         
-        audio <= nsf_out.audio;
+        mixed_audio <= nsf_out.audio;
     end process;
     
     -- Register update process {
@@ -148,5 +159,22 @@ begin
     end if;
     end process;
     -- }
+    
+    -- Song selector {
+    process(clk_nsf)
+    begin
+    if rising_edge(clk_nsf)
+    then
+        if reset
+        then
+            song_sel_reg <= RESET_SONG_SEL;
+        else
+            song_sel_reg <= cycle_song_sel(song_sel_reg,
+                                           next_stb,
+                                           prev_stb,
+                                           audio);
+        end if;
+    end if;
+    end process;
     
 end behavioral;

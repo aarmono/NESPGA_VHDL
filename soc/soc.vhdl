@@ -17,6 +17,9 @@ package soc is
         
         reset_out : out boolean;
         
+        next_stb : in std_logic;
+        prev_stb : in std_logic;
+        
         nsf_bus     : out cpu_bus_t;
         nsf_data_in : in data_t;
         

@@ -53,6 +53,9 @@ begin
         
         reset_out => reset,
         
+        next_stb => '0',
+        prev_stb => '0',
+        
         nsf_bus => nsf_bus,
         nsf_data_in => nsf_data_in,
         
@@ -86,7 +89,7 @@ begin
     begin
         if not mem_initialized
         then
-            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\WorldCup.nsf", read_mode);
+            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\Bomberman.nsf", read_mode);
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then
