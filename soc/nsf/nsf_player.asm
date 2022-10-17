@@ -8,11 +8,19 @@ MUSIC_TYPE = $3701
 INIT_ROUTINE = $3800
 PLAY_ROUTINE = $3880
 
+APU_CONTROL = $4015
+APU_FRAME = $4017
+
     seg INIT
     org INIT_ROUTINE
 INIT subroutine
     ldx #$FF
     txs
+    
+    lda #$0F
+    sta APU_CONTROL
+    lda #$40
+    sta APU_FRAME
     
     lda #((.ret >> 8) & $FF)
     pha
