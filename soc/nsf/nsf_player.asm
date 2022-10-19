@@ -8,6 +8,8 @@ MUSIC_TYPE = $3701
 INIT_ROUTINE = $3800
 PLAY_ROUTINE = $3880
 
+MASK_NMI = $3706
+
 APU_CONTROL = $4015
 APU_FRAME = $4017
 
@@ -40,6 +42,9 @@ INIT subroutine
     org PLAY_ROUTINE
 PLAY subroutine
     
+    lda #$01
+    sta MASK_NMI
+    
     lda #((.ret >> 8) & $FF)
     pha
     lda #(.ret & $FF)
@@ -48,6 +53,9 @@ PLAY subroutine
     jmp (MUSIC_PLAY)
 
 .ret nop
+    
+    lda #$00
+    sta MASK_NMI
     
     rti
 

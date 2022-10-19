@@ -83,6 +83,7 @@ package lib_nsf is
         map_enabled : boolean;
         nsf_offset  : unsigned(cpu_addr_t'range);
         cur_state   : state_t;
+        mask_nmi    : boolean;
     end record;
 
     constant RESET_REG : reg_t :=
@@ -105,7 +106,8 @@ package lib_nsf is
         bank_7 => x"00",
         map_enabled => false,
         nsf_offset => x"0000",
-        cur_state => STATE_RESET
+        cur_state => STATE_RESET,
+        mask_nmi => false
     );
     
     type nsf_out_t is record
@@ -359,7 +361,7 @@ package body lib_nsf is
             when STATE_RUN =>
                 if reg.cur_time = x"0000"
                 then
-                    ret.nmi := true;
+                    ret.nmi := not reg.mask_nmi;
                     ret.reg.cur_time := reg.speed;
                 else
                     ret.nmi := false;
@@ -416,6 +418,16 @@ package body lib_nsf is
                     -- Play Address High
                     when x"3705" =>
                         ret.cpu_data_out := reg.play_addr(15 downto 8);
+                    -- Mask NMI
+                    when x"3706" =>
+                        if is_bus_read(v_cpu_bus)
+                        then
+                            ret.cpu_data_out :=
+                                "0000000" & to_std_logic(reg.mask_nmi);
+                        elsif is_bus_write(v_cpu_bus)
+                        then
+                            ret.reg.mask_nmi := cpu_data_in(0) = '1';
+                        end if;
                     -- Reset Address Low
                     when x"FFFC" =>
                         ret.cpu_data_out := RESET_ADDR(7 downto 0);
