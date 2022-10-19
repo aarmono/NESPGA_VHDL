@@ -5,6 +5,7 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
+use work.nsf_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.lib_nsf.all;
@@ -21,7 +22,7 @@ port
     next_stb : in std_logic;
     prev_stb : in std_logic;
     
-    nsf_bus     : out cpu_bus_t;
+    nsf_bus     : out nsf_bus_t;
     nsf_data_in : in data_t;
     
     sram_bus      : out sram_bus_t;
@@ -31,6 +32,12 @@ port
     ram_bus      : out ram_bus_t;
     ram_data_out : out data_t;
     ram_data_in  : in data_t;
+    
+    enable_square_1 : in boolean;
+    enable_square_2 : in boolean;
+    enable_triangle : in boolean;
+    enable_noise    : in boolean;
+    enable_dmc      : in boolean;
     
     audio : out mixed_audio_t
 );
@@ -46,6 +53,7 @@ architecture behavioral of nsf_soc is
     
     signal apu_bus     : apu_bus_t;
     signal cpu_bus     : cpu_bus_t;
+    signal dma_bus     : cpu_bus_t;
     
     signal cpu_data_out     : data_t;
     signal cpu_data_in      : data_t;
@@ -55,6 +63,7 @@ architecture behavioral of nsf_soc is
     signal irq : boolean;
     signal nmi : boolean;
     signal reset : boolean;
+    signal ready : boolean;
     
     signal audio_out   : apu_out_t;
     signal mixed_audio : mixed_audio_t;
@@ -75,7 +84,7 @@ begin
         data_in => cpu_data_out,
         data_out => cpu_data_in,
         
-        ready => true,
+        ready => ready,
         irq => irq,
         nmi => nmi
     );
@@ -93,7 +102,10 @@ begin
         cpu_data_out => apu_data_in,
         
         audio => audio_out,
-        irq => irq
+
+        dma_bus => dma_bus,
+        irq => irq,
+        ready => ready
     );
     -- }
     
@@ -114,23 +126,35 @@ begin
     (
         reg,
         cpu_bus,
+        dma_bus,
         ram_data_in,
         sram_data_in,
         cpu_data_in,
         apu_data_in,
         nsf_data_in,
         audio_out,
+        enable_square_1,
+        enable_square_2,
+        enable_triangle,
+        enable_noise,
+        enable_dmc,
         song_sel
     )
         variable nsf_out : nsf_out_t;
     begin
         nsf_out := cycle_nsf(reg,
                              cpu_bus,
+                             dma_bus,
                              cpu_data_in,
                              ram_data_in,
                              sram_data_in,
                              apu_data_in,
                              nsf_data_in,
+                             enable_square_1,
+                             enable_square_2,
+                             enable_triangle,
+                             enable_noise,
+                             enable_dmc,
                              audio_out,
                              song_sel);
         

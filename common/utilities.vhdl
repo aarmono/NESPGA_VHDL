@@ -17,6 +17,9 @@ package utilities is
     function zero(val : std_logic_vector) return std_logic_vector;
     function zero(val : unsigned) return unsigned;
     
+    function is_zero(val : std_logic_vector) return boolean;
+    function is_zero(val : unsigned) return boolean;
+    
     function resize(val : std_logic_vector; len : natural) return std_logic_vector;
     function to_std_logic_vector(val : character) return std_logic_vector;
 
@@ -70,10 +73,22 @@ package body utilities is
         return ret;
     end;
     
+    function is_zero(val : std_logic_vector) return boolean
+    is
+    begin
+        return val = zero(val);
+    end;
+    
     function zero(val : unsigned) return unsigned
     is
     begin
         return unsigned(zero(std_logic_vector(val)));
+    end;
+    
+    function is_zero(val : unsigned) return boolean
+    is
+    begin
+        return val = zero(val);
     end;
     
     function resize(val : std_logic_vector; len : natural) return std_logic_vector

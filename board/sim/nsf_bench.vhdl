@@ -6,6 +6,7 @@ use work.nes_audio_mixer.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.cpu_bus_types.all;
+use work.nsf_bus_types.all;
 use work.utilities.all;
 use work.soc.all;
 use work.binary_io.all;
@@ -23,7 +24,7 @@ architecture behavioral of nsf_bench is
     
     signal ram_bus     : ram_bus_t;
     signal sram_bus    : sram_bus_t;
-    signal nsf_bus     : cpu_bus_t;
+    signal nsf_bus     : nsf_bus_t;
     
     signal sram_data_out    : data_t;
     signal sram_data_in     : data_t;
@@ -38,11 +39,17 @@ architecture behavioral of nsf_bench is
     signal cpu_clk : std_logic := '0';
     signal nsf_clk : std_logic := '0';
     
-    type memory_t is array (0 to 65535) of data_t;
-    signal mem : memory_t;
+    type nsf_memory_t is array (0 to 131071) of data_t;
+    signal mem : nsf_memory_t;
     signal mem_initialized : boolean := false;
     
     signal aud_count : unsigned(3 downto 0) := x"F";
+    
+    signal enable_square_1 : boolean := true;
+    signal enable_square_2 : boolean := true;
+    signal enable_triangle : boolean := true;
+    signal enable_noise    : boolean := true;
+    signal enable_dmc      : boolean := true;
 begin
 
     soc : nsf_soc
@@ -67,6 +74,12 @@ begin
         ram_data_out => ram_data_out,
         ram_data_in => ram_data_in,
         
+        enable_square_1 => enable_square_1,
+        enable_square_2 => enable_square_2,
+        enable_triangle => enable_triangle,
+        enable_noise => enable_noise,
+        enable_dmc => enable_dmc,
+        
         audio => audio_out
     );
     
@@ -89,7 +102,7 @@ begin
     begin
         if not mem_initialized
         then
-            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\Bomberman.nsf", read_mode);
+            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\SkateOrDie.nsf", read_mode);
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then

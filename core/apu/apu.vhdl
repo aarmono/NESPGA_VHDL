@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_core.all;
 use work.lib_apu.all;
 use work.apu_bus_types.all;
+use work.cpu_bus_types.all;
 use work.utilities.all;
 
 entity apu is
@@ -17,7 +18,10 @@ port
     cpu_data_out : out data_t;
     
     audio        : out apu_out_t;
-    irq          : out boolean
+
+    dma_bus      : out cpu_bus_t;
+    irq          : out boolean;
+    ready        : out boolean
 );
 end apu;
 
@@ -36,7 +40,9 @@ begin
         reg_in <= v_output.reg;
         audio <= v_output.audio;
         cpu_data_out <= v_output.cpu_data_out;
-        irq <= reg.irq;
+        dma_bus <= v_output.dma_bus;
+        irq <= v_output.irq;
+        ready <= v_output.ready;
 
     end process;
     

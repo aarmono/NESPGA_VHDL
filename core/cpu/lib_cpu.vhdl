@@ -1859,9 +1859,11 @@ package body lib_cpu is
         v_reg.data_in := unsigned(data_in);
 
         -- If the ready signal is not asserted and the current
-        -- cycle is not a write cycle, revert values
+        -- cycle is not a write cycle, revert values and idle the bus
         if is_bus_read(v_data_bus) and not ready then
             v_reg := reg;
+            v_data_bus := bus_idle(v_data_bus);
+            v_data_out := (others => '-');
         end if;
 
         ret.reg := v_reg;

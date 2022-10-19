@@ -5,3 +5,4 @@ board/sim/work/**
 **/*.wlf
 **/*.mti
 **/*.dat
+**/*.vstf

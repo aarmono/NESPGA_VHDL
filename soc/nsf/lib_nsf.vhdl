@@ -5,6 +5,7 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
+use work.nsf_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
@@ -71,6 +72,16 @@ package lib_nsf is
         speed       : unsigned(cpu_addr_t'RANGE);
         cur_time    : unsigned(cpu_addr_t'RANGE);
         song_type   : std_logic;
+        bank_0      : unsigned(data_t'range);
+        bank_1      : unsigned(data_t'range);
+        bank_2      : unsigned(data_t'range);
+        bank_3      : unsigned(data_t'range);
+        bank_4      : unsigned(data_t'range);
+        bank_5      : unsigned(data_t'range);
+        bank_6      : unsigned(data_t'range);
+        bank_7      : unsigned(data_t'range);
+        map_enabled : boolean;
+        nsf_offset  : unsigned(cpu_addr_t'range);
         cur_state   : state_t;
     end record;
 
@@ -84,6 +95,16 @@ package lib_nsf is
         speed => x"0000",
         cur_time => x"0000",
         song_type => '0',
+        bank_0 => x"00",
+        bank_1 => x"00",
+        bank_2 => x"00",
+        bank_3 => x"00",
+        bank_4 => x"00",
+        bank_5 => x"00",
+        bank_6 => x"00",
+        bank_7 => x"00",
+        map_enabled => false,
+        nsf_offset => x"0000",
         cur_state => STATE_RESET
     );
     
@@ -95,24 +116,44 @@ package lib_nsf is
         sram_data_out : data_t;
         ram_bus       : ram_bus_t;
         ram_data_out  : data_t;
-        nsf_bus       : cpu_bus_t;
+        nsf_bus       : nsf_bus_t;
         cpu_data_out  : data_t;
         audio         : mixed_audio_t;
         reset         : boolean;
         nmi           : boolean;
     end record;
+    
+    function get_mapped_nsf_bus
+    (
+        reg     : reg_t;
+        cpu_bus : cpu_bus_t
+    )
+    return nsf_bus_t;
+    
+    function get_unmapped_nsf_bus
+    (
+        reg     : reg_t;
+        cpu_bus : cpu_bus_t
+    )
+    return nsf_bus_t;
 
     function cycle_nsf
     (
-        reg          : reg_t;
-        cpu_bus      : cpu_bus_t;
-        cpu_data_in  : data_t;
-        ram_data_in  : data_t;
-        sram_data_in : data_t;
-        apu_data_in  : data_t;
-        nsf_data_in  : data_t;
-        audio        : apu_out_t;
-        song_sel     : song_sel_t
+        reg             : reg_t;
+        cpu_bus         : cpu_bus_t;
+        dma_bus         : cpu_bus_t;
+        cpu_data_in     : data_t;
+        ram_data_in     : data_t;
+        sram_data_in    : data_t;
+        apu_data_in     : data_t;
+        nsf_data_in     : data_t;
+        enable_square_1 : boolean;
+        enable_square_2 : boolean;
+        enable_triangle : boolean;
+        enable_noise    : boolean;
+        enable_dmc      : boolean;
+        audio           : apu_out_t;
+        song_sel        : song_sel_t
     )
     return nsf_out_t;
 
@@ -120,22 +161,72 @@ end lib_nsf;
 
 package body lib_nsf is
 
+    function get_mapped_nsf_bus
+    (
+        reg     : reg_t;
+        cpu_bus : cpu_bus_t
+    )
+    return nsf_bus_t
+    is
+        variable mapped_address : unsigned(nsf_addr_t'range);
+        variable cpu_base_address : unsigned(11 downto 0);
+    begin
+        cpu_base_address := unsigned(cpu_bus.address(cpu_base_address'range));
+
+        case cpu_bus.address(15 downto 12) is
+            when x"8" => mapped_address := reg.bank_0 & cpu_base_address;
+            when x"9" => mapped_address := reg.bank_1 & cpu_base_address;
+            when x"A" => mapped_address := reg.bank_2 & cpu_base_address;
+            when x"B" => mapped_address := reg.bank_3 & cpu_base_address;
+            when x"C" => mapped_address := reg.bank_4 & cpu_base_address;
+            when x"D" => mapped_address := reg.bank_5 & cpu_base_address;
+            when x"E" => mapped_address := reg.bank_6 & cpu_base_address;
+            when x"F" => mapped_address := reg.bank_7 & cpu_base_address;
+            when others => mapped_address := (others => '-');
+        end case;
+    
+        return bus_read(mapped_address + reg.nsf_offset);
+    end;
+    
+    function get_unmapped_nsf_bus
+    (
+        reg     : reg_t;
+        cpu_bus : cpu_bus_t
+    )
+    return nsf_bus_t
+    is
+        variable address : unsigned(nsf_addr_t'range);
+    begin
+        address := x"0" & (unsigned(cpu_bus.address) -
+                           unsigned(reg.load_addr) + x"80");
+        return bus_read(address);
+    end;
+
     function cycle_nsf
     (
-        reg          : reg_t;
-        cpu_bus      : cpu_bus_t;
-        cpu_data_in  : data_t;
-        ram_data_in  : data_t;
-        sram_data_in : data_t;
-        apu_data_in  : data_t;
-        nsf_data_in  : data_t;
-        audio        : apu_out_t;
-        song_sel     : song_sel_t
+        reg             : reg_t;
+        cpu_bus         : cpu_bus_t;
+        dma_bus         : cpu_bus_t;
+        cpu_data_in     : data_t;
+        ram_data_in     : data_t;
+        sram_data_in    : data_t;
+        apu_data_in     : data_t;
+        nsf_data_in     : data_t;
+        enable_square_1 : boolean;
+        enable_square_2 : boolean;
+        enable_triangle : boolean;
+        enable_noise    : boolean;
+        enable_dmc      : boolean;
+        audio           : apu_out_t;
+        song_sel        : song_sel_t
     )
     return nsf_out_t
     is
         constant RESET_ADDR : cpu_addr_t := x"3800";
         constant NMI_ADDR : cpu_addr_t := x"3880";
+        
+        variable v_cpu_bus : cpu_bus_t;
+        variable v_audio : apu_out_t;
         
         variable ret : nsf_out_t;
     begin
@@ -154,6 +245,8 @@ package body lib_nsf is
         
         ret.reset := false;
         ret.nmi := false;
+        
+        v_cpu_bus := cpu_bus;
         case reg.cur_state is
             when STATE_RESET =>
                 ret.reset := true;
@@ -212,6 +305,39 @@ package body lib_nsf is
                     -- Speed High, NTSC
                     when x"006F" =>
                         ret.reg.speed(15 downto 8) := unsigned(nsf_data_in);
+                    -- Bankswitch values
+                    when x"0070" =>
+                        ret.reg.bank_0 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0071" =>
+                        ret.reg.bank_1 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0072" =>
+                        ret.reg.bank_2 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0073" =>
+                        ret.reg.bank_3 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0074" =>
+                        ret.reg.bank_4 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0075" =>
+                        ret.reg.bank_5 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0076" =>
+                        ret.reg.bank_6 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
+                    when x"0077" =>
+                        ret.reg.bank_7 := unsigned(nsf_data_in);
+                        ret.reg.map_enabled := not is_zero(nsf_data_in) or
+                                               reg.map_enabled;
                     when x"007A" =>
                         ret.reg.song_type := nsf_data_in(0);
                     when others =>
@@ -221,6 +347,11 @@ package body lib_nsf is
                 then
                     ret.reg.cur_state := STATE_RUN;
                     ret.reg.cur_time := reg.speed;
+                    if reg.map_enabled
+                    then
+                        ret.reg.nsf_offset :=
+                            unsigned(reg.load_addr and x"0FFF") + x"0080";
+                    end if;
                 else
                     ret.reg.cur_time := reg.cur_time + "1";
                 end if;
@@ -234,9 +365,39 @@ package body lib_nsf is
                     ret.nmi := false;
                     ret.reg.cur_time := reg.cur_time - "1";
                 end if;
-                ret.audio := mix_audio(audio);
+
+                v_audio := audio;
+                if not enable_square_1
+                then
+                    v_audio.square_1 := (others => '0');
+                end if;
+                if not enable_square_2
+                then
+                    v_audio.square_2 := (others => '0');
+                end if;
+                if not enable_triangle
+                then
+                    v_audio.triangle := (others => '0');
+                end if;
+                if not enable_noise
+                then
+                    v_audio.noise := (others => '0');
+                end if;
+                if not enable_dmc
+                then
+                    v_audio.dmc := (others => '0');
+                end if;
                 
-                case cpu_bus.address is
+                ret.audio := mix_audio(v_audio);
+
+                if is_bus_active(dma_bus)
+                then
+                    v_cpu_bus := dma_bus;
+                else
+                    v_cpu_bus := cpu_bus;
+                end if;
+
+                case v_cpu_bus.address is
                     --Current Song
                     when x"3700" =>
                         ret.cpu_data_out := std_logic_vector(reg.start_song - "1");
@@ -268,41 +429,76 @@ package body lib_nsf is
                     when x"FFFB" =>
                         ret.cpu_data_out := NMI_ADDR(15 downto 8);
                     when others =>
-                        if cpu_bus.address(15 downto 8) = x"38"
+                        if v_cpu_bus.address(15 downto 8) = x"38"
                         then
                             ret.cpu_data_out := 
-                                get_nsf_byte(cpu_bus.address(7 downto 0));
-                        elsif is_ram_addr(cpu_bus.address)
+                                get_nsf_byte(v_cpu_bus.address(7 downto 0));
+                        elsif is_ram_addr(v_cpu_bus.address)
                         then
-                            ret.ram_bus.address := get_ram_addr(cpu_bus.address);
-                            ret.ram_bus.read := cpu_bus.read;
-                            ret.ram_bus.write := cpu_bus.write;
+                            ret.ram_bus.address := get_ram_addr(v_cpu_bus.address);
+                            ret.ram_bus.read := v_cpu_bus.read;
+                            ret.ram_bus.write := v_cpu_bus.write;
                             
                             ret.cpu_data_out := ram_data_in;
                             ret.ram_data_out := cpu_data_in;
-                        elsif is_sram_addr(cpu_bus.address)
+                        elsif is_sram_addr(v_cpu_bus.address)
                         then
-                            ret.sram_bus.address := get_sram_addr(cpu_bus.address);
-                            ret.sram_bus.read := cpu_bus.read;
-                            ret.sram_bus.write := cpu_bus.write;
+                            ret.sram_bus.address := get_sram_addr(v_cpu_bus.address);
+                            ret.sram_bus.read := v_cpu_bus.read;
+                            ret.sram_bus.write := v_cpu_bus.write;
                             
                             ret.cpu_data_out := sram_data_in;
                             ret.sram_data_out := cpu_data_in;
-                        elsif is_apu_addr(cpu_bus.address)
+                        elsif is_apu_addr(v_cpu_bus.address)
                         then
-                            ret.apu_bus.address := get_apu_addr(cpu_bus.address);
-                            ret.apu_bus.read := cpu_bus.read;
-                            ret.apu_bus.write := cpu_bus.write;
+                            ret.apu_bus.address := get_apu_addr(v_cpu_bus.address);
+                            ret.apu_bus.read := v_cpu_bus.read;
+                            ret.apu_bus.write := v_cpu_bus.write;
                             
                             ret.cpu_data_out := apu_data_in;
                             ret.apu_data_out := cpu_data_in;
-                        elsif cpu_bus.address >= reg.load_addr
+                        elsif reg.map_enabled and
+                              v_cpu_bus.address >= x"5FF8" and
+                              v_cpu_bus.address <= x"5FFF"
                         then
-                            ret.nsf_bus :=
-                                bus_read(unsigned(cpu_bus.address) -
-                                         unsigned(reg.load_addr) +
-                                         x"80");
+                            if is_bus_read(v_cpu_bus)
+                            then
+                                case v_cpu_bus.address is
+                                    when x"5FF8" => ret.cpu_data_out := std_logic_vector(reg.bank_0);
+                                    when x"5FF9" => ret.cpu_data_out := std_logic_vector(reg.bank_1);
+                                    when x"5FFA" => ret.cpu_data_out := std_logic_vector(reg.bank_2);
+                                    when x"5FFB" => ret.cpu_data_out := std_logic_vector(reg.bank_3);
+                                    when x"5FFC" => ret.cpu_data_out := std_logic_vector(reg.bank_4);
+                                    when x"5FFD" => ret.cpu_data_out := std_logic_vector(reg.bank_5);
+                                    when x"5FFE" => ret.cpu_data_out := std_logic_vector(reg.bank_6);
+                                    when x"5FFF" => ret.cpu_data_out := std_logic_vector(reg.bank_7);
+                                    when others  => ret.cpu_data_out := (others => '-');
+                                end case;
+                            elsif is_bus_write(v_cpu_bus)
+                            then
+                                case v_cpu_bus.address is
+                                    when x"5FF8" => ret.reg.bank_0 := unsigned(cpu_data_in);
+                                    when x"5FF9" => ret.reg.bank_1 := unsigned(cpu_data_in);
+                                    when x"5FFA" => ret.reg.bank_2 := unsigned(cpu_data_in);
+                                    when x"5FFB" => ret.reg.bank_3 := unsigned(cpu_data_in);
+                                    when x"5FFC" => ret.reg.bank_4 := unsigned(cpu_data_in);
+                                    when x"5FFD" => ret.reg.bank_5 := unsigned(cpu_data_in);
+                                    when x"5FFE" => ret.reg.bank_6 := unsigned(cpu_data_in);
+                                    when x"5FFF" => ret.reg.bank_7 := unsigned(cpu_data_in);
+                                    when others  => null;
+                                end case;
+                            end if;
+                        elsif reg.map_enabled and v_cpu_bus.address >= x"8000"
+                        then
+                            ret.nsf_bus := get_mapped_nsf_bus(reg, v_cpu_bus);
                             ret.cpu_data_out := nsf_data_in;
+                            ret.apu_data_out := nsf_data_in;
+                        elsif not reg.map_enabled and
+                              v_cpu_bus.address >= reg.load_addr
+                        then
+                            ret.nsf_bus := get_unmapped_nsf_bus(reg, v_cpu_bus);
+                            ret.cpu_data_out := nsf_data_in;
+                            ret.apu_data_out := nsf_data_in;
                         end if;
                 end case;
                 

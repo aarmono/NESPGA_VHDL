@@ -74,7 +74,8 @@ package body nes_audio_mixer is
                      resize(audio_in.square_2, square_in'length);
         tnd_in := resize(audio_in.triangle & '0', tnd_in'length) +
                   resize(audio_in.triangle, tnd_in'length) +
-                  resize(audio_in.noise & '0', tnd_in'length);
+                  resize(audio_in.noise & '0', tnd_in'length) +
+                  resize(audio_in.dmc, tnd_in'length);
         
         case square_in is
             when "00000" => square_out := "00000000";

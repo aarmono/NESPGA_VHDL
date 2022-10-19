@@ -13,12 +13,14 @@ package nes_core is
     
     subtype data_t is std_logic_vector(7 downto 0);
     subtype audio_t is unsigned(3 downto 0);
+    subtype dmc_audio_t is unsigned(6 downto 0);
     
     type apu_out_t is record
         square_1 : audio_t;
         square_2 : audio_t;
         triangle : audio_t;
         noise    : audio_t;
+        dmc      : dmc_audio_t;
     end record;
     
     function is_ram_addr(addr : cpu_addr_t) return boolean;
@@ -66,7 +68,9 @@ package nes_core is
 
         audio        : out apu_out_t;
 
-        irq          : out boolean
+        dma_bus      : out cpu_bus_t;
+        irq          : out boolean;
+        ready        : out boolean
     );
     end component apu;
 
