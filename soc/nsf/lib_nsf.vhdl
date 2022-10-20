@@ -63,6 +63,7 @@ package lib_nsf is
         STATE_RUN
     );
     
+    -- Clocked off the CPU timer
     type reg_t is record
         total_songs : unsigned(data_t'RANGE);
         start_song  : unsigned(data_t'RANGE);
@@ -70,7 +71,7 @@ package lib_nsf is
         init_addr   : cpu_addr_t;
         play_addr   : cpu_addr_t;
         speed       : unsigned(cpu_addr_t'RANGE);
-        cur_time    : unsigned(cpu_addr_t'RANGE);
+        cur_cycle   : unsigned(cpu_addr_t'RANGE);
         song_type   : std_logic;
         bank_0      : unsigned(data_t'range);
         bank_1      : unsigned(data_t'range);
@@ -94,7 +95,7 @@ package lib_nsf is
         init_addr => x"0000",
         play_addr => x"0000",
         speed => x"0000",
-        cur_time => x"0000",
+        cur_cycle => x"0000",
         song_type => '0',
         bank_0 => x"00",
         bank_1 => x"00",
@@ -110,8 +111,19 @@ package lib_nsf is
         mask_nmi => false
     );
     
+    -- Clocked off the NSF timer
+    type nsf_reg_t is record
+        cur_time : unsigned(cpu_addr_t'range);
+    end record;
+    
+    constant RESET_NSF_REG : nsf_reg_t :=
+    (
+        cur_time => (others => '0')
+    );
+    
     type nsf_out_t is record
         reg           : reg_t;
+        nsf_reg       : nsf_reg_t;
         apu_bus       : apu_bus_t;
         apu_data_out  : data_t;
         sram_bus      : sram_bus_t;
@@ -142,6 +154,7 @@ package lib_nsf is
     function cycle_nsf
     (
         reg             : reg_t;
+        nsf_reg         : nsf_reg_t;
         cpu_bus         : cpu_bus_t;
         dma_bus         : cpu_bus_t;
         cpu_data_in     : data_t;
@@ -207,6 +220,7 @@ package body lib_nsf is
     function cycle_nsf
     (
         reg             : reg_t;
+        nsf_reg         : nsf_reg_t;
         cpu_bus         : cpu_bus_t;
         dma_bus         : cpu_bus_t;
         cpu_data_in     : data_t;
@@ -233,6 +247,7 @@ package body lib_nsf is
         variable ret : nsf_out_t;
     begin
         ret.reg := reg;
+        ret.nsf_reg := nsf_reg;
         ret.ram_bus := bus_idle(ret.ram_bus);
         ret.sram_bus := bus_idle(ret.sram_bus);
         ret.apu_bus := bus_idle(ret.apu_bus);
@@ -252,31 +267,31 @@ package body lib_nsf is
         case reg.cur_state is
             when STATE_RESET =>
                 ret.reset := true;
-                ret.ram_bus := bus_write(reg.cur_time(ram_addr_t'range));
-                ret.sram_bus := bus_write(reg.cur_time(sram_addr_t'range));
+                ret.ram_bus := bus_write(reg.cur_cycle(ram_addr_t'range));
+                ret.sram_bus := bus_write(reg.cur_cycle(sram_addr_t'range));
                 
                 ret.ram_data_out := x"00";
                 ret.sram_data_out := x"00";
             
-                ret.reg.cur_time := reg.cur_time + "1";
-                if reg.cur_time = x"1FFF"
+                ret.reg.cur_cycle := reg.cur_cycle + "1";
+                if reg.cur_cycle = x"1FFF"
                 then
                     -- If the NSF file hasn't already been loaded, set
                     -- the counter to zero to load it
-                    if reg.start_song = ZERO(reg.total_songs)
+                    if is_zero(reg.start_song)
                     then
-                        ret.reg.cur_time := x"0000";
+                        ret.reg.cur_cycle := x"0000";
                     -- Otherwise set the counter to 7F to skip the loading
                     else
-                        ret.reg.cur_time := x"007F";
+                        ret.reg.cur_cycle := x"007F";
                     end if;
                     ret.reg.cur_state := STATE_LOAD;
                 end if;
             when STATE_LOAD =>
                 ret.reset := true;
                 ret.nsf_bus :=
-                    bus_read(resize(reg.cur_time, ret.nsf_bus.address'length));
-                case reg.cur_time is
+                    bus_read(resize(reg.cur_cycle, ret.nsf_bus.address'length));
+                case reg.cur_cycle is
                     -- Total Songs
                     when x"0006" =>
                         ret.reg.total_songs := unsigned(nsf_data_in);
@@ -345,27 +360,27 @@ package body lib_nsf is
                     when others =>
                 end case;
                 
-                if reg.cur_time = x"7F"
+                if reg.cur_cycle = x"7F"
                 then
                     ret.reg.cur_state := STATE_RUN;
-                    ret.reg.cur_time := reg.speed;
+                    ret.nsf_reg.cur_time := reg.speed;
                     if reg.map_enabled
                     then
                         ret.reg.nsf_offset :=
                             unsigned(reg.load_addr and x"0FFF") + x"0080";
                     end if;
                 else
-                    ret.reg.cur_time := reg.cur_time + "1";
+                    ret.reg.cur_cycle := reg.cur_cycle + "1";
                 end if;
                 
             when STATE_RUN =>
-                if reg.cur_time = x"0000"
+                if nsf_reg.cur_time = x"0000"
                 then
                     ret.nmi := not reg.mask_nmi;
-                    ret.reg.cur_time := reg.speed;
+                    ret.nsf_reg.cur_time := reg.speed;
                 else
                     ret.nmi := false;
-                    ret.reg.cur_time := reg.cur_time - "1";
+                    ret.nsf_reg.cur_time := nsf_reg.cur_time - "1";
                 end if;
 
                 v_audio := audio;
@@ -517,7 +532,7 @@ package body lib_nsf is
                 case song_sel is
                     when SONG_NEXT =>
                         ret.reg.cur_state := STATE_RESET;
-                        ret.reg.cur_time := (others => '0');
+                        ret.reg.cur_cycle := (others => '0');
                         if reg.start_song = reg.total_songs
                         then
                             ret.reg.start_song := x"01";
@@ -526,7 +541,7 @@ package body lib_nsf is
                         end if;
                     when SONG_PREV =>
                         ret.reg.cur_state := STATE_RESET;
-                        ret.reg.cur_time := (others => '0');
+                        ret.reg.cur_cycle := (others => '0');
                         if reg.start_song = x"01"
                         then
                             ret.reg.start_song := reg.total_songs;
@@ -562,8 +577,8 @@ package body lib_nsf is
         then
             ret.song_sel := SONG_PREV;
         elsif (next_edge and not prev_edge) or
-              reg.play_count = ZERO(reg.play_count) or
-              reg.silent_count = ZERO(reg.play_count)
+              is_zero(reg.play_count) or
+              is_zero(reg.silent_count)
         then
             ret.song_sel := SONG_NEXT;
         else

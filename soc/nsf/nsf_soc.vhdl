@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.utilities.all;
 use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
@@ -47,6 +48,9 @@ architecture behavioral of nsf_soc is
     
     signal reg : reg_t := RESET_REG;
     signal reg_in : reg_t;
+    
+    signal nsf_reg : nsf_reg_t := RESET_NSF_REG;
+    signal nsf_reg_in : nsf_reg_t;
     
     signal song_sel_reg : song_sel_reg_t := RESET_SONG_SEL;
     signal song_sel     : song_sel_t;
@@ -125,6 +129,7 @@ begin
     process
     (
         reg,
+        nsf_reg,
         cpu_bus,
         dma_bus,
         ram_data_in,
@@ -143,6 +148,7 @@ begin
         variable nsf_out : nsf_out_t;
     begin
         nsf_out := cycle_nsf(reg,
+                             nsf_reg,
                              cpu_bus,
                              dma_bus,
                              cpu_data_in,
@@ -169,6 +175,8 @@ begin
         cpu_data_out <= nsf_out.cpu_data_out;
         
         reg_in <= nsf_out.reg;
+        nsf_reg_in <= nsf_out.nsf_reg;
+        
         reset <= nsf_out.reset;
         nmi <= nsf_out.nmi;
         
@@ -176,18 +184,18 @@ begin
     end process;
     
     -- Register update process {
-    process(clk_nsf)
+    process(clk_cpu)
     begin
-    if rising_edge(clk_nsf) then
+    if rising_edge(clk_cpu) then
         reg <= reg_in;
     end if;
     end process;
     -- }
     
     -- Song selector {
-    process(clk_nsf)
+    process(clk_cpu)
     begin
-    if rising_edge(clk_nsf)
+    if rising_edge(clk_cpu)
     then
         if reset
         then
@@ -198,6 +206,14 @@ begin
                                            prev_stb,
                                            audio);
         end if;
+    end if;
+    end process;
+    
+    process(clk_nsf)
+    begin
+    if rising_edge(clk_nsf)
+    then
+        nsf_reg <= nsf_reg_in;
     end if;
     end process;
     
