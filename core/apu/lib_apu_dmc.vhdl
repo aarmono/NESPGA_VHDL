@@ -215,11 +215,15 @@ package body lib_apu_dmc is
         if not is_zero(cur_vals.bytes_remaining)
         then
             next_remaining := cur_vals.bytes_remaining - "1";
+            -- The bytes counter is decremented; if it becomes zero and
+            -- the loop flag is set, the sample is restarted
             if is_zero(next_remaining) and loop_enabled
             then
                 ret := init_dma_xfer_vals(dma_parms);
             else
                 ret.bytes_remaining := next_remaining;
+                -- The address is incremented; if it exceeds $FFFF, it is
+                -- wrapped around to $8000
                 if cur_vals.address = x"FFFF"
                 then
                     ret.address := x"8000";
@@ -376,6 +380,10 @@ package body lib_apu_dmc is
                 next_val.shift := cur_val.shift srl 1;
             end if;
             
+            -- When an output cycle is started, the counter is loaded with 8
+            -- and if the sample buffer is empty, the silence flag is set,
+            -- otherwise the silence flag is cleared and the sample buffer
+            -- is emptied into the shift register.
             if is_zero(cur_val.shift_count)
             then
                 if dma_buffer.valid
