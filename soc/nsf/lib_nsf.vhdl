@@ -288,6 +288,7 @@ package body lib_nsf is
                     ret.reg.cur_state := STATE_LOAD;
                 end if;
             when STATE_LOAD =>
+                ret.nsf_reg.cur_time := reg.speed;
                 ret.reset := true;
                 ret.nsf_bus :=
                     bus_read(resize(reg.cur_cycle, ret.nsf_bus.address'length));
@@ -363,7 +364,6 @@ package body lib_nsf is
                 if reg.cur_cycle = x"7F"
                 then
                     ret.reg.cur_state := STATE_RUN;
-                    ret.nsf_reg.cur_time := reg.speed;
                     if reg.map_enabled
                     then
                         ret.reg.nsf_offset :=
