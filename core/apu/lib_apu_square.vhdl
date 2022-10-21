@@ -238,12 +238,12 @@ package body lib_apu_square is
     is
         variable next_val : sweep_t;
         variable shift_val : sweep_tgt_period_t;
-        variable next_div_count : sweep_count_t;
+        variable reset_div_count : sweep_count_t;
     begin
         next_val := cur_val;
         shift_val := shift_period(cur_val, incr);
         -- The divider's period is set to p + 1.
-        next_div_count := resize(cur_val.divider, next_div_count'length) + "1";
+        reset_div_count := resize(cur_val.divider, reset_div_count'length) + "1";
         -- When the sweep unit is clocked, the divider is first clocked
         -- and if there was a write to the sweep register since the
         -- last sweep clock, the divider is reset.
@@ -255,12 +255,12 @@ package body lib_apu_square is
         -- Otherwise, if the sweep unit is enabled and the shift count
         -- is greater than 0, when the divider outputs a clock,
         -- the channel's period is updated with the result of the shifter
-        if cur_val.div_count = ZERO(cur_val.div_count)
+        if is_zero(cur_val.div_count)
         then
             next_val.reset := false;
-            next_val.div_count := next_div_count;
+            next_val.div_count := reset_div_count;
             if cur_val.enable and
-               cur_val.shift /= ZERO(cur_val.shift) and
+               not is_zero(cur_val.shift) and
                sweep_valid(cur_val.period, shift_val)
             then
                 next_val.period := shift_val(next_val.period'range);
@@ -268,7 +268,7 @@ package body lib_apu_square is
         elsif cur_val.reset
         then
             next_val.reset := false;
-            next_val.div_count := next_div_count;
+            next_val.div_count := reset_div_count;
         else
             next_val.div_count := cur_val.div_count - "1";
         end if;
@@ -385,7 +385,7 @@ package body lib_apu_square is
         variable next_val : square_seq_t;
     begin
         next_val := cur_val;
-        if cur_val.timer = ZERO(cur_val.timer)
+        if is_zero(cur_val.timer)
         then
             next_val.timer := square_timer_from_period(period);
             next_val.cycle := cur_val.cycle + "1";

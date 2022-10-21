@@ -51,14 +51,14 @@ package body lib_apu_frame_seq is
     function update_envelope(seq : frame_seq_t) return boolean
     is
     begin
-        return seq.divider = ZERO(seq.divider) and
+        return is_zero(seq.divider) and
                seq.step <= "011";
     end;
 
     function update_length(seq : frame_seq_t) return boolean
     is
     begin
-        return seq.divider = ZERO(seq.divider) and
+        return is_zero(seq.divider) and
                ((not seq.mode_5 and (seq.step = "001" or seq.step = "011")) or
                 (seq.mode_5 and (seq.step = "000" or seq.step = "010")));
     end;
@@ -69,7 +69,7 @@ package body lib_apu_frame_seq is
         return not seq.mode_5 and
                seq.step = "011" and
                not seq.irq_disable and
-               seq.divider = ZERO(seq.divider);
+               is_zero(seq.divider);
     end;
 
     function next_sequence(cur_val : frame_seq_t) return frame_seq_t
@@ -77,7 +77,7 @@ package body lib_apu_frame_seq is
         variable next_val : frame_seq_t;
     begin
         next_val := cur_val;
-        if cur_val.divider = ZERO(cur_val.divider)
+        if is_zero(cur_val.divider)
         then
             next_val.divider := DIV_START;
             if (not cur_val.mode_5 and cur_val.step = "011") or

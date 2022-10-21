@@ -92,7 +92,7 @@ package body lib_apu_noise is
         variable shift_in : std_logic;
     begin
         next_val := cur_val;
-        if cur_val.count = ZERO(cur_val.count)
+        if is_zero(cur_val.count)
         then
             next_val.count := get_random_period(cur_val.period_idx);
             if cur_val.short_mode

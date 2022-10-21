@@ -114,7 +114,7 @@ package body lib_apu_triangle is
         then
             next_val.count := cur_val.reload_val;
         -- Otherwise if counter is non-zero, decrement it
-        elsif cur_val.count /= ZERO(cur_val.count)
+        elsif not is_zero(cur_val.count)
         then
             next_val.count := cur_val.count - "1";
         end if;
@@ -194,7 +194,7 @@ package body lib_apu_triangle is
         variable update_sequence : boolean;
     begin
         next_val := cur_val;
-        if cur_val.count = ZERO(cur_val.count)
+        if is_zero(cur_val.count)
         then
             next_val.count := cur_val.period;
         else
@@ -211,7 +211,7 @@ package body lib_apu_triangle is
             next_val.length := next_length(cur_val.length);
         end if;
 
-        update_sequence := cur_val.count = ZERO(cur_val.count) and
+        update_sequence := is_zero(cur_val.count) and
                            enable_output(cur_val.linear) and
                            enable_output(cur_val.length);
         if update_sequence
