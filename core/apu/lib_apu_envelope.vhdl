@@ -9,7 +9,7 @@ use work.utilities.all;
 package lib_apu_envelope is
 
     subtype envelope_count_t is unsigned(3 downto 0);
-    subtype envelope_divider_t is unsigned(3 downto 0);
+    subtype envelope_divider_t is unsigned(4 downto 0);
     subtype envelope_period_t is unsigned(3 downto 0);
     
     type envelope_t is record
@@ -67,30 +67,30 @@ package body lib_apu_envelope is
     function next_envelope(cur_val : envelope_t) return envelope_t
     is
         variable next_val : envelope_t;
-        variable next_divider : envelope_divider_t;
+        variable reset_divider : envelope_divider_t;
     begin
         next_val := cur_val;
         -- The divider's period is set to n + 1
-        next_divider := resize(cur_val.period, next_val.divider'length) + "1";
+        reset_divider := resize(cur_val.period, next_val.divider'length) + "1";
         -- If there was a write to the fourth channel register
         -- since the last clock, the counter is set to 15 and
         -- the divider is reset
         if cur_val.reset
         then
             next_val.count := x"F";
-            next_val.divider := next_divider;
+            next_val.divider := reset_divider;
             next_val.reset := false;
         -- otherwise, the divider is clocked
-        elsif cur_val.divider = ZERO(cur_val.divider)
+        elsif is_zero(cur_val.divider)
         then
-            next_val.divider := next_divider;
+            next_val.divider := reset_divider;
             -- if loop is set and counter is zero, it is
             -- set to 15
-            if cur_val.loop_env and cur_val.count = ZERO(cur_val.count)
+            if cur_val.loop_env and is_zero(cur_val.count)
             then
                 next_val.count := x"F";
             -- otherwise if counter is non-zero, it is decremented
-            elsif cur_val.count /= ZERO(cur_val.count)
+            elsif not is_zero(cur_val.count)
             then
                 next_val.count := cur_val.count - "1";
             end if;
