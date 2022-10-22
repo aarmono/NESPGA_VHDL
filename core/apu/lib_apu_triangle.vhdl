@@ -101,7 +101,7 @@ package body lib_apu_triangle is
     is
     begin
         -- Pass through output when count is non-zero
-        return linear.count /= ZERO(linear.count);
+        return not is_zero(linear.count);
     end;
 
     function next_linear(cur_val : linear_t) return linear_t
