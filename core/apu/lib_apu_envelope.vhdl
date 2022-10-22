@@ -9,7 +9,7 @@ use work.utilities.all;
 package lib_apu_envelope is
 
     subtype envelope_count_t is unsigned(3 downto 0);
-    subtype envelope_divider_t is unsigned(4 downto 0);
+    subtype envelope_divider_t is unsigned(3 downto 0);
     subtype envelope_period_t is unsigned(3 downto 0);
     
     type envelope_t is record
@@ -70,8 +70,9 @@ package body lib_apu_envelope is
         variable reset_divider : envelope_divider_t;
     begin
         next_val := cur_val;
-        -- The divider's period is set to n + 1
-        reset_divider := resize(cur_val.period, next_val.divider'length) + "1";
+        -- Used as the reload value for the envelope's divider
+        -- (the period becomes V + 1 quarter frames).
+        reset_divider := cur_val.period;
         -- If there was a write to the fourth channel register
         -- since the last clock, the counter is set to 15 and
         -- the divider is reset

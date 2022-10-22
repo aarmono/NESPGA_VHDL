@@ -13,7 +13,7 @@ package lib_apu_square is
     -- Sweep Unit
     
     subtype sweep_divider_t is unsigned(2 downto 0);
-    subtype sweep_count_t is unsigned(3 downto 0);
+    subtype sweep_count_t is unsigned(2 downto 0);
     subtype sweep_period_t is unsigned(10 downto 0);
     subtype sweep_tgt_period_t is unsigned(11 downto 0);
     subtype sweep_shift_t is unsigned(2 downto 0);
@@ -242,8 +242,8 @@ package body lib_apu_square is
     begin
         next_val := cur_val;
         shift_val := shift_period(cur_val, incr);
-        -- The divider's period is set to p + 1.
-        reset_div_count := resize(cur_val.divider, reset_div_count'length) + "1";
+        -- The divider's period is P + 1 half-frames
+        reset_div_count := cur_val.divider;
         -- When the sweep unit is clocked, the divider is first clocked
         -- and if there was a write to the sweep register since the
         -- last sweep clock, the divider is reset.
@@ -354,9 +354,8 @@ package body lib_apu_square is
     return square_seq_timer_t
     is
     begin
-        -- the third and fourth registers form an 11-bit value
-        -- and the divider's period is set to this value *plus one*.
-        return (period + "1") & '0';
+        -- The divider's period is P + 1 half-frames
+        return period & '0';
     end;
 
     function reload
