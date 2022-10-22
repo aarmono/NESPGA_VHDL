@@ -272,6 +272,9 @@ package body lib_nsf is
                 
                 ret.ram_data_out := x"00";
                 ret.sram_data_out := x"00";
+                
+                ret.reg.mask_nmi := false;
+                ret.reg.map_enabled := false;
             
                 ret.reg.cur_cycle := reg.cur_cycle + "1";
                 if reg.cur_cycle = x"1FFF"
@@ -281,9 +284,10 @@ package body lib_nsf is
                     if is_zero(reg.start_song)
                     then
                         ret.reg.cur_cycle := x"0000";
-                    -- Otherwise set the counter to 7F to skip the loading
+                    -- Otherwise set the counter to 08 to skip loading the
+                    -- song numbers
                     else
-                        ret.reg.cur_cycle := x"007F";
+                        ret.reg.cur_cycle := x"0008";
                     end if;
                     ret.reg.cur_state := STATE_LOAD;
                 end if;

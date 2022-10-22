@@ -193,7 +193,7 @@ begin
     -- }
     
     -- Song selector {
-    process(clk_cpu)
+    process(clk_nsf)
     begin
     if rising_edge(clk_cpu)
     then
