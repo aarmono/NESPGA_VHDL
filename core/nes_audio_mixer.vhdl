@@ -8,10 +8,60 @@ package nes_audio_mixer is
     subtype mixed_audio_t is unsigned(7 downto 0);
 
     function mix_audio(audio_in : apu_out_t) return mixed_audio_t;
+    
+    function mix_audio
+    (
+        audio_in        : apu_out_t;
+        enable_square_1 : boolean;
+        enable_square_2 : boolean;
+        enable_triangle : boolean;
+        enable_noise    : boolean;
+        enable_dmc      : boolean
+    )
+    return mixed_audio_t;
 
 end nes_audio_mixer;
 
 package body nes_audio_mixer is
+
+    function mix_audio
+    (
+        audio_in        : apu_out_t;
+        enable_square_1 : boolean;
+        enable_square_2 : boolean;
+        enable_triangle : boolean;
+        enable_noise    : boolean;
+        enable_dmc      : boolean
+    )
+    return mixed_audio_t
+    is
+        variable v_audio : apu_out_t;
+    begin
+        v_audio := audio_in;
+        
+        if not enable_square_1
+        then
+            v_audio.square_1 := (others => '0');
+        end if;
+        if not enable_square_2
+        then
+            v_audio.square_2 := (others => '0');
+        end if;
+        if not enable_triangle
+        then
+            v_audio.triangle := (others => '0');
+        end if;
+        if not enable_noise
+        then
+            v_audio.noise := (others => '0');
+        end if;
+        if not enable_dmc
+        then
+            v_audio.dmc := (others => '0');
+        end if;
+        
+        return mix_audio(v_audio);
+    end;
 
     function mix_audio(audio_in : apu_out_t) return mixed_audio_t
     is
