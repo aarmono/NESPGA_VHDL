@@ -184,8 +184,8 @@ package body lib_nsf_mapper is
     is
         variable map_out : mapper_out_t;
         
-        constant RESET_ADDR : cpu_addr_t := x"3800";
-        constant NMI_ADDR : cpu_addr_t := x"3880";
+        constant RESET_ADDR : cpu_addr_t := x"4200";
+        constant NMI_ADDR : cpu_addr_t := x"4280";
     begin
         map_out.reg := map_in.reg;
         
@@ -203,26 +203,26 @@ package body lib_nsf_mapper is
         then
             case? map_in.cpu_bus.address is
                 --Current Song
-                when x"3700" =>
+                when x"4100" =>
                     map_out.data_to_cpu :=
                         std_logic_vector(map_in.reg.start_song - "1");
                 -- Song type (NTSC or PAL)
-                when x"3701" =>
+                when x"4101" =>
                     map_out.data_to_cpu := "0000000" & map_in.reg.song_type;
                 -- Init Address Low
-                when x"3702" =>
+                when x"4102" =>
                     map_out.data_to_cpu := map_in.reg.init_addr(7 downto 0);
                 -- Init Address High
-                when x"3703" =>
+                when x"4103" =>
                     map_out.data_to_cpu := map_in.reg.init_addr(15 downto 8);
                 -- Play Address Low
-                when x"3704" =>
+                when x"4104" =>
                     map_out.data_to_cpu := map_in.reg.play_addr(7 downto 0);
                 -- Play Address High
-                when x"3705" =>
+                when x"4105" =>
                     map_out.data_to_cpu := map_in.reg.play_addr(15 downto 8);
                 -- Mask NMI
-                when x"3706" =>
+                when x"4106" =>
                     if is_bus_read(map_in.cpu_bus)
                     then
                         map_out.data_to_cpu :=
@@ -243,7 +243,7 @@ package body lib_nsf_mapper is
                 -- NMI Address High
                 when x"FFFB" =>
                     map_out.data_to_cpu := NMI_ADDR(15 downto 8);
-                when x"38--" =>
+                when x"42--" =>
                     map_out.data_to_cpu :=
                         get_nsf_byte(map_in.cpu_bus.address(7 downto 0));
                 -- RAM
