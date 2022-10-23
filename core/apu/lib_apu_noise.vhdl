@@ -145,7 +145,7 @@ package body lib_apu_noise is
             when x"D" => return x"3F8";
             when x"E" => return x"7F2";
             when x"F" => return x"FE4";
-            when others => return x"000";
+            when others => return x"---";
         end case;
     end;
 
@@ -221,6 +221,10 @@ package body lib_apu_noise is
     begin
         ret := val;
         ret.length := write_reg_1(val.length, reg(7 downto 3));
+        -- if there was a write to the fourth channel register since
+        -- the last clock, the counter is set to 15 and the divider
+        -- is reset
+        ret.envelope := reload(val.envelope);
 
         return ret;
     end;
