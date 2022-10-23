@@ -195,7 +195,7 @@ begin
     -- Song selector {
     process(clk_nsf)
     begin
-    if rising_edge(clk_cpu)
+    if rising_edge(clk_nsf)
     then
         if reset
         then

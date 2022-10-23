@@ -199,175 +199,179 @@ package body lib_nsf_mapper is
         map_out.data_to_ram := (others => '-');
         map_out.data_to_sram := (others => '-');
         
-        case? map_in.cpu_bus.address is
-            --Current Song
-            when x"3700" =>
-                map_out.data_to_cpu :=
-                    std_logic_vector(map_in.reg.start_song - "1");
-            -- Song type (NTSC or PAL)
-            when x"3701" =>
-                map_out.data_to_cpu := "0000000" & map_in.reg.song_type;
-            -- Init Address Low
-            when x"3702" =>
-                map_out.data_to_cpu := map_in.reg.init_addr(7 downto 0);
-            -- Init Address High
-            when x"3703" =>
-                map_out.data_to_cpu := map_in.reg.init_addr(15 downto 8);
-            -- Play Address Low
-            when x"3704" =>
-                map_out.data_to_cpu := map_in.reg.play_addr(7 downto 0);
-            -- Play Address High
-            when x"3705" =>
-                map_out.data_to_cpu := map_in.reg.play_addr(15 downto 8);
-            -- Mask NMI
-            when x"3706" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
+        if is_bus_active(map_in.cpu_bus)
+        then
+            case? map_in.cpu_bus.address is
+                --Current Song
+                when x"3700" =>
                     map_out.data_to_cpu :=
-                        "0000000" & to_std_logic(map_in.reg.mask_nmi);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.mask_nmi := map_in.data_from_cpu(0) = '1';
-                end if;
-            -- Reset Address Low
-            when x"FFFC" =>
-                map_out.data_to_cpu := RESET_ADDR(7 downto 0);
-            -- Reset Address High
-            when x"FFFD" =>
-                map_out.data_to_cpu := RESET_ADDR(15 downto 8);
-            -- NMI Address Low
-            when x"FFFA" =>
-                map_out.data_to_cpu := NMI_ADDR(7 downto 0);
-            -- NMI Address High
-            when x"FFFB" =>
-                map_out.data_to_cpu := NMI_ADDR(15 downto 8);
-            when x"38--" =>
-                map_out.data_to_cpu :=
-                    get_nsf_byte(map_in.cpu_bus.address(7 downto 0));
-            -- RAM
-            when x"0---" |
-                 x"1---" =>
-                map_out.ram_bus.address := get_ram_addr(map_in.cpu_bus.address);
-                map_out.ram_bus.read := map_in.cpu_bus.read;
-                map_out.ram_bus.write := map_in.cpu_bus.write;
-                
-                map_out.data_to_cpu := map_in.data_from_ram;
-                map_out.data_to_ram := map_in.data_from_cpu;
-            -- APU
-            when x"400-" |
-                 x"401-" =>
-                map_out.apu_bus.address := get_apu_addr(map_in.cpu_bus.address);
-                map_out.apu_bus.read := map_in.cpu_bus.read;
-                map_out.apu_bus.write := map_in.cpu_bus.write;
-                
-                map_out.data_to_cpu := map_in.data_from_apu;
-                map_out.data_to_apu := map_in.data_from_cpu;
-            -- Bankswitch registers
-            when x"5FF8" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_0);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_0 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FF9" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_1);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_1 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FFA" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_2);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_2 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FFB" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_3);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_3 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FFC" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_4);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_4 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FFD" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_5);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_5 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FFE" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_6);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_6 := unsigned(map_in.data_from_cpu);
-                end if;
-            when x"5FFF" =>
-                if is_bus_read(map_in.cpu_bus)
-                then
-                    map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_7);
-                elsif is_bus_write(map_in.cpu_bus)
-                then
-                    map_out.reg.bank_7 := unsigned(map_in.data_from_cpu);
-                end if;
-            -- SRAM
-            when x"6---" |
-                 x"7---" =>
-                map_out.sram_bus.address := get_sram_addr(map_in.cpu_bus.address);
-                map_out.sram_bus.read := map_in.cpu_bus.read;
-                map_out.sram_bus.write := map_in.cpu_bus.write;
-                
-                map_out.data_to_cpu := map_in.data_from_sram;
-                map_out.data_to_sram := map_in.data_from_cpu;
-            when x"8---" |
-                 x"9---" |
-                 x"A---" |
-                 x"B---" |
-                 x"C---" |
-                 x"D---" |
-                 x"E---" |
-                 x"F--0" |
-                 x"F--1" |
-                 x"F--2" |
-                 x"F--3" |
-                 x"F--4" |
-                 x"F--5" |
-                 x"F--6" |
-                 x"F--7" |
-                 x"F--8" |
-                 x"F--9" |
-                 x"F--E" |
-                 x"F--F" =>
-                if map_enabled(map_in.reg)
-                then
-                    map_out.nsf_bus :=
-                        get_mapped_nsf_bus(map_in.reg, map_in.cpu_bus);
-                else
-                    map_out.nsf_bus :=
-                        get_unmapped_nsf_bus(map_in.reg, map_in.cpu_bus);
-                end if;
-                
-                map_out.data_to_cpu := map_in.data_from_nsf;
-            when others =>
-                null;
-        end case?;
+                        std_logic_vector(map_in.reg.start_song - "1");
+                -- Song type (NTSC or PAL)
+                when x"3701" =>
+                    map_out.data_to_cpu := "0000000" & map_in.reg.song_type;
+                -- Init Address Low
+                when x"3702" =>
+                    map_out.data_to_cpu := map_in.reg.init_addr(7 downto 0);
+                -- Init Address High
+                when x"3703" =>
+                    map_out.data_to_cpu := map_in.reg.init_addr(15 downto 8);
+                -- Play Address Low
+                when x"3704" =>
+                    map_out.data_to_cpu := map_in.reg.play_addr(7 downto 0);
+                -- Play Address High
+                when x"3705" =>
+                    map_out.data_to_cpu := map_in.reg.play_addr(15 downto 8);
+                -- Mask NMI
+                when x"3706" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu :=
+                            "0000000" & to_std_logic(map_in.reg.mask_nmi);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.mask_nmi := map_in.data_from_cpu(0) = '1';
+                    end if;
+                -- Reset Address Low
+                when x"FFFC" =>
+                    map_out.data_to_cpu := RESET_ADDR(7 downto 0);
+                -- Reset Address High
+                when x"FFFD" =>
+                    map_out.data_to_cpu := RESET_ADDR(15 downto 8);
+                -- NMI Address Low
+                when x"FFFA" =>
+                    map_out.data_to_cpu := NMI_ADDR(7 downto 0);
+                -- NMI Address High
+                when x"FFFB" =>
+                    map_out.data_to_cpu := NMI_ADDR(15 downto 8);
+                when x"38--" =>
+                    map_out.data_to_cpu :=
+                        get_nsf_byte(map_in.cpu_bus.address(7 downto 0));
+                -- RAM
+                when x"0---" |
+                     x"1---" =>
+                    map_out.ram_bus.address := get_ram_addr(map_in.cpu_bus.address);
+                    map_out.ram_bus.read := map_in.cpu_bus.read;
+                    map_out.ram_bus.write := map_in.cpu_bus.write;
+                    
+                    map_out.data_to_cpu := map_in.data_from_ram;
+                    map_out.data_to_ram := map_in.data_from_cpu;
+                -- APU
+                when x"400-" |
+                     x"401-" =>
+                    map_out.apu_bus.address := get_apu_addr(map_in.cpu_bus.address);
+                    map_out.apu_bus.read := map_in.cpu_bus.read;
+                    map_out.apu_bus.write := map_in.cpu_bus.write;
+                    
+                    map_out.data_to_cpu := map_in.data_from_apu;
+                    map_out.data_to_apu := map_in.data_from_cpu;
+                -- Bankswitch registers
+                when x"5FF8" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_0);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_0 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FF9" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_1);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_1 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FFA" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_2);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_2 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FFB" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_3);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_3 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FFC" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_4);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_4 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FFD" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_5);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_5 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FFE" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_6);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_6 := unsigned(map_in.data_from_cpu);
+                    end if;
+                when x"5FFF" =>
+                    if is_bus_read(map_in.cpu_bus)
+                    then
+                        map_out.data_to_cpu := std_logic_vector(map_in.reg.bank_7);
+                    elsif is_bus_write(map_in.cpu_bus)
+                    then
+                        map_out.reg.bank_7 := unsigned(map_in.data_from_cpu);
+                    end if;
+                -- SRAM
+                when x"6---" |
+                     x"7---" =>
+                    map_out.sram_bus.address :=
+                        get_sram_addr(map_in.cpu_bus.address);
+                    map_out.sram_bus.read := map_in.cpu_bus.read;
+                    map_out.sram_bus.write := map_in.cpu_bus.write;
+                    
+                    map_out.data_to_cpu := map_in.data_from_sram;
+                    map_out.data_to_sram := map_in.data_from_cpu;
+                when x"8---" |
+                     x"9---" |
+                     x"A---" |
+                     x"B---" |
+                     x"C---" |
+                     x"D---" |
+                     x"E---" |
+                     x"F--0" |
+                     x"F--1" |
+                     x"F--2" |
+                     x"F--3" |
+                     x"F--4" |
+                     x"F--5" |
+                     x"F--6" |
+                     x"F--7" |
+                     x"F--8" |
+                     x"F--9" |
+                     x"F--E" |
+                     x"F--F" =>
+                    if map_enabled(map_in.reg)
+                    then
+                        map_out.nsf_bus :=
+                            get_mapped_nsf_bus(map_in.reg, map_in.cpu_bus);
+                    else
+                        map_out.nsf_bus :=
+                            get_unmapped_nsf_bus(map_in.reg, map_in.cpu_bus);
+                    end if;
+                    
+                    map_out.data_to_cpu := map_in.data_from_nsf;
+                when others =>
+                    null;
+            end case?;
+        end if;
         
         return map_out;
     end;

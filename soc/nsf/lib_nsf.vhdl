@@ -378,18 +378,16 @@ package body lib_nsf is
             ret.song_sel := SONG_SAME;
         end if;
     
-        if audio = reg.prev_audio
+        if audio = reg.prev_audio and not is_zero(reg.silent_count)
         then
-            if reg.silent_count > ZERO(reg.silent_count)
-            then
-                ret.silent_count := reg.silent_count - "1";
-            end if;
-        else
+            ret.silent_count := reg.silent_count - "1";
+        elsif audio /= reg.prev_audio
+        then
             ret.prev_audio := audio;
             ret.silent_count := SILENT_START;
         end if;
         
-        if reg.play_count > ZERO(reg.play_count)
+        if not is_zero(reg.play_count)
         then
             ret.play_count := reg.play_count - "1";
         end if;
