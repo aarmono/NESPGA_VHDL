@@ -5,7 +5,7 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.nsf_bus_types.all;
+use work.file_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
@@ -98,7 +98,7 @@ package lib_nsf is
         sram_data_out : data_t;
         ram_bus       : ram_bus_t;
         ram_data_out  : data_t;
-        nsf_bus       : nsf_bus_t;
+        nsf_bus       : file_bus_t;
         cpu_data_out  : data_t;
         audio         : mixed_audio_t;
         reset         : boolean;

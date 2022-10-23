@@ -5,7 +5,7 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.nsf_bus_types.all;
+use work.file_bus_types.all;
 use work.nes_core.all;
 use work.lib_nsf_rom.all;
 use work.utilities.all;
@@ -77,7 +77,7 @@ package lib_nsf_mapper is
         apu_bus  : apu_bus_t;
         ram_bus  : ram_bus_t;
         sram_bus : sram_bus_t;
-        nsf_bus  : nsf_bus_t;
+        nsf_bus  : file_bus_t;
         
         data_to_cpu  : data_t;
         data_to_apu  : data_t;
@@ -94,14 +94,14 @@ package lib_nsf_mapper is
         reg     : mapper_reg_t;
         cpu_bus : cpu_bus_t
     )
-    return nsf_bus_t;
+    return file_bus_t;
     
     function get_unmapped_nsf_bus
     (
         reg     : mapper_reg_t;
         cpu_bus : cpu_bus_t
     )
-    return nsf_bus_t;
+    return file_bus_t;
     
     function init_nsf_offset(reg : mapper_reg_t) return mapper_reg_t;
 
@@ -129,9 +129,9 @@ package body lib_nsf_mapper is
         reg     : mapper_reg_t;
         cpu_bus : cpu_bus_t
     )
-    return nsf_bus_t
+    return file_bus_t
     is
-        variable mapped_address : unsigned(nsf_addr_t'range);
+        variable mapped_address : unsigned(file_addr_t'range);
         variable cpu_base_address : unsigned(11 downto 0);
     begin
         cpu_base_address := unsigned(cpu_bus.address(cpu_base_address'range));
@@ -156,10 +156,10 @@ package body lib_nsf_mapper is
         reg     : mapper_reg_t;
         cpu_bus : cpu_bus_t
     )
-    return nsf_bus_t
+    return file_bus_t
     is
-        variable address : unsigned(nsf_addr_t'range);
-        variable nsf_bus : nsf_bus_t;
+        variable address : unsigned(file_addr_t'range);
+        variable nsf_bus : file_bus_t;
     begin
         if cpu_bus.address >= reg.load_addr
         then

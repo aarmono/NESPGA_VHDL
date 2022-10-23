@@ -6,7 +6,7 @@ use work.nes_audio_mixer.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.cpu_bus_types.all;
-use work.nsf_bus_types.all;
+use work.file_bus_types.all;
 use work.utilities.all;
 use work.soc.all;
 use work.binary_io.all;
@@ -24,7 +24,7 @@ architecture behavioral of nsf_bench is
     
     signal ram_bus     : ram_bus_t;
     signal sram_bus    : sram_bus_t;
-    signal nsf_bus     : nsf_bus_t;
+    signal nsf_bus     : file_bus_t;
     
     signal sram_data_out    : data_t;
     signal sram_data_in     : data_t;
@@ -102,7 +102,7 @@ begin
     begin
         if not mem_initialized
         then
-            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\SkateOrDie.nsf", read_mode);
+            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\SkateOrDie2.nsf", read_mode);
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then

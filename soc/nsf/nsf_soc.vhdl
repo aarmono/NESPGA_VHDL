@@ -6,7 +6,7 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.nsf_bus_types.all;
+use work.file_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.lib_nsf.all;
@@ -23,7 +23,7 @@ port
     next_stb : in std_logic;
     prev_stb : in std_logic;
     
-    nsf_bus     : out nsf_bus_t;
+    nsf_bus     : out file_bus_t;
     nsf_data_in : in data_t;
     
     sram_bus      : out sram_bus_t;
