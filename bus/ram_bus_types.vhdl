@@ -11,6 +11,13 @@ package ram_bus_types is
         write    : boolean;
     end record;
     
+    constant RAM_BUS_IDLE : ram_bus_t :=
+    (
+        address => (others => '-'),
+        read => false,
+        write => false
+    );
+    
     function bus_read(addr_in : ram_addr_t) return ram_bus_t;
     function bus_read(addr_in : unsigned(ram_addr_t'RANGE)) return ram_bus_t;
     function bus_write(addr_in : ram_addr_t) return ram_bus_t;

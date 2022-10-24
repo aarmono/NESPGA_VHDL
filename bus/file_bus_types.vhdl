@@ -11,6 +11,13 @@ package file_bus_types is
         write    : boolean;
     end record;
     
+    constant FILE_BUS_IDLE : file_bus_t :=
+    (
+        address => (others => '-'),
+        read => false,
+        write => false
+    );
+    
     function bus_read(addr_in : file_addr_t) return file_bus_t;
     function bus_read(addr_in : unsigned(file_addr_t'RANGE)) return file_bus_t;
     function bus_write(addr_in : file_addr_t) return file_bus_t;

@@ -11,6 +11,13 @@ package sram_bus_types is
         write    : boolean;
     end record;
     
+    constant SRAM_BUS_IDLE : sram_bus_t :=
+    (
+        address => (others => '-'),
+        read => false,
+        write => false
+    );
+    
     function bus_read(addr_in : sram_addr_t) return sram_bus_t;
     function bus_read(addr_in : unsigned(sram_addr_t'RANGE)) return sram_bus_t;
     function bus_write(addr_in : sram_addr_t) return sram_bus_t;

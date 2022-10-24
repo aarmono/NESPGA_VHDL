@@ -11,6 +11,13 @@ package ppu_bus_types is
         write    : boolean;
     end record;
     
+    constant PPU_BUS_IDLE : ppu_bus_t :=
+    (
+        address => (others => '-'),
+        read => false,
+        write => false
+    );
+    
     function bus_read(addr_in : ppu_addr_t) return ppu_bus_t;
     function bus_read(addr_in : unsigned(ppu_addr_t'RANGE)) return ppu_bus_t;
     function bus_write(addr_in : ppu_addr_t) return ppu_bus_t;
