@@ -126,25 +126,7 @@ begin
     );
     -- }
     
-    process
-    (
-        reg,
-        nsf_reg,
-        cpu_bus,
-        dma_bus,
-        ram_data_in,
-        sram_data_in,
-        cpu_data_in,
-        apu_data_in,
-        nsf_data_in,
-        audio_out,
-        enable_square_1,
-        enable_square_2,
-        enable_triangle,
-        enable_noise,
-        enable_dmc,
-        song_sel
-    )
+    process(all)
         variable nsf_out : nsf_out_t;
         variable nsf_in  : nsf_in_t;
     begin

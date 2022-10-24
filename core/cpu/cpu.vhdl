@@ -30,7 +30,7 @@ architecture behavioral of cpu is
 
 begin
 
-    process(reg, ready, nmi, irq, data_in, reset)
+    process(all)
         -- Internal variables
         variable v_output : cpu_output_t;
     begin

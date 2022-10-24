@@ -31,7 +31,7 @@ architecture behavioral of apu is
     
 begin
     
-    process(reset, cpu_bus, cpu_data_in, reg)
+    process(all)
         variable v_output : apu_output_t;
     begin
 
