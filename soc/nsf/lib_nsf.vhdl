@@ -92,41 +92,28 @@ package lib_nsf is
     );
     
     type nsf_out_t is record
-        reg           : reg_t;
-        nsf_reg       : nsf_reg_t;
-        apu_bus       : apu_bus_t;
-        apu_data_out  : data_t;
-        sram_bus      : sram_bus_t;
-        sram_data_out : data_t;
-        ram_bus       : ram_bus_t;
-        ram_data_out  : data_t;
-        nsf_bus       : file_bus_t;
-        cpu_data_out  : data_t;
-        audio         : mixed_audio_t;
-        reset         : boolean;
-        nmi           : boolean;
+        reg     : reg_t;
+        nsf_reg : nsf_reg_t;
+        bus_out : mmap_bus_out_t;
+        audio   : mixed_audio_t;
+        reset   : boolean;
+        nmi     : boolean;
     end record;
-
-    function cycle_nsf
-    (
+    
+    type nsf_in_t is record
         reg             : reg_t;
         nsf_reg         : nsf_reg_t;
-        cpu_bus         : cpu_bus_t;
-        dma_bus         : cpu_bus_t;
-        cpu_data_in     : data_t;
-        ram_data_in     : data_t;
-        sram_data_in    : data_t;
-        apu_data_in     : data_t;
-        nsf_data_in     : data_t;
+        bus_in          : mmap_bus_in_t;
         enable_square_1 : boolean;
         enable_square_2 : boolean;
         enable_triangle : boolean;
         enable_noise    : boolean;
         enable_dmc      : boolean;
         audio           : apu_out_t;
-        song_sel        : song_sel_t
-    )
-    return nsf_out_t;
+        song_sel        : song_sel_t;
+    end record;
+
+    function cycle_nsf(nsf_in : nsf_in_t) return nsf_out_t;
     
     type nsf_mapper_in_t is record
         reg    : mapper_220_reg_t;
@@ -144,73 +131,45 @@ end lib_nsf;
 
 package body lib_nsf is
 
-    function cycle_nsf
-    (
-        reg             : reg_t;
-        nsf_reg         : nsf_reg_t;
-        cpu_bus         : cpu_bus_t;
-        dma_bus         : cpu_bus_t;
-        cpu_data_in     : data_t;
-        ram_data_in     : data_t;
-        sram_data_in    : data_t;
-        apu_data_in     : data_t;
-        nsf_data_in     : data_t;
-        enable_square_1 : boolean;
-        enable_square_2 : boolean;
-        enable_triangle : boolean;
-        enable_noise    : boolean;
-        enable_dmc      : boolean;
-        audio           : apu_out_t;
-        song_sel        : song_sel_t
-    )
-    return nsf_out_t
+    function cycle_nsf(nsf_in : nsf_in_t) return nsf_out_t
     is
-        
-        variable v_cpu_bus : cpu_bus_t;
-        
         variable ret : nsf_out_t;
         
         variable map_in  : nsf_mapper_in_t;
         variable map_out : nsf_mapper_out_t;
     begin
-        ret.reg := reg;
-        ret.nsf_reg := nsf_reg;
-        ret.ram_bus := bus_idle(ret.ram_bus);
-        ret.sram_bus := bus_idle(ret.sram_bus);
-        ret.apu_bus := bus_idle(ret.apu_bus);
-        ret.nsf_bus := bus_idle(ret.nsf_bus);
+        ret.reg := nsf_in.reg;
+        ret.nsf_reg := nsf_in.nsf_reg;
         
-        ret.ram_data_out := (others => '-');
-        ret.sram_data_out := (others => '-');
-        ret.cpu_data_out := (others => '-');
-        ret.apu_data_out := (others => '-');
+        ret.bus_out := MMAP_BUS_IDLE;
         
         ret.audio := (others => '-');
         
         ret.reset := false;
         ret.nmi := false;
         
-        v_cpu_bus := cpu_bus;
-        case reg.cur_state is
+        case nsf_in.reg.cur_state is
             when STATE_RESET =>
                 ret.reset := true;
-                ret.ram_bus := bus_write(reg.cur_cycle(ram_addr_t'range));
-                ret.sram_bus := bus_write(reg.cur_cycle(sram_addr_t'range));
+                ret.bus_out.ram_bus :=
+                    bus_write(nsf_in.reg.cur_cycle(ram_addr_t'range));
+                ret.bus_out.sram_bus :=
+                    bus_write(nsf_in.reg.cur_cycle(sram_addr_t'range));
                 
-                ret.ram_data_out := x"00";
-                ret.sram_data_out := x"00";
+                ret.bus_out.data_to_ram := x"00";
+                ret.bus_out.data_to_sram := x"00";
                 
                 ret.reg.mapper_reg := RESET_MAPPER_220_REG;
                 -- Preserve the start song and total song registers
-                ret.reg.mapper_reg.start_song := reg.mapper_reg.start_song;
-                ret.reg.mapper_reg.total_songs := reg.mapper_reg.total_songs;
+                ret.reg.mapper_reg.start_song := nsf_in.reg.mapper_reg.start_song;
+                ret.reg.mapper_reg.total_songs := nsf_in.reg.mapper_reg.total_songs;
                 
-                ret.reg.cur_cycle := reg.cur_cycle + "1";
-                if reg.cur_cycle = x"1FFF"
+                ret.reg.cur_cycle := nsf_in.reg.cur_cycle + "1";
+                if nsf_in.reg.cur_cycle = x"1FFF"
                 then
                     -- If the NSF file hasn't already been loaded, set
                     -- the counter to zero to load it
-                    if is_zero(reg.mapper_reg.start_song)
+                    if is_zero(nsf_in.reg.mapper_reg.start_song)
                     then
                         ret.reg.cur_cycle := x"0000";
                     -- Otherwise set the counter to 08 to skip loading the
@@ -221,127 +180,119 @@ package body lib_nsf is
                     ret.reg.cur_state := STATE_LOAD;
                 end if;
             when STATE_LOAD =>
-                ret.nsf_reg.cur_time := reg.speed;
+                ret.nsf_reg.cur_time := nsf_in.reg.speed;
                 ret.reset := true;
-                ret.nsf_bus :=
-                    bus_read(resize(reg.cur_cycle, ret.nsf_bus.address'length));
-                case reg.cur_cycle is
+                ret.bus_out.file_bus :=
+                    bus_read(resize(nsf_in.reg.cur_cycle, file_addr_t'length));
+                case nsf_in.reg.cur_cycle is
                     -- Total Songs
                     when x"0006" =>
-                        ret.reg.mapper_reg.total_songs := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.total_songs :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     -- Starting Song
                     when x"0007" =>
-                        ret.reg.mapper_reg.start_song := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.start_song :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     -- Load Addr Low
                     when x"0008" =>
                         ret.reg.mapper_reg.load_addr(7 downto 0) :=
-                            unsigned(nsf_data_in);
+                            unsigned(nsf_in.bus_in.data_from_file);
                     -- Load Addr High
                     when x"0009" =>
                         ret.reg.mapper_reg.load_addr(15 downto 8) :=
-                            unsigned(nsf_data_in);
+                            unsigned(nsf_in.bus_in.data_from_file);
                     -- Speed Low, NTSC
                     when x"006E" =>
-                        ret.reg.speed(7 downto 0) := unsigned(nsf_data_in);
+                        ret.reg.speed(7 downto 0) :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     -- Speed High, NTSC
                     when x"006F" =>
-                        ret.reg.speed(15 downto 8) := unsigned(nsf_data_in);
+                        ret.reg.speed(15 downto 8) :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     -- Bankswitch values
                     when x"0070" =>
-                        ret.reg.mapper_reg.bank_0 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_0 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0071" =>
-                        ret.reg.mapper_reg.bank_1 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_1 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0072" =>
-                        ret.reg.mapper_reg.bank_2 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_2 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0073" =>
-                        ret.reg.mapper_reg.bank_3 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_3 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0074" =>
-                        ret.reg.mapper_reg.bank_4 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_4 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0075" =>
-                        ret.reg.mapper_reg.bank_5 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_5 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0076" =>
-                        ret.reg.mapper_reg.bank_6 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_6 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when x"0077" =>
-                        ret.reg.mapper_reg.bank_7 := unsigned(nsf_data_in);
+                        ret.reg.mapper_reg.bank_7 :=
+                            unsigned(nsf_in.bus_in.data_from_file);
                     when others =>
                 end case;
                 
-                if reg.cur_cycle = x"7F"
+                if nsf_in.reg.cur_cycle = x"7F"
                 then
                     ret.reg.cur_state := STATE_RUN;
-                    ret.reg.mapper_reg := init_nsf_offset(reg.mapper_reg);
+                    ret.reg.mapper_reg := init_nsf_offset(nsf_in.reg.mapper_reg);
                 else
-                    ret.reg.cur_cycle := reg.cur_cycle + "1";
+                    ret.reg.cur_cycle := nsf_in.reg.cur_cycle + "1";
                 end if;
                 
             when STATE_RUN =>
-                if nsf_reg.cur_time = x"0000"
+                if nsf_in.nsf_reg.cur_time = x"0000"
                 then
-                    ret.nmi := not reg.mapper_reg.mask_nmi;
-                    ret.nsf_reg.cur_time := reg.speed;
+                    ret.nmi := not nsf_in.reg.mapper_reg.mask_nmi;
+                    ret.nsf_reg.cur_time := nsf_in.reg.speed;
                 else
                     ret.nmi := false;
-                    ret.nsf_reg.cur_time := nsf_reg.cur_time - "1";
+                    ret.nsf_reg.cur_time := nsf_in.nsf_reg.cur_time - "1";
                 end if;
                 
-                ret.audio := mix_audio(audio,
-                                       enable_square_1,
-                                       enable_square_2,
-                                       enable_triangle,
-                                       enable_noise,
-                                       enable_dmc);
+                ret.audio := mix_audio(nsf_in.audio,
+                                       nsf_in.enable_square_1,
+                                       nsf_in.enable_square_2,
+                                       nsf_in.enable_triangle,
+                                       nsf_in.enable_noise,
+                                       nsf_in.enable_dmc);
 
-                if is_bus_active(dma_bus)
-                then
-                    v_cpu_bus := dma_bus;
-                else
-                    v_cpu_bus := cpu_bus;
-                end if;
-
-                map_in.reg := reg.mapper_reg;
-                map_in.bus_in.cpu_bus := v_cpu_bus;
-                
-                map_in.bus_in.data_from_cpu := cpu_data_in;
-                map_in.bus_in.data_from_apu := apu_data_in;
-                map_in.bus_in.data_from_ram := ram_data_in;
-                map_in.bus_in.data_from_sram := sram_data_in;
-                map_in.bus_in.data_from_file := nsf_data_in;
+                map_in.reg := nsf_in.reg.mapper_reg;
+                map_in.bus_in := nsf_in.bus_in;
                 
                 map_out := perform_memory_map(map_in);
                 
                 ret.reg.mapper_reg := map_out.reg;
                 
-                ret.apu_bus := map_out.bus_out.apu_bus;
-                ret.ram_bus := map_out.bus_out.ram_bus;
-                ret.sram_bus := map_out.bus_out.sram_bus;
-                ret.nsf_bus := map_out.bus_out.file_bus;
+                ret.bus_out := map_out.bus_out;
                 
-                ret.cpu_data_out := map_out.bus_out.data_to_cpu;
-                ret.apu_data_out := map_out.bus_out.data_to_apu;
-                ret.sram_data_out := map_out.bus_out.data_to_sram;
-                ret.ram_data_out := map_out.bus_out.data_to_ram;
-                
-                case song_sel is
+                case nsf_in.song_sel is
                     when SONG_NEXT =>
                         ret.reg.cur_state := STATE_RESET;
                         ret.reg.cur_cycle := (others => '0');
-                        if reg.mapper_reg.start_song = reg.mapper_reg.total_songs
+                        if nsf_in.reg.mapper_reg.start_song =
+                           nsf_in.reg.mapper_reg.total_songs
                         then
                             ret.reg.mapper_reg.start_song := x"01";
                         else
                             ret.reg.mapper_reg.start_song := 
-                                reg.mapper_reg.start_song + "1";
+                                nsf_in.reg.mapper_reg.start_song + "1";
                         end if;
                     when SONG_PREV =>
                         ret.reg.cur_state := STATE_RESET;
                         ret.reg.cur_cycle := (others => '0');
-                        if reg.mapper_reg.start_song = x"01"
+                        if nsf_in.reg.mapper_reg.start_song = x"01"
                         then
                             ret.reg.mapper_reg.start_song :=
-                                reg.mapper_reg.total_songs;
+                                nsf_in.reg.mapper_reg.total_songs;
                         else
                             ret.reg.mapper_reg.start_song :=
-                                reg.mapper_reg.start_song - "1";
+                                nsf_in.reg.mapper_reg.start_song - "1";
                         end if;
                     when others =>
                 end case;

@@ -146,33 +146,43 @@ begin
         song_sel
     )
         variable nsf_out : nsf_out_t;
+        variable nsf_in  : nsf_in_t;
     begin
-        nsf_out := cycle_nsf(reg,
-                             nsf_reg,
-                             cpu_bus,
-                             dma_bus,
-                             cpu_data_in,
-                             ram_data_in,
-                             sram_data_in,
-                             apu_data_in,
-                             nsf_data_in,
-                             enable_square_1,
-                             enable_square_2,
-                             enable_triangle,
-                             enable_noise,
-                             enable_dmc,
-                             audio_out,
-                             song_sel);
+        nsf_in.reg := reg;
+        nsf_in.nsf_reg := nsf_reg;
         
-        apu_bus <= nsf_out.apu_bus;
-        sram_bus <= nsf_out.sram_bus;
-        ram_bus <= nsf_out.ram_bus;
-        nsf_bus <= nsf_out.nsf_bus;
+        if is_bus_active(dma_bus)
+        then
+            nsf_in.bus_in.cpu_bus := dma_bus;
+        else
+            nsf_in.bus_in.cpu_bus := cpu_bus;
+        end if;
         
-        sram_data_out <= nsf_out.sram_data_out;
-        apu_data_out <= nsf_out.apu_data_out;
-        ram_data_out <= nsf_out.ram_data_out;
-        cpu_data_out <= nsf_out.cpu_data_out;
+        nsf_in.bus_in.data_from_cpu := cpu_data_in;
+        nsf_in.bus_in.data_from_apu := apu_data_in;
+        nsf_in.bus_in.data_from_ram := ram_data_in;
+        nsf_in.bus_in.data_from_sram := sram_data_in;
+        nsf_in.bus_in.data_from_file := nsf_data_in;
+        
+        nsf_in.enable_square_1 := enable_square_1;
+        nsf_in.enable_square_2 := enable_square_2;
+        nsf_in.enable_triangle := enable_triangle;
+        nsf_in.enable_noise := enable_noise;
+        nsf_in.enable_dmc := enable_dmc;
+        nsf_in.audio := audio_out;
+        nsf_in.song_sel := song_sel;
+    
+        nsf_out := cycle_nsf(nsf_in);
+        
+        apu_bus <= nsf_out.bus_out.apu_bus;
+        sram_bus <= nsf_out.bus_out.sram_bus;
+        ram_bus <= nsf_out.bus_out.ram_bus;
+        nsf_bus <= nsf_out.bus_out.file_bus;
+        
+        sram_data_out <= nsf_out.bus_out.data_to_sram;
+        apu_data_out <= nsf_out.bus_out.data_to_apu;
+        ram_data_out <= nsf_out.bus_out.data_to_ram;
+        cpu_data_out <= nsf_out.bus_out.data_to_cpu;
         
         reg_in <= nsf_out.reg;
         nsf_reg_in <= nsf_out.nsf_reg;
