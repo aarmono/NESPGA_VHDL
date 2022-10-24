@@ -15,14 +15,10 @@ package lib_nsf_mapper is
     type mapper_reg_t is record
         total_songs : unsigned(data_t'RANGE);
         start_song  : unsigned(data_t'RANGE);
-        song_type   : std_logic;
-        
-        load_addr  : cpu_addr_t;
-        init_addr  : cpu_addr_t;
-        play_addr  : cpu_addr_t;
         
         mask_nmi    : boolean;
         
+        load_addr  : unsigned(cpu_addr_t'range);
         nsf_offset : unsigned(cpu_addr_t'range);
         
         bank_0     : unsigned(data_t'range);
@@ -39,14 +35,10 @@ package lib_nsf_mapper is
     (
         total_songs => (others => '0'),
         start_song => (others => '0'),
-        song_type => '0',
-        
-        load_addr => (others => '0'),
-        init_addr => (others => '0'),
-        play_addr => (others => '0'),
         
         mask_nmi => false,
         
+        load_addr => (others => '0'),
         nsf_offset => (others => '0'),
         
         bank_0 => (others => '0'),
@@ -118,7 +110,7 @@ package body lib_nsf_mapper is
         
         if map_enabled(reg)
         then
-            ret.nsf_offset := unsigned(reg.load_addr and x"0FFF") + x"0080";
+            ret.nsf_offset := (reg.load_addr and x"0FFF") + x"0080";
         end if;
         
         return ret;
@@ -159,12 +151,16 @@ package body lib_nsf_mapper is
     return file_bus_t
     is
         variable address : unsigned(file_addr_t'range);
+        variable cpu_address : unsigned(file_addr_t'range);
+        variable load_address : unsigned(file_addr_t'range);
         variable nsf_bus : file_bus_t;
     begin
-        if cpu_bus.address >= reg.load_addr
+        cpu_address := resize(unsigned(cpu_bus.address), cpu_address'length);
+        load_address := resize(reg.load_addr, load_address'length);
+        
+        if cpu_address >= load_address
         then
-            address := x"0" & (unsigned(cpu_bus.address) -
-                               unsigned(reg.load_addr) + x"80");
+            address := (cpu_address - load_address) + x"80";
             return bus_read(address);
         else
             return bus_idle(nsf_bus);
@@ -186,6 +182,14 @@ package body lib_nsf_mapper is
         
         constant RESET_ADDR : cpu_addr_t := x"4200";
         constant NMI_ADDR : cpu_addr_t := x"4280";
+        
+        constant NSF_INIT_ADDR_LOW  : file_addr_t := x"0000A";
+        constant NSF_INIT_ADDR_HIGH : file_addr_t := x"0000B";
+        
+        constant NSF_PLAY_ADDR_LOW  : file_addr_t := x"0000C";
+        constant NSF_PLAY_ADDR_HIGH : file_addr_t := x"0000D";
+        
+        constant NSF_SONG_TYPE_ADDR : file_addr_t := x"0007A";
     begin
         map_out.reg := map_in.reg;
         
@@ -208,19 +212,24 @@ package body lib_nsf_mapper is
                         std_logic_vector(map_in.reg.start_song - "1");
                 -- Song type (NTSC or PAL)
                 when x"4101" =>
-                    map_out.data_to_cpu := "0000000" & map_in.reg.song_type;
+                    map_out.nsf_bus := bus_read(NSF_SONG_TYPE_ADDR);
+                    map_out.data_to_cpu := map_in.data_from_nsf;
                 -- Init Address Low
                 when x"4102" =>
-                    map_out.data_to_cpu := map_in.reg.init_addr(7 downto 0);
+                    map_out.nsf_bus := bus_read(NSF_INIT_ADDR_LOW);
+                    map_out.data_to_cpu := map_in.data_from_nsf;
                 -- Init Address High
                 when x"4103" =>
-                    map_out.data_to_cpu := map_in.reg.init_addr(15 downto 8);
+                    map_out.nsf_bus := bus_read(NSF_INIT_ADDR_HIGH);
+                    map_out.data_to_cpu := map_in.data_from_nsf;
                 -- Play Address Low
                 when x"4104" =>
-                    map_out.data_to_cpu := map_in.reg.play_addr(7 downto 0);
+                    map_out.nsf_bus := bus_read(NSF_PLAY_ADDR_LOW);
+                    map_out.data_to_cpu := map_in.data_from_nsf;
                 -- Play Address High
                 when x"4105" =>
-                    map_out.data_to_cpu := map_in.reg.play_addr(15 downto 8);
+                    map_out.nsf_bus := bus_read(NSF_PLAY_ADDR_HIGH);
+                    map_out.data_to_cpu := map_in.data_from_nsf;
                 -- Mask NMI
                 when x"4106" =>
                     if is_bus_read(map_in.cpu_bus)

@@ -224,18 +224,6 @@ package body lib_nsf is
                     -- Load Addr High
                     when x"0009" =>
                         ret.reg.mapper_reg.load_addr(15 downto 8) := nsf_data_in;
-                    -- Init Addr Low
-                    when x"000A" =>
-                        ret.reg.mapper_reg.init_addr(7 downto 0) := nsf_data_in;
-                    -- Init Addr High
-                    when x"000B" =>
-                        ret.reg.mapper_reg.init_addr(15 downto 8) := nsf_data_in;
-                    -- Play Addr Low
-                    when x"000C" =>
-                        ret.reg.mapper_reg.play_addr(7 downto 0) := nsf_data_in;
-                    -- Play Addr High
-                    when x"000D" =>
-                        ret.reg.mapper_reg.play_addr(15 downto 8) := nsf_data_in;
                     -- Speed Low, NTSC
                     when x"006E" =>
                         ret.reg.speed(7 downto 0) := unsigned(nsf_data_in);
@@ -259,8 +247,6 @@ package body lib_nsf is
                         ret.reg.mapper_reg.bank_6 := unsigned(nsf_data_in);
                     when x"0077" =>
                         ret.reg.mapper_reg.bank_7 := unsigned(nsf_data_in);
-                    when x"007A" =>
-                        ret.reg.mapper_reg.song_type := nsf_data_in(0);
                     when others =>
                 end case;
                 
