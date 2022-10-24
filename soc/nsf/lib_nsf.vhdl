@@ -9,7 +9,9 @@ use work.file_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
-use work.lib_nsf_mapper.all;
+use work.mapper_types.all;
+use work.lib_mapper_220.all;
+use work.lib_nes_mmap.all;
 
 package lib_nsf is
 
@@ -65,7 +67,7 @@ package lib_nsf is
     
     -- Clocked off the CPU timer
     type reg_t is record
-        mapper_reg  : mapper_reg_t;
+        mapper_reg  : mapper_220_reg_t;
         speed       : unsigned(cpu_addr_t'RANGE);
         cur_cycle   : unsigned(cpu_addr_t'RANGE);
         cur_state   : state_t;
@@ -73,7 +75,7 @@ package lib_nsf is
 
     constant RESET_REG : reg_t :=
     (
-        mapper_reg => RESET_MAPPER_REG,
+        mapper_reg => RESET_MAPPER_220_REG,
         speed => x"0000",
         cur_cycle => x"0000",
         cur_state => STATE_RESET
@@ -125,6 +127,18 @@ package lib_nsf is
         song_sel        : song_sel_t
     )
     return nsf_out_t;
+    
+    type nsf_mapper_in_t is record
+        reg    : mapper_220_reg_t;
+        bus_in : mmap_bus_in_t;
+    end record;
+    
+    type nsf_mapper_out_t is record
+        reg     : mapper_220_reg_t;
+        bus_out : mmap_bus_out_t;
+    end record;
+
+    function perform_memory_map(map_in : nsf_mapper_in_t) return nsf_mapper_out_t;
 
 end lib_nsf;
 
@@ -156,8 +170,8 @@ package body lib_nsf is
         
         variable ret : nsf_out_t;
         
-        variable map_in  : mapper_in_t;
-        variable map_out : mapper_out_t;
+        variable map_in  : nsf_mapper_in_t;
+        variable map_out : nsf_mapper_out_t;
     begin
         ret.reg := reg;
         ret.nsf_reg := nsf_reg;
@@ -186,7 +200,7 @@ package body lib_nsf is
                 ret.ram_data_out := x"00";
                 ret.sram_data_out := x"00";
                 
-                ret.reg.mapper_reg := RESET_MAPPER_REG;
+                ret.reg.mapper_reg := RESET_MAPPER_220_REG;
                 -- Preserve the start song and total song registers
                 ret.reg.mapper_reg.start_song := reg.mapper_reg.start_song;
                 ret.reg.mapper_reg.total_songs := reg.mapper_reg.total_songs;
@@ -220,10 +234,12 @@ package body lib_nsf is
                         ret.reg.mapper_reg.start_song := unsigned(nsf_data_in);
                     -- Load Addr Low
                     when x"0008" =>
-                        ret.reg.mapper_reg.load_addr(7 downto 0) := nsf_data_in;
+                        ret.reg.mapper_reg.load_addr(7 downto 0) :=
+                            unsigned(nsf_data_in);
                     -- Load Addr High
                     when x"0009" =>
-                        ret.reg.mapper_reg.load_addr(15 downto 8) := nsf_data_in;
+                        ret.reg.mapper_reg.load_addr(15 downto 8) :=
+                            unsigned(nsf_data_in);
                     -- Speed Low, NTSC
                     when x"006E" =>
                         ret.reg.speed(7 downto 0) := unsigned(nsf_data_in);
@@ -283,27 +299,27 @@ package body lib_nsf is
                 end if;
 
                 map_in.reg := reg.mapper_reg;
-                map_in.cpu_bus := v_cpu_bus;
+                map_in.bus_in.cpu_bus := v_cpu_bus;
                 
-                map_in.data_from_cpu := cpu_data_in;
-                map_in.data_from_apu := apu_data_in;
-                map_in.data_from_ram := ram_data_in;
-                map_in.data_from_sram := sram_data_in;
-                map_in.data_from_nsf := nsf_data_in;
+                map_in.bus_in.data_from_cpu := cpu_data_in;
+                map_in.bus_in.data_from_apu := apu_data_in;
+                map_in.bus_in.data_from_ram := ram_data_in;
+                map_in.bus_in.data_from_sram := sram_data_in;
+                map_in.bus_in.data_from_file := nsf_data_in;
                 
                 map_out := perform_memory_map(map_in);
                 
                 ret.reg.mapper_reg := map_out.reg;
                 
-                ret.apu_bus := map_out.apu_bus;
-                ret.ram_bus := map_out.ram_bus;
-                ret.sram_bus := map_out.sram_bus;
-                ret.nsf_bus := map_out.nsf_bus;
+                ret.apu_bus := map_out.bus_out.apu_bus;
+                ret.ram_bus := map_out.bus_out.ram_bus;
+                ret.sram_bus := map_out.bus_out.sram_bus;
+                ret.nsf_bus := map_out.bus_out.file_bus;
                 
-                ret.cpu_data_out := map_out.data_to_cpu;
-                ret.apu_data_out := map_out.data_to_apu;
-                ret.sram_data_out := map_out.data_to_sram;
-                ret.ram_data_out := map_out.data_to_ram;
+                ret.cpu_data_out := map_out.bus_out.data_to_cpu;
+                ret.apu_data_out := map_out.bus_out.data_to_apu;
+                ret.sram_data_out := map_out.bus_out.data_to_sram;
+                ret.ram_data_out := map_out.bus_out.data_to_ram;
                 
                 case song_sel is
                     when SONG_NEXT =>
@@ -382,6 +398,25 @@ package body lib_nsf is
         ret.prev_prev := prev_stb;
         
         return ret;
+    end;
+    
+    function perform_memory_map(map_in : nsf_mapper_in_t) return nsf_mapper_out_t
+    is
+        variable map_out  : nsf_mapper_out_t;
+        variable mmap_in  : mmap_in_t;
+        variable mmap_out : mmap_out_t;
+    begin
+        mmap_in.reg.mapper_num := x"0DC";
+        mmap_in.reg.mapper_220_reg := map_in.reg;
+        
+        mmap_in.bus_in := map_in.bus_in;
+        
+        mmap_out := mmap_cpu_memory(mmap_in);
+        
+        map_out.reg := mmap_out.reg.mapper_220_reg;
+        map_out.bus_out := mmap_out.bus_out;
+        
+        return map_out;
     end;
 
 end package body;
