@@ -10,18 +10,19 @@ use work.utilities.all;
 entity apu is
 port
 (
-    clk          : in  std_logic;
-    reset        : in  boolean;
+    clk           : in  std_logic;
+    clk_en        : in  boolean := true;
+    reset         : in  boolean;
     
-    cpu_bus      : in  apu_bus_t;
-    cpu_data_in  : in  data_t;
-    cpu_data_out : out data_t;
+    cpu_bus       : in  apu_bus_t;
+    data_to_apu   : in  data_t;
+    data_from_apu : out data_t;
     
-    audio        : out apu_out_t;
+    audio         : out apu_out_t;
 
-    dma_bus      : out cpu_bus_t;
-    irq          : out boolean;
-    ready        : out boolean
+    dma_bus       : out cpu_bus_t;
+    irq           : out boolean;
+    ready         : out boolean
 );
 end apu;
 
@@ -35,11 +36,11 @@ begin
         variable v_output : apu_output_t;
     begin
 
-        v_output := cycle_apu(reg, cpu_bus, cpu_data_in, reset);
+        v_output := cycle_apu(reg, cpu_bus, data_to_apu, reset);
 
         reg_in <= v_output.reg;
         audio <= v_output.audio;
-        cpu_data_out <= v_output.cpu_data_out;
+        data_from_apu <= v_output.cpu_data_out;
         dma_bus <= v_output.dma_bus;
         irq <= v_output.irq;
         ready <= v_output.ready;
@@ -48,7 +49,7 @@ begin
     
     process(clk)
     begin
-        if rising_edge(clk)
+        if rising_edge(clk) and clk_en
         then
             reg <= reg_in;
         end if;

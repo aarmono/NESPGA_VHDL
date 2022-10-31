@@ -15,24 +15,24 @@ use work.simulation.all;
 entity nsf_soc is
 port
 (
-    clk_cpu : in std_logic;
-    clk_nsf : in std_logic;
+    clk_50mhz : in std_logic;
+    reset_in  : in boolean;
     
     reset_out : out boolean;
     
     next_stb : in std_logic;
     prev_stb : in std_logic;
     
-    nsf_bus     : out file_bus_t;
-    nsf_data_in : in data_t;
+    file_bus       : out file_bus_t;
+    data_from_file : in data_t;
     
-    sram_bus      : out sram_bus_t;
-    sram_data_out : out data_t;
-    sram_data_in  : in data_t;
+    sram_bus       : out sram_bus_t;
+    data_to_sram   : out data_t;
+    data_from_sram : in data_t;
     
-    ram_bus      : out ram_bus_t;
-    ram_data_out : out data_t;
-    ram_data_in  : in data_t;
+    ram_bus       : out ram_bus_t;
+    data_to_ram   : out data_t;
+    data_from_ram : in data_t;
     
     enable_square_1 : in boolean;
     enable_square_2 : in boolean;
@@ -59,10 +59,10 @@ architecture behavioral of nsf_soc is
     signal cpu_bus     : cpu_bus_t;
     signal dma_bus     : cpu_bus_t;
     
-    signal cpu_data_out     : data_t;
-    signal cpu_data_in      : data_t;
-    signal apu_data_out     : data_t;
-    signal apu_data_in      : data_t;
+    signal data_from_cpu    : data_t;
+    signal data_to_cpu      : data_t;
+    signal data_from_apu    : data_t;
+    signal data_to_apu      : data_t;
     
     signal irq : boolean;
     signal nmi : boolean;
@@ -71,22 +71,36 @@ architecture behavioral of nsf_soc is
     
     signal audio_out   : apu_out_t;
     signal mixed_audio : mixed_audio_t;
+    
+    signal cpu_en : boolean;
+    signal nsf_en : boolean;
 begin
     
     reset_out <= reset;
     audio <= mixed_audio;
     song_sel <= song_sel_reg.song_sel;
     
+    nsf_clk_en : clk_en
+    port map
+    (
+        clk_50mhz => clk_50mhz,
+        reset => false,
+        
+        cpu_en => cpu_en,
+        nsf_en => nsf_en
+    );
+    
     -- CPU {
     nsf_cpu : cpu
     port map
     (
-        clk => clk_cpu,
+        clk => clk_50mhz,
+        clk_en => cpu_en,
         reset => reset,
         
-        data_bus => cpu_bus,
-        data_in => cpu_data_out,
-        data_out => cpu_data_in,
+        cpu_bus => cpu_bus,
+        data_to_cpu => data_to_cpu,
+        data_from_cpu => data_from_cpu,
         
         ready => ready,
         irq => irq,
@@ -98,12 +112,13 @@ begin
     nsf_apu : apu
     port map
     (
-        clk => clk_cpu,
+        clk => clk_50mhz,
+        clk_en => cpu_en,
         reset => reset,
         
         cpu_bus => apu_bus,
-        cpu_data_in => apu_data_out,
-        cpu_data_out => apu_data_in,
+        data_to_apu => data_to_apu,
+        data_from_apu => data_from_apu,
         
         audio => audio_out,
 
@@ -122,7 +137,7 @@ begin
     port map
     (
         apu_bus => apu_bus,
-        apu_data_in => apu_data_out
+        apu_data_in => data_to_apu
     );
     -- }
     
@@ -140,11 +155,11 @@ begin
             nsf_in.bus_in.cpu_bus := cpu_bus;
         end if;
         
-        nsf_in.bus_in.data_from_cpu := cpu_data_in;
-        nsf_in.bus_in.data_from_apu := apu_data_in;
-        nsf_in.bus_in.data_from_ram := ram_data_in;
-        nsf_in.bus_in.data_from_sram := sram_data_in;
-        nsf_in.bus_in.data_from_file := nsf_data_in;
+        nsf_in.bus_in.data_from_cpu := data_from_cpu;
+        nsf_in.bus_in.data_from_apu := data_from_apu;
+        nsf_in.bus_in.data_from_ram := data_from_ram;
+        nsf_in.bus_in.data_from_sram := data_from_sram;
+        nsf_in.bus_in.data_from_file := data_from_file;
         
         nsf_in.enable_square_1 := enable_square_1;
         nsf_in.enable_square_2 := enable_square_2;
@@ -159,12 +174,12 @@ begin
         apu_bus <= nsf_out.bus_out.apu_bus;
         sram_bus <= nsf_out.bus_out.sram_bus;
         ram_bus <= nsf_out.bus_out.ram_bus;
-        nsf_bus <= nsf_out.bus_out.file_bus;
+        file_bus <= nsf_out.bus_out.file_bus;
         
-        sram_data_out <= nsf_out.bus_out.data_to_sram;
-        apu_data_out <= nsf_out.bus_out.data_to_apu;
-        ram_data_out <= nsf_out.bus_out.data_to_ram;
-        cpu_data_out <= nsf_out.bus_out.data_to_cpu;
+        data_to_sram <= nsf_out.bus_out.data_to_sram;
+        data_to_apu <= nsf_out.bus_out.data_to_apu;
+        data_to_ram <= nsf_out.bus_out.data_to_ram;
+        data_to_cpu <= nsf_out.bus_out.data_to_cpu;
         
         reg_in <= nsf_out.reg;
         nsf_reg_in <= nsf_out.nsf_reg;
@@ -176,20 +191,26 @@ begin
     end process;
     
     -- Register update process {
-    process(clk_cpu)
+    process(clk_50mhz)
     begin
-    if rising_edge(clk_cpu) then
-        reg <= reg_in;
+    if rising_edge(clk_50mhz) and cpu_en
+    then
+        if reset_in
+        then
+            reg <= RESET_REG;
+        else
+            reg <= reg_in;
+        end if;
     end if;
     end process;
     -- }
     
     -- Song selector {
-    process(clk_nsf)
+    process(clk_50mhz)
     begin
-    if rising_edge(clk_nsf)
+    if rising_edge(clk_50mhz) and nsf_en
     then
-        if reset
+        if reset_in
         then
             song_sel_reg <= RESET_SONG_SEL;
         else
@@ -198,13 +219,7 @@ begin
                                            prev_stb,
                                            audio);
         end if;
-    end if;
-    end process;
-    
-    process(clk_nsf)
-    begin
-    if rising_edge(clk_nsf)
-    then
+        
         nsf_reg <= nsf_reg_in;
     end if;
     end process;

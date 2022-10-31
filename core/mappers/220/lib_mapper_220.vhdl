@@ -54,12 +54,12 @@ package lib_mapper_220 is
     
     type mapper_220_in_t is record
         reg    : mapper_220_reg_t;
-        bus_in : mapper_bus_in_t;
+        bus_in : cpu_mapper_bus_in_t;
     end record;
     
     type mapper_220_out_t is record
         reg     : mapper_220_reg_t;
-        bus_out : mapper_bus_out_t;
+        bus_out : cpu_mapper_bus_out_t;
     end record;
     
     function map_enabled(reg : mapper_220_reg_t) return boolean;
@@ -112,24 +112,31 @@ package body lib_mapper_220 is
     )
     return file_bus_t
     is
-        variable mapped_address : unsigned(file_addr_t'range);
+        variable bank : unsigned(data_t'range);
+        variable bus_out : file_bus_t;
         variable cpu_base_address : unsigned(11 downto 0);
     begin
         cpu_base_address := unsigned(cpu_bus.address(cpu_base_address'range));
+        bus_out := FILE_BUS_IDLE;
 
-        case cpu_bus.address(15 downto 12) is
-            when x"8" => mapped_address := reg.bank_0 & cpu_base_address;
-            when x"9" => mapped_address := reg.bank_1 & cpu_base_address;
-            when x"A" => mapped_address := reg.bank_2 & cpu_base_address;
-            when x"B" => mapped_address := reg.bank_3 & cpu_base_address;
-            when x"C" => mapped_address := reg.bank_4 & cpu_base_address;
-            when x"D" => mapped_address := reg.bank_5 & cpu_base_address;
-            when x"E" => mapped_address := reg.bank_6 & cpu_base_address;
-            when x"F" => mapped_address := reg.bank_7 & cpu_base_address;
-            when others => mapped_address := (others => '-');
-        end case;
-    
-        return bus_read(mapped_address + reg.nsf_offset);
+        if cpu_bus.address >= x"8000"
+        then
+            case cpu_bus.address(15 downto 12) is
+                when x"8" => bank := reg.bank_0;
+                when x"9" => bank := reg.bank_1;
+                when x"A" => bank := reg.bank_2;
+                when x"B" => bank := reg.bank_3;
+                when x"C" => bank := reg.bank_4;
+                when x"D" => bank := reg.bank_5;
+                when x"E" => bank := reg.bank_6;
+                when x"F" => bank := reg.bank_7;
+                when others => bank := (others => '-');
+            end case;
+            
+            bus_out := bus_read((bank & cpu_base_address) + reg.nsf_offset);
+        end if;
+        
+        return bus_out;
     end;
     
     function get_unmapped_file_bus
@@ -186,7 +193,7 @@ package body lib_mapper_220 is
     begin
         map_out.reg := map_in.reg;
         
-        map_out.bus_out := MAPPER_BUS_IDLE;
+        map_out.bus_out := CPU_MAPPER_BUS_IDLE;
         
         case? map_in.bus_in.cpu_bus.address is
             --Current Song
@@ -322,25 +329,7 @@ package body lib_mapper_220 is
                 
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_sram;
                 map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
-            when x"8---" |
-                 x"9---" |
-                 x"A---" |
-                 x"B---" |
-                 x"C---" |
-                 x"D---" |
-                 x"E---" |
-                 x"F--0" |
-                 x"F--1" |
-                 x"F--2" |
-                 x"F--3" |
-                 x"F--4" |
-                 x"F--5" |
-                 x"F--6" |
-                 x"F--7" |
-                 x"F--8" |
-                 x"F--9" |
-                 x"F--E" |
-                 x"F--F" =>
+            when others =>
                 if map_enabled(map_in.reg)
                 then
                     map_out.bus_out.file_bus :=
@@ -351,8 +340,6 @@ package body lib_mapper_220 is
                 end if;
                 
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
-            when others =>
-                null;
         end case?;
         
         return map_out;

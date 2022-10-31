@@ -11,6 +11,13 @@ package palette_bus_types is
         write    : boolean;
     end record;
     
+    constant PALETTE_BUS_IDLE : palette_bus_t :=
+    (
+        address => (others => '-'),
+        read => false,
+        write => false
+    );
+    
     function bus_read(addr_in : palette_addr_t) return palette_bus_t;
     function bus_read(addr_in : unsigned(palette_addr_t'RANGE)) return palette_bus_t;
     function bus_write(addr_in : palette_addr_t) return palette_bus_t;

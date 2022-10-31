@@ -7,6 +7,10 @@ use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.prg_bus_types.all;
+use work.chr_bus_types.all;
+use work.oam_bus_types.all;
+use work.sec_oam_bus_types.all;
+use work.palette_bus_types.all;
 use work.utilities.all;
 
 package nes_core is
@@ -23,30 +27,24 @@ package nes_core is
         dmc      : dmc_audio_t;
     end record;
     
-    function is_ram_addr(addr : cpu_addr_t) return boolean;
-    function get_ram_addr(addr : cpu_addr_t) return ram_addr_t;
+    subtype pixel_t is std_logic_vector(5 downto 0);
     
-    function is_ppu_addr(addr : cpu_addr_t) return boolean;
-    function get_ppu_addr(addr : cpu_addr_t) return ppu_addr_t;
-    
-    function is_apu_addr(addr : cpu_addr_t) return boolean;
-    function get_apu_addr(addr : cpu_addr_t) return apu_addr_t;
-    
-    function is_sram_addr(addr : cpu_addr_t) return boolean;
-    function get_sram_addr(addr : cpu_addr_t) return sram_addr_t;
-    
-    --function is_prg_addr(addr : cpu_addr_t) return boolean;
-    --function get_prg_addr(addr : cpu_addr_t) return prg_addr_t;
+    type pixel_bus_t is record
+        pixel       : pixel_t;
+        line_valid  : boolean;
+        frame_valid : boolean;
+    end record;
     
     component cpu is
     port
     (
         clk      : in  std_logic;
+        clk_en   : in  boolean := true;
         reset    : in  boolean;
     
-        data_bus : out cpu_bus_t;
-        data_in  : in  data_t;
-        data_out : out data_t;
+        cpu_bus       : out cpu_bus_t;
+        data_to_cpu   : in  data_t;
+        data_from_cpu : out data_t;
     
         sync     : out boolean;
     
@@ -59,71 +57,86 @@ package nes_core is
     component apu is
     port
     (
-        clk          : in  std_logic;
-        reset        : in  boolean;
+        clk           : in  std_logic;
+        clk_en        : in  boolean := true;
+        reset         : in  boolean;
 
-        cpu_bus      : in  apu_bus_t;
-        cpu_data_in  : in  data_t;
-        cpu_data_out : out data_t;
+        cpu_bus       : in  apu_bus_t;
+        data_to_apu   : in  data_t;
+        data_from_apu : out data_t;
 
-        audio        : out apu_out_t;
+        audio         : out apu_out_t;
 
-        dma_bus      : out cpu_bus_t;
-        irq          : out boolean;
-        ready        : out boolean
+        dma_bus       : out cpu_bus_t;
+        irq           : out boolean;
+        ready         : out boolean
     );
     end component apu;
+    
+    component ppu is
+    port
+    (
+        clk               : in std_logic;
+        clk_en            : in boolean := true;
+        reset             : in boolean;
+
+        chr_bus           : out chr_bus_t;
+        chr_data_from_ppu : out data_t;
+        chr_data_to_ppu   : in  data_t;
+        
+        oam_bus           : out oam_bus_t;
+        data_to_oam       : out data_t;
+        data_from_oam     : in data_t;
+        
+        sec_oam_bus       : out sec_oam_bus_t;
+        data_to_sec_oam   : out data_t;
+        data_from_sec_oam : in data_t;
+        
+        palette_bus       : out palette_bus_t;
+        data_to_palette   : out data_t;
+        data_from_palette : in data_t;
+        
+        cpu_bus           : in  ppu_bus_t;
+        cpu_bus_clk_en    : in boolean := true;
+        prg_data_from_ppu : out data_t;
+        prg_data_to_ppu   : in  data_t;
+
+        pixel_bus         : out pixel_bus_t;
+        vint              : out boolean
+    );
+    end component ppu;
+    
+    component oam_dma is
+    port
+    (
+        clk            : in std_logic;
+        clk_en         : in boolean := true;
+        reset          : in boolean;
+        
+        write_from_cpu : in boolean;
+        data_to_dma    : in data_t;
+        
+        dma_bus         : out cpu_bus_t;
+        data_from_dma   : out data_t;
+        
+        ready           : out boolean
+    );
+    end component oam_dma;
+    
+    component clk_en is
+    port
+    (
+        clk_50mhz : in std_logic;
+        reset     : in boolean;
+        
+        cpu_en    : out boolean;
+        ppu_en    : out boolean;
+        nsf_en    : out boolean
+    );
+    end component clk_en;
 
 end nes_core;
 
 package body nes_core is
-    
-    function is_ram_addr(addr : cpu_addr_t) return boolean
-    is
-    begin
-        return addr < x"2000";
-    end;
-    
-    function get_ram_addr(addr : cpu_addr_t) return ram_addr_t
-    is
-    begin
-        return addr(ram_addr_t'RANGE);
-    end;
-    
-    function is_ppu_addr(addr : cpu_addr_t) return boolean
-    is
-    begin
-        return addr >= x"2000" and addr < x"4000";
-    end;
-    
-    function get_ppu_addr(addr : cpu_addr_t) return ppu_addr_t
-    is
-    begin
-        return addr(ppu_addr_t'RANGE);
-    end;
-    
-    function is_apu_addr(addr : cpu_addr_t) return boolean
-    is
-    begin
-        return addr >= x"4000" and addr < x"4020";
-    end;
-    
-    function get_apu_addr(addr : cpu_addr_t) return apu_addr_t
-    is
-    begin
-        return addr(apu_addr_t'RANGE);
-    end;
-    
-    function is_sram_addr(addr : cpu_addr_t) return boolean
-    is
-    begin
-        return addr >= x"6000" and addr < x"8000";
-    end;
-    
-    function get_sram_addr(addr : cpu_addr_t) return sram_addr_t
-    is
-    begin
-        return addr(sram_addr_t'RANGE);
-    end;
     
 end package body;

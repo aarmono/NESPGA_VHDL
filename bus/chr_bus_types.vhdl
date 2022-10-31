@@ -11,6 +11,13 @@ package chr_bus_types is
         write    : boolean;
     end record;
     
+    constant CHR_BUS_IDLE : chr_bus_t :=
+    (
+        address => (others => '-'),
+        read => false,
+        write => false
+    );
+    
     function bus_read(addr_in : chr_addr_t) return chr_bus_t;
     function bus_read(addr_in : unsigned(chr_addr_t'RANGE)) return chr_bus_t;
     function bus_write(addr_in : chr_addr_t) return chr_bus_t;

@@ -94,7 +94,7 @@ package lib_nsf is
     type nsf_out_t is record
         reg     : reg_t;
         nsf_reg : nsf_reg_t;
-        bus_out : mmap_bus_out_t;
+        bus_out : cpu_mmap_bus_out_t;
         audio   : mixed_audio_t;
         reset   : boolean;
         nmi     : boolean;
@@ -103,7 +103,7 @@ package lib_nsf is
     type nsf_in_t is record
         reg             : reg_t;
         nsf_reg         : nsf_reg_t;
-        bus_in          : mmap_bus_in_t;
+        bus_in          : cpu_mmap_bus_in_t;
         enable_square_1 : boolean;
         enable_square_2 : boolean;
         enable_triangle : boolean;
@@ -117,12 +117,12 @@ package lib_nsf is
     
     type nsf_mapper_in_t is record
         reg    : mapper_220_reg_t;
-        bus_in : mmap_bus_in_t;
+        bus_in : cpu_mmap_bus_in_t;
     end record;
     
     type nsf_mapper_out_t is record
         reg     : mapper_220_reg_t;
-        bus_out : mmap_bus_out_t;
+        bus_out : cpu_mmap_bus_out_t;
     end record;
 
     function perform_memory_map(map_in : nsf_mapper_in_t) return nsf_mapper_out_t;
@@ -141,7 +141,7 @@ package body lib_nsf is
         ret.reg := nsf_in.reg;
         ret.nsf_reg := nsf_in.nsf_reg;
         
-        ret.bus_out := MMAP_BUS_IDLE;
+        ret.bus_out := CPU_MMAP_BUS_IDLE;
         
         ret.audio := (others => '-');
         
@@ -354,8 +354,8 @@ package body lib_nsf is
     function perform_memory_map(map_in : nsf_mapper_in_t) return nsf_mapper_out_t
     is
         variable map_out  : nsf_mapper_out_t;
-        variable mmap_in  : mmap_in_t;
-        variable mmap_out : mmap_out_t;
+        variable mmap_in  : cpu_mmap_in_t;
+        variable mmap_out : cpu_mmap_out_t;
     begin
         mmap_in.reg.mapper_num := x"0DC";
         mmap_in.reg.mapper_220_reg := map_in.reg;

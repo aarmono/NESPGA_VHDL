@@ -20,6 +20,12 @@ package utilities is
     function is_zero(val : std_logic_vector) return boolean;
     function is_zero(val : unsigned) return boolean;
     
+    function max_val(val : std_logic_vector) return std_logic_vector;
+    function max_val(val : unsigned) return unsigned;
+    
+    function is_max_val(val : std_logic_vector) return boolean;
+    function is_max_val(val : unsigned) return boolean;
+    
     function resize(val : std_logic_vector; len : natural) return std_logic_vector;
     function to_std_logic_vector(val : character) return std_logic_vector;
 
@@ -89,6 +95,31 @@ package body utilities is
     is
     begin
         return val = zero(val);
+    end;
+    
+    function max_val(val : std_logic_vector) return std_logic_vector
+    is
+        constant ret : std_logic_vector(val'RANGE) := (others => '1');
+    begin
+        return ret;
+    end;
+    
+    function is_max_val(val : std_logic_vector) return boolean
+    is
+    begin
+        return val = max_val(val);
+    end;
+    
+    function max_val(val : unsigned) return unsigned
+    is
+    begin
+        return unsigned(max_val(std_logic_vector(val)));
+    end;
+    
+    function is_max_val(val : unsigned) return boolean
+    is
+    begin
+        return val = max_val(val);
     end;
     
     function resize(val : std_logic_vector; len : natural) return std_logic_vector

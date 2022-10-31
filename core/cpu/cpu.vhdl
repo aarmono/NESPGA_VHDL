@@ -10,11 +10,12 @@ entity cpu is
 port
 (
     clk      : in  std_logic;
+    clk_en   : in  boolean := true;
     reset    : in  boolean;
     
-    data_bus : out cpu_bus_t;
-    data_in  : in  data_t;
-    data_out : out data_t;
+    cpu_bus       : out cpu_bus_t;
+    data_to_cpu   : in  data_t;
+    data_from_cpu : out data_t;
     
     sync     : out boolean;
     
@@ -34,17 +35,18 @@ begin
         -- Internal variables
         variable v_output : cpu_output_t;
     begin
-        v_output := cycle_cpu(reg, data_in, ready, irq, nmi, reset);
+        v_output := cycle_cpu(reg, data_to_cpu, ready, irq, nmi, reset);
 
         reg_in <= v_output.reg;
-        data_bus <= v_output.data_bus;
-        data_out <= v_output.data_out;
+        cpu_bus <= v_output.data_bus;
+        data_from_cpu <= v_output.data_out;
         sync <= v_output.sync;
     end process;
     
     process(clk)
     begin
-        if rising_edge(clk) then
+        if rising_edge(clk) and clk_en
+        then
             reg <= reg_in;
         end if;
     end process;

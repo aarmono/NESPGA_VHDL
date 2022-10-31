@@ -7,6 +7,7 @@ use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.file_bus_types.all;
+use work.chr_bus_types.all;
 use work.nes_core.all;
 use work.utilities.all;
 use work.mapper_types.all;
@@ -14,31 +15,43 @@ use work.lib_mapper.all;
 
 package lib_nes_mmap is
     
-    type mmap_in_t is record
+    type cpu_mmap_in_t is record
         reg    : mapper_reg_t;
-        bus_in : mmap_bus_in_t;
+        bus_in : cpu_mmap_bus_in_t;
     end record;
     
-    type mmap_out_t is record
+    type cpu_mmap_out_t is record
         reg     : mapper_reg_t;
-        bus_out : mmap_bus_out_t;
+        bus_out : cpu_mmap_bus_out_t;
     end record;
     
-    function mmap_cpu_memory(map_in : mmap_in_t) return mmap_out_t;
+    function mmap_cpu_memory(map_in : cpu_mmap_in_t) return cpu_mmap_out_t;
+    
+    type ppu_mmap_in_t is record
+        reg    : mapper_reg_t;
+        bus_in : ppu_mmap_bus_in_t;
+    end record;
+    
+    type ppu_mmap_out_t is record
+        reg     : mapper_reg_t;
+        bus_out : ppu_mmap_bus_out_t;
+    end record;
+    
+    function mmap_ppu_memory(map_in : ppu_mmap_in_t) return ppu_mmap_out_t;
 
 end package lib_nes_mmap;
 
 
 package body lib_nes_mmap is
     
-    function mmap_cpu_memory(map_in : mmap_in_t) return mmap_out_t
+    function mmap_cpu_memory(map_in : cpu_mmap_in_t) return cpu_mmap_out_t
     is
-        variable map_out : mmap_out_t;
-        variable mapper_in : mapper_in_t;
-        variable mapper_out : mapper_out_t;
+        variable map_out : cpu_mmap_out_t;
+        variable mapper_in : cpu_mapper_in_t;
+        variable mapper_out : cpu_mapper_out_t;
     begin
         map_out.reg := map_in.reg;
-        map_out.bus_out := MMAP_BUS_IDLE;
+        map_out.bus_out := CPU_MMAP_BUS_IDLE;
         
         if is_bus_active(map_in.bus_in.cpu_bus)
         then
@@ -65,7 +78,21 @@ package body lib_nes_mmap is
                     map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_cpu;
                 -- APU
                 when x"400-" |
-                     x"401-" =>
+                     x"4010" |
+                     x"4011" |
+                     x"4012" |
+                     x"4013" |
+                     x"4015" |
+                     x"4016" |
+                     x"4017" |
+                     x"4018" |
+                     x"4019" |
+                     x"401A" |
+                     x"401B" |
+                     x"401C" |
+                     x"401D" |
+                     x"401E" |
+                     x"401F" =>
                     map_out.bus_out.apu_bus.address :=
                         get_apu_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.apu_bus.read := map_in.bus_in.cpu_bus.read;
@@ -73,15 +100,42 @@ package body lib_nes_mmap is
                     
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_apu;
                     map_out.bus_out.data_to_apu := map_in.bus_in.data_from_cpu;
+                when x"4014" =>
+                    map_out.bus_out.oam_dma_write := true;
+                    -- HACK since DMA and CPU data busses are shared
+                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_cpu;
                 when others =>
                     mapper_in.reg := map_in.reg;
-                    mapper_in.bus_in := mmap_in_to_mapper_in(map_in.bus_in);
+                    mapper_in.bus_in := cpu_mmap_in_to_mapper_in(map_in.bus_in);
                     
-                    mapper_out := map_using_mapper(mapper_in);
+                    mapper_out := map_cpu_using_mapper(mapper_in);
                     
                     map_out.reg := mapper_out.reg;
-                    map_out.bus_out := mapper_out_to_mmap_out(mapper_out.bus_out);
+                    map_out.bus_out :=
+                        cpu_mapper_out_to_mmap_out(mapper_out.bus_out);
             end case?;
+        end if;
+        
+        return map_out;
+    end;
+    
+    function mmap_ppu_memory(map_in : ppu_mmap_in_t) return ppu_mmap_out_t
+    is
+        variable map_out : ppu_mmap_out_t;
+        variable mapper_in : ppu_mapper_in_t;
+        variable mapper_out : ppu_mapper_out_t;
+    begin
+        map_out.reg := map_in.reg;
+        map_out.bus_out := PPU_MMAP_BUS_IDLE;
+        
+        if is_bus_active(map_in.bus_in.chr_bus)
+        then
+            mapper_in.reg := map_in.reg;
+            mapper_in.bus_in := ppu_mmap_in_to_mapper_in(map_in.bus_in);
+            
+            mapper_out := map_ppu_using_mapper(mapper_in);
+            map_out.bus_out :=
+                ppu_mapper_out_to_mmap_out(mapper_out.bus_out);
         end if;
         
         return map_out;

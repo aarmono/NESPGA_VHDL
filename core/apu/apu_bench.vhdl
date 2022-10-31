@@ -33,7 +33,7 @@ begin
         reset => reset,
         
         cpu_bus => apu_bus,
-        cpu_data_in => apu_data_out,
+        data_to_apu => apu_data_out,
         
         audio => audio_out
     );
