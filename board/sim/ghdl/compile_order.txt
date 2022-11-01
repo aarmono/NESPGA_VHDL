@@ -17,6 +17,8 @@
 
 ../../../simulation/binary_io.vhdl
 ../../../simulation/au_file.vhdl
+../../../simulation/bmp_file.vhdl
+../../../simulation/ppu_video_record/bmp_file_bench.vhdl
 ../../../simulation/file_memory/file_memory.vhdl
 ../../../simulation/clock/clock.vhdl
 ../../../simulation/apu_audio_record/apu_audio_record.vhdl
