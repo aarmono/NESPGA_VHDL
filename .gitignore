@@ -6,3 +6,12 @@ board/sim/work/**
 **/*.mti
 **/*.dat
 **/*.vstf
+**/*.o
+**/*.hex
+**/*.bin
+**/*.bak
+**/*.py
+cpu_test/dasm/bin
+cpu_test/dasm/src/dasm
+cpu_test/dasm/src/ftohex
+

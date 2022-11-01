@@ -28,6 +28,10 @@ begin
         variable file_line : line;
         variable last_time : time;
         variable delta     : time;
+        
+        variable bus_read_str  : string(1 to 8);
+        variable bus_write_str : string(1 to 8);
+        variable delta_str     : string(1 to 32);
     begin
         file_open(fstatus, fptr, FILEPATH, write_mode);
         last_time := NOW;
@@ -35,12 +39,16 @@ begin
             wait on apu_bus;
             
             delta := NOW - last_time;
-            write(file_line, delta, left, time'image(delta)'length+1);
+            bus_read_str := boolean'image(apu_bus.read);
+            bus_write_str := boolean'image(apu_bus.write);
+            delta_str := time'image(delta);
+            
+            write(file_line, delta_str, left, delta_str'length+1);
             write(file_line, apu_bus.address, left, apu_bus.address'length+1);
-            write(file_line, apu_bus.read,
-                  left, boolean'image(apu_bus.read)'length+1);
-            write(file_line, apu_bus.write,
-                  left, boolean'image(apu_bus.write)'length+1);
+            write(file_line, bus_read_str,
+                  left, bus_read_str'length+1);
+            write(file_line, bus_write_str,
+                  left, bus_write_str'length+1);
             write(file_line, apu_data_in);
             writeline(fptr, file_line);
             

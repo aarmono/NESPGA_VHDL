@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_audio_mixer.all;
+use work.binary_io.all;
 use work.au_file.all;
 
 entity apu_audio_record is
@@ -19,7 +20,7 @@ end apu_audio_record;
 
 architecture behavioral of apu_audio_record is
 
-    file audio_file : au_file_t;
+    file audio_file : byte_file_t;
     
 begin
 

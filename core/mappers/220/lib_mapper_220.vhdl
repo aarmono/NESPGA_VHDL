@@ -119,7 +119,7 @@ package body lib_mapper_220 is
         cpu_base_address := unsigned(cpu_bus.address(cpu_base_address'range));
         bus_out := FILE_BUS_IDLE;
 
-        if cpu_bus.address >= x"8000"
+        if unsigned(cpu_bus.address) >= x"8000"
         then
             case cpu_bus.address(15 downto 12) is
                 when x"8" => bank := reg.bank_0;
@@ -195,33 +195,33 @@ package body lib_mapper_220 is
         
         map_out.bus_out := CPU_MAPPER_BUS_IDLE;
         
-        case? map_in.bus_in.cpu_bus.address is
+        case to_integer(map_in.bus_in.cpu_bus.address) is
             --Current Song
-            when x"4100" =>
+            when 16#4100# =>
                 map_out.bus_out.data_to_cpu :=
                     std_logic_vector(map_in.reg.start_song - "1");
             -- Song type (NTSC or PAL)
-            when x"4101" =>
+            when 16#4101# =>
                 map_out.bus_out.file_bus := bus_read(NSF_SONG_TYPE_ADDR);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             -- Init Address Low
-            when x"4102" =>
+            when 16#4102# =>
                 map_out.bus_out.file_bus := bus_read(NSF_INIT_ADDR_LOW);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             -- Init Address High
-            when x"4103" =>
+            when 16#4103# =>
                 map_out.bus_out.file_bus := bus_read(NSF_INIT_ADDR_HIGH);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             -- Play Address Low
-            when x"4104" =>
+            when 16#4104# =>
                 map_out.bus_out.file_bus := bus_read(NSF_PLAY_ADDR_LOW);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             -- Play Address High
-            when x"4105" =>
+            when 16#4105# =>
                 map_out.bus_out.file_bus := bus_read(NSF_PLAY_ADDR_HIGH);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             -- Mask NMI
-            when x"4106" =>
+            when 16#4106# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -232,22 +232,22 @@ package body lib_mapper_220 is
                         map_in.bus_in.data_from_cpu(0) = '1';
                 end if;
             -- Reset Address Low
-            when x"FFFC" =>
+            when 16#FFFC# =>
                 map_out.bus_out.data_to_cpu := RESET_ADDR(7 downto 0);
             -- Reset Address High
-            when x"FFFD" =>
+            when 16#FFFD# =>
                 map_out.bus_out.data_to_cpu := RESET_ADDR(15 downto 8);
             -- NMI Address Low
-            when x"FFFA" =>
+            when 16#FFFA# =>
                 map_out.bus_out.data_to_cpu := NMI_ADDR(7 downto 0);
             -- NMI Address High
-            when x"FFFB" =>
+            when 16#FFFB# =>
                 map_out.bus_out.data_to_cpu := NMI_ADDR(15 downto 8);
-            when x"42--" =>
+            when 16#4200# to 16#42FF# =>
                 map_out.bus_out.data_to_cpu :=
                     get_nsf_byte(map_in.bus_in.cpu_bus.address(7 downto 0));
             -- Bankswitch registers
-            when x"5FF8" =>
+            when 16#5FF8# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -256,7 +256,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_0 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FF9" =>
+            when 16#5FF9# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -265,7 +265,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_1 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FFA" =>
+            when 16#5FFA# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -274,7 +274,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_2 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FFB" =>
+            when 16#5FFB# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -283,7 +283,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_3 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FFC" =>
+            when 16#5FFC# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -292,7 +292,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_4 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FFD" =>
+            when 16#5FFD# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -301,7 +301,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_5 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FFE" =>
+            when 16#5FFE# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -310,7 +310,7 @@ package body lib_mapper_220 is
                 then
                     map_out.reg.bank_6 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
-            when x"5FFF" =>
+            when 16#5FFF# =>
                 if is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     map_out.bus_out.data_to_cpu :=
@@ -320,8 +320,7 @@ package body lib_mapper_220 is
                     map_out.reg.bank_7 := unsigned(map_in.bus_in.data_from_cpu);
                 end if;
             -- SRAM
-            when x"6---" |
-                 x"7---" =>
+            when 16#6000# to 16#7FFF# =>
                 map_out.bus_out.sram_bus.address :=
                     get_sram_addr(map_in.bus_in.cpu_bus.address);
                 map_out.bus_out.sram_bus.read := map_in.bus_in.cpu_bus.read;
@@ -340,7 +339,7 @@ package body lib_mapper_220 is
                 end if;
                 
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
-        end case?;
+        end case;
         
         return map_out;
     end;

@@ -55,10 +55,9 @@ package body lib_nes_mmap is
         
         if is_bus_active(map_in.bus_in.cpu_bus)
         then
-            case? map_in.bus_in.cpu_bus.address is
+            case to_integer(map_in.bus_in.cpu_bus.address) is
                 -- RAM
-                when x"0---" |
-                     x"1---" =>
+                when 16#0000# to 16#1FFF# =>
                     map_out.bus_out.ram_bus.address :=
                         get_ram_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.ram_bus.read := map_in.bus_in.cpu_bus.read;
@@ -67,8 +66,7 @@ package body lib_nes_mmap is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_ram;
                     map_out.bus_out.data_to_ram := map_in.bus_in.data_from_cpu;
                 -- PPU
-                when x"2---" |
-                     x"3---" =>
+                when 16#2000# to 16#3FFF# =>
                     map_out.bus_out.ppu_bus.address :=
                         get_ppu_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.ppu_bus.read := map_in.bus_in.cpu_bus.read;
@@ -77,22 +75,8 @@ package body lib_nes_mmap is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_ppu;
                     map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_cpu;
                 -- APU
-                when x"400-" |
-                     x"4010" |
-                     x"4011" |
-                     x"4012" |
-                     x"4013" |
-                     x"4015" |
-                     x"4016" |
-                     x"4017" |
-                     x"4018" |
-                     x"4019" |
-                     x"401A" |
-                     x"401B" |
-                     x"401C" |
-                     x"401D" |
-                     x"401E" |
-                     x"401F" =>
+                when 16#4000# to 16#4013# |
+                     16#4015# to 16#401F# =>
                     map_out.bus_out.apu_bus.address :=
                         get_apu_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.apu_bus.read := map_in.bus_in.cpu_bus.read;
@@ -100,7 +84,7 @@ package body lib_nes_mmap is
                     
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_apu;
                     map_out.bus_out.data_to_apu := map_in.bus_in.data_from_cpu;
-                when x"4014" =>
+                when 16#4014# =>
                     map_out.bus_out.oam_dma_write := true;
                     -- HACK since DMA and CPU data busses are shared
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_cpu;
@@ -113,7 +97,7 @@ package body lib_nes_mmap is
                     map_out.reg := mapper_out.reg;
                     map_out.bus_out :=
                         cpu_mapper_out_to_mmap_out(mapper_out.bus_out);
-            end case?;
+            end case;
         end if;
         
         return map_out;

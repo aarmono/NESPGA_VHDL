@@ -10,7 +10,6 @@ use work.file_bus_types.all;
 use work.nes_core.all;
 use work.nes_audio_mixer.all;
 use work.lib_nsf.all;
-use work.simulation.all;
 
 entity nsf_soc is
 port
@@ -128,19 +127,6 @@ begin
     );
     -- }
     
-    -- Bus Recorder (for testbench) {
-    apu_recorder : apu_bus_record
-    generic map
-    (
-        FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\core\\apu\\Sequence.dat"
-    )
-    port map
-    (
-        apu_bus => apu_bus,
-        apu_data_in => data_to_apu
-    );
-    -- }
-    
     process(all)
         variable nsf_out : nsf_out_t;
         variable nsf_in  : nsf_in_t;
@@ -160,6 +146,8 @@ begin
         nsf_in.bus_in.data_from_ram := data_from_ram;
         nsf_in.bus_in.data_from_sram := data_from_sram;
         nsf_in.bus_in.data_from_file := data_from_file;
+        -- No PPU
+        nsf_in.bus_in.data_from_ppu := (others => '-');
         
         nsf_in.enable_square_1 := enable_square_1;
         nsf_in.enable_square_2 := enable_square_2;

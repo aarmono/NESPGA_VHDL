@@ -61,9 +61,8 @@ package body lib_mapper_000 is
         
         map_out.bus_out := CPU_MAPPER_BUS_IDLE;
         
-        case? map_in.bus_in.cpu_bus.address is
-            when x"6---" |
-                 x"7---" =>
+        case to_integer(map_in.bus_in.cpu_bus.address) is
+            when 16#6000# to 16#7FFF# =>
                 map_out.bus_out.sram_bus.address :=
                     get_sram_addr(map_in.bus_in.cpu_bus.address);
                 map_out.bus_out.sram_bus.read := map_in.bus_in.cpu_bus.read;
@@ -71,14 +70,7 @@ package body lib_mapper_000 is
                 
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_sram;
                 map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
-            when x"8---" |
-                 x"9---" |
-                 x"A---" |
-                 x"B---" |
-                 x"C---" |
-                 x"D---" |
-                 x"E---" |
-                 x"F---" =>
+            when 16#8000# to 16#FFFF# =>
                 address := unsigned(map_in.bus_in.cpu_bus.address) - x"8000";
                 if map_in.reg.has_trainer
                 then
@@ -91,7 +83,7 @@ package body lib_mapper_000 is
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             when others =>
                 null;
-        end case?;
+        end case;
         
         return map_out;
     end;
