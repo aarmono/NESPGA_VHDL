@@ -1,5 +1,4 @@
 
-board/sim/work/**
 **/*.au
 **/transcript
 **/*.wlf
@@ -11,7 +10,3 @@ board/sim/work/**
 **/*.bin
 **/*.bak
 **/*.py
-cpu_test/dasm/bin
-cpu_test/dasm/src/dasm
-cpu_test/dasm/src/ftohex
-
