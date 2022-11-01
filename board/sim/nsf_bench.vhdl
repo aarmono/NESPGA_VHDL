@@ -12,6 +12,11 @@ use work.soc.all;
 use work.simulation.all;
 
 entity nsf_bench is
+generic
+(
+    AU_FILEPATH  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au";
+    NSF_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\NSF\\SkateOrDie.nsf"
+);
 end nsf_bench;
 
 architecture behavioral of nsf_bench is
@@ -78,7 +83,7 @@ begin
     apu_recorder : apu_audio_record
     generic map
     (
-        FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au"
+        FILEPATH => AU_FILEPATH
     )
     port map
     (
@@ -91,7 +96,7 @@ begin
     nsf_file : file_memory
     generic map
     (
-       FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\NSF\\SkateOrDie.nsf"
+       FILEPATH => NSF_FILEPATH
     )
     port map
     (
