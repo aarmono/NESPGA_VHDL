@@ -15,6 +15,11 @@ use work.soc.all;
 use work.simulation.all;
 
 entity nes_bench is
+generic
+(
+    AU_FILEPATH  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au";
+    NES_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\NES\\Mario.nes"
+);
 end nes_bench;
 
 architecture behavioral of nes_bench is
@@ -105,7 +110,7 @@ begin
     apu_recorder : apu_audio_record
     generic map
     (
-        FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au"
+        FILEPATH => AU_FILEPATH
     )
     port map
     (
@@ -117,7 +122,7 @@ begin
     nes_file : file_memory
     generic map
     (
-       FILEPATH => "C:\\GitHub\\NESPGA_VHDL\\NES\\Mario.nes"
+       FILEPATH => NES_FILEPATH
     )
     port map
     (

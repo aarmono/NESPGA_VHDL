@@ -251,6 +251,7 @@ begin
         sram_bus <= nes_out.cpu_bus.sram_bus;
         ppu_bus <= nes_out.cpu_bus.ppu_bus;
         file_bus_prg <= nes_out.cpu_bus.file_bus;
+        oam_dma_cpu_write <= nes_out.cpu_bus.oam_dma_write;
         
         data_to_cpu <= nes_out.cpu_bus.data_to_cpu;
         data_to_oam_dma <= nes_out.cpu_bus.data_to_cpu;

@@ -52,6 +52,10 @@
 ../../../soc/nsf/lib_nsf.vhdl
 ../../../soc/nsf/nsf_soc.vhdl
 
+../../../soc/nes/lib_nes.vhdl
+../../../soc/nes/nes_soc.vhdl
+
 ../../../soc/soc.vhdl
 
 ../../../board/sim/nsf_bench.vhdl
+../../../board/sim/nes_bench.vhdl

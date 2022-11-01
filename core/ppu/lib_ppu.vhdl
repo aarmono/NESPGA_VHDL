@@ -31,7 +31,7 @@ package lib_ppu is
     subtype pattern_shift_t is unsigned(15 downto 0);
     subtype sprite_coord_t  is unsigned(7 downto 0);
     
-     constant PALETTE_ADDR_START : vram_addr_t :=
+     constant PALETTE_ADDR_START : unsigned(vram_addr_t'range) :=
         resize(x"3F00", vram_addr_t'length);
 
     type sprite_attr_t is record
@@ -760,16 +760,11 @@ package body lib_ppu is
     )
     return pattern_shift_t
     is
-        variable ret : pattern_shift_t;
-        
-        variable v_shift_high : integer range 0 to 15;
-        variable v_shift_low  : integer range 0 to 15;
+        variable ret       : pattern_shift_t;
+        variable unshifted : pattern_shift_t;
     begin
-        v_shift_high := 15 - to_integer(fine_scroll);
-        v_shift_low  := v_shift_high - 7;
-        
-        ret(v_shift_high downto v_shift_low) := unsigned(data_in);
-        ret((v_shift_low - 1) downto 0) := pattern_table(v_shift_low downto 1);
+        unshifted := unsigned(data_in) & pattern_table(8 downto 1);
+        ret := shift_right(unshifted, to_integer(fine_scroll));
         
         return ret;
     end;
@@ -1256,7 +1251,7 @@ package body lib_ppu is
                     render_out.reg.count := render_in.reg.count + "1";
                 -- PPU Data
                 when "111" =>
-                    if render_in.reg.ppu_addr >= PALETTE_ADDR_START
+                    if unsigned(render_in.reg.ppu_addr) >= PALETTE_ADDR_START
                     then
                         render_out.palette_bus :=
                             bus_write(render_in.reg.ppu_addr(palette_addr_t'range));
@@ -1289,7 +1284,7 @@ package body lib_ppu is
                     render_out.data_to_cpu := render_in.data_from_oam;
                 -- PPU Data
                 when "111" =>
-                    if render_in.reg.ppu_addr >= PALETTE_ADDR_START
+                    if unsigned(render_in.reg.ppu_addr) >= PALETTE_ADDR_START
                     then
                         render_out.palette_bus :=
                             bus_read(render_in.reg.ppu_addr(palette_addr_t'range));

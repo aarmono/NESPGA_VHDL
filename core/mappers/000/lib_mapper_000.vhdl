@@ -101,9 +101,8 @@ package body lib_mapper_000 is
     begin
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
         
-        case? map_in.bus_in.chr_bus.address is
-            when b"00_----_----_----" |
-                 b"01_----_----_----" =>
+        case to_integer(map_in.bus_in.chr_bus.address) is
+            when 16#0000# to 16#1FFF# =>
                 if map_in.reg.has_trainer
                 then
                     -- PRG ROM size: 16 KiB for NROM-128, 32 KiB for NROM-256
@@ -121,7 +120,7 @@ package body lib_mapper_000 is
                 address := unsigned(map_in.bus_in.chr_bus.address);
                 map_out.bus_out.file_bus := bus_read(address + file_offset);
                 map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_file;
-            when b"1-_----_----_----" =>
+            when 16#2000# to 16#3FFF# =>
                 if map_in.reg.mirror(0) = '0'
                 then
                     -- Horizontal mirror (CIRAM A10 = PPU A11)
@@ -141,7 +140,7 @@ package body lib_mapper_000 is
                 map_out.bus_out.data_to_ciram := map_in.bus_in.data_from_ppu;
             when others =>
                 null;
-        end case?;
+        end case;
         
         return map_out;
     end;
