@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.cpu_bus_types.all;
-use work.nes_core.all;
+use work.nes_types.all;
 use work.utilities.all;
 use work.lib_cpu.all;
 
@@ -27,7 +27,8 @@ end cpu;
 
 architecture behavioral of cpu is
 
-    signal reg_in, reg : registers_t;
+    signal reg_in : registers_t;
+    signal reg    : registers_t := RESET_REGISTERS;
 
 begin
 

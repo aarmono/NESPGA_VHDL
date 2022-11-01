@@ -1,7 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.nes_core.all;
+use work.nes_types.all;
 use work.apu_bus_types.all;
 use work.cpu_bus_types.all;
 use work.utilities.all;

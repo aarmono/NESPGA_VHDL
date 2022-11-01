@@ -11,29 +11,10 @@ use work.chr_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
+use work.nes_types.all;
 use work.utilities.all;
 
 package nes_core is
-    
-    subtype data_t is std_logic_vector(7 downto 0);
-    subtype audio_t is unsigned(3 downto 0);
-    subtype dmc_audio_t is unsigned(6 downto 0);
-    
-    type apu_out_t is record
-        square_1 : audio_t;
-        square_2 : audio_t;
-        triangle : audio_t;
-        noise    : audio_t;
-        dmc      : dmc_audio_t;
-    end record;
-    
-    subtype pixel_t is std_logic_vector(5 downto 0);
-    
-    type pixel_bus_t is record
-        pixel       : pixel_t;
-        line_valid  : boolean;
-        frame_valid : boolean;
-    end record;
     
     component cpu is
     port

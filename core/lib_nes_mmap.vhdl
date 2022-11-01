@@ -8,7 +8,7 @@ use work.sram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.file_bus_types.all;
 use work.chr_bus_types.all;
-use work.nes_core.all;
+use work.nes_types.all;
 use work.utilities.all;
 use work.mapper_types.all;
 use work.lib_mapper.all;

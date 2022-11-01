@@ -1,11 +1,9 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.nes_core.all;
+use work.nes_types.all;
 
 package nes_audio_mixer is
-
-    subtype mixed_audio_t is unsigned(7 downto 0);
 
     function mix_audio(audio_in : apu_out_t) return mixed_audio_t;
     

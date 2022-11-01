@@ -3,7 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
 use work.binary_io.all;
-use work.nes_core.all;
+use work.nes_types.all;
 use work.file_bus_types.all;
 
 entity file_memory is

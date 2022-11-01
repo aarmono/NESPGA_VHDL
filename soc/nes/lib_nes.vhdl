@@ -11,7 +11,7 @@ use work.sec_oam_bus_types.all;
 use work.prg_bus_types.all;
 use work.palette_bus_types.all;
 use work.file_bus_types.all;
-use work.nes_core.all;
+use work.nes_types.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
 use work.mapper_types.all;

@@ -12,7 +12,7 @@
 ../../../bus/file_bus_types.vhdl
 ../../../bus/ppu_bus_types.vhdl
 
-../../../core/nes_core.vhdl
+../../../core/nes_types.vhdl
 ../../../core/nes_audio_mixer.vhdl
 
 ../../../simulation/binary_io.vhdl
@@ -48,6 +48,8 @@
 ../../../core/mappers/220/lib_mapper_220.vhdl
 ../../../core/mappers/lib_mapper.vhdl
 ../../../core/lib_nes_mmap.vhdl
+
+../../../core/nes_core.vhdl
 
 ../../../soc/nsf/lib_nsf.vhdl
 ../../../soc/nsf/nsf_soc.vhdl

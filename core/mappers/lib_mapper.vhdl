@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
-use work.nes_core.all;
+use work.nes_types.all;
 
 use work.mapper_types.all;
 use work.lib_mapper_000.all;
