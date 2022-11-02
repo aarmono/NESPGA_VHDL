@@ -45,6 +45,21 @@ package simulation is
         done  : in boolean
     );
     end component apu_audio_record;
+
+    component ppu_video_record is
+    generic
+    (
+        FILE_PREFIX : string
+    );
+    port
+    (
+        clk       : in std_logic;
+        clk_en    : in boolean;
+        pixel_bus : in pixel_bus_t;
+        ready     : in boolean;
+        done      : in boolean
+    );
+    end component ppu_video_record;
     
     component file_memory is
     generic
