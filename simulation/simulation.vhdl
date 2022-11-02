@@ -70,9 +70,11 @@ package simulation is
     port
     (
         file_bus_1       : in file_bus_t;
+        data_to_file_1   : in data_t := (others => '-');
         data_from_file_1 : out data_t;
         
         file_bus_2       : in file_bus_t := FILE_BUS_IDLE;
+        data_to_file_2   : in data_t := (others => '-');
         data_from_file_2 : out data_t
     );
     end component file_memory;

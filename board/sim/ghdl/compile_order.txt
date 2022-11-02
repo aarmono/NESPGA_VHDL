@@ -16,6 +16,7 @@
 ../../../core/nes_audio_mixer.vhdl
 
 ../../../simulation/simulation.vhdl
+../../../core/nes_core.vhdl
 
 ../../../simulation/binary_io.vhdl
 ../../../simulation/au_file.vhdl
@@ -37,6 +38,7 @@
 
 ../../../core/ppu/lib_ppu.vhdl
 ../../../core/ppu/ppu.vhdl
+../../../core/ppu/ppu_bench.vhdl
 
 ../../../core/apu/lib_apu_envelope.vhdl
 ../../../core/apu/lib_apu_length.vhdl
@@ -54,8 +56,6 @@
 ../../../core/mappers/220/lib_mapper_220.vhdl
 ../../../core/mappers/lib_mapper.vhdl
 ../../../core/lib_nes_mmap.vhdl
-
-../../../core/nes_core.vhdl
 
 ../../../soc/nsf/lib_nsf.vhdl
 ../../../soc/nsf/nsf_soc.vhdl

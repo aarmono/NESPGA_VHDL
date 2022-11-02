@@ -1,8 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.binary_io.all;
-use work.bmp_file.all;
 use work.nes_types.all;
 use work.simulation.all;
 use std.env.all;
