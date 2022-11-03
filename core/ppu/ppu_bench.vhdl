@@ -18,10 +18,10 @@ use std.env.all;
 entity ppu_bench is
 generic
 (
-    BMP_FILE_PREFIX  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out";
-    PPU_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\ppu.dmp";
-    OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\oam.dmp";
-    SEC_OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\sec_oam.dmp"
+    BMP_FILE_PREFIX  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\frame";
+    PPU_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\ppu.dmp";
+    OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\oam.dmp";
+    SEC_OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\sec_oam.dmp"
 );
 end ppu_bench;
 
@@ -190,6 +190,7 @@ begin
     is
         constant PPUCTRL : ppu_addr_t := "000";
         constant PPUMASK : ppu_addr_t := "001";
+        constant PPUADDR : ppu_addr_t := "110";
     begin
 
         clk <= '0';
@@ -202,21 +203,38 @@ begin
         wait for 10 ns;
 
         reset <= false;
-        cpu_bus <= bus_read(PPUCTRL);
-        prg_data_to_ppu <= "11010100";
+        cpu_bus <= bus_write(PPUCTRL);
+        prg_data_to_ppu <= "10010000";
         clk <= '1';
 
         wait for 10 ns;
         clk <= '0';
         wait for 10 ns;
 
-        cpu_bus <= bus_read(PPUMASK);
+        cpu_bus <= bus_write(PPUMASK);
         prg_data_to_ppu <= "00011110";
         clk <= '1';
 
         wait for 10 ns;
         clk <= '0';
         wait for 10 ns;
+        
+        cpu_bus <= bus_write(PPUADDR);
+        prg_data_to_ppu <= "00000000";
+        clk <= '1';
+        
+        wait for 10 ns;
+        clk <= '0';
+        wait for 10 ns;
+        
+        prg_data_to_ppu <= x"02";
+        clk <= '1';
+        
+        wait for 10 ns;
+        clk <= '0';
+        wait for 10 ns;
+        
+        cpu_bus <= PPU_BUS_IDLE;
 
         for y in 0 to 260
         loop
@@ -229,7 +247,7 @@ begin
             end loop;
         end loop;
 
-        finish;
+        stop;
     end process;
 
 end behavioral;
