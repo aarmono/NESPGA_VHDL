@@ -34,6 +34,8 @@ package lib_ppu is
     
      constant PALETTE_ADDR_START : unsigned(vram_addr_t'range) :=
         resize(x"3F00", vram_addr_t'length);
+        
+    type attribute_arr_t is array(0 to 1) of attribute_t;
 
     type sprite_attr_t is record
         palette   : attribute_t;
@@ -242,7 +244,7 @@ package lib_ppu is
         -- table shift registers
         pattern_tmp     : data_t;
         -- Attribute value used as pixel_idx[3:2]
-        attr_val        : attribute_t;
+        attr_val        : attribute_arr_t;
         -- A temporary holding area for the attribute value to be held
         -- while the previous one is still being used to render pixels
         attr_tmp        : attribute_t;
@@ -285,7 +287,7 @@ package lib_ppu is
         fine_x_scroll => (others => '0'),
         scroll => RESET_SCROLL,
         pattern_tmp => (others => '0'),
-        attr_val => (others => '0'),
+        attr_val => (others => (others => '0')),
         attr_tmp => (others => '0'),
         oam_addr => (others => '0'),
         oam_data => (others => '0'),
@@ -598,7 +600,7 @@ package body lib_ppu is
     return palette_addr_t
     is
     begin
-        return to_palette_addr(is_sprite, pattern_2 & pattern_1 & attr_val);
+        return to_palette_addr(is_sprite, attr_val & pattern_2 & pattern_1);
     end;
     -- }
     
@@ -612,7 +614,12 @@ package body lib_ppu is
         variable msb : std_logic;
     begin
         msb := to_std_logic(is_sprite);
-        return msb & palette_idx;
+        if is_zero(palette_idx(1 downto 0))
+        then
+            return  "00000";
+        else
+            return msb & palette_idx;
+        end if;
     end;
     
     -- get_tile_idx_addr function {
@@ -1038,7 +1045,8 @@ package body lib_ppu is
                                     render_in.reg.fine_x_scroll,
                                     render_in.data_from_chr
                                 );
-                            render_out.reg.attr_val := render_in.reg.attr_tmp;
+                            render_out.reg.attr_val(1) := render_in.reg.attr_tmp;
+                            render_out.reg.attr_val(0) := render_in.reg.attr_val(1);
                             
                             -- increment ppu_addr
                             render_out.reg.ppu_addr :=
@@ -1414,7 +1422,7 @@ package body lib_ppu is
         if is_rendering(render_in.reg.mask, render_in.reg.cur_time)
         then
             v_rnd_bg_pattern_color :=
-                to_color(render_in.reg.attr_val,
+                to_color(render_in.reg.attr_val(0),
                          render_in.reg.pattern_table_1(pattern_shift_t'high),
                          render_in.reg.pattern_table_2(pattern_shift_t'high));
             v_rnd_pattern_color := v_rnd_bg_pattern_color;
