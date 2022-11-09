@@ -227,7 +227,7 @@ begin
         clk <= '0';
         wait for 10 ns;
         
-        prg_data_to_ppu <= x"02";
+        prg_data_to_ppu <= x"00";
         clk <= '1';
         
         wait for 10 ns;

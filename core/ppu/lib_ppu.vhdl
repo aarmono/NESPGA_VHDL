@@ -94,7 +94,7 @@ package lib_ppu is
         coarse_y_scroll => (others => '0')
     );
     
-    function scroll_to_vram_addr(scroll : scroll_t) return vram_addr_t;
+    function scroll_to_chr_addr(scroll : scroll_t) return chr_addr_t;
     
     -- Encapsulates the current time for the PPU
     type ppu_time_t is record
@@ -226,7 +226,7 @@ package lib_ppu is
         -- Status register (0x2002)
         status          : status_t;
         -- PPU Addr (0x2006)
-        ppu_addr        : vram_addr_t;
+        ppu_addr        : scroll_t;
         -- Shift register containing 2 tile's worth of pixel_idx[0]
         -- for the background
         pattern_table_1 : pattern_shift_t;
@@ -279,7 +279,7 @@ package lib_ppu is
         control => RESET_CONTROL,
         mask => RESET_MASK,
         status => RESET_STATUS,
-        ppu_addr => (others => '0'),
+        ppu_addr => RESET_SCROLL,
         pattern_table_1 => (others => '0'),
         pattern_table_2 => (others => '0'),
         fine_x_scroll => (others => '0'),
@@ -309,8 +309,7 @@ package lib_ppu is
     
     function get_tile_idx_addr
     (
-        name_table_select : name_sel_t;
-        addr              : vram_addr_t
+        ppu_addr          : scroll_t
     )
     return tile_idx_addr_t;
     
@@ -342,7 +341,7 @@ package lib_ppu is
     
     function get_y_offset
     (
-        vram_addr  : vram_addr_t;
+        ppu_addr   : scroll_t;
         height_16  : boolean
     )
     return y_offset_t;
@@ -383,10 +382,13 @@ package lib_ppu is
     
     function incr_ppu_addr
     (
-        addr : vram_addr_t;
+        scroll  : scroll_t;
         incr_32 : boolean
     )
-    return vram_addr_t;
+    return scroll_t;
+    
+    function incr_ppu_addr_x(scroll  : scroll_t) return scroll_t;
+    function incr_ppu_addr_y(scroll  : scroll_t) return scroll_t;
     
     type ppu_render_in_t is record
         reg               : ppu_reg_t;
@@ -483,14 +485,21 @@ package body lib_ppu is
         return ret;
     end;
     
-    function scroll_to_vram_addr(scroll : scroll_t) return vram_addr_t
+    function scroll_to_chr_addr(scroll : scroll_t) return chr_addr_t
     is
-        variable ret : vram_addr_t;
+        variable ret : chr_addr_t;
     begin
+        -- The 15 bit registers t and v are composed this way during rendering:
+
+        -- yyy NN YYYYY XXXXX
+        -- ||| || ||||| +++++-- coarse X scroll
+        -- ||| || +++++-------- coarse Y scroll
+        -- ||| ++-------------- nametable select
+        -- +++----------------- fine Y scroll
         ret(4 downto 0) := std_logic_vector(scroll.coarse_x_scroll);
         ret(9 downto 5) := std_logic_vector(scroll.coarse_y_scroll);
         ret(11 downto 10) := std_logic_vector(scroll.name_table_select);
-        ret(14 downto 12) := std_logic_vector(scroll.fine_y_scroll);
+        ret(13 downto 12) := std_logic_vector(scroll.fine_y_scroll(1 downto 0));
         
         return ret;
     end;
@@ -546,7 +555,7 @@ package body lib_ppu is
     -- get_y_offset function {
     function get_y_offset
     (
-        vram_addr  : vram_addr_t;
+        ppu_addr   : scroll_t;
         height_16  : boolean
     )
     return y_offset_t
@@ -554,9 +563,9 @@ package body lib_ppu is
     begin
         if height_16
         then
-            return vram_addr(8 downto 5);
+            return std_logic_vector(ppu_addr.coarse_y_scroll(3 downto 0));
         else
-            return '0' & vram_addr(7 downto 5);
+            return '0' & std_logic_vector(ppu_addr.fine_y_scroll);
         end if;
     end;
     
@@ -609,28 +618,86 @@ package body lib_ppu is
     -- get_tile_idx_addr function {
     function get_tile_idx_addr
     (
-        name_table_select : name_sel_t;
-        addr              : vram_addr_t
+        ppu_addr          : scroll_t
     )
     return tile_idx_addr_t
     is
         variable ret : tile_idx_addr_t;
-        variable tile_row : std_logic_vector(4 downto 0);
-        variable tile_col : std_logic_vector(4 downto 0);
-        variable tile_num : std_logic_vector(9 downto 0);
-        variable attr_offset : std_logic_vector(5 downto 0);
     begin
-        tile_row := addr(12 downto 8);
-        tile_col := addr(4 downto 0);
-        tile_num := tile_row & tile_col;
-        attr_offset := tile_row(4 downto 2) & tile_col(4 downto 2);
-        ret.name_table_addr := "10" & name_table_select & tile_num;
-        ret.attr_table_addr := "10" & name_table_select & x"F" & attr_offset;
-        ret.attr_idx := tile_row(1) & tile_col(1) & '0';
+        -- tile address = 0x2000 | (v & 0x0FFF)
+        ret.name_table_addr := "10" &
+                               std_logic_vector(ppu_addr.name_table_select) &
+                               std_logic_vector(ppu_addr.coarse_y_scroll) &
+                               std_logic_vector(ppu_addr.coarse_x_scroll);
+        -- The low 12 bits of the attribute address are composed in the following way:
+        --
+        -- NN 1111 YYY XXX
+        -- || |||| ||| +++-- high 3 bits of coarse X (x/4)
+        -- || |||| +++------ high 3 bits of coarse Y (y/4)
+        -- || ++++---------- attribute offset (960 bytes)
+        -- ++--------------- nametable select
+        ret.attr_table_addr :=
+            "10" & 
+            ppu_addr.name_table_select &
+            x"F" &
+            std_logic_vector(ppu_addr.coarse_y_scroll(4 downto 2)) &
+            std_logic_vector(ppu_addr.coarse_x_scroll(4 downto 2));
+        ret.attr_idx := ppu_addr.coarse_y_scroll(1) &
+                        ppu_addr.coarse_x_scroll(1) &
+                        '0';
         
         return ret;
     end;
     -- }
+    
+    function incr_ppu_addr_x(scroll  : scroll_t) return scroll_t
+    is
+        variable ret : scroll_t;
+    begin
+        ret := scroll;
+        if is_max_val(scroll.coarse_x_scroll)
+        then
+            ret.name_table_select(0) := not scroll.name_table_select(0);
+        end if;
+        
+        ret.coarse_x_scroll := scroll.coarse_x_scroll + "1";
+        
+        return ret;
+        
+    end;
+    
+    function incr_ppu_addr_y(scroll  : scroll_t) return scroll_t
+    is
+        variable ret : scroll_t;
+    begin
+        ret := scroll;
+        
+        -- if fine Y < 7
+        if not is_max_val(scroll.fine_y_scroll)
+        then
+            -- increment fine Y
+            ret.fine_y_scroll := scroll.fine_y_scroll + "1";
+        else
+            -- fine Y = 0
+            ret.fine_y_scroll := (others => '0');
+            if scroll.coarse_y_scroll = to_unsigned(29, coarse_scroll_t'length)
+            then
+                -- coarse Y = 0
+                ret.coarse_y_scroll := (others => '0');
+                -- switch vertical nametable
+                ret.name_table_select(1) := not scroll.name_table_select(1);
+            elsif is_max_val(scroll.coarse_y_scroll)
+            then
+                -- coarse Y = 0, nametable not switched
+                ret.coarse_y_scroll := (others => '0');
+            else
+                -- increment coarse Y
+                ret.coarse_y_scroll := scroll.coarse_y_scroll + "1";
+            end if;
+        end if;
+        
+        return ret;
+    end;
     
     -- get_pattern_table function {
     function get_pattern_table
@@ -649,9 +716,8 @@ package body lib_ppu is
             return '0' & pattern_select & tile_idx & idx & y_offset(2 downto 0);
         else
             return '0' &
-                   tile_idx(0) &
-                   tile_idx(7 downto 1) &
-                   y_offset(3) &
+                   pattern_select &
+                   tile_idx &
                    idx & 
                    y_offset(2 downto 0);
         end if;
@@ -703,19 +769,17 @@ package body lib_ppu is
     
     function incr_ppu_addr
     (
-        addr : vram_addr_t;
+        scroll  : scroll_t;
         incr_32 : boolean
     )
-    return vram_addr_t
+    return scroll_t
     is
-        variable addr_int : unsigned(addr'range);
     begin
-        addr_int := unsigned(addr);
         if incr_32
         then
-            return std_logic_vector(addr_int + x"20");
+            return incr_ppu_addr_y(scroll);
         else
-            return std_logic_vector(addr_int + "1");
+            return incr_ppu_addr_x(scroll);
         end if;
     end;
     
@@ -788,8 +852,8 @@ package body lib_ppu is
         variable ret       : pattern_shift_t;
         variable unshifted : pattern_shift_t;
     begin
-        unshifted := unsigned(data_in) & pattern_table(8 downto 1);
-        ret := shift_right(unshifted, to_integer(fine_x_scroll));
+        unshifted := pattern_table(14 downto 7) & unsigned(data_in);
+        ret := shift_left(unshifted, to_integer(fine_x_scroll));
         
         return ret;
     end;
@@ -801,6 +865,7 @@ package body lib_ppu is
         -- Shared variables
         variable v_pattern_table_addr : chr_addr_t;
         variable v_rnd_pattern_color  : palette_idx_t;
+        variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
 
         -- background render variables
         --variable v_bg_state              : bg_state_t;
@@ -828,9 +893,9 @@ package body lib_ppu is
         render_out.data_to_cpu := (others => '-');
         render_out.data_to_palette := (others => '-');
         
-        v_bg_tile_idx_addr :=
-            get_tile_idx_addr(render_in.reg.scroll.name_table_select,
-                              render_in.reg.ppu_addr);
+        v_ppu_chr_addr := unsigned(scroll_to_chr_addr(render_in.reg.ppu_addr));
+        
+        v_bg_tile_idx_addr := get_tile_idx_addr(render_in.reg.ppu_addr);
         v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr, false);
         
         v_spr_buf_addr := to_integer(render_in.reg.sec_oam_addr(4 downto 2));
@@ -850,9 +915,9 @@ package body lib_ppu is
                                 bus_read(v_bg_tile_idx_addr.name_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "001" =>
                             -- Name table fetch.
                             render_out.chr_bus :=
@@ -862,18 +927,18 @@ package body lib_ppu is
                             render_out.reg.tile_idx := render_in.data_from_chr;
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "010" =>
                             -- Attribute table fetch.
                             render_out.chr_bus :=
                                 bus_read(v_bg_tile_idx_addr.attr_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "011" =>
                             -- Attribute table fetch.
                             render_out.chr_bus :=
@@ -887,9 +952,9 @@ package body lib_ppu is
                                            v_bg_tile_idx_addr.attr_idx);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "100" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -903,9 +968,9 @@ package body lib_ppu is
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "101" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -923,9 +988,9 @@ package body lib_ppu is
                             render_out.reg.pattern_tmp := render_in.data_from_chr;
                             -- Shift the pattern tables
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "110" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -939,9 +1004,9 @@ package body lib_ppu is
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_right(render_in.reg.pattern_table_1, 1);
+                                shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
-                                shift_right(render_in.reg.pattern_table_2, 1);
+                                shift_left(render_in.reg.pattern_table_2, 1);
                         when "111" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -977,11 +1042,20 @@ package body lib_ppu is
                             
                             -- increment ppu_addr
                             render_out.reg.ppu_addr :=
-                                incr_ppu_addr(render_in.reg.ppu_addr,
-                                              render_in.reg.control.ppu_incr_32);
+                                incr_ppu_addr_x(render_in.reg.ppu_addr);
+                            if to_integer(render_in.reg.cur_time.cycle) = 255
+                            then
+                                render_out.reg.ppu_addr :=
+                                    incr_ppu_addr_y(render_out.reg.ppu_addr);
+                            end if;
                         when others =>
                             null;
                     end case;
+                when 256 =>
+                    render_out.reg.ppu_addr.name_table_select(0) :=
+                        render_in.reg.scroll.name_table_select(0);
+                    render_out.reg.ppu_addr.coarse_x_scroll :=
+                        render_in.reg.scroll.coarse_x_scroll;
                 when 336 to 339 =>
                     -- These are garbage name table accesses
                     if render_in.reg.cur_time.cycle(0) = '0'
@@ -1282,20 +1356,18 @@ package body lib_ppu is
                         render_out.reg.scroll.coarse_y_scroll(2 downto 0) :=
                             unsigned(render_in.data_from_cpu(7 downto 5));
                         -- Update using OUTPUT value
-                        render_out.reg.ppu_addr :=
-                            scroll_to_vram_addr(render_out.reg.scroll);
+                        render_out.reg.ppu_addr := render_out.reg.scroll;
                     end if;
                     render_out.reg.count := render_in.reg.count + "1";
                 -- PPU Data
                 when "111" =>
-                    if unsigned(render_in.reg.ppu_addr) >= PALETTE_ADDR_START
+                    if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
                         render_out.palette_bus :=
-                            bus_write(render_in.reg.ppu_addr(palette_addr_t'range));
+                            bus_write(v_ppu_chr_addr(palette_addr_t'range));
                         render_out.data_to_palette := render_in.data_from_cpu;
                     else
-                        render_out.chr_bus :=
-                            bus_write(render_in.reg.ppu_addr(chr_addr_t'range));
+                        render_out.chr_bus := bus_write(v_ppu_chr_addr);
                         render_out.data_to_chr := render_in.data_from_cpu;
                     end if;
                     render_out.reg.ppu_addr :=
@@ -1321,14 +1393,13 @@ package body lib_ppu is
                     render_out.data_to_cpu := render_in.data_from_oam;
                 -- PPU Data
                 when "111" =>
-                    if unsigned(render_in.reg.ppu_addr) >= PALETTE_ADDR_START
+                    if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
                         render_out.palette_bus :=
-                            bus_read(render_in.reg.ppu_addr(palette_addr_t'range));
+                            bus_read(v_ppu_chr_addr(palette_addr_t'range));
                         render_out.data_to_cpu := render_in.data_from_palette;
                     else
-                        render_out.chr_bus :=
-                            bus_read(render_in.reg.ppu_addr(chr_addr_t'range));
+                        render_out.chr_bus := bus_read(v_ppu_chr_addr);
                         render_out.data_to_cpu := render_in.data_from_chr;
                     end if;
                     render_out.reg.ppu_addr :=
@@ -1342,9 +1413,10 @@ package body lib_ppu is
         
         if is_rendering(render_in.reg.mask, render_in.reg.cur_time)
         then
-            v_rnd_bg_pattern_color := to_color(render_in.reg.attr_val,
-                                               render_in.reg.pattern_table_1(0),
-                                               render_in.reg.pattern_table_2(0));
+            v_rnd_bg_pattern_color :=
+                to_color(render_in.reg.attr_val,
+                         render_in.reg.pattern_table_1(pattern_shift_t'high),
+                         render_in.reg.pattern_table_2(pattern_shift_t'high));
             v_rnd_pattern_color := v_rnd_bg_pattern_color;
             v_rnd_is_sprite := false;
             for i in render_in.reg.sprite_buffer'range
