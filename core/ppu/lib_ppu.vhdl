@@ -322,7 +322,8 @@ package lib_ppu is
     )
     return attribute_t;
     
-    function is_rendering(mask : mask_t; cur_time : ppu_time_t) return boolean;
+    function rendering_enabled(mask : mask_t) return boolean;
+    function is_rendering(cur_time : ppu_time_t) return boolean;
     function scanline_valid(cur_time : ppu_time_t) return boolean;
     function is_vblank_start(cur_time : ppu_time_t) return boolean;
     function is_vblank_end(cur_time : ppu_time_t) return boolean;
@@ -526,19 +527,23 @@ package body lib_ppu is
     begin
         return cur_time.scanline = VINT_END and is_zero(cur_time.cycle);
     end;
+
+    function rendering_enabled(mask : mask_t) return boolean
+    is
+    begin
+        return mask.enable_playfield or mask.enable_sprite;
+    end;
     
     -- is_rendering function {
-    function is_rendering(mask : mask_t ; cur_time : ppu_time_t) return boolean
+    function is_rendering(cur_time : ppu_time_t) return boolean
     is
-        variable render_enabled : boolean;
         variable in_frame : boolean;
         variable in_render : boolean;
     begin
-        render_enabled := mask.enable_playfield or mask.enable_sprite;
         in_frame := cur_time.scanline >= FRAME_START and
                     cur_time.scanline <= FRAME_END;
         in_render := cur_time.cycle <= FRONT_BG_END;
-        return render_enabled and in_frame and in_render;
+        return in_frame and in_render;
     end;
     -- }
     
@@ -911,8 +916,12 @@ package body lib_ppu is
     
         -- Fetch the attribute value and pattern table values for the
         -- current tile.
-        if scanline_valid(render_in.reg.cur_time) and
-           render_in.reg.mask.enable_playfield
+        -- If either of bits 3 or 4 is enabled, at any time outside of the
+        -- vblank interval the PPU will be making continual use to the PPU
+        -- address and data bus to fetch tiles to render, as well as internally
+        -- fetching sprite data from the OAM.
+        if rendering_enabled(render_in.reg.mask) and
+           scanline_valid(render_in.reg.cur_time)
         then
             case to_integer(render_in.reg.cur_time.cycle) is
                 when   0 to 255 |
@@ -1087,8 +1096,12 @@ package body lib_ppu is
         end if;
 
         -- Fetch sprite data
-        if scanline_valid(render_in.reg.cur_time) and
-           render_in.reg.mask.enable_sprite
+        -- If either of bits 3 or 4 is enabled, at any time outside of the
+        -- vblank interval the PPU will be making continual use to the PPU
+        -- address and data bus to fetch tiles to render, as well as internally
+        -- fetching sprite data from the OAM.
+        if rendering_enabled(render_in.reg.mask) and
+           scanline_valid(render_in.reg.cur_time)
         then
             case to_integer(render_in.reg.cur_time.cycle) is
                 when 0 to 63 =>
@@ -1431,12 +1444,18 @@ package body lib_ppu is
         end if;
         -- }
         
-        if is_rendering(render_in.reg.mask, render_in.reg.cur_time)
+        if is_rendering(render_in.reg.cur_time)
         then
-            v_rnd_bg_pattern_color :=
-                to_color(render_in.reg.attr_val(0),
-                         render_in.reg.pattern_table_1(pattern_shift_t'high),
-                         render_in.reg.pattern_table_2(pattern_shift_t'high));
+            if render_in.reg.mask.enable_playfield
+            then
+                v_rnd_bg_pattern_color :=
+                    to_color(render_in.reg.attr_val(0),
+                             render_in.reg.pattern_table_1(pattern_shift_t'high),
+                             render_in.reg.pattern_table_2(pattern_shift_t'high));
+            else
+                v_rnd_bg_pattern_color := (others => '0');
+            end if;
+
             v_rnd_pattern_color := v_rnd_bg_pattern_color;
             v_rnd_is_sprite := false;
             for i in render_in.reg.sprite_buffer'range
@@ -1449,6 +1468,7 @@ package body lib_ppu is
                         render_in.reg.sprite_buffer(i).pattern_2(pattern_t'high)
                     );
                 if not v_rnd_is_sprite and 
+                   render_in.reg.mask.enable_sprite and
                    is_zero(render_in.reg.sprite_buffer(i).x_coord) and
                    not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
                    (not render_in.reg.sprite_buffer(i).behind_bg or
