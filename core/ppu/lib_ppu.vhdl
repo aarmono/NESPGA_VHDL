@@ -19,7 +19,7 @@ package lib_ppu is
     constant BACK_BG_START : unsigned(8 downto 0) := to_unsigned(320, 9);
     constant BACK_BG_END   : unsigned(8 downto 0) := to_unsigned(335, 9);
 
-    subtype vram_addr_t     is std_logic_vector(14 downto 0);
+    subtype vram_addr_t     is unsigned(chr_addr_t'range);
     subtype palette_idx_t   is std_logic_vector(3 downto 0);
     subtype name_sel_t      is std_logic_vector(1 downto 0);
     subtype attr_idx_t      is unsigned(2 downto 0);
@@ -32,7 +32,7 @@ package lib_ppu is
     subtype fine_scroll_t   is unsigned(2 downto 0);
     subtype coarse_scroll_t is unsigned(4 downto 0);
     
-     constant PALETTE_ADDR_START : unsigned(vram_addr_t'range) :=
+     constant PALETTE_ADDR_START : vram_addr_t :=
         resize(x"3F00", vram_addr_t'length);
         
     type attribute_arr_t is array(0 to 1) of attribute_t;
@@ -96,7 +96,7 @@ package lib_ppu is
         coarse_y_scroll => (others => '0')
     );
     
-    function scroll_to_chr_addr(scroll : scroll_t) return chr_addr_t;
+    function scroll_to_chr_addr(scroll : scroll_t) return vram_addr_t;
     
     -- Encapsulates the current time for the PPU
     type ppu_time_t is record
@@ -372,6 +372,8 @@ package lib_ppu is
         palette_idx : palette_idx_t
     )
     return palette_addr_t;
+
+    function to_palette_addr(vram_addr : vram_addr_t) return palette_addr_t;
     
     function get_pattern_table
     (
@@ -488,9 +490,9 @@ package body lib_ppu is
         return ret;
     end;
     
-    function scroll_to_chr_addr(scroll : scroll_t) return chr_addr_t
+    function scroll_to_chr_addr(scroll : scroll_t) return vram_addr_t
     is
-        variable ret : chr_addr_t;
+        variable ret : vram_addr_t;
     begin
         -- The 15 bit registers t and v are composed this way during rendering:
 
@@ -499,10 +501,10 @@ package body lib_ppu is
         -- ||| || +++++-------- coarse Y scroll
         -- ||| ++-------------- nametable select
         -- +++----------------- fine Y scroll
-        ret(4 downto 0) := std_logic_vector(scroll.coarse_x_scroll);
-        ret(9 downto 5) := std_logic_vector(scroll.coarse_y_scroll);
-        ret(11 downto 10) := std_logic_vector(scroll.name_table_select);
-        ret(13 downto 12) := std_logic_vector(scroll.fine_y_scroll(1 downto 0));
+        ret(4 downto 0) := scroll.coarse_x_scroll;
+        ret(9 downto 5) := scroll.coarse_y_scroll;
+        ret(11 downto 10) := unsigned(scroll.name_table_select);
+        ret(13 downto 12) := scroll.fine_y_scroll(1 downto 0);
         
         return ret;
     end;
@@ -625,6 +627,25 @@ package body lib_ppu is
         else
             return msb & palette_idx;
         end if;
+    end;
+
+    function to_palette_addr(vram_addr : vram_addr_t) return palette_addr_t
+    is
+        variable ret : palette_addr_t;
+    begin
+        ret := std_logic_vector(vram_addr(ret'range));
+        -- Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of
+        -- $3F00/$3F04/$3F08/$3F0C. Note that this goes for
+        -- writing as well as reading. A symptom of not having
+        -- implemented this correctly in an emulator is the
+        -- sky being black in Super Mario Bros., which writes
+        -- the backdrop color through $3F10.
+        if is_zero(ret(1 downto 0))
+        then
+            ret(ret'high) := '0';
+        end if;
+
+        return ret;
     end;
     
     -- get_tile_idx_addr function {
@@ -877,7 +898,7 @@ package body lib_ppu is
         -- Shared variables
         variable v_pattern_table_addr : chr_addr_t;
         variable v_rnd_pattern_color  : palette_idx_t;
-        variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
+        variable v_ppu_chr_addr       : vram_addr_t;
 
         -- background render variables
         --variable v_bg_state              : bg_state_t;
@@ -1397,7 +1418,7 @@ package body lib_ppu is
                     if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
                         render_out.palette_bus :=
-                            bus_write(v_ppu_chr_addr(palette_addr_t'range));
+                            bus_write(to_palette_addr(v_ppu_chr_addr));
                         render_out.data_to_palette := render_in.data_from_cpu;
                     else
                         render_out.chr_bus := bus_write(v_ppu_chr_addr);
@@ -1429,7 +1450,7 @@ package body lib_ppu is
                     if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
                         render_out.palette_bus :=
-                            bus_read(v_ppu_chr_addr(palette_addr_t'range));
+                            bus_read(to_palette_addr(v_ppu_chr_addr));
                         render_out.data_to_cpu := render_in.data_from_palette;
                     else
                         render_out.chr_bus := bus_read(v_ppu_chr_addr);
