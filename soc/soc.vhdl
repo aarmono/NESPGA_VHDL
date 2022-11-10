@@ -49,6 +49,9 @@ package soc is
     (
         clk_50mhz : in std_logic;
         reset     : in boolean;
+
+        cpu_clk_en : out boolean;
+        ppu_clk_en : out boolean;
         
         file_bus_prg       : out file_bus_t;
         data_from_file_prg : in data_t;

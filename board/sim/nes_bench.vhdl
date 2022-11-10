@@ -17,6 +17,7 @@ entity nes_bench is
 generic
 (
     AU_FILEPATH  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au";
+    BMP_FILE_PREFIX : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\frame";
     NES_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\NES\\Mario.nes"
 );
 end nes_bench;
@@ -60,6 +61,9 @@ architecture behavioral of nes_bench is
     signal data_from_file_chr : data_t;
     
     signal audio_out : mixed_audio_t;
+    signal pixel_bus : pixel_bus_t;
+
+    signal ppu_clk_en : boolean;
     
     signal reset : boolean;
     
@@ -72,6 +76,8 @@ begin
     (
         clk_50mhz => clk_50mhz,
         reset => false,
+
+        ppu_clk_en => ppu_clk_en,
         
         file_bus_prg => file_bus_prg,
         data_from_file_prg => data_from_file_prg,
@@ -103,9 +109,24 @@ begin
         data_to_ciram => data_to_ciram,
         data_from_ciram => data_from_ciram,
         
+        pixel_bus => pixel_bus,
         audio => audio_out
     );
     
+    ppu_recorder : ppu_video_record
+    generic map
+    (
+        FILE_PREFIX => BMP_FILE_PREFIX
+    )
+    port map
+    (
+        clk => clk_50mhz,
+        clk_en => ppu_clk_en,
+        pixel_bus => pixel_bus,
+        ready => true,
+        done => false
+    );
+
     apu_recorder : apu_audio_record
     generic map
     (
