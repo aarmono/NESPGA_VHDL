@@ -584,7 +584,7 @@ package body lib_ppu is
     begin
         cur_scanline := resize(scanline - FRAME_START,
                                cur_scanline'length);
-        offset := y_coord - cur_scanline;
+        offset := cur_scanline - y_coord;
         return std_logic_vector(offset(y_offset_t'range));
     end;
     -- }
@@ -812,7 +812,7 @@ package body lib_ppu is
             scanline_max := y_pos + x"08";
         end if;
         
-        return cur_scanline >= y_pos and y_pos < scanline_max;
+        return cur_scanline >= y_pos and cur_scanline < scanline_max;
     end;
     
     function shift_sprite_buffers
@@ -829,8 +829,8 @@ package body lib_ppu is
         loop
             if is_zero(spr_in(i).x_coord)
             then
-                spr_out(i).pattern_1 := shift_right(spr_in(i).pattern_1, 1);
-                spr_out(i).pattern_2 := shift_right(spr_in(i).pattern_2, 1);
+                spr_out(i).pattern_1 := shift_left(spr_in(i).pattern_1, 1);
+                spr_out(i).pattern_2 := shift_left(spr_in(i).pattern_2, 1);
             else
                 spr_out(i).x_coord := spr_in(i).x_coord - "1";
             end if;
@@ -1156,6 +1156,12 @@ package body lib_ppu is
                         then
                             render_out.reg.oam_overflow := true;
                         end if;
+                        
+                        if to_integer(render_in.reg.cur_time.cycle) = 255
+                        then
+                            render_out.reg.sec_oam_addr := (others => '0');
+                            render_out.reg.oam_addr := (others => '0');
+                        end if;
                     end if;
 
                     -- Shift the sprite buffers as needed
@@ -1212,9 +1218,6 @@ package body lib_ppu is
                                 bus_read(render_in.reg.sec_oam_addr);
                             render_out.reg.sprite_buffer(v_spr_buf_addr).x_coord :=
                                 unsigned(render_in.data_from_sec_oam);
-                            
-                            render_out.reg.sec_oam_addr :=
-                                render_in.reg.sec_oam_addr + "1";
                         when "100" =>
                             v_spr_tile_y_offset :=
                                 get_y_offset(render_in.reg.cur_time.scanline,
@@ -1245,8 +1248,14 @@ package body lib_ppu is
                                     render_in.reg.control.sprite_hgt_16
                                 );
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
-                            render_out.reg.sprite_buffer(v_spr_buf_addr).pattern_1 :=
-                                unsigned(render_in.data_from_chr);
+                            if render_in.reg.sprite_attr.flip_horz
+                            then
+                                render_out.reg.sprite_buffer(v_spr_buf_addr).pattern_1 :=
+                                    unsigned(reverse_vector(render_in.data_from_chr));
+                            else
+                                render_out.reg.sprite_buffer(v_spr_buf_addr).pattern_1 :=
+                                    unsigned(render_in.data_from_chr);
+                            end if;
                         when "110" =>
                             v_spr_tile_y_offset :=
                                 get_y_offset(render_in.reg.cur_time.scanline,
@@ -1277,13 +1286,25 @@ package body lib_ppu is
                                     render_in.reg.control.sprite_hgt_16
                                 );
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
-                            render_out.reg.sprite_buffer(v_spr_buf_addr).pattern_2 :=
-                                unsigned(render_in.data_from_chr);
+                            if render_in.reg.sprite_attr.flip_horz
+                            then
+                                render_out.reg.sprite_buffer(v_spr_buf_addr).pattern_2 :=
+                                    unsigned(reverse_vector(render_in.data_from_chr));
+                            else
+                                render_out.reg.sprite_buffer(v_spr_buf_addr).pattern_2 :=
+                                    unsigned(render_in.data_from_chr);
+                            end if;
+                            
+                            -- Final increment at the end of the cycle so the
+                            -- sprite buffer index is consistent
+                            render_out.reg.sec_oam_addr :=
+                                render_in.reg.sec_oam_addr + "1";
                         when others =>
                             null;
                     end case;
                 when 320 to 340 =>
-                    render_out.sec_oam_bus := bus_read(render_in.reg.sec_oam_addr);
+                    render_out.reg.sec_oam_addr := (others => '0');
+                    render_out.sec_oam_bus := bus_read(render_out.reg.sec_oam_addr);
                     render_out.reg.oam_data := render_in.data_from_sec_oam;
                 when others =>
                     null;
@@ -1430,20 +1451,24 @@ package body lib_ppu is
             for i in render_in.reg.sprite_buffer'range
             loop
                 v_rnd_spr_pattern_color :=
-                    to_color(render_in.reg.sprite_buffer(i).palette,
-                             render_in.reg.sprite_buffer(i).pattern_1(0),
-                             render_in.reg.sprite_buffer(i).pattern_2(0));
+                    to_color
+                    (
+                        render_in.reg.sprite_buffer(i).palette,
+                        render_in.reg.sprite_buffer(i).pattern_1(pattern_t'high),
+                        render_in.reg.sprite_buffer(i).pattern_2(pattern_t'high)
+                    );
                 if not v_rnd_is_sprite and 
-                   not render_in.reg.sprite_buffer(i).behind_bg and
                    is_zero(render_in.reg.sprite_buffer(i).x_coord) and
-                   not is_zero(v_rnd_spr_pattern_color)
+                   not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
+                   (not render_in.reg.sprite_buffer(i).behind_bg or
+                    is_zero(v_rnd_bg_pattern_color(1 downto 0)))
                 then
                     v_rnd_is_sprite := true;
                     v_rnd_pattern_color := v_rnd_spr_pattern_color;
                 end if;
 
-                if not is_zero(v_rnd_spr_pattern_color) and
-                   not is_zero(v_rnd_bg_pattern_color)
+                if not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
+                   not is_zero(v_rnd_bg_pattern_color(1 downto 0))
                 then
                     render_out.reg.status.spr_0_hit := true;
                 end if;
