@@ -467,8 +467,8 @@ package body lib_cpu is
             when IN_BIT =>
                 scratch(7 downto 0) := cur_state.a and r_data_in;
                 next_state.status.z := scratch(7 downto 0) = x"00";
-                next_state.status.v := scratch(6) = '1';
-                next_state.status.n := scratch(7) = '1';
+                next_state.status.v := r_data_in(6) = '1';
+                next_state.status.n := r_data_in(7) = '1';
             when IN_LDY =>
                 next_state.y := r_data_in;
                 next_state.status.z := next_state.y = x"00";
