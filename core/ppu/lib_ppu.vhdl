@@ -19,7 +19,7 @@ package lib_ppu is
     constant BACK_BG_START : unsigned(8 downto 0) := to_unsigned(320, 9);
     constant BACK_BG_END   : unsigned(8 downto 0) := to_unsigned(335, 9);
 
-    subtype vram_addr_t     is unsigned(chr_addr_t'range);
+    subtype vram_addr_t     is unsigned(14 downto 0);
     subtype palette_idx_t   is std_logic_vector(3 downto 0);
     subtype name_sel_t      is std_logic_vector(1 downto 0);
     subtype attr_idx_t      is unsigned(2 downto 0);
@@ -31,9 +31,6 @@ package lib_ppu is
     subtype sprite_coord_t  is unsigned(7 downto 0);
     subtype fine_scroll_t   is unsigned(2 downto 0);
     subtype coarse_scroll_t is unsigned(4 downto 0);
-    
-     constant PALETTE_ADDR_START : vram_addr_t :=
-        resize(x"3F00", vram_addr_t'length);
         
     type attribute_arr_t is array(0 to 1) of attribute_t;
 
@@ -96,7 +93,8 @@ package lib_ppu is
         coarse_y_scroll => (others => '0')
     );
     
-    function scroll_to_chr_addr(scroll : scroll_t) return vram_addr_t;
+    function scroll_to_vram_addr(scroll : scroll_t) return vram_addr_t;
+    function vram_addr_to_scroll(addr : vram_addr_t) return scroll_t;
     
     -- Encapsulates the current time for the PPU
     type ppu_time_t is record
@@ -373,7 +371,7 @@ package lib_ppu is
     )
     return palette_addr_t;
 
-    function to_palette_addr(vram_addr : vram_addr_t) return palette_addr_t;
+    function to_palette_addr(vram_addr : unsigned) return palette_addr_t;
     
     function get_pattern_table
     (
@@ -490,7 +488,7 @@ package body lib_ppu is
         return ret;
     end;
     
-    function scroll_to_chr_addr(scroll : scroll_t) return vram_addr_t
+    function scroll_to_vram_addr(scroll : scroll_t) return vram_addr_t
     is
         variable ret : vram_addr_t;
     begin
@@ -504,7 +502,19 @@ package body lib_ppu is
         ret(4 downto 0) := scroll.coarse_x_scroll;
         ret(9 downto 5) := scroll.coarse_y_scroll;
         ret(11 downto 10) := unsigned(scroll.name_table_select);
-        ret(13 downto 12) := scroll.fine_y_scroll(1 downto 0);
+        ret(14 downto 12) := scroll.fine_y_scroll;
+        
+        return ret;
+    end;
+    
+    function vram_addr_to_scroll(addr : vram_addr_t) return scroll_t
+    is
+        variable ret : scroll_t;
+    begin
+        ret.coarse_x_scroll := addr(4 downto 0);
+        ret.coarse_y_scroll := addr(9 downto 5);
+        ret.name_table_select := std_logic_vector(addr(11 downto 10));
+        ret.fine_y_scroll := addr(14 downto 12);
         
         return ret;
     end;
@@ -629,7 +639,7 @@ package body lib_ppu is
         end if;
     end;
 
-    function to_palette_addr(vram_addr : vram_addr_t) return palette_addr_t
+    function to_palette_addr(vram_addr : unsigned) return palette_addr_t
     is
         variable ret : palette_addr_t;
     begin
@@ -807,13 +817,17 @@ package body lib_ppu is
     )
     return scroll_t
     is
+        variable addr : vram_addr_t;
     begin
+        addr := scroll_to_vram_addr(scroll);
         if incr_32
         then
-            return incr_ppu_addr_y(scroll);
+            addr := addr + x"20";
         else
-            return incr_ppu_addr_x(scroll);
+            addr := addr + "1";
         end if;
+        
+        return vram_addr_to_scroll(addr);
     end;
     
     function is_sprite_hit
@@ -898,7 +912,7 @@ package body lib_ppu is
         -- Shared variables
         variable v_pattern_table_addr : chr_addr_t;
         variable v_rnd_pattern_color  : palette_idx_t;
-        variable v_ppu_chr_addr       : vram_addr_t;
+        variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
 
         -- background render variables
         --variable v_bg_state              : bg_state_t;
@@ -914,6 +928,9 @@ package body lib_ppu is
         variable v_spr_buf_addr          : integer range 0 to 7;
         variable v_rnd_is_sprite         : boolean;
         variable v_rnd_spr_pattern_color : palette_idx_t;
+        
+        constant PALETTE_ADDR_START : unsigned(chr_addr_t'range) :=
+            resize(x"3F00", chr_addr_t'length);
     begin
         render_out.reg := render_in.reg;
         
@@ -928,7 +945,8 @@ package body lib_ppu is
         render_out.data_to_cpu := (others => '-');
         render_out.data_to_palette := (others => '-');
         
-        v_ppu_chr_addr := unsigned(scroll_to_chr_addr(render_in.reg.ppu_addr));
+        v_ppu_chr_addr :=
+            scroll_to_vram_addr(render_in.reg.ppu_addr)(chr_addr_t'range);
         
         v_bg_tile_idx_addr := get_tile_idx_addr(render_in.reg.ppu_addr);
         v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr, false);
@@ -1188,7 +1206,8 @@ package body lib_ppu is
                                 render_in.reg.oam_addr + "100";
                         end if;
                         
-                        if render_out.reg.oam_addr < render_in.reg.oam_addr
+                        if render_out.reg.oam_addr(oam_addr_t'high) = '0' and
+                           render_in.reg.oam_addr(oam_addr_t'high) = '1'
                         then
                             render_out.reg.oam_overflow := true;
                         end if;
@@ -1207,7 +1226,7 @@ package body lib_ppu is
                     v_sec_oam_fetch_addr :=
                         render_in.reg.cur_time.cycle(5 downto 3) &
                         render_in.reg.cur_time.cycle(1 downto 0);
-                    -- This does not correctly handle horizontal and
+                    -- This does not correctly handle
                     -- vertical flipping of sprites yet
                     case render_in.reg.cur_time.cycle(2 downto 0) is
                         -- First 2 CHR memory accesses are garbage
