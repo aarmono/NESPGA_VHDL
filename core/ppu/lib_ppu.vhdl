@@ -14,8 +14,8 @@ package lib_ppu is
     constant FRONT_BG_END  : unsigned(8 downto 0) := to_unsigned(255, 9);
     constant FRAME_START   : unsigned(8 downto 0) := to_unsigned(21, 9);
     constant FRAME_END     : unsigned(8 downto 0) := to_unsigned(260, 9);
-    constant VINT_START    : unsigned(8 downto 0) := to_unsigned(241, 9);
-    constant VINT_END      : unsigned(8 downto 0) := to_unsigned(19, 9);
+    constant VINT_START    : unsigned(8 downto 0) := to_unsigned(0, 9);
+    constant VINT_END      : unsigned(8 downto 0) := to_unsigned(20, 9);
     constant BACK_BG_START : unsigned(8 downto 0) := to_unsigned(320, 9);
     constant BACK_BG_END   : unsigned(8 downto 0) := to_unsigned(335, 9);
 
@@ -322,6 +322,7 @@ package lib_ppu is
     
     function rendering_enabled(mask : mask_t) return boolean;
     function is_rendering(cur_time : ppu_time_t) return boolean;
+    function background_active(cur_time : ppu_time_t) return boolean;
     function scanline_valid(cur_time : ppu_time_t) return boolean;
     function is_vblank_start(cur_time : ppu_time_t) return boolean;
     function is_vblank_end(cur_time : ppu_time_t) return boolean;
@@ -527,6 +528,13 @@ package body lib_ppu is
                cur_time.scanline <= FRAME_END;
     end;
     -- }
+    
+    function background_active(cur_time : ppu_time_t) return boolean
+    is
+    begin
+    return cur_time.scanline >= VINT_END and
+           cur_time.scanline <= FRAME_END;
+    end;
     
     function is_vblank_start(cur_time : ppu_time_t) return boolean
     is
@@ -960,7 +968,7 @@ package body lib_ppu is
         -- address and data bus to fetch tiles to render, as well as internally
         -- fetching sprite data from the OAM.
         if rendering_enabled(render_in.reg.mask) and
-           scanline_valid(render_in.reg.cur_time)
+           background_active(render_in.reg.cur_time)
         then
             case to_integer(render_in.reg.cur_time.cycle) is
                 when   0 to 255 |
@@ -1101,7 +1109,7 @@ package body lib_ppu is
                             -- increment ppu_addr
                             render_out.reg.ppu_addr :=
                                 incr_ppu_addr_x(render_in.reg.ppu_addr);
-                            if to_integer(render_in.reg.cur_time.cycle) = 255
+                            if render_in.reg.cur_time.cycle = FRONT_BG_END
                             then
                                 render_out.reg.ppu_addr :=
                                     incr_ppu_addr_y(render_out.reg.ppu_addr);
@@ -1114,6 +1122,16 @@ package body lib_ppu is
                         render_in.reg.scroll.name_table_select(0);
                     render_out.reg.ppu_addr.coarse_x_scroll :=
                         render_in.reg.scroll.coarse_x_scroll;
+                when 279 to 303 =>
+                    if render_in.reg.cur_time.scanline = VINT_END
+                    then
+                        render_out.reg.ppu_addr.coarse_y_scroll :=
+                            render_in.reg.scroll.coarse_y_scroll;
+                        render_out.reg.ppu_addr.fine_y_scroll :=
+                            render_in.reg.scroll.fine_y_scroll;
+                        render_out.reg.ppu_addr.name_table_select(1) :=
+                            render_in.reg.scroll.name_table_select(1);
+                    end if;
                 when 336 to 339 =>
                     -- These are garbage name table accesses
                     if render_in.reg.cur_time.cycle(0) = '0'
@@ -1159,8 +1177,7 @@ package body lib_ppu is
                     end if;
                     
                     render_out.reg.sec_oam_addr := (others => '0');
-                    render_out.reg.status.spr_overflow := false;
-                    render_out.reg.oam_overflow        := false;
+                    render_out.reg.oam_overflow := false;
 
                     -- Shift the sprite buffers as needed
                     render_out.reg.sprite_buffer :=
@@ -1363,6 +1380,8 @@ package body lib_ppu is
         elsif is_vblank_end(render_in.reg.cur_time)
         then
             render_out.reg.status.vbl := false;
+            render_out.reg.spr_0_hit := false;
+            render_out.reg.status.spr_overflow := false;
         end if;
         
         render_out.vint := render_in.reg.status.vbl and
