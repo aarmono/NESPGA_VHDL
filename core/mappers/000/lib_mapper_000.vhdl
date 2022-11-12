@@ -51,6 +51,13 @@ package lib_mapper_000 is
         has_trainer : boolean
     )
     return file_off_t;
+    
+    function get_cpu_prg_addr
+    (
+        addr_in       : cpu_addr_t;
+        rom_size_16kb : rom_blocks_t
+    )
+    return unsigned;
 
 end package lib_mapper_000;
 
@@ -72,6 +79,22 @@ package body lib_mapper_000 is
                b"0_0001_0000";
         
         return resize(ret, file_off_t'length);
+    end;
+    
+    function get_cpu_prg_addr
+    (
+        addr_in       : cpu_addr_t;
+        rom_size_16kb : rom_blocks_t
+    )
+    return unsigned
+    is
+        variable ret  : unsigned(cpu_addr_t'range);
+        variable mask : unsigned(cpu_addr_t'range);
+    begin
+        mask := (rom_size_16kb(1 downto 0) - "1") & b"11_1111_1111_1111";
+        ret := (unsigned(addr_in) - x"8000") and mask;
+        
+        return ret;
     end;
     
     function cpu_map_using_mapper_000
@@ -97,7 +120,8 @@ package body lib_mapper_000 is
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_sram;
                 map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
             when 16#8000# to 16#FFFF# =>
-                address := unsigned(map_in.bus_in.cpu_bus.address) - x"8000";
+                address := get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
+                                            map_in.reg.prg_rom_16kb_blocks);
                 file_offset := get_file_offset(x"00", map_in.reg.has_trainer);
                 
                 map_out.bus_out.file_bus := bus_read(address + file_offset);
