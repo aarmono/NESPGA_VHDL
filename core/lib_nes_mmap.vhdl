@@ -76,7 +76,8 @@ package body lib_nes_mmap is
                     map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_cpu;
                 -- APU
                 when 16#4000# to 16#4013# |
-                     16#4015# to 16#401F# =>
+                     16#4015#             |
+                     16#4018# to 16#401F# =>
                     map_out.bus_out.apu_bus.address :=
                         get_apu_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.apu_bus.read := map_in.bus_in.cpu_bus.read;
@@ -88,6 +89,27 @@ package body lib_nes_mmap is
                     map_out.bus_out.oam_dma_write := true;
                     -- HACK since DMA and CPU data busses are shared
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_cpu;
+                when 16#4016# =>
+                    -- TODO: implement joystick
+                    if is_bus_read(map_in.bus_in.cpu_bus)
+                    then
+                        map_out.bus_out.data_to_cpu := (others => '0');
+                    end if;
+                when 16#4017# =>
+                    -- TODO: implement joystick
+                    if is_bus_read(map_in.bus_in.cpu_bus)
+                    then
+                        map_out.bus_out.data_to_cpu := (others => '0');
+                    elsif is_bus_write(map_in.bus_in.cpu_bus)
+                    then
+                        map_out.bus_out.apu_bus.address :=
+                            get_apu_addr(map_in.bus_in.cpu_bus.address);
+                        map_out.bus_out.apu_bus.read := map_in.bus_in.cpu_bus.read;
+                        map_out.bus_out.apu_bus.write := map_in.bus_in.cpu_bus.write;
+                        
+                        map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_apu;
+                        map_out.bus_out.data_to_apu := map_in.bus_in.data_from_cpu;
+                    end if;
                 when others =>
                     mapper_in.reg := map_in.reg;
                     mapper_in.bus_in := cpu_mmap_in_to_mapper_in(map_in.bus_in);
