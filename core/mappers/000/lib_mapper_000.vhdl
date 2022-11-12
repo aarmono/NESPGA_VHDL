@@ -13,6 +13,8 @@ use work.mapper_types.all;
 
 package lib_mapper_000 is
     
+    subtype file_off_t is unsigned(file_addr_t'range);
+    
     type cpu_mapper_000_in_t is record
         reg    : mapper_common_reg_t;
         bus_in : cpu_mapper_bus_in_t;
@@ -42,11 +44,35 @@ package lib_mapper_000 is
         map_in : ppu_mapper_000_in_t
     )
     return ppu_mapper_000_out_t;
+    
+    function get_file_offset
+    (
+        offset_16kb : rom_blocks_t;
+        has_trainer : boolean
+    )
+    return file_off_t;
 
 end package lib_mapper_000;
 
 
 package body lib_mapper_000 is
+    
+    function get_file_offset
+    (
+        offset_16kb : rom_blocks_t;
+        has_trainer : boolean
+    )
+    return file_off_t
+    is
+        variable ret : unsigned(15 downto 0);
+    begin
+        ret := offset_16kb(1 downto 0) &
+               "0000" &
+               to_std_logic(has_trainer) &
+               b"0_0001_0000";
+        
+        return resize(ret, file_off_t'length);
+    end;
     
     function cpu_map_using_mapper_000
     (
@@ -55,7 +81,7 @@ package body lib_mapper_000 is
     return cpu_mapper_000_out_t
     is
         variable map_out : cpu_mapper_000_out_t;
-        variable file_offset : unsigned(file_addr_t'range);
+        variable file_offset : file_off_t;
         variable address : unsigned(cpu_addr_t'range);
     begin
         
@@ -72,12 +98,7 @@ package body lib_mapper_000 is
                 map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
             when 16#8000# to 16#FFFF# =>
                 address := unsigned(map_in.bus_in.cpu_bus.address) - x"8000";
-                if map_in.reg.has_trainer
-                then
-                    file_offset := resize(x"210", file_offset'length);
-                else
-                    file_offset := resize(x"10", file_offset'length);
-                end if;
+                file_offset := get_file_offset(x"00", map_in.reg.has_trainer);
                 
                 map_out.bus_out.file_bus := bus_read(address + file_offset);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
@@ -97,25 +118,15 @@ package body lib_mapper_000 is
         variable map_out : ppu_mapper_000_out_t;
         
         variable address : unsigned(chr_addr_t'range);
-        variable file_offset : unsigned(file_addr_t'range);
+        variable file_offset : file_off_t;
     begin
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
         
         case to_integer(map_in.bus_in.chr_bus.address) is
             when 16#0000# to 16#1FFF# =>
-                if map_in.reg.has_trainer
-                then
-                    -- PRG ROM size: 16 KiB for NROM-128, 32 KiB for NROM-256
-                    -- (DIP-28 standard pinout)
-                    -- So only use 2 bits for block size
-                    file_offset :=
-                        resize(map_in.reg.prg_rom_16kb_blocks(1 downto 0) &
-                               b"00_0010_0000_0000", file_offset'length);
-                else
-                    file_offset :=
-                        resize(map_in.reg.prg_rom_16kb_blocks(1 downto 0) &
-                               b"00_0000_0000_0000", file_offset'length);
-                end if;
+                file_offset :=
+                    get_file_offset(map_in.reg.prg_rom_16kb_blocks,
+                                    map_in.reg.has_trainer);
                 
                 address := unsigned(map_in.bus_in.chr_bus.address);
                 map_out.bus_out.file_bus := bus_read(address + file_offset);
