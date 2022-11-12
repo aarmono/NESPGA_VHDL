@@ -227,6 +227,8 @@ package lib_ppu is
         status          : status_t;
         -- PPU Addr (0x2006)
         ppu_addr        : scroll_t;
+        -- PPU Data (0x2007) register for VRAM reads
+        ppu_data        : data_t;
         -- Shift register containing 2 tile's worth of pixel_idx[0]
         -- for the background
         pattern_table_1 : pattern_shift_t;
@@ -280,6 +282,7 @@ package lib_ppu is
         mask => RESET_MASK,
         status => RESET_STATUS,
         ppu_addr => RESET_SCROLL,
+        ppu_data => (others => '0'),
         pattern_table_1 => (others => '0'),
         pattern_table_2 => (others => '0'),
         fine_x_scroll => (others => '0'),
@@ -1462,6 +1465,9 @@ package body lib_ppu is
                         render_out.chr_bus := bus_write(v_ppu_chr_addr);
                         render_out.data_to_chr := render_in.data_from_cpu;
                     end if;
+
+                    -- After access, the video memory address will increment
+                    -- by an amount determined by bit 2 of $2000.
                     render_out.reg.ppu_addr :=
                         incr_ppu_addr(render_in.reg.ppu_addr,
                                       render_in.reg.control.ppu_incr_32);
@@ -1487,13 +1493,33 @@ package body lib_ppu is
                 when "111" =>
                     if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
+                        -- Reading palette data from $3F00-$3FFF works
+                        -- differently. The palette data is placed immediately
+                        -- on the data bus, and hence no priming read is
+                        -- required.
                         render_out.palette_bus :=
                             bus_read(to_palette_addr(v_ppu_chr_addr));
                         render_out.data_to_cpu := render_in.data_from_palette;
                     else
-                        render_out.chr_bus := bus_read(v_ppu_chr_addr);
-                        render_out.data_to_cpu := render_in.data_from_chr;
+                        -- When reading while the VRAM address is in the range
+                        -- 0-$3EFF (i.e., before the palettes), the read will
+                        -- return the contents of an internal read buffer. This
+                        -- internal buffer is updated only when reading PPUDATA,
+                        -- and so is preserved across frames. After the CPU reads
+                        -- and gets the contents of the internal buffer, the PPU
+                        -- will immediately update the internal buffer with the
+                        -- byte at the current VRAM address.
+                        render_out.data_to_cpu := render_in.reg.ppu_data;
                     end if;
+                    
+                    -- Reading the palettes still updates the internal buffer
+                    -- though, but the data placed in it is the mirrored
+                    -- nametable data that would appear "underneath" the palette.
+                    render_out.chr_bus := bus_read(v_ppu_chr_addr);
+                    render_out.reg.ppu_data := render_in.data_from_chr;
+
+                    -- After access, the video memory address will increment
+                    -- by an amount determined by bit 2 of $2000.
                     render_out.reg.ppu_addr :=
                         incr_ppu_addr(render_in.reg.ppu_addr,
                                       render_in.reg.control.ppu_incr_32);
