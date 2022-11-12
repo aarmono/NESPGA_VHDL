@@ -236,9 +236,6 @@ package body mapper_types is
         mmap_out.file_bus := mapper_out.file_bus;
         
         mmap_out.data_to_cpu := mapper_out.data_to_cpu;
-        -- Mirror data goinig to CPU to APU as well in case
-        -- the request came from the APU DMA
-        mmap_out.data_to_apu := mapper_out.data_to_cpu;
         mmap_out.data_to_sram := mapper_out.data_to_sram;
         
         return mmap_out;

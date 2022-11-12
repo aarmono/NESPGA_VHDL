@@ -262,7 +262,13 @@ begin
         data_to_cpu <= nes_out.cpu_bus.data_to_cpu;
         data_to_oam_dma <= nes_out.cpu_bus.data_to_cpu;
         
-        data_to_apu <= nes_out.cpu_bus.data_to_apu;
+        if is_bus_read(apu_dma_bus)
+        then
+            data_to_apu <= nes_out.cpu_bus.data_to_cpu;
+        else
+            data_to_apu <= nes_out.cpu_bus.data_to_apu;
+        end if;
+        
         data_to_prg_ram <= nes_out.cpu_bus.data_to_ram;
         data_to_sram <= nes_out.cpu_bus.data_to_sram;
         prg_data_to_ppu <= nes_out.cpu_bus.data_to_ppu;

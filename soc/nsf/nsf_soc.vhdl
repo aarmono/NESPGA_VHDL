@@ -164,8 +164,14 @@ begin
         ram_bus <= nsf_out.bus_out.ram_bus;
         file_bus <= nsf_out.bus_out.file_bus;
         
+        if is_bus_read(dma_bus)
+        then
+            data_to_apu <= nsf_out.bus_out.data_to_cpu;
+        else
+            data_to_apu <= nsf_out.bus_out.data_to_apu;
+        end if;
+        
         data_to_sram <= nsf_out.bus_out.data_to_sram;
-        data_to_apu <= nsf_out.bus_out.data_to_apu;
         data_to_ram <= nsf_out.bus_out.data_to_ram;
         data_to_cpu <= nsf_out.bus_out.data_to_cpu;
         
