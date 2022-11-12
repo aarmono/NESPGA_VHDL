@@ -1380,7 +1380,7 @@ package body lib_ppu is
         elsif is_vblank_end(render_in.reg.cur_time)
         then
             render_out.reg.status.vbl := false;
-            render_out.reg.spr_0_hit := false;
+            render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
         end if;
         
