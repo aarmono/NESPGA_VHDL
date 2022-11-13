@@ -218,61 +218,63 @@ package lib_ppu is
 
     type ppu_reg_t is record
         -- Index of the background tile as read from the nametable
-        tile_idx        : tile_idx_t;
+        tile_idx         : tile_idx_t;
         -- Control register (0x2000)
-        control         : control_t;
+        control          : control_t;
         -- Mask register (0x2001)
-        mask            : mask_t;
+        mask             : mask_t;
         -- Status register (0x2002)
-        status          : status_t;
+        status           : status_t;
         -- PPU Addr (0x2006)
-        ppu_addr        : scroll_t;
+        ppu_addr         : scroll_t;
         -- PPU Data (0x2007) register for VRAM reads
-        ppu_data        : data_t;
+        ppu_data         : data_t;
         -- Shift register containing 2 tile's worth of pixel_idx[0]
         -- for the background
-        pattern_table_1 : pattern_shift_t;
+        pattern_table_1  : pattern_shift_t;
         -- Shift register containing 2 tile's worth of pixel_idx[1]
         -- for the background
-        pattern_table_2 : pattern_shift_t;
+        pattern_table_2  : pattern_shift_t;
         -- Fine horizontal scroll
-        fine_x_scroll   : fine_scroll_t;
+        fine_x_scroll    : fine_scroll_t;
         -- Scroll registers loaded through 0x2007
-        scroll          : scroll_t;
+        scroll           : scroll_t;
         -- A temporary holding area for the first pattern table byte. When
         -- This byte is read data is still being shifted out of the pattern
         -- table shift registers
-        pattern_tmp     : data_t;
+        pattern_tmp      : data_t;
         -- Attribute value used as pixel_idx[3:2]
-        attr_val        : attribute_arr_t;
+        attr_val         : attribute_arr_t;
         -- A temporary holding area for the attribute value to be held
         -- while the previous one is still being used to render pixels
-        attr_tmp        : attribute_t;
+        attr_tmp         : attribute_t;
         -- OAM data address (0x2003). This is also used during sprite rendering
         -- as a scratch register
-        oam_addr        : unsigned(data_t'range);
+        oam_addr         : unsigned(data_t'range);
         -- OAM data value (0x2004). This is also used during sprite rendering
         -- as a scratch register
-        oam_data        : data_t;
+        oam_data         : data_t;
         -- True if all 64 sprites have been processed when trying to load them
         -- into secondary OAM memory
-        oam_overflow    : boolean;
+        oam_overflow     : boolean;
+        -- True if all 8 sprites have been loaded into secondary OAM memory
+        sec_oam_overflow : boolean;
         -- Current sprite y-offset used to fetch pattern table data
-        sprite_y_coord  : sprite_coord_t;
+        sprite_y_coord   : sprite_coord_t;
         -- Current sprite tile index used to fetch pattern table data
-        sprite_tile_idx : tile_idx_t;
+        sprite_tile_idx  : tile_idx_t;
         -- Current sprite attributes used to fetch pattern table data
-        sprite_attr     : sprite_attr_t;
+        sprite_attr      : sprite_attr_t;
         -- Fetched sprite data for up to 8 sprites -- used during render
         -- phase
-        sprite_buffer   : sprite_buffer_arr_t;
+        sprite_buffer    : sprite_buffer_arr_t;
         -- The current time (frame, scanline, and pixel)
-        cur_time        : ppu_time_t;
+        cur_time         : ppu_time_t;
         -- Memory access information for register accesses which
         -- require more than one read/write (reads/writes to 0x2005, 0x2007)
-        count           : unsigned(0 downto 0);
+        count            : unsigned(0 downto 0);
         -- Address for secondary OAM memory access
-        sec_oam_addr    : unsigned(sec_oam_addr_t'range);
+        sec_oam_addr     : unsigned(sec_oam_addr_t'range);
     end record;
     
     constant RESET_PPU_REG : ppu_reg_t :=
@@ -293,6 +295,7 @@ package lib_ppu is
         oam_addr => (others => '0'),
         oam_data => (others => '0'),
         oam_overflow => false,
+        sec_oam_overflow => false,
         sprite_y_coord => (others => '0'),
         sprite_tile_idx => (others => '0'),
         sprite_attr => RESET_SPRITE_ATTR,
@@ -1192,6 +1195,7 @@ package body lib_ppu is
                     
                     render_out.reg.sec_oam_addr := (others => '0');
                     render_out.reg.oam_overflow := false;
+                    render_out.reg.sec_oam_overflow := false;
 
                     -- Shift the sprite buffers as needed
                     render_out.reg.sprite_buffer :=
@@ -1205,7 +1209,6 @@ package body lib_ppu is
                         render_out.reg.oam_data := render_in.data_from_oam;
                     else
                         v_spr_copy_sprite :=
-                            (not render_in.reg.status.spr_overflow) and
                             (not render_in.reg.oam_overflow) and
                             is_sprite_hit(render_in.reg.cur_time,
                                           render_in.reg.control.sprite_hgt_16,
@@ -1217,14 +1220,28 @@ package body lib_ppu is
                         if (not is_zero(render_in.reg.oam_addr(1 downto 0))) or
                            v_spr_copy_sprite
                         then
-                            render_out.sec_oam_bus :=
-                                bus_write(render_in.reg.sec_oam_addr);
-                            render_out.data_to_sec_oam := render_in.reg.oam_data;
 
-                            -- Set the overflow flag
+                            if not render_in.reg.sec_oam_overflow
+                            then
+                                render_out.sec_oam_bus :=
+                                    bus_write(render_in.reg.sec_oam_addr);
+                                render_out.data_to_sec_oam :=
+                                    render_in.reg.oam_data;
+                            else
+                                -- If the value is in range, set the sprite
+                                -- overflow flag in $2002 and read the next 3
+                                -- entries of OAM (incrementing 'm' after each
+                                -- byte and incrementing 'n' when 'm' overflows);
+                                -- if m = 3, increment n
+                                render_out.reg.status.spr_overflow := true;
+                            end if;
+
+                            -- If exactly 8 sprites have been found, disable
+                            -- writes to secondary OAM because it is full.
+                            -- This causes sprites in back to drop out
                             if is_max_val(render_in.reg.sec_oam_addr)
                             then
-                                render_out.reg.status.spr_overflow := true;
+                                render_out.reg.sec_oam_overflow := true;
                             end if;
                             
                             render_out.reg.sec_oam_addr :=
