@@ -51,7 +51,7 @@ port
     data_to_palette   : out data_t;
     data_from_palette : in data_t;
     
-    ciram_bus       : out ram_bus_t;
+    ciram_bus       : out chr_bus_t;
     data_to_ciram   : out data_t;
     data_from_ciram : in data_t;
     

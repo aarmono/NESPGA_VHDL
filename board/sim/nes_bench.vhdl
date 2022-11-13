@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
+use work.chr_bus_types.all;
 use work.cpu_bus_types.all;
 use work.file_bus_types.all;
 use work.oam_bus_types.all;
@@ -24,6 +25,7 @@ end nes_bench;
 
 architecture behavioral of nes_bench is
     type ram_t is array(0 to 16#7FF#) of data_t;
+    type vram_t is array(0 to 16#3FFF#) of data_t;
     type sram_t is array(0 to 16#1FFF#) of data_t;
     type oam_t is array(0 to 16#FF#) of data_t;
     type sec_oam_t is array(0 to 16#1F#) of data_t;
@@ -34,14 +36,14 @@ architecture behavioral of nes_bench is
     signal oam     : oam_t;
     signal sec_oam : sec_oam_t;
     signal palette : palette_t;
-    signal ciram   : ram_t;
+    signal ciram   : vram_t;
     
     signal prg_ram_bus  : ram_bus_t;
     signal sram_bus     : sram_bus_t;
     signal oam_bus      : oam_bus_t;
     signal sec_oam_bus  : sec_oam_bus_t;
     signal palette_bus  : palette_bus_t;
-    signal ciram_bus    : ram_bus_t;
+    signal ciram_bus    : chr_bus_t;
     signal file_bus_prg : file_bus_t;
     signal file_bus_chr : file_bus_t;
     
@@ -142,7 +144,8 @@ begin
     nes_file : file_memory
     generic map
     (
-       FILEPATH => NES_FILEPATH
+       FILEPATH => NES_FILEPATH,
+       MEM_BYTES => 196608
     )
     port map
     (

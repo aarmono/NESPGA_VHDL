@@ -19,6 +19,7 @@ package mapper_types is
     subtype submapper_num_t is std_logic_vector(3 downto 0);
     subtype rom_blocks_t is unsigned(7 downto 0);
     subtype mirror_t is std_logic_vector(1 downto 0);
+    subtype file_off_t is unsigned(file_addr_t'range);
 
     type mapper_common_reg_t is record
         submapper_num       : submapper_num_t;
@@ -139,7 +140,7 @@ package mapper_types is
     -- The complete set of bus outputs for
     -- NES PPU memory mapping
     type ppu_mmap_bus_out_t is record
-        ciram_bus   : ram_bus_t;
+        ciram_bus   : chr_bus_t;
         file_bus    : file_bus_t;
         
         data_to_ppu     : data_t;
@@ -148,7 +149,7 @@ package mapper_types is
     
     constant PPU_MMAP_BUS_IDLE : ppu_mmap_bus_out_t :=
     (
-        ciram_bus => RAM_BUS_IDLE,
+        ciram_bus => CHR_BUS_IDLE,
         file_bus => FILE_BUS_IDLE,
         
         data_to_ppu => (others => '-'),
@@ -164,7 +165,7 @@ package mapper_types is
     end record;
     
     type ppu_mapper_bus_out_t is record
-        ciram_bus : ram_bus_t;
+        ciram_bus : chr_bus_t;
         file_bus  : file_bus_t;
         
         data_to_ppu   : data_t;
@@ -173,7 +174,7 @@ package mapper_types is
     
     constant PPU_MAPPER_BUS_IDLE : ppu_mapper_bus_out_t :=
     (
-        ciram_bus => RAM_BUS_IDLE,
+        ciram_bus => CHR_BUS_IDLE,
         file_bus => FILE_BUS_IDLE,
         
         data_to_ppu => (others => '-'),
@@ -201,6 +202,13 @@ package mapper_types is
     function get_sram_addr(addr : cpu_addr_t) return sram_addr_t;
     
     function get_palette_addr(addr : chr_addr_t) return palette_addr_t;
+
+    function get_file_offset
+    (
+        offset_16kb : rom_blocks_t;
+        has_trainer : boolean
+    )
+    return file_off_t;
 
 end package mapper_types;
 
@@ -303,6 +311,23 @@ package body mapper_types is
     is
     begin
         return addr(palette_addr_t'RANGE);
+    end;
+
+    function get_file_offset
+    (
+        offset_16kb : rom_blocks_t;
+        has_trainer : boolean
+    )
+    return file_off_t
+    is
+        variable ret : unsigned(15 downto 0);
+    begin
+        ret := offset_16kb(1 downto 0) &
+               "0000" &
+               to_std_logic(has_trainer) &
+               b"0_0001_0000";
+        
+        return resize(ret, file_off_t'length);
     end;
 
 end package body;

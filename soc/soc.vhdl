@@ -8,6 +8,7 @@ use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.file_bus_types.all;
+use work.chr_bus_types.all;
 use work.nes_types.all;
 
 package soc is
@@ -79,7 +80,7 @@ package soc is
         data_to_palette   : out data_t;
         data_from_palette : in data_t;
         
-        ciram_bus       : out ram_bus_t;
+        ciram_bus       : out chr_bus_t;
         data_to_ciram   : out data_t;
         data_from_ciram : in data_t;
         

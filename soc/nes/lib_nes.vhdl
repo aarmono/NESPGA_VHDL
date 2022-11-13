@@ -116,7 +116,7 @@ package body lib_nes is
                     bus_write(nes_in.reg.cur_cycle(palette_addr_t'range));
                 
                 ret.ppu_bus.ciram_bus :=
-                    bus_write(nes_in.reg.cur_cycle(ram_addr_t'range));
+                    bus_write(nes_in.reg.cur_cycle(chr_addr_t'range));
                 
                 ret.cpu_bus.data_to_ram := x"00";
                 ret.cpu_bus.data_to_sram := x"00";
@@ -129,7 +129,7 @@ package body lib_nes is
                 
                 ret.reg.mapper_reg := RESET_MAPPER_REG;
                 
-                if nes_in.reg.cur_cycle = x"1FFF"
+                if nes_in.reg.cur_cycle = x"3FFF"
                 then
                     ret.reg.cur_cycle := x"0000";
                     ret.reg.cur_state := STATE_LOAD;
