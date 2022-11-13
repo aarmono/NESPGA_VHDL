@@ -344,18 +344,14 @@ package lib_ppu is
     )
     return sprite_buffer_arr_t;
     
-    function get_y_offset
-    (
-        ppu_addr   : scroll_t;
-        height_16  : boolean
-    )
-    return y_offset_t;
+    function get_y_offset(ppu_addr : scroll_t) return y_offset_t;
     
     function get_y_offset
     (
         scanline  : unsigned(8 downto 0);
         y_coord   : sprite_coord_t;
-        height_16 : boolean
+        height_16 : boolean;
+        flip_vert : boolean
     )
     return y_offset_t;
     
@@ -583,37 +579,44 @@ package body lib_ppu is
     end;
     
     -- get_y_offset function {
-    function get_y_offset
-    (
-        ppu_addr   : scroll_t;
-        height_16  : boolean
-    )
-    return y_offset_t
+    function get_y_offset(ppu_addr : scroll_t) return y_offset_t
     is
     begin
-        if height_16
-        then
-            return std_logic_vector(ppu_addr.coarse_y_scroll(3 downto 0));
-        else
-            return '0' & std_logic_vector(ppu_addr.fine_y_scroll);
-        end if;
+        return '0' & std_logic_vector(ppu_addr.fine_y_scroll);
     end;
     
     function get_y_offset
     (
         scanline  : unsigned(8 downto 0);
         y_coord   : sprite_coord_t;
-        height_16 : boolean
+        height_16 : boolean;
+        flip_vert : boolean
     )
     return y_offset_t
     is
         variable cur_scanline : sprite_coord_t;
-        variable offset : sprite_coord_t;
+        variable scanline_offset : sprite_coord_t;
+        variable tile_offset : unsigned(y_offset_t'range);
     begin
         cur_scanline := resize(scanline - FRAME_START,
                                cur_scanline'length);
-        offset := cur_scanline - y_coord;
-        return std_logic_vector(offset(y_offset_t'range));
+        scanline_offset := cur_scanline - y_coord;
+        if height_16
+        then
+            tile_offset := scanline_offset(y_offset_t'range);
+            if flip_vert
+            then
+                tile_offset := x"F" - tile_offset;
+            end if;
+        else
+            tile_offset := '0' & scanline_offset(2 downto 0);
+            if flip_vert
+            then
+                tile_offset := x"7" - tile_offset;
+            end if;
+        end if;
+        
+        return std_logic_vector(tile_offset);
     end;
     -- }
     
@@ -767,13 +770,14 @@ package body lib_ppu is
     begin
         if height_16
         then
-            return '0' & pattern_select & tile_idx & idx & y_offset(2 downto 0);
+            -- The value written to PPUCTRL ($2000) controls whether the
+            -- background and sprites use the left half ($0000-$0FFF) or the
+            -- right half ($1000-$1FFF) of the pattern table. PPUCTRL bit 4
+            -- applies to backgrounds, bit 3 applies to 8x8 sprites, and bit 0
+            -- of each OAM entry's tile number applies to 8x16 sprites. 
+            return '0' & tile_idx(0) & tile_idx(7 downto 1) & idx & y_offset;
         else
-            return '0' &
-                   pattern_select &
-                   tile_idx &
-                   idx & 
-                   y_offset(2 downto 0);
+            return '0' & pattern_select & tile_idx & idx &  y_offset(2 downto 0);
         end if;
     end;
     -- }
@@ -907,13 +911,11 @@ package body lib_ppu is
     )
     return pattern_shift_t
     is
-        variable ret       : pattern_shift_t;
         variable unshifted : pattern_shift_t;
     begin
-        unshifted := pattern_table(14 downto 7) & unsigned(data_in);
-        ret := shift_left(unshifted, to_integer(fine_x_scroll));
-        
-        return ret;
+        unshifted := resize(unsigned(data_in), pattern_shift_t'length);
+        return shift_left(pattern_table, 1) or
+               shift_left(unshifted, to_integer(fine_x_scroll));
     end;
     
     function cycle_ppu(render_in : ppu_render_in_t) return ppu_render_out_t
@@ -960,7 +962,7 @@ package body lib_ppu is
             scroll_to_vram_addr(render_in.reg.ppu_addr)(chr_addr_t'range);
         
         v_bg_tile_idx_addr := get_tile_idx_addr(render_in.reg.ppu_addr);
-        v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr, false);
+        v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr);
         
         v_spr_buf_addr := to_integer(render_in.reg.cur_time.cycle(5 downto 3));
     
@@ -1291,7 +1293,8 @@ package body lib_ppu is
                             v_spr_tile_y_offset :=
                                 get_y_offset(render_in.reg.cur_time.scanline,
                                              render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16);
+                                             render_in.reg.control.sprite_hgt_16,
+                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -1306,7 +1309,8 @@ package body lib_ppu is
                             v_spr_tile_y_offset :=
                                 get_y_offset(render_in.reg.cur_time.scanline,
                                              render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16);
+                                             render_in.reg.control.sprite_hgt_16,
+                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -1329,7 +1333,8 @@ package body lib_ppu is
                             v_spr_tile_y_offset :=
                                 get_y_offset(render_in.reg.cur_time.scanline,
                                              render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16);
+                                             render_in.reg.control.sprite_hgt_16,
+                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -1344,7 +1349,8 @@ package body lib_ppu is
                             v_spr_tile_y_offset :=
                                 get_y_offset(render_in.reg.cur_time.scanline,
                                              render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16);
+                                             render_in.reg.control.sprite_hgt_16,
+                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
