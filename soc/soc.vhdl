@@ -51,6 +51,8 @@ package soc is
         clk_50mhz : in std_logic;
         reset     : in boolean;
 
+        nes_running : out boolean;
+
         cpu_clk_en : out boolean;
         ppu_clk_en : out boolean;
         

@@ -22,6 +22,8 @@ port
     clk_50mhz : in std_logic;
     reset     : in boolean;
 
+    nes_running : out boolean;
+
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
     
@@ -109,6 +111,8 @@ is
     signal ready     : boolean;
 
 begin
+
+    nes_running <= not int_reset;
 
     cpu_clk_en <= cpu_en;
     ppu_clk_en <= ppu_en;

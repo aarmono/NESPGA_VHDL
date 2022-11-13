@@ -70,6 +70,8 @@ architecture behavioral of nes_bench is
     signal reset : boolean;
     
     signal clk_50mhz : std_logic := '0';
+
+    signal output_ready : boolean;
     
 begin
 
@@ -78,6 +80,8 @@ begin
     (
         clk_50mhz => clk_50mhz,
         reset => false,
+
+        nes_running => output_ready,
 
         ppu_clk_en => ppu_clk_en,
         
@@ -125,7 +129,7 @@ begin
         clk => clk_50mhz,
         clk_en => ppu_clk_en,
         pixel_bus => pixel_bus,
-        ready => true,
+        ready => output_ready,
         done => false
     );
 
@@ -137,7 +141,7 @@ begin
     port map
     (
         audio => audio_out,
-        ready => true,
+        ready => output_ready,
         done => false
     );
     
