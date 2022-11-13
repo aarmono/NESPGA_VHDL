@@ -775,9 +775,18 @@ package body lib_ppu is
             -- right half ($1000-$1FFF) of the pattern table. PPUCTRL bit 4
             -- applies to backgrounds, bit 3 applies to 8x8 sprites, and bit 0
             -- of each OAM entry's tile number applies to 8x16 sprites. 
-            return '0' & tile_idx(0) & tile_idx(7 downto 1) & idx & y_offset;
+            return '0'                  &
+                   tile_idx(0)          &
+                   tile_idx(7 downto 1) &
+                   y_offset(3)          &
+                   idx                  &
+                   y_offset(2 downto 0);
         else
-            return '0' & pattern_select & tile_idx & idx &  y_offset(2 downto 0);
+            return '0'            &
+                   pattern_select &
+                   tile_idx       &
+                   idx            &
+                   y_offset(2 downto 0);
         end if;
     end;
     -- }
