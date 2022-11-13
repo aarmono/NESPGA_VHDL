@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.binary_io.all;
 use work.bmp_file.all;
+use std.textio.all;
 
 entity ppu_video_record is
 generic
@@ -22,6 +23,22 @@ end ppu_video_record;
 
 architecture behavioral of ppu_video_record is
     
+    function format_frame_num(frame_num : integer; len : integer) return string
+    is
+        variable ret : string (1 to len);
+    begin
+        ret := justify(integer'image(frame_num), RIGHT, len);
+        for i in ret'range
+        loop
+            if ret(i) = ' '
+            then
+                ret(i) := '0';
+            end if;
+        end loop;
+
+        return ret;
+    end;
+
 begin
 
     process
@@ -126,7 +143,7 @@ begin
                 frame_num := frame_num + 1;
                 scanline_num := 0;
                 bmp_fopen(bmp_file,
-                          FILE_PREFIX & "_" & integer'image(frame_num) & ".bmp",
+                          FILE_PREFIX & "_" & format_frame_num(frame_num, 5) & ".bmp",
                           WIDTH,
                           HEIGHT,
                           palette);
