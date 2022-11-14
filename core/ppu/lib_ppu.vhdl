@@ -32,7 +32,7 @@ package lib_ppu is
     subtype fine_scroll_t   is unsigned(2 downto 0);
     subtype coarse_scroll_t is unsigned(4 downto 0);
         
-    type attribute_arr_t is array(0 to 1) of attribute_t;
+    type attribute_arr_t is array(0 to 15) of attribute_t;
 
     type sprite_attr_t is record
         palette   : attribute_t;
@@ -308,10 +308,18 @@ package lib_ppu is
     function reload_pattern_table
     (
         pattern_table : pattern_shift_t;
-        fine_x_scroll : fine_scroll_t;
         data_in       : data_t
     )
     return pattern_shift_t;
+
+    function reload_attr_table
+    (
+        attr_table : attribute_arr_t;
+        attr_in    : attribute_t
+    )
+    return attribute_arr_t;
+
+    function shift_attr_table(attr_table : attribute_arr_t) return attribute_arr_t;
     
     function get_tile_idx_addr
     (
@@ -918,16 +926,49 @@ package body lib_ppu is
     function reload_pattern_table
     (
         pattern_table : pattern_shift_t;
-        fine_x_scroll : fine_scroll_t;
         data_in       : data_t
     )
     return pattern_shift_t
     is
-        variable unshifted : pattern_shift_t;
+        variable shifted : pattern_shift_t;
     begin
-        unshifted := resize(unsigned(data_in), pattern_shift_t'length);
         return shift_left(pattern_table, 1) or
-               shift_left(unshifted, to_integer(fine_x_scroll));
+               resize(unsigned(data_in), pattern_shift_t'length);
+    end;
+
+    function shift_attr_table(attr_table : attribute_arr_t) return attribute_arr_t
+    is
+        variable ret : attribute_arr_t;
+
+        constant loop_low : integer := attribute_arr_t'low+1;
+    begin
+        for i in loop_low to attribute_arr_t'high
+        loop
+            ret(i-loop_low) := attr_table(i);
+        end loop;
+
+        ret(attribute_arr_t'high) := (others => '0');
+
+        return ret;
+    end;
+
+    function reload_attr_table
+    (
+        attr_table    : attribute_arr_t;
+        attr_in       : attribute_t
+    )
+    return attribute_arr_t
+    is
+        variable ret : attribute_arr_t;
+    begin
+        ret := shift_attr_table(attr_table);
+
+        for i in 8 to attr_table'high
+        loop
+            ret(i) := attr_in;
+        end loop;
+
+        return ret;
     end;
     
     function cycle_ppu(render_in : ppu_render_in_t) return ppu_render_out_t
@@ -940,11 +981,12 @@ package body lib_ppu is
         variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
 
         -- background render variables
-        --variable v_bg_state              : bg_state_t;
         variable v_bg_tile_idx_addr      : tile_idx_addr_t;
         variable v_bg_tile_y_offset      : y_offset_t;
         variable v_rnd_bg_pattern_color  : palette_idx_t;
-        
+        variable v_bg_palette_idx        : integer;
+        variable v_bg_attribute_idx      : integer;
+
         -- Sprite render variables
         variable v_spr_copy_sprite       : boolean;
         variable v_sec_oam_init_addr     : unsigned(sec_oam_addr_t'range);
@@ -1000,6 +1042,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "001" =>
                             -- Name table fetch.
                             render_out.chr_bus :=
@@ -1012,6 +1057,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "010" =>
                             -- Attribute table fetch.
                             render_out.chr_bus :=
@@ -1021,6 +1069,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "011" =>
                             -- Attribute table fetch.
                             render_out.chr_bus :=
@@ -1037,6 +1088,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "100" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1053,6 +1107,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "101" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1073,6 +1130,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "110" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1089,6 +1149,9 @@ package body lib_ppu is
                                 shift_left(render_in.reg.pattern_table_1, 1);
                             render_out.reg.pattern_table_2 :=
                                 shift_left(render_in.reg.pattern_table_2, 1);
+                            -- Shift the attribute table
+                            render_out.reg.attr_val :=
+                                shift_attr_table(render_in.reg.attr_val);
                         when "111" =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1110,18 +1173,17 @@ package body lib_ppu is
                                 reload_pattern_table
                                 (
                                     render_in.reg.pattern_table_1,
-                                    render_in.reg.fine_x_scroll,
                                     render_in.reg.pattern_tmp
                                 );
                             render_out.reg.pattern_table_2 :=
                                 reload_pattern_table
                                 (
                                     render_in.reg.pattern_table_2,
-                                    render_in.reg.fine_x_scroll,
                                     render_in.data_from_chr
                                 );
-                            render_out.reg.attr_val(1) := render_in.reg.attr_tmp;
-                            render_out.reg.attr_val(0) := render_in.reg.attr_val(1);
+                            render_out.reg.attr_val :=
+                                reload_attr_table(render_in.reg.attr_val,
+                                                  render_in.reg.attr_tmp);
                             
                             -- increment ppu_addr
                             render_out.reg.ppu_addr :=
@@ -1565,10 +1627,13 @@ package body lib_ppu is
         then
             if render_in.reg.mask.enable_playfield
             then
+                v_bg_palette_idx := pattern_shift_t'high -
+                                    to_integer(render_in.reg.fine_x_scroll);
+                v_bg_attribute_idx := to_integer(render_in.reg.fine_x_scroll);
                 v_rnd_bg_pattern_color :=
-                    to_color(render_in.reg.attr_val(0),
-                             render_in.reg.pattern_table_1(pattern_shift_t'high),
-                             render_in.reg.pattern_table_2(pattern_shift_t'high));
+                    to_color(render_in.reg.attr_val(v_bg_attribute_idx),
+                             render_in.reg.pattern_table_1(v_bg_palette_idx),
+                             render_in.reg.pattern_table_2(v_bg_palette_idx));
             else
                 v_rnd_bg_pattern_color := (others => '0');
             end if;
