@@ -11,13 +11,15 @@ use work.palette_bus_types.all;
 
 package lib_ppu is
     
-    constant FRONT_BG_END  : unsigned(8 downto 0) := to_unsigned(255, 9);
-    constant FRAME_START   : unsigned(8 downto 0) := to_unsigned(21, 9);
-    constant FRAME_END     : unsigned(8 downto 0) := to_unsigned(260, 9);
-    constant VINT_START    : unsigned(8 downto 0) := to_unsigned(0, 9);
-    constant VINT_END      : unsigned(8 downto 0) := to_unsigned(20, 9);
-    constant BACK_BG_START : unsigned(8 downto 0) := to_unsigned(320, 9);
-    constant BACK_BG_END   : unsigned(8 downto 0) := to_unsigned(335, 9);
+    subtype ppu_cycle_t is unsigned(8 downto 0);
+
+    constant FRONT_BG_END  : ppu_cycle_t := to_unsigned(255, ppu_cycle_t'length);
+    constant FRAME_START   : ppu_cycle_t := to_unsigned(21, ppu_cycle_t'length);
+    constant FRAME_END     : ppu_cycle_t := to_unsigned(260, ppu_cycle_t'length);
+    constant VINT_START    : ppu_cycle_t := to_unsigned(0, ppu_cycle_t'length);
+    constant VINT_END      : ppu_cycle_t := to_unsigned(20, ppu_cycle_t'length);
+    constant BACK_BG_START : ppu_cycle_t := to_unsigned(320, ppu_cycle_t'length);
+    constant BACK_BG_END   : ppu_cycle_t := to_unsigned(335, ppu_cycle_t'length);
 
     subtype vram_addr_t     is unsigned(14 downto 0);
     subtype palette_idx_t   is std_logic_vector(3 downto 0);
@@ -99,8 +101,8 @@ package lib_ppu is
     -- Encapsulates the current time for the PPU
     type ppu_time_t is record
         frame    : unsigned(0 downto 0);
-        scanline : unsigned(8 downto 0);
-        cycle    : unsigned(8 downto 0);
+        scanline : ppu_cycle_t;
+        cycle    : ppu_cycle_t;
     end record;
     
     -- Reset value for ppu_time_t registers
@@ -119,6 +121,14 @@ package lib_ppu is
         cur_time      : ppu_time_t;
         sprite_hgt_16 : boolean;
         oam_data      : data_t
+    )
+    return boolean;
+
+    function can_display_pixel
+    (
+        cur_time       : ppu_time_t;
+        render_enabled : boolean;
+        left_enabled   : boolean
     )
     return boolean;
     
@@ -158,9 +168,9 @@ package lib_ppu is
         -- Output color or B/W pixels
         enable_color        : boolean;
         -- If true shows the leftmost 8 background pixels on the screen
-        left_playfield_clip : boolean;
+        left_playfield_show : boolean;
         -- If true shows the leftmost 8 sprite pixels on the screen
-        left_sprite_clip    : boolean;
+        left_sprite_show    : boolean;
         -- If true enables background fetch/display
         enable_playfield    : boolean;
         -- If true enables sprite fetch/display
@@ -176,8 +186,8 @@ package lib_ppu is
     constant RESET_MASK : mask_t :=
     (
         enable_color => false,
-        left_playfield_clip => false,
-        left_sprite_clip => false,
+        left_playfield_show => false,
+        left_sprite_show => false,
         enable_playfield => false,
         enable_sprite => false,
         intense_red => false,
@@ -275,6 +285,11 @@ package lib_ppu is
         count            : unsigned(0 downto 0);
         -- Address for secondary OAM memory access
         sec_oam_addr     : unsigned(sec_oam_addr_t'range);
+        -- True if Sprite 0 was fetched from OAM to be potentially rendered
+        -- next scanline
+        sprite_0_hit     : boolean;
+        -- True if the scanline render buffers presently contain sprite zero
+        sprite_0_buffer  : boolean;
     end record;
     
     constant RESET_PPU_REG : ppu_reg_t :=
@@ -302,7 +317,9 @@ package lib_ppu is
         sprite_buffer => RESET_SPRITE_BUFFER_ARR,
         cur_time => TIME_ZERO,
         count => (others => '0'),
-        sec_oam_addr => (others => '0')
+        sec_oam_addr => (others => '0'),
+        sprite_0_hit => false,
+        sprite_0_buffer => false
     );
     
     function reload_pattern_table
@@ -348,6 +365,8 @@ package lib_ppu is
         pattern_2 : std_logic
     )
     return palette_idx_t;
+
+    function is_transparent(palette_idx : palette_idx_t) return boolean;
     
     function shift_sprite_buffers
     (
@@ -359,7 +378,7 @@ package lib_ppu is
     
     function get_y_offset
     (
-        scanline  : unsigned(8 downto 0);
+        scanline  : ppu_cycle_t;
         y_coord   : sprite_coord_t;
         height_16 : boolean;
         flip_vert : boolean
@@ -492,8 +511,8 @@ package body lib_ppu is
         ret.intense_red := val(5) = '1';
         ret.enable_sprite := val(4) = '1';
         ret.enable_playfield := val(3) = '1';
-        ret.left_sprite_clip := val(2) = '1';
-        ret.left_playfield_clip := val(1) = '1';
+        ret.left_sprite_show := val(2) = '1';
+        ret.left_playfield_show := val(1) = '1';
         ret.enable_color := val(0) = '0';
         
         return ret;
@@ -576,6 +595,19 @@ package body lib_ppu is
         return in_frame and in_render;
     end;
     -- }
+
+    function can_display_pixel
+    (
+        cur_time       : ppu_time_t;
+        render_enabled : boolean;
+        left_enabled   : boolean
+    )
+    return boolean
+    is
+        constant LEFT_END : ppu_cycle_t := to_unsigned(7, ppu_cycle_t'length);
+    begin
+        return render_enabled and (left_enabled or cur_time.cycle > LEFT_END);
+    end;
     
     function to_color
     (
@@ -588,6 +620,12 @@ package body lib_ppu is
     begin
         return attr_val & pattern_2 & pattern_1;
     end;
+
+    function is_transparent(palette_idx : palette_idx_t) return boolean
+    is
+    begin
+        return is_zero(palette_idx(1 downto 0));
+    end;
     
     -- get_y_offset function {
     function get_y_offset(ppu_addr : scroll_t) return y_offset_t
@@ -598,7 +636,7 @@ package body lib_ppu is
     
     function get_y_offset
     (
-        scanline  : unsigned(8 downto 0);
+        scanline  : ppu_cycle_t;
         y_coord   : sprite_coord_t;
         height_16 : boolean;
         flip_vert : boolean
@@ -656,9 +694,9 @@ package body lib_ppu is
         variable msb : std_logic;
     begin
         msb := to_std_logic(is_sprite);
-        if is_zero(palette_idx(1 downto 0))
+        if is_transparent(palette_idx)
         then
-            return  "00000";
+            return "00000";
         else
             return msb & palette_idx;
         end if;
@@ -690,13 +728,12 @@ package body lib_ppu is
     )
     return tile_idx_addr_t
     is
+        variable vram_addr : vram_addr_t;
         variable ret : tile_idx_addr_t;
     begin
         -- tile address = 0x2000 | (v & 0x0FFF)
-        ret.name_table_addr := "10" &
-                               std_logic_vector(ppu_addr.name_table_select) &
-                               std_logic_vector(ppu_addr.coarse_y_scroll) &
-                               std_logic_vector(ppu_addr.coarse_x_scroll);
+        vram_addr := scroll_to_vram_addr(ppu_addr);
+        ret.name_table_addr := "10" & std_logic_vector(vram_addr(11 downto 0));
         -- The low 12 bits of the attribute address are composed in the following way:
         --
         -- NN 1111 YYY XXX
@@ -737,6 +774,9 @@ package body lib_ppu is
     function incr_ppu_addr_y(scroll  : scroll_t) return scroll_t
     is
         variable ret : scroll_t;
+
+        constant COARSE_Y_NT_FLIP : coarse_scroll_t :=
+            to_unsigned(29, coarse_scroll_t'length);
     begin
         ret := scroll;
         
@@ -748,7 +788,7 @@ package body lib_ppu is
         else
             -- fine Y = 0
             ret.fine_y_scroll := (others => '0');
-            if scroll.coarse_y_scroll = to_unsigned(29, coarse_scroll_t'length)
+            if scroll.coarse_y_scroll = COARSE_Y_NT_FLIP
             then
                 -- coarse Y = 0
                 ret.coarse_y_scroll := (others => '0');
@@ -805,17 +845,17 @@ package body lib_ppu is
     -- incr_time function {
     function incr_time(time_in : ppu_time_t) return ppu_time_t is
         variable next_time : ppu_time_t;
-        variable end_cycle : unsigned(8 downto 0);
+        variable end_cycle : ppu_cycle_t;
         
         constant ODD_FRAME   : unsigned(0 downto 0) := "1";
 
-        constant START_LINE  : unsigned(8 downto 0) := to_unsigned(0, 9);
-        constant VAR_LINE    : unsigned(8 downto 0) := to_unsigned(20, 9);
-        constant END_LINE    : unsigned(8 downto 0) := to_unsigned(261, 9);
+        constant START_LINE  : ppu_cycle_t := to_unsigned(0, ppu_cycle_t'length);
+        constant VAR_LINE    : ppu_cycle_t := to_unsigned(20, ppu_cycle_t'length);
+        constant END_LINE    : ppu_cycle_t := to_unsigned(261, ppu_cycle_t'length);
 
-        constant START_CYCLE : unsigned(8 downto 0) := to_unsigned(0, 9);
-        constant SHORT_CYCLE : unsigned(8 downto 0) := to_unsigned(339, 9);
-        constant REG_CYCLE   : unsigned(8 downto 0) := to_unsigned(340, 9);
+        constant START_CYCLE : ppu_cycle_t := to_unsigned(0, ppu_cycle_t'length);
+        constant SHORT_CYCLE : ppu_cycle_t := to_unsigned(339, ppu_cycle_t'length);
+        constant REG_CYCLE   : ppu_cycle_t := to_unsigned(340, ppu_cycle_t'length);
     begin
         if time_in.frame = ODD_FRAME and
            time_in.scanline = VAR_LINE
@@ -932,8 +972,10 @@ package body lib_ppu is
     is
         variable shifted : pattern_shift_t;
     begin
-        return shift_left(pattern_table, 1) or
-               resize(unsigned(data_in), pattern_shift_t'length);
+        shifted := shift_left(pattern_table, 1);
+        shifted(data_in'range) := unsigned(data_in);
+        
+        return shifted;
     end;
 
     function shift_attr_table(attr_table : attribute_arr_t) return attribute_arr_t
@@ -1256,6 +1298,7 @@ package body lib_ppu is
                     render_out.reg.sec_oam_addr := (others => '0');
                     render_out.reg.oam_overflow := false;
                     render_out.reg.sec_oam_overflow := false;
+                    render_out.reg.sprite_0_hit := false;
 
                     -- Shift the sprite buffers as needed
                     render_out.reg.sprite_buffer :=
@@ -1280,6 +1323,12 @@ package body lib_ppu is
                         if (not is_zero(render_in.reg.oam_addr(1 downto 0))) or
                            v_spr_copy_sprite
                         then
+
+                            -- Set a flag if this is sprite 0
+                            if is_zero(render_in.reg.oam_addr)
+                            then
+                                render_out.reg.sprite_0_hit := true;
+                            end if;
 
                             if not render_in.reg.sec_oam_overflow
                             then
@@ -1330,6 +1379,10 @@ package body lib_ppu is
                     -- and visible scanlines
                     render_out.reg.oam_addr := (others => '0');
                     render_out.reg.sec_oam_addr := (others => '0');
+
+                    -- Update the flag indicating whether or not the sprite
+                    -- buffers contain sprite 0
+                    render_out.reg.sprite_0_buffer := render_in.reg.sprite_0_hit;
                     
                     v_sec_oam_fetch_addr :=
                         render_in.reg.cur_time.cycle(5 downto 3) &
@@ -1462,6 +1515,7 @@ package body lib_ppu is
                     render_out.reg.sec_oam_addr := (others => '0');
                     render_out.sec_oam_bus := bus_read(render_out.reg.sec_oam_addr);
                     render_out.reg.oam_data := render_in.data_from_sec_oam;
+                    render_out.reg.sprite_0_buffer := render_in.reg.sprite_0_hit;
                 when others =>
                     null;
             end case;
@@ -1516,15 +1570,15 @@ package body lib_ppu is
                 when "101" =>
                     if is_zero(render_in.reg.count)
                     then
-                        render_out.reg.fine_x_scroll :=
-                            unsigned(render_in.data_from_cpu(2 downto 0));
                         render_out.reg.scroll.coarse_x_scroll :=
                             unsigned(render_in.data_from_cpu(7 downto 3));
+                        render_out.reg.fine_x_scroll :=
+                            unsigned(render_in.data_from_cpu(2 downto 0));
                     else
-                        render_out.reg.scroll.fine_y_scroll :=
-                            unsigned(render_in.data_from_cpu(7 downto 5));
                         render_out.reg.scroll.coarse_y_scroll :=
-                            unsigned(render_in.data_from_cpu(4 downto 0));
+                            unsigned(render_in.data_from_cpu(7 downto 3));
+                        render_out.reg.scroll.fine_y_scroll :=
+                            unsigned(render_in.data_from_cpu(2 downto 0));
                     end if;
                     render_out.reg.count := render_in.reg.count + "1";
                 -- PPU Address
@@ -1623,7 +1677,9 @@ package body lib_ppu is
         
         if is_rendering(render_in.reg.cur_time)
         then
-            if render_in.reg.mask.enable_playfield
+            if can_display_pixel(render_in.reg.cur_time,
+                                 render_in.reg.mask.enable_playfield,
+                                 render_in.reg.mask.left_playfield_show)
             then
                 v_bg_palette_idx := pattern_shift_t'high -
                                     to_integer(render_in.reg.fine_x_scroll);
@@ -1647,21 +1703,54 @@ package body lib_ppu is
                         render_in.reg.sprite_buffer(i).pattern_1(pattern_t'high),
                         render_in.reg.sprite_buffer(i).pattern_2(pattern_t'high)
                     );
-                if render_in.reg.mask.enable_sprite and
+                if can_display_pixel(render_in.reg.cur_time,
+                                     render_in.reg.mask.enable_sprite,
+                                     render_in.reg.mask.left_sprite_show) and
                    is_zero(render_in.reg.sprite_buffer(i).x_coord) and
-                   not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
-                   (not render_in.reg.sprite_buffer(i).behind_bg or
-                    is_zero(v_rnd_bg_pattern_color(1 downto 0)))
+                   not is_transparent(v_rnd_spr_pattern_color)
                 then
-                    v_rnd_is_sprite := true;
-                    v_rnd_pattern_color := v_rnd_spr_pattern_color;
-                end if;
+                    -- * Sprites with lower OAM indices are drawn in front.
+                    --   For example, sprite 0 is in front of sprite 1, which is
+                    --   in front of sprite 63.
+                    -- * At any given pixel, if the frontmost opaque sprite's
+                    --   priority bit is true (1), an opaque background pixel
+                    --   is drawn in front of it.
+                    --
+                    -- Putting a back-priority sprite at a lower OAM index
+                    -- than a front-priority sprite can cover up the the
+                    -- front-priority sprite and let the background show through
+                    --
+                    -- For each pixel in the background buffer, the corresponding
+                    -- sprite pixel replaces it only if the sprite pixel is
+                    -- opaque and front priority or if the background pixel is
+                    -- transparent.
+                    v_rnd_is_sprite :=
+                        not render_in.reg.sprite_buffer(i).behind_bg or
+                        is_transparent(v_rnd_bg_pattern_color);
+                    if v_rnd_is_sprite
+                    then
+                        v_rnd_pattern_color := v_rnd_spr_pattern_color;
+                    else
+                        v_rnd_pattern_color := v_rnd_bg_pattern_color;
+                    end if;
 
-                if i = 0 and
-                   not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
-                   not is_zero(v_rnd_bg_pattern_color(1 downto 0))
-                then
-                    render_out.reg.status.spr_0_hit := true;
+                    -- Sprite 0 hit does not happen:
+                    -- * If background or sprite rendering is disabled in
+                    --   PPUMASK ($2001)
+                    -- * At x=0 to x=7 if the left-side clipping window is
+                    --   enabled (if bit 2 or bit 1 of PPUMASK is 0).
+                    -- * At x=255, for an obscure reason related to the pixel
+                    --   pipeline.
+                    -- * At any pixel where the background or sprite pixel is
+                    --   transparent (2-bit color index from the CHR pattern is
+                    --   %00).
+                    if i = 0 and
+                       render_in.reg.sprite_0_buffer and
+                       not is_transparent(v_rnd_bg_pattern_color) and
+                       render_in.reg.cur_time.cycle /= FRONT_BG_END
+                    then
+                        render_out.reg.status.spr_0_hit := true;
+                    end if;
                 end if;
             end loop;
 
