@@ -32,7 +32,7 @@ package lib_ppu is
     subtype fine_scroll_t   is unsigned(2 downto 0);
     subtype coarse_scroll_t is unsigned(4 downto 0);
         
-    type attribute_arr_t is array(0 to 15) of attribute_t;
+    type attribute_arr_t is array(0 to 8) of attribute_t;
 
     type sprite_attr_t is record
         palette   : attribute_t;
@@ -939,34 +939,32 @@ package body lib_ppu is
     function shift_attr_table(attr_table : attribute_arr_t) return attribute_arr_t
     is
         variable ret : attribute_arr_t;
-
-        constant loop_low : integer := attribute_arr_t'low+1;
     begin
-        for i in loop_low to attribute_arr_t'high
+        for i in 1 to attribute_arr_t'high
         loop
-            ret(i-loop_low) := attr_table(i);
+            ret(i-1) := attr_table(i);
         end loop;
 
-        ret(attribute_arr_t'high) := (others => '0');
+        -- Keep the last element the same since this will "fill in" the
+        -- shift register with the attribute value for the next tile
+        ret(attribute_arr_t'high) := attr_table(attribute_arr_t'high);
 
         return ret;
     end;
 
     function reload_attr_table
     (
-        attr_table    : attribute_arr_t;
-        attr_in       : attribute_t
+        attr_table : attribute_arr_t;
+        attr_in    : attribute_t
     )
     return attribute_arr_t
     is
         variable ret : attribute_arr_t;
     begin
+        -- Shift the table
         ret := shift_attr_table(attr_table);
-
-        for i in 8 to attr_table'high
-        loop
-            ret(i) := attr_in;
-        end loop;
+        -- Then load the last element with the attribute for the next tile
+        ret(attr_table'high) := attr_in;
 
         return ret;
     end;
@@ -1640,7 +1638,7 @@ package body lib_ppu is
 
             v_rnd_pattern_color := v_rnd_bg_pattern_color;
             v_rnd_is_sprite := false;
-            for i in render_in.reg.sprite_buffer'range
+            for i in render_in.reg.sprite_buffer'reverse_range
             loop
                 v_rnd_spr_pattern_color :=
                     to_color
@@ -1649,8 +1647,7 @@ package body lib_ppu is
                         render_in.reg.sprite_buffer(i).pattern_1(pattern_t'high),
                         render_in.reg.sprite_buffer(i).pattern_2(pattern_t'high)
                     );
-                if not v_rnd_is_sprite and 
-                   render_in.reg.mask.enable_sprite and
+                if render_in.reg.mask.enable_sprite and
                    is_zero(render_in.reg.sprite_buffer(i).x_coord) and
                    not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
                    (not render_in.reg.sprite_buffer(i).behind_bg or
@@ -1660,7 +1657,8 @@ package body lib_ppu is
                     v_rnd_pattern_color := v_rnd_spr_pattern_color;
                 end if;
 
-                if not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
+                if i = 0 and
+                   not is_zero(v_rnd_spr_pattern_color(1 downto 0)) and
                    not is_zero(v_rnd_bg_pattern_color(1 downto 0))
                 then
                     render_out.reg.status.spr_0_hit := true;
