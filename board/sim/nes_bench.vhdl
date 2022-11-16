@@ -19,7 +19,8 @@ generic
 (
     AU_FILEPATH  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au";
     BMP_FILE_PREFIX : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\frame";
-    NES_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\NES\\Mario.nes"
+    NES_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\NES\\Mario.nes";
+    NES_FILE_BYTES : integer := 196608
 );
 end nes_bench;
 
@@ -149,7 +150,7 @@ begin
     generic map
     (
        FILEPATH => NES_FILEPATH,
-       MEM_BYTES => 196608
+       MEM_BYTES => NES_FILE_BYTES
     )
     port map
     (
