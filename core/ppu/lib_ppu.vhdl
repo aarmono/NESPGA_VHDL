@@ -166,7 +166,7 @@ package lib_ppu is
     -- Mask register (0x2001)
     type mask_t is record
         -- Output color or B/W pixels
-        enable_color        : boolean;
+        enable_grayscale    : boolean;
         -- If true shows the leftmost 8 background pixels on the screen
         left_playfield_show : boolean;
         -- If true shows the leftmost 8 sprite pixels on the screen
@@ -185,7 +185,7 @@ package lib_ppu is
     
     constant RESET_MASK : mask_t :=
     (
-        enable_color => false,
+        enable_grayscale => false,
         left_playfield_show => false,
         left_sprite_show => false,
         enable_playfield => false,
@@ -513,7 +513,7 @@ package body lib_ppu is
         ret.enable_playfield := val(3) = '1';
         ret.left_sprite_show := val(2) = '1';
         ret.left_playfield_show := val(1) = '1';
-        ret.enable_color := val(0) = '0';
+        ret.enable_grayscale := val(0) = '1';
         
         return ret;
     end;
@@ -1019,6 +1019,7 @@ package body lib_ppu is
         variable v_pattern_table_addr : chr_addr_t;
         variable v_rnd_pattern_color  : palette_idx_t;
         variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
+        variable v_palette_mask       : pixel_t;
 
         -- background render variables
         variable v_bg_tile_idx_addr      : tile_idx_addr_t;
@@ -1051,6 +1052,13 @@ package body lib_ppu is
         render_out.data_to_sec_oam := (others => '-');
         render_out.data_to_cpu := (others => '-');
         render_out.data_to_palette := (others => '-');
+
+        if render_in.reg.mask.enable_grayscale
+        then
+            v_palette_mask := b"11_0000";
+        else
+            v_palette_mask := (others => '1');
+        end if;
         
         v_ppu_chr_addr :=
             scroll_to_vram_addr(render_in.reg.ppu_addr)(chr_addr_t'range);
@@ -1645,7 +1653,9 @@ package body lib_ppu is
                         -- required.
                         render_out.palette_bus :=
                             bus_read(to_palette_addr(v_ppu_chr_addr));
-                        render_out.data_to_cpu := render_in.data_from_palette;
+                        render_out.data_to_cpu :=
+                            render_in.data_from_palette and
+                            resize(v_palette_mask, data_t'length);
                     else
                         -- When reading while the VRAM address is in the range
                         -- 0-$3EFF (i.e., before the palettes), the read will
@@ -1757,7 +1767,7 @@ package body lib_ppu is
             render_out.palette_bus :=
                 bus_read(to_palette_addr(v_rnd_is_sprite, v_rnd_pattern_color));
             render_out.pixel_bus.pixel :=
-                render_in.data_from_palette(pixel_t'range);
+                render_in.data_from_palette(pixel_t'range) and v_palette_mask;
             render_out.pixel_bus.line_valid := true;
         else
             render_out.pixel_bus.line_valid := false;
