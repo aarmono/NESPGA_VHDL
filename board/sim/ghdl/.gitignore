@@ -1,3 +1,5 @@
 *_bench
 *.cf
 *.ghw
+*dump
+*output
