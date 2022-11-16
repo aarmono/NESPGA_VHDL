@@ -21,11 +21,57 @@ generic
     BMP_FILE_PREFIX  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\frame";
     PPU_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\ppu.dmp";
     OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\oam.dmp";
-    SEC_OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\sec_oam.dmp"
+    SEC_OAM_MEM_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\vsim\\nes_dump\\sec_oam.dmp";
+
+    -- These values are 1:1 with the PPU Status display in Mesen debugger
+    BG_EN         : boolean := true;
+    SPR_EN        : boolean := true;
+    DRAW_LEFT_BG  : boolean := true;
+    DRAW_LEFT_SPR : boolean := true;
+    VERT_WRITE    : boolean := false;
+    NMI_ON        : boolean := true;
+    LARGE_SPRITE  : boolean := false;
+    GRAYSCALE     : boolean := false;
+    INTENSE_R     : boolean := false;
+    INTENSE_G     : boolean := false;
+    INTENSE_B     : boolean := false;
+
+    T_REG         : integer := 16#0000#;
+    X_SCROLL      : integer := 0;
+    BG_ADDR       : integer := 16#1000#;
+    SPR_ADDR      : integer := 16#0000#
 );
 end ppu_bench;
 
 architecture behavioral of ppu_bench is
+
+    constant T_REG_US    : unsigned(15 downto 0) := to_unsigned(T_REG, 16);
+    constant X_SCROLL_US : unsigned( 2 downto 0) := to_unsigned(X_SCROLL, 3);
+    constant BG_ADDR_US  : unsigned(15 downto 0) := to_unsigned(BG_ADDR, 16);
+    constant SPR_ADDR_US : unsigned(15 downto 0) := to_unsigned(SPR_ADDR, 16);
+
+    constant PPUMASK_VAL : data_t := to_std_logic(INTENSE_B)     &
+                                     to_std_logic(INTENSE_G)     &
+                                     to_std_logic(INTENSE_R)     &
+                                     to_std_logic(SPR_EN)        &
+                                     to_std_logic(BG_EN)         &
+                                     to_std_logic(DRAW_LEFT_SPR) &
+                                     to_std_logic(DRAW_LEFT_BG)  &
+                                     to_std_logic(GRAYSCALE);
+    
+    constant PPUCTRL_VAL : data_t := to_std_logic(NMI_ON)       &
+                                     '0'                        &
+                                     to_std_logic(LARGE_SPRITE) &
+                                     BG_ADDR_US(12)             &
+                                     SPR_ADDR_US(12)            &
+                                     to_std_logic(VERT_WRITE)   &
+                                     std_logic_vector(T_REG_US(11 downto 10));
+
+    constant PPUSCROLL_X : data_t := std_logic_vector(T_REG_US(4 downto 0)) &
+                                     std_logic_vector(X_SCROLL_US);
+
+    constant PPUSCROLL_Y : data_t := std_logic_vector(T_REG_US(9 downto 5)) &
+                                     std_logic_vector(T_REG_US(14 downto 12));
 
     signal pixel_bus : pixel_bus_t;
 
@@ -188,9 +234,10 @@ begin
 
     process
     is
-        constant PPUCTRL : ppu_addr_t := "000";
-        constant PPUMASK : ppu_addr_t := "001";
-        constant PPUADDR : ppu_addr_t := "110";
+        constant PPUCTRL   : ppu_addr_t := "000";
+        constant PPUMASK   : ppu_addr_t := "001";
+        constant PPUADDR   : ppu_addr_t := "110";
+        constant PPUSCROLL : ppu_addr_t := "101";
     begin
 
         clk <= '0';
@@ -204,15 +251,7 @@ begin
 
         reset <= false;
         cpu_bus <= bus_write(PPUCTRL);
-        prg_data_to_ppu <= "10010000";
-        clk <= '1';
-
-        wait for 10 ns;
-        clk <= '0';
-        wait for 10 ns;
-
-        cpu_bus <= bus_write(PPUMASK);
-        prg_data_to_ppu <= "00011110";
+        prg_data_to_ppu <= PPUCTRL_VAL;
         clk <= '1';
 
         wait for 10 ns;
@@ -220,7 +259,7 @@ begin
         wait for 10 ns;
         
         cpu_bus <= bus_write(PPUADDR);
-        prg_data_to_ppu <= "00000000";
+        prg_data_to_ppu <= x"00";
         clk <= '1';
         
         wait for 10 ns;
@@ -228,6 +267,29 @@ begin
         wait for 10 ns;
         
         prg_data_to_ppu <= x"00";
+        clk <= '1';
+        
+        wait for 10 ns;
+        clk <= '0';
+        wait for 10 ns;
+
+        cpu_bus <= bus_write(PPUMASK);
+        prg_data_to_ppu <= PPUMASK_VAL;
+        clk <= '1';
+
+        wait for 10 ns;
+        clk <= '0';
+        wait for 10 ns;
+
+        cpu_bus <= bus_write(PPUSCROLL);
+        prg_data_to_ppu <= PPUSCROLL_X;
+        clk <= '1';
+        
+        wait for 10 ns;
+        clk <= '0';
+        wait for 10 ns;
+        
+        prg_data_to_ppu <= PPUSCROLL_Y;
         clk <= '1';
         
         wait for 10 ns;
