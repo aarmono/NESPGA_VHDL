@@ -1,0 +1,6 @@
+# NES file path                                                  | run time
+../../../nes-test-roms/branch_timing_tests/1.Branch_Basics.nes   | 250ms
+../../../nes-test-roms/branch_timing_tests/2.Backward_Branch.nes | 300ms
+../../../nes-test-roms/branch_timing_tests/3.Forward_Branch.nes  | 300ms
+
+#../../../nes-test-roms/cpu_timing_test6/cpu_timing_test.nes      | 10300ms
