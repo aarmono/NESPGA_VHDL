@@ -1,6 +1,14 @@
-# NES file path                                                  | run time
-../../../nes-test-roms/branch_timing_tests/1.Branch_Basics.nes   | 250ms
-../../../nes-test-roms/branch_timing_tests/2.Backward_Branch.nes | 300ms
-../../../nes-test-roms/branch_timing_tests/3.Forward_Branch.nes  | 300ms
+# NES file path                            | run time | Hash
+# Basic CPU
+branch_timing_tests/1.Branch_Basics.nes   | 250ms     | 20a1e16e169f6152248ba16ddb77565fa9704f08d2b3f692971f5b9ff2d3034e *frame_00014.bmp
+branch_timing_tests/2.Backward_Branch.nes | 300ms     | a74f3b8a15743950798b98afba0a696bb918916bd45f9cd6327724d93517cb0d *frame_00016.bmp
+branch_timing_tests/3.Forward_Branch.nes  | 300ms     | cd71b6b824a8a2803821f2c799788806a443007173525b75ae34896990d9aa16 *frame_00017.bmp
 
-#../../../nes-test-roms/cpu_timing_test6/cpu_timing_test.nes      | 10300ms
+# Basic APU
+dmc_tests/buffer_retained.nes             | 300ms     | 47b6b1e1c4212b507cd646ed23ebea47ad52a0829ca3bdd11513304d74ee3d0f *audio.au
+dmc_tests/latency.nes                     | 300ms     | b1c1ea1c641a2ca56b62ace4cfe95ef2acc57e721cd2a174142f6a56e1cf7d9b *audio.au
+dmc_tests/status.nes                      | 300ms     | 91725d4e648ed137e45c770869b76ea3ba945be5ed07a0dd1985c2be56710aa3 *audio.au
+dmc_tests/status_irq.nes                  | 300ms     | b13f2276f4d5cab507ae327ada567224718bfdc1fb22d73d45f0f0048566d7bf *audio.au
+
+# Long tests
+#cpu_timing_test6/cpu_timing_test.nes      | 10300ms |
