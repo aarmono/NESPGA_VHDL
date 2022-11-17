@@ -86,6 +86,8 @@ begin
     )
     port map
     (
+        clk => clk_50mhz,
+        clk_en => true,
         audio => audio_out,
         ready => not reset,
         done => false

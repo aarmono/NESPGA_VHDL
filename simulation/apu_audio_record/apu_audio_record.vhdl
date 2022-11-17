@@ -12,9 +12,11 @@ generic
 );
 port
 (
-    audio : in mixed_audio_t;
-    ready : in boolean;
-    done  : in boolean
+    clk    : in std_logic;
+    clk_en : in boolean;
+    audio  : in mixed_audio_t;
+    ready  : in boolean;
+    done   : in boolean
 );
 end apu_audio_record;
 
@@ -28,14 +30,14 @@ begin
         variable aud_out : std_logic_vector(15 downto 0);
     begin
         au_fopen_16(audio_file, FILEPATH, x"00017700");
+
+        wait on clk until rising_edge(clk) and clk_en and ready;
         
         while not done loop
             wait for 10416 ns;
-            if ready
-            then
-                aud_out := std_logic_vector("0" & audio & "0000000");
-                au_fwrite_16(audio_file, aud_out);
-            end if;
+            
+            aud_out := std_logic_vector("0" & audio & "0000000");
+            au_fwrite_16(audio_file, aud_out);
         end loop;
         
         au_fclose_16(audio_file);

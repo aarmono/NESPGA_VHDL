@@ -40,9 +40,11 @@ package simulation is
     );
     port
     (
-        audio : in mixed_audio_t;
-        ready : in boolean;
-        done  : in boolean
+        clk    : in std_logic;
+        clk_en : in boolean;
+        audio  : in mixed_audio_t;
+        ready  : in boolean;
+        done   : in boolean
     );
     end component apu_audio_record;
 
