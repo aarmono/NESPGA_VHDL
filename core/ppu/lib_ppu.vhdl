@@ -114,7 +114,12 @@ package lib_ppu is
     );
     
     -- Increment a time register
-    function incr_time(time_in : ppu_time_t) return ppu_time_t;
+    function incr_time
+    (
+        time_in        : ppu_time_t;
+        render_enabled : boolean
+    )
+    return ppu_time_t;
     
     function is_sprite_hit
     (
@@ -843,7 +848,13 @@ package body lib_ppu is
     -- }
     
     -- incr_time function {
-    function incr_time(time_in : ppu_time_t) return ppu_time_t is
+    function incr_time
+    (
+        time_in        : ppu_time_t;
+        render_enabled : boolean
+    )
+    return ppu_time_t
+    is
         variable next_time : ppu_time_t;
         variable end_cycle : ppu_cycle_t;
         
@@ -857,8 +868,17 @@ package body lib_ppu is
         constant SHORT_CYCLE : ppu_cycle_t := to_unsigned(339, ppu_cycle_t'length);
         constant REG_CYCLE   : ppu_cycle_t := to_unsigned(340, ppu_cycle_t'length);
     begin
+        -- With rendering disabled (background and sprites disabled in PPUMASK
+        -- ($2001)), each PPU frame is 341*262=89342 PPU clocks long. There is
+        -- no skipped clock every other frame.
+        -- With rendering enabled, each odd PPU frame is one PPU clock shorter
+        -- than normal. This is done by skipping the first idle tick on the
+        -- first visible scanline (by jumping directly from (339,261) on the
+        -- pre-render scanline to (0,0) on the first visible scanline and doing
+        -- the last cycle of the last dummy nametable fetch there instead
         if time_in.frame = ODD_FRAME and
-           time_in.scanline = VAR_LINE
+           time_in.scanline = VAR_LINE and
+           render_enabled
         then
             end_cycle := SHORT_CYCLE;
         else
@@ -1773,7 +1793,8 @@ package body lib_ppu is
             render_out.pixel_bus.line_valid := false;
         end if;
         
-        render_out.reg.cur_time := incr_time(render_in.reg.cur_time);
+        render_out.reg.cur_time := incr_time(render_in.reg.cur_time,
+                                             rendering_enabled(render_in.reg.mask));
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);
         
         return render_out;
