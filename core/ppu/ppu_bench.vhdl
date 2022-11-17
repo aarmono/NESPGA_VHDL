@@ -226,7 +226,6 @@ begin
         data_from_palette => data_from_palette,
 
         cpu_bus => cpu_bus,
-        cpu_bus_clk_en => true,
         prg_data_to_ppu => prg_data_to_ppu,
 
         pixel_bus => pixel_bus

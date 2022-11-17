@@ -15,6 +15,7 @@ port
 (
     clk               : in std_logic;
     clk_en            : in boolean := true;
+    clk_sync          : in boolean := true;
     reset             : in boolean;
 
     chr_bus           : out chr_bus_t;
@@ -34,7 +35,6 @@ port
     data_from_palette : in data_t;
     
     cpu_bus           : in  ppu_bus_t;
-    cpu_bus_clk_en    : in boolean := true;
     prg_data_from_ppu : out data_t;
     prg_data_to_ppu   : in  data_t;
 
@@ -69,9 +69,10 @@ begin
         render_in.reg := reg;
         
         render_in.cpu_bus := cpu_bus;
-        -- Only perform CPU bus actions when a CPU clock cycle is valid
-        render_in.cpu_bus.write := render_in.cpu_bus.write and cpu_bus_clk_en;
-        render_in.cpu_bus.read := render_in.cpu_bus.read and cpu_bus_clk_en;
+        -- Only perform CPU bus actions during the "sync" cycle when both
+        -- the CPU and PPU will be clocked
+        render_in.cpu_bus.write := render_in.cpu_bus.write and clk_sync;
+        render_in.cpu_bus.read := render_in.cpu_bus.read and clk_sync;
         render_in.data_from_cpu := prg_data_to_ppu;
         
         render_in.data_from_oam := data_from_oam;

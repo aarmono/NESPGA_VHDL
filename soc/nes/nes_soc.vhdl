@@ -97,8 +97,9 @@ is
     signal prg_data_to_ppu   : data_t;
     signal prg_data_from_ppu : data_t;
 
-    signal cpu_en : boolean;
-    signal ppu_en : boolean;
+    signal cpu_en   : boolean;
+    signal ppu_en   : boolean;
+    signal ppu_sync : boolean;
     
     signal audio_out : apu_out_t;
     
@@ -126,7 +127,9 @@ begin
         reset => reset,
         
         cpu_en => cpu_en,
-        ppu_en => ppu_en
+        ppu_en => ppu_en,
+
+        ppu_sync => ppu_sync
     );
 
     nes_cpu : cpu
@@ -168,6 +171,7 @@ begin
     (
         clk    => clk_50mhz,
         clk_en => ppu_en,
+        clk_sync => ppu_sync,
         reset  => int_reset,
 
         chr_bus             => chr_bus,
@@ -187,7 +191,6 @@ begin
         data_from_palette => data_from_palette,
         
         cpu_bus            => ppu_bus,
-        cpu_bus_clk_en     => cpu_en,
         prg_data_from_ppu  => prg_data_from_ppu,
         prg_data_to_ppu    => prg_data_to_ppu,
 

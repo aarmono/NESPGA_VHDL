@@ -59,6 +59,7 @@ package nes_core is
     (
         clk               : in std_logic;
         clk_en            : in boolean := true;
+        clk_sync          : in boolean := true;
         reset             : in boolean;
 
         chr_bus           : out chr_bus_t;
@@ -78,7 +79,6 @@ package nes_core is
         data_from_palette : in data_t;
         
         cpu_bus           : in  ppu_bus_t;
-        cpu_bus_clk_en    : in boolean := true;
         prg_data_from_ppu : out data_t;
         prg_data_to_ppu   : in  data_t;
 
@@ -112,7 +112,9 @@ package nes_core is
         
         cpu_en    : out boolean;
         ppu_en    : out boolean;
-        nsf_en    : out boolean
+        nsf_en    : out boolean;
+
+        ppu_sync  : out boolean
     );
     end component clk_en;
 

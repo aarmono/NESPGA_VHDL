@@ -11,7 +11,9 @@ port
 
     cpu_en : out boolean;
     ppu_en : out boolean;
-    nsf_en : out boolean
+    nsf_en : out boolean;
+
+    ppu_sync : out boolean
 );
 end clk_en;
 
@@ -25,10 +27,27 @@ architecture behavioral of clk_en is
     
     signal cpu_count : cpu_count_t := RESET_CPU_COUNT;
     signal nsf_count : nsf_count_t := RESET_NSF_COUNT;
+
+    constant CPU_EN_COUNT : cpu_count_t := (others => '0');
+
+    type ppu_en_arr_t is array(0 to 2) of cpu_count_t;
+    -- Maintain a 3:1 ratio between CPU and PPU cycles
+    constant PPU_EN_COUNT_ARR : ppu_en_arr_t :=
+    (
+        CPU_EN_COUNT,
+        to_unsigned(9, cpu_count_t'length),
+        to_unsigned(18, cpu_count_t'length)
+    );
+
+    -- CPU/PPU sync period is the cycle when both ppu_en and cpu_en are high.
+    -- It starts just after the previous ppu_en event
+    constant PPU_SYNC_START_COUNT : cpu_count_t := CPU_EN_COUNT + x"8";
+    constant PPU_SYNC_END_COUNT : cpu_count_t := RESET_CPU_COUNT;
     
 begin
 
     process(clk_50mhz)
+        variable is_ppu_en : boolean;
     begin
     if rising_edge(clk_50mhz)
     then
@@ -39,20 +58,36 @@ begin
             cpu_en <= false;
             ppu_en <= false;
             nsf_en <= false;
+            ppu_sync <= false;
         else
             if is_zero(cpu_count)
             then
                 cpu_count <= RESET_CPU_COUNT;
-                cpu_en <= true;
-                ppu_en <= true;
             else
                 cpu_count <= cpu_count - "1";
-                cpu_en <= false;
-                -- Maintain a 3:1 ratio between CPU and PPU cycles
-                ppu_en <= cpu_count = to_unsigned(9, cpu_count_t'length) or
-                          cpu_count = to_unsigned(18, cpu_count_t'length);
             end if;
-            
+
+            cpu_en <= cpu_count = CPU_EN_COUNT;
+
+            is_ppu_en := false;
+            for i in PPU_EN_COUNT_ARR'range
+            loop
+                if cpu_count = PPU_EN_COUNT_ARR(i)
+                then
+                    is_ppu_en := true;
+                end if;
+            end loop;
+
+            ppu_en <= is_ppu_en;
+
+            if cpu_count = PPU_SYNC_START_COUNT
+            then
+                ppu_sync <= true;
+            elsif cpu_count = PPU_SYNC_END_COUNT
+            then
+                ppu_sync <= false;
+            end if;
+
             if is_zero(nsf_count)
             then
                 nsf_count <= RESET_NSF_COUNT;
