@@ -17,6 +17,7 @@ vbl_nmi_timing/3.even_odd_frames.nes      | 1700ms    | 512dde50e22373e212711823
 vbl_nmi_timing/4.vbl_clear_timing.nes     | 2000ms    | 050e8fc00a1e20bede2116422204cc86712fda14bff3c8d0d62f58102eec7f13 *frame_00119.bmp
 vbl_nmi_timing/5.nmi_suppression.nes      | 2820ms    | 51ace9acba8753f6147e7434b7f4cb26f6e3b57563a696a9360fea9ce8e99ee4 *frame_00168.bmp
 vbl_nmi_timing/6.nmi_disable.nes          | 1890ms    | fa3c833d741cdd2d4b4eb9c054d9d199fac7e150f220294f89ea3264bd9736f1 *frame_00111.bmp
+vbl_nmi_timing/7.nmi_timing.nes           | 1870ms    | 0c826bc35ea2f077faab97630a852ed7cf2713ae07414fa5f1545b8419d8edfc *frame_00111.bmp
 
 # Long tests
 #cpu_timing_test6/cpu_timing_test.nes      | 10300ms   |

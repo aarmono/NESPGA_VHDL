@@ -47,6 +47,8 @@ architecture behavioral of ppu is
 
     signal reg      : ppu_reg_t := RESET_PPU_REG;
     signal reg_next : ppu_reg_t;
+
+    signal vint_next : boolean;
 begin
 
     process(clk)
@@ -56,8 +58,14 @@ begin
         if reset
         then
             reg <= RESET_PPU_REG;
+            vint <= false;
         else
             reg <= reg_next;
+
+            if clk_sync
+            then
+                vint <= vint_next;
+            end if;
         end if;
     end if;
     end process;
@@ -98,7 +106,7 @@ begin
         
         prg_data_from_ppu <= render_out.data_to_cpu;
         
-        vint <= render_out.vint;
+        vint_next <= render_out.vint;
         pixel_bus <= render_out.pixel_bus;
     end process;
 
