@@ -16,7 +16,7 @@ NES_SIZE=`wc -c "$NES_FILEPATH" | cut -d ' ' -f 1`
 mkdir -p "$OUTPUT_DIR"
 rm -f "$OUTPUT_DIR"/*
 
-make -f nes_bench.Makefile &&
+make -s -f nes_bench.Makefile &&
 exec ./nes_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                  -gBMP_FILE_PREFIX="$BMP_PREFIX" \
                  -gNES_FILEPATH="$NES_FILEPATH"  \

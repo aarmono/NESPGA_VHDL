@@ -1560,9 +1560,6 @@ package body lib_ppu is
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
         end if;
-        
-        render_out.vint := render_in.reg.status.vbl and
-                           render_in.reg.control.vbl_enable;
     
         -- External memory access from CPU. {
         -- NOTE: from most of the documentation I've read
@@ -1796,6 +1793,11 @@ package body lib_ppu is
         render_out.reg.cur_time := incr_time(render_in.reg.cur_time,
                                              rendering_enabled(render_in.reg.mask));
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);
+
+        -- Use render_out to ensure vint can be suppressed on the exact clock
+        -- cycle it would be output
+        render_out.vint := render_out.reg.status.vbl and
+                           render_out.reg.control.vbl_enable;
         
         return render_out;
     end;
