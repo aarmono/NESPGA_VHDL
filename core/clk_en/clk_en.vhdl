@@ -13,7 +13,8 @@ port
     ppu_en : out boolean;
     nsf_en : out boolean;
 
-    ppu_sync : out boolean
+    ppu_sync      : out boolean;
+    odd_cpu_cycle : out boolean
 );
 end clk_en;
 
@@ -59,12 +60,18 @@ begin
             ppu_en <= false;
             nsf_en <= false;
             ppu_sync <= false;
+            odd_cpu_cycle <= true;
         else
             if is_zero(cpu_count)
             then
                 cpu_count <= RESET_CPU_COUNT;
             else
                 cpu_count <= cpu_count - "1";
+            end if;
+
+            if cpu_count = RESET_CPU_COUNT
+            then
+                odd_cpu_cycle <= not odd_cpu_cycle;
             end if;
 
             cpu_en <= cpu_count = CPU_EN_COUNT;

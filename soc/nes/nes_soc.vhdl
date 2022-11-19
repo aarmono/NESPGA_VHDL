@@ -100,6 +100,7 @@ is
     signal cpu_en   : boolean;
     signal ppu_en   : boolean;
     signal ppu_sync : boolean;
+    signal cpu_odd  : boolean;
     
     signal audio_out : apu_out_t;
     
@@ -129,7 +130,8 @@ begin
         cpu_en => cpu_en,
         ppu_en => ppu_en,
 
-        ppu_sync => ppu_sync
+        ppu_sync => ppu_sync,
+        odd_cpu_cycle => cpu_odd
     );
 
     nes_cpu : cpu
@@ -203,6 +205,7 @@ begin
     (
         clk => clk_50mhz,
         clk_en => cpu_en,
+        clk_odd => cpu_odd,
         reset => int_reset,
         
         write_from_cpu => oam_dma_cpu_write,

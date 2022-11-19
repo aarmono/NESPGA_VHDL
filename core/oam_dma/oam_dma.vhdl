@@ -10,6 +10,7 @@ port
 (
     clk            : in std_logic;
     clk_en         : in boolean := true;
+    clk_odd        : in boolean;
     reset          : in boolean;
     
     write_from_cpu : in boolean;
@@ -37,13 +38,15 @@ is
         state   : state_t;
         address : unsigned(cpu_addr_t'range);
         data    : data_t;
+        delay   : boolean;
     end record;
     
     constant RESET_REG : reg_t :=
     (
         state => IDLE,
         address => (others => '0'),
-        data => (others => '0')
+        data => (others => '0'),
+        delay => false
     );
     
     type dma_out_t is record
@@ -55,6 +58,7 @@ is
     
     type dma_in_t is record
         reg            : reg_t;
+        clk_odd        : boolean;
         write_from_cpu : boolean;
         data_to_dma    : data_t;
     end record;
@@ -75,13 +79,19 @@ is
                 
                 if dma_in.write_from_cpu
                 then
+                    dma_out.reg.delay := not dma_in.clk_odd;
                     dma_out.reg.state := WAITING;
                     dma_out.reg.address := unsigned(dma_in.data_to_dma) & x"00";
                 end if;
             when WAITING =>
                 dma_out.ready := false;
                 
-                dma_out.reg.state := READING;
+                if not dma_in.reg.delay
+                then
+                    dma_out.reg.state := READING;
+                else
+                    dma_out.reg.delay := false;
+                end if;
             when READING =>
                 dma_out.ready := false;
                 
@@ -122,6 +132,7 @@ begin
         dma_in.reg := reg;
         dma_in.write_from_cpu := write_from_cpu;
         dma_in.data_to_dma := data_to_dma;
+        dma_in.clk_odd := clk_odd;
         
         dma_out := cycle_dma(dma_in);
         

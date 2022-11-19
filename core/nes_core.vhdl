@@ -92,6 +92,7 @@ package nes_core is
     (
         clk            : in std_logic;
         clk_en         : in boolean := true;
+        clk_odd        : in boolean;
         reset          : in boolean;
         
         write_from_cpu : in boolean;
@@ -107,14 +108,15 @@ package nes_core is
     component clk_en is
     port
     (
-        clk_50mhz : in std_logic;
-        reset     : in boolean;
+        clk_50mhz     : in std_logic;
+        reset         : in boolean;
         
-        cpu_en    : out boolean;
-        ppu_en    : out boolean;
-        nsf_en    : out boolean;
+        cpu_en        : out boolean;
+        ppu_en        : out boolean;
+        nsf_en        : out boolean;
 
-        ppu_sync  : out boolean
+        ppu_sync      : out boolean;
+        odd_cpu_cycle : out boolean
     );
     end component clk_en;
 
