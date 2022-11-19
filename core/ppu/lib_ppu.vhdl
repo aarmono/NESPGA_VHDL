@@ -371,6 +371,8 @@ package lib_ppu is
     )
     return palette_idx_t;
 
+    function to_palette_mask(grayscale : boolean) return pixel_t;
+
     function is_transparent(palette_idx : palette_idx_t) return boolean;
     
     function shift_sprite_buffers
@@ -624,6 +626,20 @@ package body lib_ppu is
     is
     begin
         return attr_val & pattern_2 & pattern_1;
+    end;
+
+    function to_palette_mask(grayscale : boolean) return pixel_t
+    is
+        variable ret : pixel_t;
+    begin
+        if grayscale
+        then
+            ret := b"11_0000";
+        else
+            ret := (others => '1');
+        end if;
+
+        return ret;
     end;
 
     function is_transparent(palette_idx : palette_idx_t) return boolean
@@ -1040,6 +1056,7 @@ package body lib_ppu is
         variable v_rnd_pattern_color  : palette_idx_t;
         variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
         variable v_palette_mask       : pixel_t;
+        variable v_rnd_mask           : mask_t;
 
         -- background render variables
         variable v_bg_tile_idx_addr      : tile_idx_addr_t;
@@ -1072,13 +1089,6 @@ package body lib_ppu is
         render_out.data_to_sec_oam := (others => '-');
         render_out.data_to_cpu := (others => '-');
         render_out.data_to_palette := (others => '-');
-
-        if render_in.reg.mask.enable_grayscale
-        then
-            v_palette_mask := b"11_0000";
-        else
-            v_palette_mask := (others => '1');
-        end if;
         
         v_ppu_chr_addr :=
             scroll_to_vram_addr(render_in.reg.ppu_addr)(chr_addr_t'range);
@@ -1087,6 +1097,9 @@ package body lib_ppu is
         v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr);
         
         v_spr_buf_addr := to_integer(render_in.reg.cur_time.cycle(5 downto 3));
+
+        render_out.reg.cur_time := incr_time(render_in.reg.cur_time,
+                                             rendering_enabled(render_in.reg.mask));
     
         -- Fetch the attribute value and pattern table values for the
         -- current tile.
@@ -1548,19 +1561,21 @@ package body lib_ppu is
                     null;
             end case;
         end if;
-
     
         -- Control vbl status register and vint if so enabled
-        if is_vblank_start(render_in.reg.cur_time)
+        -- Do this before CPU access so that the CPU can see and
+        -- clear the VBL flag to suppress NMI on the same cycle NMI
+        -- would occur
+        if is_vblank_start(render_out.reg.cur_time)
         then
             render_out.reg.status.vbl := true;
-        elsif is_vblank_end(render_in.reg.cur_time)
+        elsif is_vblank_end(render_out.reg.cur_time)
         then
             render_out.reg.status.vbl := false;
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
         end if;
-    
+
         -- External memory access from CPU. {
         -- NOTE: from most of the documentation I've read
         -- on conflicts between CPU bus access and regular
@@ -1664,6 +1679,8 @@ package body lib_ppu is
                 when "111" =>
                     if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
+                        v_palette_mask :=
+                            to_palette_mask(render_in.reg.mask.enable_grayscale);
                         -- Reading palette data from $3F00-$3FFF works
                         -- differently. The palette data is placed immediately
                         -- on the data bus, and hence no priming read is
@@ -1704,9 +1721,10 @@ package body lib_ppu is
         
         if is_rendering(render_in.reg.cur_time)
         then
+            v_rnd_mask := render_out.reg.mask;
             if can_display_pixel(render_in.reg.cur_time,
-                                 render_in.reg.mask.enable_playfield,
-                                 render_in.reg.mask.left_playfield_show)
+                                 v_rnd_mask.enable_playfield,
+                                 v_rnd_mask.left_playfield_show)
             then
                 v_bg_palette_idx := pattern_shift_t'high -
                                     to_integer(render_in.reg.fine_x_scroll);
@@ -1731,8 +1749,8 @@ package body lib_ppu is
                         render_in.reg.sprite_buffer(i).pattern_2(pattern_t'high)
                     );
                 if can_display_pixel(render_in.reg.cur_time,
-                                     render_in.reg.mask.enable_sprite,
-                                     render_in.reg.mask.left_sprite_show) and
+                                     v_rnd_mask.enable_sprite,
+                                     v_rnd_mask.left_sprite_show) and
                    is_zero(render_in.reg.sprite_buffer(i).x_coord) and
                    not is_transparent(v_rnd_spr_pattern_color)
                 then
@@ -1781,6 +1799,7 @@ package body lib_ppu is
                 end if;
             end loop;
 
+            v_palette_mask := to_palette_mask(v_rnd_mask.enable_grayscale);
             render_out.palette_bus :=
                 bus_read(to_palette_addr(v_rnd_is_sprite, v_rnd_pattern_color));
             render_out.pixel_bus.pixel :=
@@ -1790,8 +1809,6 @@ package body lib_ppu is
             render_out.pixel_bus.line_valid := false;
         end if;
         
-        render_out.reg.cur_time := incr_time(render_in.reg.cur_time,
-                                             rendering_enabled(render_in.reg.mask));
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);
 
         -- Use render_out to ensure vint can be suppressed on the exact clock
