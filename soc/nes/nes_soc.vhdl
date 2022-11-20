@@ -155,6 +155,7 @@ begin
     (
         clk => clk_50mhz,
         clk_en => cpu_en,
+        clk_odd => cpu_odd,
         reset => int_reset,
         
         cpu_bus => apu_bus,

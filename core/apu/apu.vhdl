@@ -12,6 +12,7 @@ port
 (
     clk           : in  std_logic;
     clk_en        : in  boolean := true;
+    clk_odd       : in  boolean;
     reset         : in  boolean;
     
     cpu_bus       : in  apu_bus_t;
@@ -37,7 +38,7 @@ begin
         variable v_output : apu_output_t;
     begin
 
-        v_output := cycle_apu(reg, cpu_bus, data_to_apu, reset);
+        v_output := cycle_apu(reg, cpu_bus, data_to_apu, reset, clk_odd);
 
         reg_in <= v_output.reg;
         audio <= v_output.audio;

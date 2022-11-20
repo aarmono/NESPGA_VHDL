@@ -52,7 +52,8 @@ package lib_apu is
         reg         : reg_t;
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
-        reset       : boolean
+        reset       : boolean;
+        odd_cycle   : boolean
     )
     return apu_output_t;
 
@@ -65,7 +66,8 @@ package body lib_apu is
         reg         : reg_t;
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
-        reset       : boolean
+        reset       : boolean;
+        odd_cycle   : boolean
     )
     return apu_output_t
     is
@@ -94,16 +96,6 @@ package body lib_apu is
         v_ready := assert_ready(reg.dmc);
         
         v_dma_bus := get_dma_bus(reg.dmc);
-        
-        if assert_irq(reg.frame_seq)
-        then
-            v_reg.frame_irq := true;
-        end if;
-        
-        if assert_irq(reg.dmc)
-        then
-            v_reg.dmc_irq := true;
-        end if;
         
         v_update_envelope := update_envelope(reg.frame_seq);
         v_update_length := update_length(reg.frame_seq);
@@ -215,7 +207,8 @@ package body lib_apu is
                 -- $4017
                 when "10111" =>
                     v_reg.frame_seq := write_reg(v_reg.frame_seq, 
-                                                 cpu_data_in(7 downto 6));
+                                                 cpu_data_in(7 downto 6),
+                                                 odd_cycle);
                     -- The frame interrupt flag... can be cleared either by
                     -- reading $4015 (which also returns its old status) or by
                     -- setting the interrupt inhibit flag.
@@ -245,6 +238,16 @@ package body lib_apu is
             v_reg.frame_irq := false;
         end if;
         -- }
+
+        if assert_irq(v_reg.frame_seq)
+        then
+            v_reg.frame_irq := true;
+        end if;
+        
+        if assert_irq(v_reg.dmc)
+        then
+            v_reg.dmc_irq := true;
+        end if;
         
         if reset then
             v_reg := RESET_REG;

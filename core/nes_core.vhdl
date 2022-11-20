@@ -40,6 +40,7 @@ package nes_core is
     (
         clk           : in  std_logic;
         clk_en        : in  boolean := true;
+        clk_odd       : in  boolean;
         reset         : in  boolean;
 
         cpu_bus       : in  apu_bus_t;
