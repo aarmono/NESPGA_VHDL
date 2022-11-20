@@ -97,8 +97,10 @@ package body lib_apu is
         
         v_dma_bus := get_dma_bus(reg.dmc);
         
-        v_update_envelope := update_envelope(reg.frame_seq);
-        v_update_length := update_length(reg.frame_seq);
+        v_reg.frame_seq := next_sequence(reg.frame_seq);
+        
+        v_update_envelope := update_envelope(v_reg.frame_seq);
+        v_update_length := update_length(v_reg.frame_seq);
         
         v_reg.triangle := next_triangle(reg.triangle,
                                         v_update_envelope,
@@ -115,7 +117,6 @@ package body lib_apu is
                                   v_update_envelope,
                                   v_update_length);
         v_reg.dmc := next_dmc(reg.dmc, cpu_data_in);
-        v_reg.frame_seq := next_sequence(reg.frame_seq);
         
         -- Memory map {
         if is_bus_write(cpu_bus)
