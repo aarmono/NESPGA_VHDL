@@ -9,7 +9,44 @@ use work.utilities.all;
 package lib_apu_length is
 
     subtype length_count_t is unsigned(7 downto 0);
-    subtype length_idx_t is std_logic_vector(4 downto 0);
+    subtype length_idx_t is unsigned(4 downto 0);
+
+    type length_arr_t is array(0 to 16#1F#) of length_count_t;
+    constant LENGTH_ARR : length_arr_t :=
+    (
+        x"0A",
+        x"FE",
+        x"14",
+        x"02",
+        x"28",
+        x"04",
+        x"50",
+        x"06",
+        x"A0",
+        x"08",
+        x"3C",
+        x"0A",
+        x"0E",
+        x"0C",
+        x"1A",
+        x"0E",
+        x"0C",
+        x"10",
+        x"18",
+        x"12",
+        x"30",
+        x"14",
+        x"60",
+        x"16",
+        x"C0",
+        x"18",
+        x"48",
+        x"1A",
+        x"10",
+        x"1C",
+        x"20",
+        x"1E"
+    );
     
     type length_t is record
         count  : length_count_t;
@@ -64,41 +101,7 @@ package body lib_apu_length is
     return length_count_t
     is
     begin
-        case idx is
-            when "00000" => return x"0A";
-            when "00001" => return x"FE";
-            when "00010" => return x"14";
-            when "00011" => return x"02";
-            when "00100" => return x"28";
-            when "00101" => return x"04";
-            when "00110" => return x"50";
-            when "00111" => return x"06";
-            when "01000" => return x"A0";
-            when "01001" => return x"08";
-            when "01010" => return x"3C";
-            when "01011" => return x"0A";
-            when "01100" => return x"0E";
-            when "01101" => return x"0C";
-            when "01110" => return x"1A";
-            when "01111" => return x"0E";
-            when "10000" => return x"0C";
-            when "10001" => return x"10";
-            when "10010" => return x"18";
-            when "10011" => return x"12";
-            when "10100" => return x"30";
-            when "10101" => return x"14";
-            when "10110" => return x"60";
-            when "10111" => return x"16";
-            when "11000" => return x"C0";
-            when "11001" => return x"18";
-            when "11010" => return x"48";
-            when "11011" => return x"1A";
-            when "11100" => return x"10";
-            when "11101" => return x"1C";
-            when "11110" => return x"20";
-            when "11111" => return x"1E";
-            when others  => return x"--";
-        end case;
+        return LENGTH_ARR(to_integer(idx));
     end;
 
     -- enable_output function {
@@ -155,7 +158,7 @@ package body lib_apu_length is
         ret := val;
         if ret.enable
         then
-            ret.count := get_length_val(reg);
+            ret.count := get_length_val(unsigned(reg));
         end if;
 
         return ret;

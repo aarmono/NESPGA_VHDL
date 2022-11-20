@@ -12,9 +12,30 @@ package lib_apu_noise is
 
     -- Random Shifter
 
-    subtype random_idx_t is std_logic_vector(3 downto 0);
+    subtype random_idx_t is unsigned(3 downto 0);
     subtype random_count_t is unsigned(11 downto 0);
     subtype random_shift_t is std_logic_vector(14 downto 0);
+
+    type random_count_arr_t is array(0 to 16#F#) of random_count_t;
+    constant RANDOM_COUNT_ARR : random_count_arr_t :=
+    (
+        x"004",
+        x"008",
+        x"010",
+        x"020",
+        x"040",
+        x"060",
+        x"080",
+        x"0A0",
+        x"0C0",
+        x"0FE",
+        x"17C",
+        x"1FC",
+        x"2FA",
+        x"3F8",
+        x"7F2",
+        x"FE4"
+    );
 
     type random_t is record
         period_idx : random_idx_t;
@@ -115,7 +136,7 @@ package body lib_apu_noise is
         variable ret : random_t;
     begin
         ret := val;
-        ret.period_idx := reg(3 downto 0);
+        ret.period_idx := unsigned(reg(3 downto 0));
         ret.short_mode := reg(7) = '1';
 
         return ret;
@@ -128,25 +149,7 @@ package body lib_apu_noise is
     return random_count_t
     is
     begin
-        case idx is
-            when x"0" => return x"004";
-            when x"1" => return x"008";
-            when x"2" => return x"010";
-            when x"3" => return x"020";
-            when x"4" => return x"040";
-            when x"5" => return x"060";
-            when x"6" => return x"080";
-            when x"7" => return x"0A0";
-            when x"8" => return x"0C0";
-            when x"9" => return x"0FE";
-            when x"A" => return x"17C";
-            when x"B" => return x"1FC";
-            when x"C" => return x"2FA";
-            when x"D" => return x"3F8";
-            when x"E" => return x"7F2";
-            when x"F" => return x"FE4";
-            when others => return x"---";
-        end case;
+        return RANDOM_COUNT_ARR(to_integer(idx));
     end;
 
     function next_noise

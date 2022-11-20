@@ -103,9 +103,31 @@ subtype dmc_data_t is unsigned(data_t'range);
     return dma_t;
     
     subtype dmc_timer_t is unsigned(8 downto 0);
-    subtype dmc_idx_t is std_logic_vector(3 downto 0);
+    subtype dmc_idx_t is unsigned(3 downto 0);
     subtype dmc_dac_t is unsigned(6 downto 0);
     subtype dmc_count_t is unsigned(2 downto 0);
+
+    type dmc_timer_arr_t is array(0 to 16#F#) of dmc_timer_t;
+
+    constant DMC_TIMER_ARR : dmc_timer_arr_t :=
+    (
+        "110101100",
+        "101111100",
+        "101010100",
+        "101000000",
+        "100011110",
+        "011111110",
+        "011100010",
+        "011010110",
+        "010111110",
+        "010100000",
+        "010001110",
+        "010000000",
+        "001101010",
+        "001010100",
+        "001001000",
+        "000110110"
+    );
     
     type dmc_output_t is record
         -- Timer period
@@ -298,25 +320,7 @@ package body lib_apu_dmc is
     function get_dmc_period(idx : dmc_idx_t) return dmc_timer_t
     is
     begin
-        case idx is
-            when "0000" => return "110101100";
-            when "0001" => return "101111100";
-            when "0010" => return "101010100";
-            when "0011" => return "101000000";
-            when "0100" => return "100011110";
-            when "0101" => return "011111110";
-            when "0110" => return "011100010";
-            when "0111" => return "011010110";
-            when "1000" => return "010111110";
-            when "1001" => return "010100000";
-            when "1010" => return "010001110";
-            when "1011" => return "010000000";
-            when "1100" => return "001101010";
-            when "1101" => return "001010100";
-            when "1110" => return "001001000";
-            when "1111" => return "000110110";
-            when others => return (others => '-');
-        end case;
+        return DMC_TIMER_ARR(to_integer(idx));
     end;
     
     function next_dmc_audio
@@ -470,7 +474,7 @@ package body lib_apu_dmc is
         
         ret.dma.irq_enable := reg(7) = '1';
         ret.dma.loop_enable := reg(6) = '1';
-        ret.output.timer_idx := reg(3 downto 0);
+        ret.output.timer_idx := unsigned(reg(3 downto 0));
         
         return ret;
     end;
