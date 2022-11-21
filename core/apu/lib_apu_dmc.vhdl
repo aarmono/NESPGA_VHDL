@@ -79,6 +79,8 @@ subtype dmc_data_t is unsigned(data_t'range);
         irq_enable     : boolean;
         -- Loop DMA
         loop_enable    : boolean;
+        --IRQ active
+        irq_active     : boolean;
     end record;
     
     constant RESET_DMA : dma_t :=
@@ -88,7 +90,8 @@ subtype dmc_data_t is unsigned(data_t'range);
         dma_xfer_parms => RESET_DMA_PARMS,
         dma_buffer => RESET_DMA_BUFFER,
         irq_enable => false,
-        loop_enable => false
+        loop_enable => false,
+        irq_active => false
     );
     
     function init_dma_address(start_address : dma_start_t) return dma_addr_t;
@@ -111,22 +114,39 @@ subtype dmc_data_t is unsigned(data_t'range);
 
     constant DMC_TIMER_ARR : dmc_timer_arr_t :=
     (
-        "110101100",
-        "101111100",
-        "101010100",
-        "101000000",
-        "100011110",
-        "011111110",
-        "011100010",
-        "011010110",
-        "010111110",
-        "010100000",
-        "010001110",
-        "010000000",
-        "001101010",
-        "001010100",
-        "001001000",
-        "000110110"
+        -- Rate - 1
+        -- 428
+        to_unsigned(427, dmc_timer_t'length),
+        -- 380
+        to_unsigned(379, dmc_timer_t'length),
+        -- 340
+        to_unsigned(339, dmc_timer_t'length),
+        -- 320
+        to_unsigned(319, dmc_timer_t'length),
+        -- 286
+        to_unsigned(285, dmc_timer_t'length),
+        -- 254
+        to_unsigned(253, dmc_timer_t'length),
+        -- 226
+        to_unsigned(225, dmc_timer_t'length),
+        -- 214
+        to_unsigned(213, dmc_timer_t'length),
+        -- 190
+        to_unsigned(189, dmc_timer_t'length),
+        -- 160
+        to_unsigned(159, dmc_timer_t'length),
+        -- 142
+        to_unsigned(141, dmc_timer_t'length),
+        -- 128
+        to_unsigned(127, dmc_timer_t'length),
+        -- 106
+        to_unsigned(105, dmc_timer_t'length),
+        -- 84
+        to_unsigned(83, dmc_timer_t'length),
+        -- 72
+        to_unsigned(71, dmc_timer_t'length),
+        -- 54
+        to_unsigned(53, dmc_timer_t'length)
     );
     
     type dmc_output_t is record
@@ -191,7 +211,7 @@ subtype dmc_data_t is unsigned(data_t'range);
     
     function next_dmc(cur_val : dmc_t; cpu_data_in : data_t) return dmc_t;
     
-    function assert_irq(dmc : dmc_t) return boolean;
+    function dmc_irq_active(dmc : dmc_t) return boolean;
     
     function assert_ready(dmc : dmc_t) return boolean;
     
@@ -295,6 +315,9 @@ package body lib_apu_dmc is
                         update_dma_xfer_vals(cur_val.dma_xfer_vals,
                                              cur_val.dma_xfer_parms,
                                              cur_val.loop_enable);
+                    next_val.irq_active :=
+                        cur_val.irq_enable and
+                        is_zero(next_val.dma_xfer_vals.bytes_remaining);
                 else
                     next_val.dma_buffer.data := cur_val.dma_buffer.data - "1";
                 end if;
@@ -425,12 +448,10 @@ package body lib_apu_dmc is
         return dmc.output.audio;
     end;
     
-    function assert_irq(dmc : dmc_t) return boolean
+    function dmc_irq_active(dmc : dmc_t) return boolean
     is
     begin
-        return dmc.dma.irq_enable and
-               not dmc.dma.loop_enable and
-               is_zero(dmc.dma.dma_xfer_vals.bytes_remaining);
+        return dmc.dma.irq_active;
     end;
     
     function assert_ready(dmc : dmc_t) return boolean
@@ -475,6 +496,13 @@ package body lib_apu_dmc is
         ret.dma.irq_enable := reg(7) = '1';
         ret.dma.loop_enable := reg(6) = '1';
         ret.output.timer_idx := unsigned(reg(3 downto 0));
+
+        -- If the new interrupt enabled status is clear, the
+        -- interrupt flag is cleared.
+        if not ret.dma.irq_enable
+        then
+            ret.dma.irq_active := false;
+        end if;
         
         return ret;
     end;
@@ -526,6 +554,9 @@ package body lib_apu_dmc is
         then
             ret.dma.dma_xfer_vals := init_dma_xfer_vals(val.dma.dma_xfer_parms);
         end if;
+
+        -- Writing to this register clears the DMC interrupt flag.
+        ret.dma.irq_active := false;
         
         return ret;
     end;

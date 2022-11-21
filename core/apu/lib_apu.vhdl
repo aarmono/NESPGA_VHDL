@@ -23,7 +23,6 @@ package lib_apu is
         dmc       : dmc_t;
         noise     : noise_t;
         frame_irq : boolean;
-        dmc_irq   : boolean;
     end record;
     
     constant RESET_REG : reg_t :=
@@ -34,8 +33,7 @@ package lib_apu is
         triangle => RESET_TRIANGLE,
         dmc => RESET_DMC,
         noise => RESET_NOISE,
-        frame_irq => false,
-        dmc_irq => false
+        frame_irq => false
     );
 
     type apu_output_t is record
@@ -98,7 +96,7 @@ package body lib_apu is
         v_dma_bus := get_dma_bus(reg.dmc);
         
         v_reg.frame_seq := next_sequence(reg.frame_seq);
-        
+
         v_update_envelope := update_envelope(v_reg.frame_seq);
         v_update_length := update_length(v_reg.frame_seq);
         
@@ -117,6 +115,8 @@ package body lib_apu is
                                   v_update_envelope,
                                   v_update_length);
         v_reg.dmc := next_dmc(reg.dmc, cpu_data_in);
+
+        v_dmc_irq := dmc_irq_active(reg.dmc);
         
         -- Memory map {
         if is_bus_write(cpu_bus)
@@ -179,12 +179,6 @@ package body lib_apu is
                 -- $4010
                 when "10000" =>
                     v_reg.dmc := write_reg_0(v_reg.dmc, cpu_data_in);
-                    -- If the new interrupt enabled status is clear, the
-                    -- interrupt flag is cleared.
-                    if cpu_data_in(7) = '0'
-                    then
-                        v_reg.dmc_irq := false;
-                    end if;
                 -- $4011
                 when "10001" =>
                     v_reg.dmc := write_reg_1(v_reg.dmc, cpu_data_in);
@@ -198,16 +192,16 @@ package body lib_apu is
                 -- Common
                 -- $4015
                 when "10101" =>
-                    v_reg.square_1 := write_reg_4(reg.square_1, cpu_data_in(0));
-                    v_reg.square_2 := write_reg_4(reg.square_2, cpu_data_in(1));
-                    v_reg.triangle := write_reg_3(reg.triangle, cpu_data_in(2));
-                    v_reg.noise := write_reg_3(reg.noise, cpu_data_in(3));
-                    v_reg.dmc := write_reg_4(reg.dmc, cpu_data_in(4));
+                    v_reg.square_1 := write_reg_4(v_reg.square_1, cpu_data_in(0));
+                    v_reg.square_2 := write_reg_4(v_reg.square_2, cpu_data_in(1));
+                    v_reg.triangle := write_reg_3(v_reg.triangle, cpu_data_in(2));
+                    v_reg.noise := write_reg_3(v_reg.noise, cpu_data_in(3));
+                    v_reg.dmc := write_reg_4(v_reg.dmc, cpu_data_in(4));
 
                 -- Frame Sequencer
                 -- $4017
                 when "10111" =>
-                    v_reg.frame_seq := write_reg(v_reg.frame_seq, 
+                    v_reg.frame_seq := write_reg(v_reg.frame_seq,
                                                  cpu_data_in(7 downto 6),
                                                  odd_cycle);
                     -- The frame interrupt flag... can be cleared either by
@@ -224,7 +218,7 @@ package body lib_apu is
         then
             v_cpu_data_out := 
             (
-                7 => to_std_logic(reg.dmc_irq),
+                7 => to_std_logic(v_dmc_irq),
                 6 => to_std_logic(reg.frame_irq),
                 4 => get_status(reg.dmc),
                 3 => get_status(reg.noise),
@@ -245,11 +239,6 @@ package body lib_apu is
             v_reg.frame_irq := true;
         end if;
         
-        if assert_irq(v_reg.dmc)
-        then
-            v_reg.dmc_irq := true;
-        end if;
-        
         if reset then
             v_reg := RESET_REG;
         end if;
@@ -258,7 +247,7 @@ package body lib_apu is
         ret.audio := v_audio;
         ret.cpu_data_out := v_cpu_data_out;
         ret.ready := v_ready;
-        ret.irq := reg.frame_irq or reg.dmc_irq;
+        ret.irq := reg.frame_irq or v_dmc_irq;
         ret.dma_bus := v_dma_bus;
 
         return ret;
