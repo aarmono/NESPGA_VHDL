@@ -15,12 +15,12 @@ do
     OUTPUT_DIR=output/"$TEST_PATH"
 
     echo "Running test $TEST_PATH"
-    ./run_nes_bench.sh "$NES_FILEPATH" "$OUTPUT_DIR" --stop-time="$RUN_TIME"
+    ./run_nes_bench.sh "$NES_FILEPATH" "$OUTPUT_DIR" --stop-time="$RUN_TIME" 1> /dev/null
 
     if [ "$HASH" != "" ]
     then
-        pushd "$OUTPUT_DIR"
+        pushd "$OUTPUT_DIR" &> /dev/null
         echo "$HASH" | sha256sum -c
-        popd
+        popd &> /dev/null
     fi
 done
