@@ -22,7 +22,6 @@ package lib_apu is
         triangle  : triangle_t;
         dmc       : dmc_t;
         noise     : noise_t;
-        frame_irq : boolean;
     end record;
     
     constant RESET_REG : reg_t :=
@@ -32,8 +31,7 @@ package lib_apu is
         square_2 => RESET_SQUARE,
         triangle => RESET_TRIANGLE,
         dmc => RESET_DMC,
-        noise => RESET_NOISE,
-        frame_irq => false
+        noise => RESET_NOISE
     );
 
     type apu_output_t is record
@@ -117,6 +115,7 @@ package body lib_apu is
         v_reg.dmc := next_dmc(reg.dmc, cpu_data_in);
 
         v_dmc_irq := dmc_irq_active(reg.dmc);
+        v_frame_irq := frame_irq_active(reg.frame_seq);
         
         -- Memory map {
         if is_bus_write(cpu_bus)
@@ -209,7 +208,7 @@ package body lib_apu is
                     -- setting the interrupt inhibit flag.
                     if cpu_data_in(6) = '1'
                     then
-                        v_reg.frame_irq := false;
+                        v_reg.frame_seq := clear_frame_irq(v_reg.frame_seq);
                     end if;
                 when others =>
             end case;
@@ -219,7 +218,7 @@ package body lib_apu is
             v_cpu_data_out := 
             (
                 7 => to_std_logic(v_dmc_irq),
-                6 => to_std_logic(reg.frame_irq),
+                6 => to_std_logic(v_frame_irq),
                 4 => get_status(reg.dmc),
                 3 => get_status(reg.noise),
                 2 => get_status(reg.triangle),
@@ -230,13 +229,13 @@ package body lib_apu is
             -- The frame interrupt flag... can be cleared either by
             -- reading $4015 (which also returns its old status) or by
             -- setting the interrupt inhibit flag.
-            v_reg.frame_irq := false;
+            v_reg.frame_seq := clear_frame_irq(v_reg.frame_seq);
         end if;
         -- }
 
-        if assert_irq(v_reg.frame_seq)
+        if assert_frame_irq(v_reg.frame_seq)
         then
-            v_reg.frame_irq := true;
+            v_reg.frame_seq := set_frame_irq(v_reg.frame_seq);
         end if;
         
         if reset then
@@ -247,7 +246,7 @@ package body lib_apu is
         ret.audio := v_audio;
         ret.cpu_data_out := v_cpu_data_out;
         ret.ready := v_ready;
-        ret.irq := reg.frame_irq or v_dmc_irq;
+        ret.irq := v_frame_irq or v_dmc_irq;
         ret.dma_bus := v_dma_bus;
 
         return ret;

@@ -132,20 +132,28 @@ package lib_apu_frame_seq is
         count       : frame_seq_count_t;
         mode        : unsigned(0 downto 0);
         irq_disable : boolean;
+        irq_active  : boolean;
     end record;
 
     constant RESET_FRAME_SEQ : frame_seq_t :=
     (
       count => (others => '0'),
       mode => (others => '0'),
-      irq_disable => false
+      irq_disable => false,
+      irq_active => false
     );
 
     function update_envelope(seq : frame_seq_t) return boolean;
 
     function update_length(seq : frame_seq_t) return boolean;
 
-    function assert_irq(seq : frame_seq_t) return boolean;
+    function assert_frame_irq(seq : frame_seq_t) return boolean;
+
+    function set_frame_irq(seq : frame_seq_t) return frame_seq_t;
+
+    function clear_frame_irq(seq : frame_seq_t) return frame_seq_t;
+
+    function frame_irq_active(seq : frame_seq_t) return boolean;
 
     function next_sequence(cur_val : frame_seq_t) return frame_seq_t;
 
@@ -199,7 +207,13 @@ package body lib_apu_frame_seq is
         return ret;
     end;
 
-    function assert_irq(seq : frame_seq_t) return boolean
+    function frame_irq_active(seq : frame_seq_t) return boolean
+    is
+    begin
+        return seq.irq_active;
+    end;
+
+    function assert_frame_irq(seq : frame_seq_t) return boolean
     is
         variable irq : boolean;
         variable idx : integer;
@@ -216,6 +230,26 @@ package body lib_apu_frame_seq is
         end loop;
 
         return irq and not seq.irq_disable;
+    end;
+
+    function set_frame_irq(seq : frame_seq_t) return frame_seq_t
+    is
+        variable ret : frame_seq_t;
+    begin
+        ret := seq;
+        ret.irq_active := true;
+
+        return ret;
+    end;
+
+    function clear_frame_irq(seq : frame_seq_t) return frame_seq_t
+    is
+        variable ret : frame_seq_t;
+    begin
+        ret := seq;
+        ret.irq_active := false;
+
+        return ret;
     end;
 
     function next_sequence(cur_val : frame_seq_t) return frame_seq_t
