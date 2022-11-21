@@ -203,13 +203,6 @@ package body lib_apu is
                     v_reg.frame_seq := write_reg(v_reg.frame_seq,
                                                  cpu_data_in(7 downto 6),
                                                  odd_cycle);
-                    -- The frame interrupt flag... can be cleared either by
-                    -- reading $4015 (which also returns its old status) or by
-                    -- setting the interrupt inhibit flag.
-                    if cpu_data_in(6) = '1'
-                    then
-                        v_reg.frame_seq := clear_frame_irq(v_reg.frame_seq);
-                    end if;
                 when others =>
             end case;
         elsif is_bus_read(cpu_bus) and
@@ -233,10 +226,8 @@ package body lib_apu is
         end if;
         -- }
 
-        if assert_frame_irq(v_reg.frame_seq)
-        then
-            v_reg.frame_seq := set_frame_irq(v_reg.frame_seq);
-        end if;
+        -- Update the frame interrupt at the end
+        v_reg.frame_seq := update_frame_irq(v_reg.frame_seq);
         
         if reset then
             v_reg := RESET_REG;

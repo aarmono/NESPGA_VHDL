@@ -17,6 +17,7 @@ apu_test/rom_singles/4-jitter.nes          | 317ms     | 154efc424332817e7bb950e
 apu_test/rom_singles/5-len_timing.nes      | 1884ms    | f9cd1485c50a39ec85e032a7c444f0a7e945f72cbd4df84ecc9060153f46f4cb *frame_00112.bmp
 apu_test/rom_singles/6-irq_flag_timing.nes | 350ms     | 9c4d0520066ec00196b656c1d5c7a67ac1f218345ed9f5cb7545dde7a12b61d2 *frame_00020.bmp
 apu_test/rom_singles/7-dmc_basics.nes      | 417ms     | 4256f16e75b8ce7fdbe5e0777015e8f4b081c416bb0afa68b08932fd605400f1 *frame_00024.bmp
+apu_test/rom_singles/8-dmc_rates.nes       | 467ms     | 66c4635f0b921f66c4a002b5e1998ba461b379f5cef4949fd3bd6b381f56f357 *frame_00027.bmp
 
 # PPU
 vbl_nmi_timing/1.frame_basics.nes         | 2960ms    | b05214dd08d6c4ec7a2448c83b164f91c969602eb21df841d19d19608ea2f21e *frame_00176.bmp

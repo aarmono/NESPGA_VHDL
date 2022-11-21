@@ -149,7 +149,7 @@ package lib_apu_frame_seq is
 
     function assert_frame_irq(seq : frame_seq_t) return boolean;
 
-    function set_frame_irq(seq : frame_seq_t) return frame_seq_t;
+    function update_frame_irq(seq : frame_seq_t) return frame_seq_t;
 
     function clear_frame_irq(seq : frame_seq_t) return frame_seq_t;
 
@@ -232,12 +232,15 @@ package body lib_apu_frame_seq is
         return irq and not seq.irq_disable;
     end;
 
-    function set_frame_irq(seq : frame_seq_t) return frame_seq_t
+    function update_frame_irq(seq : frame_seq_t) return frame_seq_t
     is
         variable ret : frame_seq_t;
     begin
         ret := seq;
-        ret.irq_active := true;
+        if assert_frame_irq(seq)
+        then
+            ret.irq_active := true;
+        end if;
 
         return ret;
     end;
@@ -286,6 +289,14 @@ package body lib_apu_frame_seq is
         ret := val;
         ret.mode(0) := reg(1);
         ret.irq_disable := reg(0) = '1';
+
+        -- The frame interrupt flag... can be cleared either by
+        -- reading $4015 (which also returns its old status) or by
+        -- setting the interrupt inhibit flag.
+        if ret.irq_disable
+        then
+            ret.irq_active := false;
+        end if;
 
         -- If the write occurs during an APU cycle, the effects occur 3 CPU
         -- cycles after the $4017 write cycle, and if the write occurs between
