@@ -27,7 +27,6 @@ package lib_cpu is
         c : unsigned(0 downto 0);
         z : boolean;
         v : boolean;
-        b : boolean;
         n : boolean;
         d : boolean;
         i : boolean;
@@ -38,7 +37,6 @@ package lib_cpu is
         c => (others => '0'),
         z => false,
         v => false,
-        b => false,
         n => false,
         d => false,
         i => true
@@ -194,7 +192,7 @@ package lib_cpu is
         sync     : boolean;
     end record;
 
-    function to_reg_t(status : status_t) return reg_t;
+    function to_reg_t(status : status_t; b : boolean) return reg_t;
 
     function to_status_t(stat_in : data_t) return status_t;
 
@@ -257,14 +255,15 @@ end lib_cpu;
 
 package body lib_cpu is
 
-    function to_reg_t(status : status_t) return reg_t
+    function to_reg_t(status : status_t; b : boolean) return reg_t
     is
         variable ret : reg_t;
     begin
         ret(7) := to_std_logic(status.n);
         ret(6) := to_std_logic(status.v);
-        ret(5) := '0';
-        ret(4) := to_std_logic(status.b);
+        -- Bit 5 is always pushed as 1
+        ret(5) := '1';
+        ret(4) := to_std_logic(b);
         ret(3) := to_std_logic(status.d);
         ret(2) := to_std_logic(status.i);
         ret(1) := to_std_logic(status.z);
@@ -279,7 +278,8 @@ package body lib_cpu is
     begin
         ret.n    := stat_in(7) = '1';
         ret.v    := stat_in(6) = '1';
-        ret.b    := stat_in(4) = '1';
+        -- The CPU disregards bits 5 and 4 when reading flags from the stack
+        -- in the PLP or RTI instruction.
         ret.d    := stat_in(3) = '1';
         ret.i    := stat_in(2) = '1';
         ret.z    := stat_in(1) = '1';
@@ -343,7 +343,7 @@ package body lib_cpu is
     is
         variable reg_stat : reg_t;
     begin
-        reg_stat := to_reg_t(status);
+        reg_stat := to_reg_t(status, false);
         return reg_stat(to_integer(reg(2 downto 0))) = reg(3);
     end;
 
@@ -587,7 +587,7 @@ package body lib_cpu is
             -- PHP
             when x"08" =>
                 ret.mode := MODE_PUSH;
-                ret.reg := to_reg_t(opstate.status);
+                ret.reg := to_reg_t(opstate.status, true);
             -- ORA #
             when x"09" =>
                 ret.mode := MODE_IMM;
@@ -1680,14 +1680,13 @@ package body lib_cpu is
                             when CYC_3 =>
                                 v_data_bus :=
                                     bus_write(stack_addr(reg.opstate.stack));
-                                v_data_out := to_reg_t(reg.opstate.status);
+                                v_data_out :=
+                                    to_reg_t(reg.opstate.status,
+                                             v_decoded.instruction = IN_BRK);
                                 v_reg.opstate.stack := reg.opstate.stack - "1";
                                 if v_decoded.instruction = IN_IRQ
                                 then
                                     v_reg.opstate.status.i := true;
-                                elsif v_decoded.instruction = IN_BRK
-                                then
-                                    v_reg.opstate.status.b := true;
                                 end if;
                             when CYC_2 =>
                                 v_data_bus := bus_read(x"FF" & v_decoded.reg);
