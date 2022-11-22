@@ -19,9 +19,9 @@ package lib_cpu is
     constant CYC_1 : count_t := "001";
     constant CYC_0 : count_t := "000";
 
-    constant OP_RESET : data_t := x"FF";
-    constant OP_NMI : data_t := x"EF";
-    constant OP_IRQ : data_t := x"DF";
+    constant OP_RESET : data_t := x"F2";
+    constant OP_NMI : data_t := x"12";
+    constant OP_IRQ : data_t := x"22";
 
     type status_t is record
         c : unsigned(0 downto 0);
@@ -182,7 +182,13 @@ package lib_cpu is
         IN_ANC,
         IN_ARR,
         IN_AXS,
-        IN_LAX
+        IN_LAX,
+        IN_SLO,
+        IN_RLA,
+        IN_SRE,
+        IN_RRA,
+        IN_DCP,
+        IN_ISC
     );
 
     type decode_state_t is record
@@ -360,35 +366,33 @@ package body lib_cpu is
     )
     return opstate_t
     is
-        variable r_data_in  : reg_t;
         variable scratch    : unsigned(8 downto 0);
         variable next_state : opstate_t;
     begin
-        r_data_in := unsigned(data_in);
         next_state := cur_state;
         case decoded.instruction is
             when IN_ORA =>
-                next_state.a := cur_state.a or r_data_in;
+                next_state.a := cur_state.a or data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_AND =>
-                next_state.a := cur_state.a and r_data_in;
+                next_state.a := cur_state.a and data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_ANC =>
-                next_state.a := cur_state.a and r_data_in;
+                next_state.a := cur_state.a and data_in;
                 next_state.status.c(0) := next_state.a(7);
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_ALR =>
-                scratch := '0' & (cur_state.a and r_data_in);
+                scratch := '0' & (cur_state.a and data_in);
 
                 next_state.a := scratch(8 downto 1);
                 next_state.status.c(0) := scratch(0);
                 next_state.status.z := scratch(8 downto 1) = x"00";
                 next_state.status.n := scratch(8) = '1';
             when IN_ARR =>
-                scratch := cur_state.status.c & (cur_state.a and r_data_in);
+                scratch := cur_state.status.c & (cur_state.a and data_in);
 
                 next_state.a := scratch(8 downto 1);
                 next_state.status.c(0) := scratch(7);
@@ -397,7 +401,7 @@ package body lib_cpu is
                 next_state.status.v := (scratch(7) xor scratch(6)) = '1';
             when IN_AXS =>
                 scratch := ("0" & (cur_state.a and cur_state.x)) +
-                           not r_data_in +
+                           not data_in +
                            "1";
 
                 next_state.x := scratch(7 downto 0);
@@ -405,31 +409,31 @@ package body lib_cpu is
                 next_state.status.z := scratch(7 downto 0) = x"00";
                 next_state.status.n := scratch(7) = '1';
             when IN_EOR =>
-                next_state.a := cur_state.a xor r_data_in;
+                next_state.a := cur_state.a xor data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_ADC =>
                 scratch := ("0" & cur_state.a) +
-                           r_data_in +
+                           data_in +
                            cur_state.status.c;
 
                 next_state.a := scratch(7 downto 0);
                 next_state.status.c(0) := scratch(8);
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
-                next_state.status.v := overflow(cur_state.a, r_data_in, next_state.a);
+                next_state.status.v := overflow(cur_state.a, data_in, next_state.a);
             when IN_LDA =>
-                next_state.a := r_data_in;
+                next_state.a := data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_LAX =>
-                next_state.a := r_data_in;
-                next_state.x := r_data_in;
+                next_state.a := data_in;
+                next_state.x := data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_CMP =>
                 scratch := ("0" & cur_state.a) + 
-                           not r_data_in +
+                           not data_in +
                            "1";
 
                 next_state.status.c(0) := scratch(8);
@@ -437,7 +441,7 @@ package body lib_cpu is
                 next_state.status.n := scratch(7) = '1';
             when IN_SBC =>
                 scratch := ("0" & cur_state.a) +
-                           not r_data_in +
+                           not data_in +
                            cur_state.status.c;
 
                 next_state.a := scratch(7 downto 0);
@@ -445,76 +449,136 @@ package body lib_cpu is
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
                 next_state.status.v := overflow(cur_state.a,
-                                                not r_data_in,
+                                                not data_in,
                                                 next_state.a);
             when IN_ASL =>
                 if decoded.mode = MODE_SBI then
                     scratch := cur_state.a & '0';
                     next_state.a := scratch(7 downto 0);
                 else
-                    scratch := r_data_in & '0';
+                    scratch := data_in & '0';
                     next_state.data_out := scratch(7 downto 0);
                 end if;
                 next_state.status.c(0) := scratch(8);
                 next_state.status.z := scratch(7 downto 0) = x"00";
                 next_state.status.n := scratch(7) = '1';
+            when IN_SLO =>
+                scratch := data_in & '0';
+                next_state.data_out := scratch(7 downto 0);
+                
+                next_state.a := cur_state.a or next_state.data_out;
+                next_state.status.c(0) := scratch(8);
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
             when IN_ROL =>
                 if decoded.mode = MODE_SBI then
                     scratch := cur_state.a & cur_state.status.c;
                     next_state.a := scratch(7 downto 0);
                 else
-                    scratch := r_data_in & cur_state.status.c;
+                    scratch := data_in & cur_state.status.c;
                     next_state.data_out := scratch(7 downto 0);
                 end if;
                 next_state.status.c(0) := scratch(8);
                 next_state.status.z := scratch(7 downto 0) = x"00";
                 next_state.status.n := scratch(7) = '1';
+            when IN_RLA =>
+                scratch := data_in & cur_state.status.c;
+                next_state.data_out := scratch(7 downto 0);
+
+                next_state.a := cur_state.a and next_state.data_out;
+                next_state.status.c(0) := scratch(8);
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
             when IN_LSR =>
                 if decoded.mode = MODE_SBI then
                     scratch := '0' & cur_state.a;
                     next_state.a := scratch(8 downto 1);
                 else
-                    scratch := '0' & r_data_in;
+                    scratch := '0' & data_in;
                     next_state.data_out := scratch(8 downto 1);
                 end if;
                 next_state.status.c(0) := scratch(0);
                 next_state.status.z := scratch(8 downto 1) = x"00";
                 next_state.status.n := scratch(8) = '1';
+            when IN_SRE =>
+                scratch := '0' & data_in;
+                next_state.data_out := scratch(8 downto 1);
+
+                next_state.a := cur_state.a xor next_state.data_out;
+                next_state.status.c(0) := scratch(0);
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
             when IN_ROR =>
                 if decoded.mode = MODE_SBI then
                     scratch := cur_state.status.c & cur_state.a;
                     next_state.a := scratch(8 downto 1);
                 else
-                    scratch := cur_state.status.c & r_data_in;
+                    scratch := cur_state.status.c & data_in;
                     next_state.data_out := scratch(8 downto 1);
                 end if;
                 next_state.status.c(0) := scratch(0);
                 next_state.status.z := scratch(8 downto 1) = x"00";
                 next_state.status.n := scratch(8) = '1';
+            when IN_RRA =>
+                scratch := cur_state.status.c & data_in;
+                next_state.data_out := scratch(8 downto 1);
+
+                scratch := ("0" & cur_state.a) + scratch;
+                next_state.a := scratch(7 downto 0);
+                next_state.status.c(0) := scratch(8);
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
+                next_state.status.v := overflow(cur_state.a,
+                                                scratch(7 downto 0),
+                                                next_state.a);
             when IN_LDX =>
-                next_state.x := r_data_in;
+                next_state.x := data_in;
                 next_state.status.z := next_state.x = x"00";
                 next_state.status.n := next_state.x(7) = '1';
             when IN_DEC =>
-                next_state.data_out := r_data_in - "1";
+                next_state.data_out := data_in - "1";
                 next_state.status.z := next_state.data_out = x"00";
                 next_state.status.n := next_state.data_out(7) = '1';
-            when IN_INC =>
-                next_state.data_out := r_data_in + "1";
-                next_state.status.z := next_state.data_out = x"00";
-                next_state.status.n := next_state.data_out(7) = '1';
-            when IN_BIT =>
-                scratch(7 downto 0) := cur_state.a and r_data_in;
+            when IN_DCP =>
+                next_state.data_out := data_in - "1";
+
+                scratch := ("0" & cur_state.a) +
+                           not next_state.data_out +
+                           "1";
+
+                next_state.status.c(0) := scratch(8);
                 next_state.status.z := scratch(7 downto 0) = x"00";
-                next_state.status.v := r_data_in(6) = '1';
-                next_state.status.n := r_data_in(7) = '1';
+                next_state.status.n := scratch(7) = '1';
+            when IN_INC =>
+                next_state.data_out := data_in + "1";
+                next_state.status.z := next_state.data_out = x"00";
+                next_state.status.n := next_state.data_out(7) = '1';
+            when IN_ISC =>
+                next_state.data_out := data_in + "1";
+
+                scratch := ("0" & cur_state.a) +
+                           not next_state.data_out +
+                           cur_state.status.c;
+
+                next_state.a := scratch(7 downto 0);
+                next_state.status.c(0) := scratch(8);
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
+                next_state.status.v := overflow(cur_state.a,
+                                                not data_in,
+                                                next_state.a);
+            when IN_BIT =>
+                scratch(7 downto 0) := cur_state.a and data_in;
+                next_state.status.z := scratch(7 downto 0) = x"00";
+                next_state.status.v := data_in(6) = '1';
+                next_state.status.n := data_in(7) = '1';
             when IN_LDY =>
-                next_state.y := r_data_in;
+                next_state.y := data_in;
                 next_state.status.z := next_state.y = x"00";
                 next_state.status.n := next_state.y(7) = '1';
             when IN_CPY =>
                 scratch := ("0" & cur_state.y) +
-                           not r_data_in +
+                           not data_in +
                            "1";
 
                 next_state.status.c(0) := scratch(8);
@@ -522,7 +586,7 @@ package body lib_cpu is
                 next_state.status.n := scratch(7) = '1';
             when IN_CPX =>
                 scratch := ("0" & cur_state.x) +
-                           not r_data_in +
+                           not data_in +
                            "1";
 
                 next_state.status.c(0) := scratch(8);
@@ -545,9 +609,9 @@ package body lib_cpu is
                 next_state.status.z := next_state.x = x"00";
                 next_state.status.n := next_state.x(7) = '1';
             when IN_PLP =>
-                next_state.status := to_status_t(std_logic_vector(r_data_in));
+                next_state.status := to_status_t(std_logic_vector(data_in));
             when IN_PLA =>
-                next_state.a := r_data_in;
+                next_state.a := data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_CLC =>
@@ -615,6 +679,11 @@ package body lib_cpu is
             when x"01" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_ORA;
+            -- NOP d
+            when x"04" |
+                 x"44" |
+                 x"64" =>
+                ret.mode := MODE_ZERO_R;
             -- ORA d
             when x"05" =>
                 ret.mode := MODE_ZERO_R;
@@ -623,6 +692,10 @@ package body lib_cpu is
             when x"06" =>
                 ret.mode := MODE_ZERO_RW;
                 ret.instruction := IN_ASL;
+            -- SLO d
+            when x"07" =>
+                ret.mode := MODE_ZERO_RW;
+                ret.instruction := IN_SLO;
             -- PHP
             when x"08" =>
                 ret.mode := MODE_PUSH;
@@ -640,6 +713,9 @@ package body lib_cpu is
                  x"2B" =>
                 ret.mode := MODE_IMM;
                 ret.instruction := IN_ANC;
+            -- NOP a
+            when x"0C" =>
+                ret.mode := MODE_ABS_R;
             -- ORA a
             when x"0D" =>
                 ret.mode := MODE_ABS_R;
@@ -648,6 +724,10 @@ package body lib_cpu is
             when x"0E" =>
                 ret.mode := MODE_ABS_RW;
                 ret.instruction := IN_ASL;
+            -- SLO a
+            when x"0F" =>
+                ret.mode := MODE_ABS_RW;
+                ret.instruction := IN_SLO;
 
             -- BPL r
             when x"10" =>
@@ -658,6 +738,10 @@ package body lib_cpu is
             when x"11" =>
                 ret.mode := MODE_IND_Y_R;
                 ret.instruction := IN_ORA;
+            -- SLO (d),Y
+            --when x"13" =>
+            --    ret.mode := MODE_IND_Y_RW;
+            --    ret.instruction := IN_SLO;
             -- ORA d,X
             when x"15" =>
                 ret.mode := MODE_ZERO_X_R;
@@ -666,6 +750,10 @@ package body lib_cpu is
             when x"16" =>
                 ret.mode := MODE_ZERO_X_RW;
                 ret.instruction := IN_ASL;
+            -- SLO d,X
+            when x"17" =>
+                ret.mode := MODE_ZERO_X_RW;
+                ret.instruction := IN_SLO;
             -- CLC
             when x"18" =>
                 ret.mode := MODE_SBI;
@@ -674,6 +762,10 @@ package body lib_cpu is
             when x"19" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_ORA;
+            -- SLO a,Y
+            --when x"1B" =>
+            --    ret.mode := MODE_ABS_Y_RW;
+            --    ret.instruction := IN_SLO;
             -- ORA a,X
             when x"1D" =>
                 ret.mode := MODE_ABS_X_R;
@@ -682,6 +774,10 @@ package body lib_cpu is
             when x"1E" =>
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_ASL;
+            -- SLO a,X
+            when x"1F" =>
+                ret.mode := MODE_ABS_X_RW;
+                ret.instruction := IN_SLO;
 
             -- JSR a
             when x"20" =>
@@ -702,6 +798,10 @@ package body lib_cpu is
             when x"26" =>
                 ret.mode := MODE_ZERO_RW;
                 ret.instruction := IN_ROL;
+            -- RLA d
+            when x"27" =>
+                ret.mode := MODE_ZERO_RW;
+                ret.instruction := IN_RLA;
             -- PLP
             when x"28" =>
                 ret.mode := MODE_PULL;
@@ -726,6 +826,9 @@ package body lib_cpu is
             when x"2E" =>
                 ret.mode := MODE_ABS_RW;
                 ret.instruction := IN_ROL;
+            when x"2F" =>
+                ret.mode := MODE_ABS_RW;
+                ret.instruction := IN_RLA;
 
             -- BMI r
             when x"30" =>
@@ -776,6 +879,10 @@ package body lib_cpu is
             when x"46" =>
                 ret.mode := MODE_ZERO_RW;
                 ret.instruction := IN_LSR;
+            -- SRE d
+            when x"47" =>
+                ret.mode := MODE_ZERO_RW;
+                ret.instruction := IN_SRE;
             -- PHA
             when x"48" =>
                 ret.mode := MODE_PUSH;
@@ -803,6 +910,10 @@ package body lib_cpu is
             when x"4E" =>
                 ret.mode := MODE_ABS_RW;
                 ret.instruction := IN_LSR;
+            -- SRE a
+            when x"4F" =>
+                ret.mode := MODE_ABS_RW;
+                ret.instruction := IN_SRE;
 
             -- BVC r
             when x"50" =>
@@ -853,6 +964,10 @@ package body lib_cpu is
             when x"66" =>
                 ret.mode := MODE_ZERO_RW;
                 ret.instruction := IN_ROR;
+            -- RRA d
+            when x"67" =>
+                ret.mode := MODE_ZERO_RW;
+                ret.instruction := IN_RRA;
             -- PLA
             when x"68" =>
                 ret.mode := MODE_PULL;
@@ -880,6 +995,10 @@ package body lib_cpu is
             when x"6E" =>
                 ret.mode := MODE_ABS_RW;
                 ret.instruction := IN_ROR;
+            -- RRA a
+            when x"6F" =>
+                ret.mode := MODE_ABS_RW;
+                ret.instruction := IN_RRA;
 
             -- BVS r
             when x"70" =>
@@ -938,6 +1057,10 @@ package body lib_cpu is
             when x"86" =>
                 ret.mode := MODE_ZERO_W;
                 ret.reg := opstate.x;
+            -- AAX d
+            when x"87" =>
+                ret.mode := MODE_ZERO_W;
+                ret.reg := opstate.a and opstate.x;
             -- DEY
             when x"88" =>
                 ret.mode := MODE_SBI;
@@ -958,6 +1081,10 @@ package body lib_cpu is
             when x"8E" =>
                 ret.mode := MODE_ABS_W;
                 ret.reg := opstate.x;
+            -- AAX a
+            when x"8F" =>
+                ret.mode := MODE_ABS_W;
+                ret.reg := opstate.a and opstate.x;
 
             -- BCC r
             when x"90" =>
@@ -1009,6 +1136,10 @@ package body lib_cpu is
             when x"A2" =>
                 ret.mode := MODE_IMM;
                 ret.instruction := IN_LDX;
+            -- LAX (d,X)
+            when x"A3" =>
+                ret.mode := MODE_IND_X_R;
+                ret.instruction := IN_LAX;
             -- LDY d
             when x"A4" =>
                 ret.mode := MODE_ZERO_R;
@@ -1021,6 +1152,10 @@ package body lib_cpu is
             when x"A6" =>
                 ret.mode := MODE_ZERO_R;
                 ret.instruction := IN_LDX;
+            -- LAX d
+            when x"A7" =>
+                ret.mode := MODE_ZERO_R;
+                ret.instruction := IN_LAX;
             -- TAY
             when x"A8" =>
                 ret.mode := MODE_SBI;
@@ -1033,7 +1168,7 @@ package body lib_cpu is
             when x"AA" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_TAX;
-            -- LAX
+            -- LAX #
             when x"AB" =>
                 ret.mode := MODE_IMM;
                 ret.instruction := IN_LAX;
@@ -1049,6 +1184,10 @@ package body lib_cpu is
             when x"AE" =>
                 ret.mode := MODE_ABS_R;
                 ret.instruction := IN_LDX;
+            -- LAX a
+            when x"AF" =>
+                ret.mode := MODE_ABS_R;
+                ret.instruction := IN_LAX;
 
             -- BCS r
             when x"B0" =>
@@ -1059,6 +1198,10 @@ package body lib_cpu is
             when x"B1" =>
                 ret.mode := MODE_IND_Y_R;
                 ret.instruction := IN_LDA;
+            -- LAX (d),Y
+            when x"B3" =>
+                ret.mode := MODE_IND_Y_R;
+                ret.instruction := IN_LAX;
             -- LDY d,X
             when x"B4" =>
                 ret.mode := MODE_ZERO_X_R;
@@ -1071,6 +1214,10 @@ package body lib_cpu is
             when x"B6" =>
                 ret.mode := MODE_ZERO_Y_R;
                 ret.instruction := IN_LDX;
+            -- LAX d,Y
+            when x"B7" =>
+                ret.mode := MODE_ZERO_Y_R;
+                ret.instruction := IN_LAX;
             -- CLV
             when x"B8" =>
                 ret.mode := MODE_SBI;
@@ -1095,6 +1242,10 @@ package body lib_cpu is
             when x"BE" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_LDX;
+            -- LAX a,Y
+            when x"BF" =>
+                ret.mode := MODE_ABS_Y_R;
+                ret.instruction := IN_LAX;
 
             -- CPY #
             when x"C0" =>
@@ -1116,6 +1267,10 @@ package body lib_cpu is
             when x"C6" =>
                 ret.mode := MODE_ZERO_RW;
                 ret.instruction := IN_DEC;
+            -- DCP d
+            when x"C7" =>
+                ret.mode := MODE_ZERO_RW;
+                ret.instruction := IN_DCP;
             -- INY
             when x"C8" =>
                 ret.mode := MODE_SBI;
@@ -1144,6 +1299,10 @@ package body lib_cpu is
             when x"CE" =>
                 ret.mode := MODE_ABS_RW;
                 ret.instruction := IN_DEC;
+            -- DCP a
+            when x"CF" =>
+                ret.mode := MODE_ABS_RW;
+                ret.instruction := IN_DCP;
 
             -- BNE r
             when x"D0" =>
@@ -1199,6 +1358,10 @@ package body lib_cpu is
             when x"E6" =>
                 ret.mode := MODE_ZERO_RW;
                 ret.instruction := IN_INC;
+            -- ISC d
+            when x"E7" =>
+                ret.mode := MODE_ZERO_RW;
+                ret.instruction := IN_ISC;
             -- INX
             when x"E8" =>
                 ret.mode := MODE_SBI;
@@ -1229,6 +1392,10 @@ package body lib_cpu is
             when x"EE" =>
                 ret.mode := MODE_ABS_RW;
                 ret.instruction := IN_INC;
+            -- ISC a
+            when x"EF" =>
+                ret.mode := MODE_ABS_RW;
+                ret.instruction := IN_ISC;
 
             -- BEQ r
             when x"F0" =>
