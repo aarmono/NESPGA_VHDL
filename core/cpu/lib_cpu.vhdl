@@ -1141,7 +1141,13 @@ package body lib_cpu is
                 ret.mode := MODE_IMM;
                 ret.instruction := IN_SBC;
             -- NOP
-            when x"EA" =>
+            when x"EA" |
+                 x"1A" |
+                 x"3A" |
+                 x"5A" |
+                 x"7A" |
+                 x"DA" |
+                 x"FA" =>
                 ret.mode := MODE_SBI;
             -- CPX a
             when x"EC" =>
