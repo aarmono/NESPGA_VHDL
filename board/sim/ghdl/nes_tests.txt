@@ -1,7 +1,8 @@
 # NES file path                           | run time  | Hash
 # Basic CPU
-instr_test-v5/rom_singles/01-basics.nes   | 300ms     | 5919154cfe825518e9881751652876dad0838397fae5d5a83f7c9a4c94ebd8b3 *frame_00018.bmp
-instr_test-v5/rom_singles/02-implied.nes  | 1651ms    | 09b92ec191bc2b3aca5c3bbe35995795259bbc10b3012d094fb6b939debe20a5 *frame_00098.bmp
+instr_test-v5/rom_singles/01-basics.nes    | 300ms     | 5919154cfe825518e9881751652876dad0838397fae5d5a83f7c9a4c94ebd8b3 *frame_00018.bmp
+instr_test-v5/rom_singles/02-implied.nes   | 1651ms    | 09b92ec191bc2b3aca5c3bbe35995795259bbc10b3012d094fb6b939debe20a5 *frame_00098.bmp
+instr_test-v5/rom_singles/03-immediate.nes | 1484ms    | 27f34d0471995434f9fb7cc6f956ca423bd2b1de3b0c9b718c00c4784724af44 *frame_00088.bmp
 
 branch_timing_tests/1.Branch_Basics.nes   | 250ms     | 20a1e16e169f6152248ba16ddb77565fa9704f08d2b3f692971f5b9ff2d3034e *frame_00014.bmp
 branch_timing_tests/2.Backward_Branch.nes | 300ms     | a74f3b8a15743950798b98afba0a696bb918916bd45f9cd6327724d93517cb0d *frame_00016.bmp

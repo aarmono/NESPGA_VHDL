@@ -176,7 +176,13 @@ package lib_cpu is
         IN_DEX,
         IN_BRK,
         IN_NMI,
-        IN_IRQ
+        IN_IRQ,
+        -- Unofficial
+        IN_ALR,
+        IN_ANC,
+        IN_ARR,
+        IN_AXS,
+        IN_LAX
     );
 
     type decode_state_t is record
@@ -246,8 +252,7 @@ package lib_cpu is
         data_in : data_t;
         ready   : boolean;
         irq     : boolean;
-        nmi     : boolean;
-        reset   : boolean
+        nmi     : boolean
     )
     return cpu_output_t;
 
@@ -370,6 +375,35 @@ package body lib_cpu is
                 next_state.a := cur_state.a and r_data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
+            when IN_ANC =>
+                next_state.a := cur_state.a and r_data_in;
+                next_state.status.c(0) := next_state.a(7);
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
+            when IN_ALR =>
+                scratch := '0' & (cur_state.a and r_data_in);
+
+                next_state.a := scratch(8 downto 1);
+                next_state.status.c(0) := scratch(0);
+                next_state.status.z := scratch(8 downto 1) = x"00";
+                next_state.status.n := scratch(8) = '1';
+            when IN_ARR =>
+                scratch := cur_state.status.c & (cur_state.a and r_data_in);
+
+                next_state.a := scratch(8 downto 1);
+                next_state.status.c(0) := scratch(7);
+                next_state.status.z := scratch(8 downto 1) = x"00";
+                next_state.status.n := scratch(8) = '1';
+                next_state.status.v := (scratch(7) xor scratch(6)) = '1';
+            when IN_AXS =>
+                scratch := ("0" & (cur_state.a and cur_state.x)) +
+                           not r_data_in +
+                           "1";
+
+                next_state.x := scratch(7 downto 0);
+                next_state.status.c(0) := scratch(8);
+                next_state.status.z := scratch(7 downto 0) = x"00";
+                next_state.status.n := scratch(7) = '1';
             when IN_EOR =>
                 next_state.a := cur_state.a xor r_data_in;
                 next_state.status.z := next_state.a = x"00";
@@ -386,6 +420,11 @@ package body lib_cpu is
                 next_state.status.v := overflow(cur_state.a, r_data_in, next_state.a);
             when IN_LDA =>
                 next_state.a := r_data_in;
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
+            when IN_LAX =>
+                next_state.a := r_data_in;
+                next_state.x := r_data_in;
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
             when IN_CMP =>
@@ -596,6 +635,11 @@ package body lib_cpu is
             when x"0A" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_ASL;
+            -- ANC #
+            when x"0B" |
+                 x"2B" =>
+                ret.mode := MODE_IMM;
+                ret.instruction := IN_ANC;
             -- ORA a
             when x"0D" =>
                 ret.mode := MODE_ABS_R;
@@ -744,6 +788,10 @@ package body lib_cpu is
             when x"4A" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_LSR;
+            -- ALR #
+            when x"4B" =>
+                ret.mode := MODE_IMM;
+                ret.instruction := IN_ALR;
             -- JMP a
             when x"4C" =>
                 ret.mode := MODE_JMP_ABS;
@@ -817,6 +865,10 @@ package body lib_cpu is
             when x"6A" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_ROR;
+            -- ARR #
+            when x"6B" =>
+                ret.mode := MODE_IMM;
+                ret.instruction := IN_ARR;
             -- JMP (a)
             when x"6C" =>
                 ret.mode := MODE_JMP_IND;
@@ -863,6 +915,13 @@ package body lib_cpu is
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_ROR;
 
+            -- NOP #
+            when x"80" |
+                 x"82" |
+                 x"89" |
+                 x"C2" |
+                 x"E2" =>
+                ret.mode := MODE_IMM;
             -- STA (d,X)
             when x"81" =>
                 ret.mode := MODE_IND_X_W;
@@ -974,6 +1033,10 @@ package body lib_cpu is
             when x"AA" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_TAX;
+            -- LAX
+            when x"AB" =>
+                ret.mode := MODE_IMM;
+                ret.instruction := IN_LAX;
             -- LDY a
             when x"AC" =>
                 ret.mode := MODE_ABS_R;
@@ -1065,6 +1128,10 @@ package body lib_cpu is
             when x"CA" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_DEX;
+            -- AXS
+            when x"CB" =>
+                ret.mode := MODE_IMM;
+                ret.instruction := in_AXS;
             -- CPY a
             when x"CC" =>
                 ret.mode := MODE_ABS_R;
@@ -1137,7 +1204,8 @@ package body lib_cpu is
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_INX;
             -- SBC #
-            when x"E9" =>
+            when x"E9" |
+                 x"EB" =>
                 ret.mode := MODE_IMM;
                 ret.instruction := IN_SBC;
             -- NOP
@@ -1292,8 +1360,7 @@ package body lib_cpu is
         data_in : data_t;
         ready   : boolean;
         irq     : boolean;
-        nmi     : boolean;
-        reset   : boolean
+        nmi     : boolean
     )
     return cpu_output_t
     is
@@ -1836,9 +1903,7 @@ package body lib_cpu is
                                          unsigned(reg.data_in));
         end if;
 
-        if reset then
-            v_reg := RESET_REGISTERS;
-        elsif v_sync then
+        if v_sync then
             if irq and not reg.opstate.status.i
             then
                 v_reg.opcode := OP_IRQ;

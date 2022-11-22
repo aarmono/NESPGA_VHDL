@@ -36,7 +36,7 @@ begin
         -- Internal variables
         variable v_output : cpu_output_t;
     begin
-        v_output := cycle_cpu(reg, data_to_cpu, ready, irq, nmi, reset);
+        v_output := cycle_cpu(reg, data_to_cpu, ready, irq, nmi);
 
         reg_in <= v_output.reg;
         cpu_bus <= v_output.data_bus;
@@ -48,7 +48,12 @@ begin
     begin
         if rising_edge(clk) and clk_en
         then
-            reg <= reg_in;
+            if reset
+            then
+                reg <= RESET_REGISTERS;
+            else
+                reg <= reg_in;
+            end if;
         end if;
     end process;
 
