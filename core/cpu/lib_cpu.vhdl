@@ -19,6 +19,9 @@ package lib_cpu is
     constant CYC_1 : count_t := "001";
     constant CYC_0 : count_t := "000";
 
+    constant CYC_FETCH  : count_t := "000";
+    constant CYC_DECODE : count_t := "111";
+
     constant OP_RESET : data_t := x"F2";
     constant OP_NMI : data_t := x"12";
     constant OP_IRQ : data_t := x"22";
@@ -86,13 +89,6 @@ package lib_cpu is
         addr_hold_2 => (others => '0'),
         nmi_req => false,
         nmi_prev => false
-    );
-
-    type exec_state_t is
-    (
-        FETCH,
-        DECODE,
-        EXECUTE
     );
 
     type addr_mode_t is
@@ -212,11 +208,11 @@ package lib_cpu is
 
     function stack_addr(data : reg_t) return cpu_addr_t;
 
-    function get_exec_state(count : count_t) return exec_state_t;
-
     function zero_addr(data : data_t) return cpu_addr_t;
 
     function zero_addr(data : reg_t) return cpu_addr_t;
+
+    function exec_on_fetch(mode : addr_mode_t) return boolean;
 
     function overflow
     (
@@ -311,16 +307,6 @@ package body lib_cpu is
         return stack_addr(std_logic_vector(data));
     end;
 
-    function get_exec_state(count : count_t) return exec_state_t
-    is
-    begin
-        case count is
-            when CYC_0 => return FETCH;
-            when CYC_7 => return DECODE;
-            when others => return EXECUTE;
-        end case;
-    end;
-
     function zero_addr(data : data_t) return cpu_addr_t
     is
     begin
@@ -331,6 +317,20 @@ package body lib_cpu is
     is
     begin
         return zero_addr(std_logic_vector(data));
+    end;
+
+    function exec_on_fetch(mode : addr_mode_t) return boolean
+    is
+    begin
+        case mode is
+            when MODE_ZERO_RW   |
+                 MODE_ABS_RW    |
+                 MODE_ZERO_X_RW |
+                 MODE_ABS_X_RW  =>
+                return false;
+            when others =>
+                return true;
+        end case;
     end;
 
     function overflow
@@ -523,13 +523,15 @@ package body lib_cpu is
                 scratch := cur_state.status.c & data_in;
                 next_state.data_out := scratch(8 downto 1);
 
-                scratch := ("0" & cur_state.a) + scratch;
+                scratch := ("0" & cur_state.a) +
+                           next_state.data_out +
+                           data_in(0);
                 next_state.a := scratch(7 downto 0);
                 next_state.status.c(0) := scratch(8);
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
                 next_state.status.v := overflow(cur_state.a,
-                                                scratch(7 downto 0),
+                                                next_state.data_out,
                                                 next_state.a);
             when IN_LDX =>
                 next_state.x := data_in;
@@ -565,7 +567,7 @@ package body lib_cpu is
                 next_state.status.z := next_state.a = x"00";
                 next_state.status.n := next_state.a(7) = '1';
                 next_state.status.v := overflow(cur_state.a,
-                                                not data_in,
+                                                not next_state.data_out,
                                                 next_state.a);
             when IN_BIT =>
                 scratch(7 downto 0) := cur_state.a and data_in;
@@ -742,6 +744,14 @@ package body lib_cpu is
             --when x"13" =>
             --    ret.mode := MODE_IND_Y_RW;
             --    ret.instruction := IN_SLO;
+            -- NOP d,X
+            when x"14" |
+                 x"34" |
+                 x"54" |
+                 x"74" |
+                 x"D4" |
+                 x"F4" =>
+                ret.mode := MODE_IND_X_R;
             -- ORA d,X
             when x"15" =>
                 ret.mode := MODE_ZERO_X_R;
@@ -766,6 +776,14 @@ package body lib_cpu is
             --when x"1B" =>
             --    ret.mode := MODE_ABS_Y_RW;
             --    ret.instruction := IN_SLO;
+            -- NOP a,X
+            when x"1C" |
+                 x"3C" |
+                 x"5C" |
+                 x"7C" |
+                 x"DC" |
+                 x"FC" =>
+                ret.mode := MODE_ABS_X_R;
             -- ORA a,X
             when x"1D" =>
                 ret.mode := MODE_ABS_X_R;
@@ -847,6 +865,10 @@ package body lib_cpu is
             when x"36" =>
                 ret.mode := MODE_ZERO_X_RW;
                 ret.instruction := IN_ROL;
+            -- RLA d,X
+            when x"37" =>
+                ret.mode := MODE_ZERO_X_RW;
+                ret.instruction := IN_RLA;
             -- SEC
             when x"38" =>
                 ret.mode := MODE_SBI;
@@ -863,6 +885,10 @@ package body lib_cpu is
             when x"3E" =>
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_ROL;
+            -- RLA a,X
+            when x"3F" =>
+                ret.mode := MODE_ABS_X_RW;
+                ret.instruction := IN_RLA;
 
             -- RTI
             when x"40" =>
@@ -932,6 +958,10 @@ package body lib_cpu is
             when x"56" =>
                 ret.mode := MODE_ZERO_X_RW;
                 ret.instruction := IN_LSR;
+            -- SRE d,X
+            when x"57" =>
+                ret.mode := MODE_ZERO_X_RW;
+                ret.instruction := IN_SRE;
             -- CLI
             when x"58" =>
                 ret.mode := MODE_SBI;
@@ -948,6 +978,10 @@ package body lib_cpu is
             when x"5E" =>
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_LSR;
+            -- SRE a,X
+            when x"5F" =>
+                ret.mode := MODE_ABS_X_RW;
+                ret.instruction := IN_SRE;
 
             -- RTS
             when x"60" =>
@@ -1017,6 +1051,10 @@ package body lib_cpu is
             when x"76" =>
                 ret.mode := MODE_ZERO_X_RW;
                 ret.instruction := IN_ROR;
+            -- RRA d, X
+            when x"77" =>
+                ret.mode := MODE_ZERO_X_RW;
+                ret.instruction := IN_RRA;
             -- SEI
             when x"78" =>
                 ret.mode := MODE_SBI;
@@ -1033,6 +1071,10 @@ package body lib_cpu is
             when x"7E" =>
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_ROR;
+            -- RRA a,X
+            when x"7F" =>
+                ret.mode := MODE_ABS_X_RW;
+                ret.instruction := IN_RRA;
 
             -- NOP #
             when x"80" |
@@ -1107,6 +1149,10 @@ package body lib_cpu is
             when x"96" =>
                 ret.mode := MODE_ZERO_Y_W;
                 ret.reg := opstate.x;
+            -- AAX d,Y
+            when x"97" =>
+                ret.mode := MODE_ZERO_Y_W;
+                ret.reg := opstate.a and opstate.x;
             -- TYA
             when x"98" =>
                 ret.mode := MODE_SBI;
@@ -1321,6 +1367,10 @@ package body lib_cpu is
             when x"D6" =>
                 ret.mode := MODE_ZERO_X_RW;
                 ret.instruction := IN_DEC;
+            -- DCP d,X
+            when x"D7" =>
+                ret.mode := MODE_ZERO_X_RW;
+                ret.instruction := IN_DCP;
             -- CLD
             when x"D8" =>
                 ret.mode := MODE_SBI;
@@ -1414,6 +1464,10 @@ package body lib_cpu is
             when x"F6" =>
                 ret.mode := MODE_ZERO_X_RW;
                 ret.instruction := IN_INC;
+            -- ISC d,X
+            when x"F7" =>
+                ret.mode := MODE_ZERO_X_RW;
+                ret.instruction := IN_ISC;
             -- SED
             when x"F8" =>
                 ret.mode := MODE_SBI;
@@ -1532,7 +1586,6 @@ package body lib_cpu is
     return cpu_output_t
     is
         -- Internal variables
-        variable v_state         : exec_state_t;
         variable v_decoded       : decode_state_t;
         variable v_arith_scratch : unsigned(8 downto 0);
         variable v_exec          : boolean;
@@ -1553,23 +1606,22 @@ package body lib_cpu is
         v_sync := false;
         v_exec := false;
 
-        v_state := get_exec_state(reg.count);
         v_decoded := get_decode_state(reg.opcode, reg.opstate);
 
-        case v_state is
-            when FETCH =>
+        case reg.count is
+            when CYC_FETCH =>
                 v_data_bus := bus_read(reg.pc);
                 v_sync := true;
-                v_exec := true;
+                v_exec := exec_on_fetch(v_decoded.mode);
 
-            when DECODE =>
+            when CYC_DECODE =>
                 v_data_bus := bus_read(reg.pc);
                 v_reg.count := get_next_count(v_decoded);
 
                 if incr_pc(v_decoded.mode) then
                     v_reg.pc := reg.pc + "1";
                 end if;
-            when EXECUTE =>
+            when others =>
                 v_reg.count := reg.count - "1";
                 case v_decoded.mode is
                     when MODE_ZERO_R |
@@ -1766,7 +1818,7 @@ package body lib_cpu is
                             when CYC_2 =>
                                 -- Write garbage to the bus
                                 v_data_bus := bus_write(zero_addr(reg.addr_hold_1));
-                                v_data_out := (others => '-');
+                                v_data_out := reg.opstate.data_out;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to the bus
@@ -1792,7 +1844,7 @@ package body lib_cpu is
                                 -- Write garbage to the bus
                                 v_data_bus := bus_write(reg.addr_hold_2 &
                                                         reg.addr_hold_1);
-                                v_data_out := (others => '-');
+                                v_data_out := reg.opstate.data_out;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -1815,7 +1867,7 @@ package body lib_cpu is
                             when CYC_2 =>
                                 -- Write garbage to 00,BAL + IDX
                                 v_data_bus := bus_write(zero_addr(reg.addr_hold_1));
-                                v_data_out := (others => '-');
+                                v_data_out := reg.opstate.data_out;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -1848,7 +1900,7 @@ package body lib_cpu is
                                 -- Write garbage to BAH + c,BAL + IDX
                                 v_data_bus :=
                                     bus_write(reg.addr_hold_2 & reg.addr_hold_1);
-                                v_data_out := (others => '-');
+                                v_data_out := reg.opstate.data_out;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
