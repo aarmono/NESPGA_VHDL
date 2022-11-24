@@ -21,4 +21,5 @@ exec ./nes_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                  -gBMP_FILE_PREFIX="$BMP_PREFIX" \
                  -gNES_FILEPATH="$NES_FILEPATH"  \
                  -gNES_FILE_BYTES="$NES_SIZE"    \
+                 --unbuffered                    \
                  $@
