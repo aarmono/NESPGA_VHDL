@@ -151,7 +151,6 @@ package body lib_mapper is
                 assert false report "Mapper not supported: " &
                     integer'image(to_integer(map_in.reg.mapper_num))
                     severity failure;
-                null;
         end case;
     
         return map_out;
@@ -186,7 +185,9 @@ package body lib_mapper is
                 
                 map_out.bus_out := mapper_def_out.bus_out;
             when others =>
-                null;
+                assert false report "Mapper not supported: " &
+                    integer'image(to_integer(map_in.reg.mapper_num))
+                    severity failure;
         end case;
         
         return map_out;
