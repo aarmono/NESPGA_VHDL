@@ -86,7 +86,7 @@ package body lib_mapper_000 is
                 map_out.bus_out.file_bus := bus_read(address + file_offset);
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             when others =>
-                null;
+                map_out.bus_out.data_to_cpu := (others => '0');
         end case;
         
         return map_out;

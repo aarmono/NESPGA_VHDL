@@ -205,24 +205,28 @@ package body lib_apu is
                                                  odd_cycle);
                 when others =>
             end case;
-        elsif is_bus_read(cpu_bus) and
-              cpu_bus.address = "10101"
+        elsif is_bus_read(cpu_bus)
         then
-            v_cpu_data_out := 
-            (
-                7 => to_std_logic(v_dmc_irq),
-                6 => to_std_logic(v_frame_irq),
-                4 => get_status(reg.dmc),
-                3 => get_status(reg.noise),
-                2 => get_status(reg.triangle),
-                1 => get_status(reg.square_2),
-                0 => get_status(reg.square_1),
-                others => '0'
-            );
-            -- The frame interrupt flag... can be cleared either by
-            -- reading $4015 (which also returns its old status) or by
-            -- setting the interrupt inhibit flag.
-            v_reg.frame_seq := clear_frame_irq(v_reg.frame_seq);
+            case cpu_bus.address is
+                when "10101" =>
+                    v_cpu_data_out :=
+                    (
+                        7 => to_std_logic(v_dmc_irq),
+                        6 => to_std_logic(v_frame_irq),
+                        4 => get_status(reg.dmc),
+                        3 => get_status(reg.noise),
+                        2 => get_status(reg.triangle),
+                        1 => get_status(reg.square_2),
+                        0 => get_status(reg.square_1),
+                        others => '0'
+                    );
+                    -- The frame interrupt flag... can be cleared either by
+                    -- reading $4015 (which also returns its old status) or by
+                    -- setting the interrupt inhibit flag.
+                    v_reg.frame_seq := clear_frame_irq(v_reg.frame_seq);
+                when others =>
+                    v_cpu_data_out := (others => '0');
+            end case;
         end if;
         -- }
 

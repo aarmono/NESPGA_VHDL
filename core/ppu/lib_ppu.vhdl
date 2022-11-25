@@ -1714,7 +1714,7 @@ package body lib_ppu is
                         incr_ppu_addr(render_in.reg.ppu_addr,
                                       render_in.reg.control.ppu_incr_32);
                 when others =>
-                    null;
+                    render_out.data_to_cpu := (others => '0');
             end case;
         end if;
         -- }
