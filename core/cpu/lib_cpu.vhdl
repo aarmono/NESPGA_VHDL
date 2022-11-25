@@ -251,7 +251,7 @@ package lib_cpu is
 
     function get_next_count(state : decode_state_t) return count_t;
 
-    function incr_pc(mode : addr_mode_t) return boolean;
+    function incr_pc(decode_state : decode_state_t) return boolean;
 
     function cycle_cpu
     (
@@ -1662,15 +1662,16 @@ package body lib_cpu is
         end case;
     end;
 
-    function incr_pc(mode : addr_mode_t) return boolean
+    function incr_pc(decode_state : decode_state_t) return boolean
     is
     begin
-        case mode is
+        case decode_state.mode is
             when MODE_SBI  |
                  MODE_PUSH |
-                 MODE_PULL |
-                 MODE_BRK =>
+                 MODE_PULL =>
                 return false;
+            when MODE_BRK =>
+                return decode_state.instruction = IN_BRK;
             when others =>
                 return true;
         end case;
@@ -1721,7 +1722,7 @@ package body lib_cpu is
                 v_data_bus := bus_read(reg.pc);
                 v_reg.count := get_next_count(v_decoded);
 
-                if incr_pc(v_decoded.mode) then
+                if incr_pc(v_decoded) then
                     v_reg.pc := reg.pc + "1";
                 end if;
             when others =>
@@ -2174,10 +2175,7 @@ package body lib_cpu is
                                     to_reg_t(reg.opstate.status,
                                              v_decoded.instruction = IN_BRK);
                                 v_reg.opstate.stack := reg.opstate.stack - "1";
-                                if v_decoded.instruction = IN_IRQ
-                                then
-                                    v_reg.opstate.status.i := true;
-                                end if;
+                                v_reg.opstate.status.i := true;
                             when CYC_2 =>
                                 v_data_bus := bus_read(x"FF" & v_decoded.reg);
                                 v_reg.addr_hold_1 := v_decoded.reg + "1";
