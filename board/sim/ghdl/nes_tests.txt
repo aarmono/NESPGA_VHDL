@@ -21,9 +21,10 @@ branch_timing_tests/1.Branch_Basics.nes   | 250ms     | 20a1e16e169f6152248ba16d
 branch_timing_tests/2.Backward_Branch.nes | 300ms     | a74f3b8a15743950798b98afba0a696bb918916bd45f9cd6327724d93517cb0d *frame_00016.bmp
 branch_timing_tests/3.Forward_Branch.nes  | 300ms     | cd71b6b824a8a2803821f2c799788806a443007173525b75ae34896990d9aa16 *frame_00017.bmp
 
-instr_misc/rom_singles/01-abs_x_wrap.nes  | 217ms     | 4b0eb4645843027793c8cfa2dbb40876b815125029f32d525d903ef561fa357b *frame_00012.bmp
-instr_misc/rom_singles/02-branch_wrap.nes | 200ms     | 78fae2f496e56615ad46c41fe92a7b4531bf9166524f0064d7e0f984c5a1e296 *frame_00011.bmp
-instr_misc/rom_singles/03-dummy_reads.nes | 967ms     | 1a127606cf2be5e51b69b9da9ac5331c5be164b5adcfb6ce41f9a73b88713c9a *frame_00057.bmp
+instr_misc/rom_singles/01-abs_x_wrap.nes      | 217ms     | 4b0eb4645843027793c8cfa2dbb40876b815125029f32d525d903ef561fa357b *frame_00012.bmp
+instr_misc/rom_singles/02-branch_wrap.nes     | 200ms     | 78fae2f496e56615ad46c41fe92a7b4531bf9166524f0064d7e0f984c5a1e296 *frame_00011.bmp
+instr_misc/rom_singles/03-dummy_reads.nes     | 967ms     | 1a127606cf2be5e51b69b9da9ac5331c5be164b5adcfb6ce41f9a73b88713c9a *frame_00057.bmp
+instr_misc/rom_singles/04-dummy_reads_apu.nes | 2351ms    | 59c138e08d59ce15ec7d48ae2136170236ad68fdc842f531f9835f702a74e6c2 *frame_00140.bmp
 
 # Basic APU
 dmc_tests/buffer_retained.nes             | 300ms     | 47b6b1e1c4212b507cd646ed23ebea47ad52a0829ca3bdd11513304d74ee3d0f *audio.au

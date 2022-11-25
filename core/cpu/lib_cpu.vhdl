@@ -189,7 +189,10 @@ package lib_cpu is
         IN_SRE,
         IN_RRA,
         IN_DCP,
-        IN_ISC
+        IN_ISC,
+        IN_TAS,
+        IN_XAA,
+        IN_LAS
     );
 
     type decode_state_t is record
@@ -244,8 +247,9 @@ package lib_cpu is
 
     function get_decode_state
     (
-        opcode  : data_t;
-        opstate : opstate_t
+        opcode      : data_t;
+        opstate     : opstate_t;
+        addr_hold_2 : reg_t
     )
     return decode_state_t;
 
@@ -660,6 +664,21 @@ package body lib_cpu is
                 next_state.x := cur_state.x - "1";
                 next_state.status.z := next_state.x = x"00";
                 next_state.status.n := next_state.x(7) = '1';
+            when IN_TAS =>
+                next_state.stack := cur_state.x and cur_state.a;
+            when IN_XAA =>
+                next_state.a := cur_state.x and data_in;
+                next_state.status.z := next_state.a = x"00";
+                next_state.status.n := next_state.a(7) = '1';
+            when IN_LAS =>
+                scratch(reg_t'range) := cur_state.stack and data_in;
+
+                next_state.a := scratch(reg_t'range);
+                next_state.x := scratch(reg_t'range);
+                next_state.stack := scratch(reg_t'range);
+
+                next_state.status.z := scratch(reg_t'range) = x"00";
+                next_state.status.n := scratch(7) = '1';
             when others =>
         end case;
 
@@ -668,8 +687,9 @@ package body lib_cpu is
 
     function get_decode_state
     (
-        opcode  : data_t;
-        opstate : opstate_t
+        opcode      : data_t;
+        opstate     : opstate_t;
+        addr_hold_2 : reg_t
     )
     return decode_state_t
     is
@@ -1163,6 +1183,10 @@ package body lib_cpu is
             when x"8A" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_TXA;
+            -- XAA #
+            when x"8B" =>
+                ret.mode := MODE_IMM;
+                ret.instruction := IN_XAA;
             -- STY a
             when x"8C" =>
                 ret.mode := MODE_ABS_W;
@@ -1189,6 +1213,10 @@ package body lib_cpu is
             when x"91" =>
                 ret.mode := MODE_IND_Y_W;
                 ret.reg := opstate.a;
+            -- AHX (d),Y
+            when x"93" =>
+                ret.mode := MODE_IND_Y_W;
+                ret.reg := opstate.x and opstate.a and (addr_hold_2 + "1");
             -- STY d,X
             when x"94" =>
                 ret.mode := MODE_ZERO_X_W;
@@ -1217,6 +1245,11 @@ package body lib_cpu is
             when x"9A" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_TXS;
+            -- TAS a,Y
+            when x"9B" =>
+                ret.mode := MODE_ABS_Y_W;
+                ret.instruction := IN_TAS;
+                ret.reg := opstate.x and opstate.a and (addr_hold_2 + "1");
             -- SYA a,X
             when x"9C" =>
                 ret.mode := MODE_SYA_W;
@@ -1229,6 +1262,10 @@ package body lib_cpu is
             when x"9E" =>
                 ret.mode := MODE_SXA_W;
                 ret.reg := opstate.x;
+            -- AHX a,Y
+            when x"9F" =>
+                ret.mode := MODE_ABS_Y_W;
+                ret.reg := opstate.x and opstate.a and (addr_hold_2 + "1");
 
             -- LDY #
             when x"A0" =>
@@ -1336,6 +1373,10 @@ package body lib_cpu is
             when x"BA" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_TSX;
+            -- LAS a,Y
+            when x"BB" =>
+                ret.mode := MODE_ABS_Y_R;
+                ret.instruction := IN_LAS;
             -- LDY a,X
             when x"BC" =>
                 ret.mode := MODE_ABS_X_R;
@@ -1710,7 +1751,7 @@ package body lib_cpu is
         v_sync := false;
         v_exec := false;
 
-        v_decoded := get_decode_state(reg.opcode, reg.opstate);
+        v_decoded := get_decode_state(reg.opcode, reg.opstate, reg.addr_hold_2);
 
         case reg.count is
             when CYC_FETCH =>
