@@ -111,10 +111,14 @@ package lib_cpu is
         MODE_ZERO_X_W,
         MODE_ZERO_Y_W,
         MODE_IND_Y_W,
+        MODE_SYA_W,
+        MODE_SXA_W,
         MODE_ZERO_RW,
         MODE_ABS_RW,
         MODE_ZERO_X_RW,
         MODE_ABS_X_RW,
+        MODE_ABS_Y_RW,
+        MODE_IND_X_RW,
         MODE_PUSH,
         MODE_PULL,
         MODE_JSR,
@@ -326,7 +330,9 @@ package body lib_cpu is
             when MODE_ZERO_RW   |
                  MODE_ABS_RW    |
                  MODE_ZERO_X_RW |
-                 MODE_ABS_X_RW  =>
+                 MODE_ABS_X_RW  |
+                 MODE_ABS_Y_RW  |
+                 MODE_IND_X_RW  =>
                 return false;
             when others =>
                 return true;
@@ -681,6 +687,10 @@ package body lib_cpu is
             when x"01" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_ORA;
+            -- SLO (d,X)
+            when x"03" =>
+                ret.mode := MODE_IND_X_RW;
+                ret.instruction := IN_SLO;
             -- NOP d
             when x"04" |
                  x"44" |
@@ -773,9 +783,9 @@ package body lib_cpu is
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_ORA;
             -- SLO a,Y
-            --when x"1B" =>
-            --    ret.mode := MODE_ABS_Y_RW;
-            --    ret.instruction := IN_SLO;
+            when x"1B" =>
+                ret.mode := MODE_ABS_Y_RW;
+                ret.instruction := IN_SLO;
             -- NOP a,X
             when x"1C" |
                  x"3C" |
@@ -804,6 +814,10 @@ package body lib_cpu is
             when x"21" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_AND;
+            -- RLA (d,X)
+            when x"23" =>
+                ret.mode := MODE_IND_X_RW;
+                ret.instruction := IN_RLA;
             -- BIT d
             when x"24" =>
                 ret.mode := MODE_ZERO_R;
@@ -877,6 +891,10 @@ package body lib_cpu is
             when x"39" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_AND;
+            -- RLA a,Y
+            when x"3B" =>
+                ret.mode := MODE_ABS_Y_RW;
+                ret.instruction := IN_RLA;
             -- AND a,X
             when x"3D" =>
                 ret.mode := MODE_ABS_X_R;
@@ -897,6 +915,10 @@ package body lib_cpu is
             when x"41" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_EOR;
+            -- SRE (d,X)
+            when x"43" =>
+                ret.mode := MODE_IND_X_RW;
+                ret.instruction := IN_SRE;
             -- EOR d
             when x"45" =>
                 ret.mode := MODE_ZERO_R;
@@ -970,6 +992,10 @@ package body lib_cpu is
             when x"59" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_EOR;
+            -- SRE a,Y
+            when x"5B" =>
+                ret.mode := MODE_ABS_Y_RW;
+                ret.instruction := IN_SRE;
             -- EOR a,X
             when x"5D" =>
                 ret.mode := MODE_ABS_X_R;
@@ -990,6 +1016,10 @@ package body lib_cpu is
             when x"61" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_ADC;
+            -- RRA (d,X)
+            when x"63" =>
+                ret.mode := MODE_IND_X_RW;
+                ret.instruction := IN_RRA;
             -- ADC d
             when x"65" =>
                 ret.mode := MODE_ZERO_R;
@@ -1063,6 +1093,10 @@ package body lib_cpu is
             when x"79" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_ADC;
+            -- RRA a,Y
+            when x"7B" =>
+                ret.mode := MODE_ABS_Y_RW;
+                ret.instruction := IN_RRA;
             -- ADC a,X
             when x"7D" =>
                 ret.mode := MODE_ABS_X_R;
@@ -1087,6 +1121,10 @@ package body lib_cpu is
             when x"81" =>
                 ret.mode := MODE_IND_X_W;
                 ret.reg := opstate.a;
+            -- AAX (d,X)
+            when x"83" =>
+                ret.mode := MODE_IND_X_W;
+                ret.reg := opstate.a and opstate.x;
             -- STY d
             when x"84" =>
                 ret.mode := MODE_ZERO_W;
@@ -1165,10 +1203,18 @@ package body lib_cpu is
             when x"9A" =>
                 ret.mode := MODE_SBI;
                 ret.instruction := IN_TXS;
+            -- SYA a,X
+            when x"9C" =>
+                ret.mode := MODE_SYA_W;
+                ret.reg := opstate.y;
             -- STA a,X
             when x"9D" =>
                 ret.mode := MODE_ABS_X_W;
                 ret.reg := opstate.a;
+            -- SXA a,Y
+            when x"9E" =>
+                ret.mode := MODE_SXA_W;
+                ret.reg := opstate.x;
 
             -- LDY #
             when x"A0" =>
@@ -1301,6 +1347,10 @@ package body lib_cpu is
             when x"C1" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_CMP;
+            -- DCP (d,X)
+            when x"C3" =>
+                ret.mode := MODE_IND_X_RW;
+                ret.instruction := IN_DCP;
             -- CPY d
             when x"C4" =>
                 ret.mode := MODE_ZERO_R;
@@ -1379,6 +1429,10 @@ package body lib_cpu is
             when x"D9" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_CMP;
+            -- DCP a,Y
+            when x"DB" =>
+                ret.mode := MODE_ABS_Y_RW;
+                ret.instruction := IN_DCP;
             -- CMP a,X
             when x"DD" =>
                 ret.mode := MODE_ABS_X_R;
@@ -1387,6 +1441,10 @@ package body lib_cpu is
             when x"DE" =>
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_DEC;
+            -- DCP a,X
+            when x"DF" =>
+                ret.mode := MODE_ABS_X_RW;
+                ret.instruction := IN_DCP;
 
             -- CPX #
             when x"E0" =>
@@ -1396,6 +1454,10 @@ package body lib_cpu is
             when x"E1" =>
                 ret.mode := MODE_IND_X_R;
                 ret.instruction := IN_SBC;
+            -- ISC (d,X)
+            when x"E3" =>
+                ret.mode := MODE_IND_X_RW;
+                ret.instruction := IN_ISC;
             -- CPX d
             when x"E4" =>
                 ret.mode := MODE_ZERO_R;
@@ -1476,6 +1538,10 @@ package body lib_cpu is
             when x"F9" =>
                 ret.mode := MODE_ABS_Y_R;
                 ret.instruction := IN_SBC;
+            -- ISC a,Y
+            when x"FB" =>
+                ret.mode := MODE_ABS_Y_RW;
+                ret.instruction := IN_ISC;
             -- SBC a,X
             when x"FD" =>
                 ret.mode := MODE_ABS_X_R;
@@ -1484,6 +1550,10 @@ package body lib_cpu is
             when x"FE" =>
                 ret.mode := MODE_ABS_X_RW;
                 ret.instruction := IN_INC;
+            -- ISC a,X
+            when x"FF" =>
+                ret.mode := MODE_ABS_X_RW;
+                ret.instruction := IN_ISC;
             -- RESET
             when OP_RESET =>
                 ret.mode := MODE_BRK;
@@ -1497,6 +1567,8 @@ package body lib_cpu is
                 ret.reg := x"FE";
                 ret.instruction := IN_IRQ;
             when others =>
+                assert false report "Invalid opcode: " & to_hstring(opcode)
+                             severity failure;
         end case;
 
         return ret;
@@ -1522,7 +1594,9 @@ package body lib_cpu is
             when MODE_ABS_X_R |
                  MODE_ABS_Y_R |
                  MODE_ABS_X_W |
-                 MODE_ABS_Y_W =>
+                 MODE_ABS_Y_W |
+                 MODE_SYA_W   |
+                 MODE_SXA_W   =>
                 return CYC_3;
             when MODE_ZERO_X_R |
                  MODE_ZERO_Y_R |
@@ -1538,8 +1612,11 @@ package body lib_cpu is
                 return CYC_4;
             when MODE_ZERO_X_RW =>
                 return CYC_4;
-            when MODE_ABS_X_RW =>
+            when MODE_ABS_X_RW |
+                 MODE_ABS_Y_RW =>
                 return CYC_5;
+            when MODE_IND_X_RW =>
+                return CYC_6;
             when MODE_PUSH =>
                 return CYC_1;
             when MODE_PULL =>
@@ -1588,6 +1665,7 @@ package body lib_cpu is
         -- Internal variables
         variable v_decoded       : decode_state_t;
         variable v_arith_scratch : unsigned(8 downto 0);
+        variable v_idx_reg       : reg_t;
         variable v_exec          : boolean;
 
         -- Variables which affect state or outputs
@@ -1600,6 +1678,7 @@ package body lib_cpu is
         variable ret : cpu_output_t;
     begin
         v_arith_scratch := (others => '-');
+        v_idx_reg := (others => '-');
         v_data_out := (others => '-');
         v_data_bus := bus_idle(v_data_bus);
         v_reg := reg;
@@ -1690,7 +1769,9 @@ package body lib_cpu is
                     when MODE_ABS_X_R |
                          MODE_ABS_X_W |
                          MODE_ABS_Y_R |
-                         MODE_ABS_Y_W =>
+                         MODE_ABS_Y_W |
+                         MODE_SYA_W   |
+                         MODE_SXA_W   =>
                         case reg.count is
                             when CYC_3 =>
                                 -- Fetch BAH
@@ -1699,21 +1780,30 @@ package body lib_cpu is
                                 v_reg.pc := reg.pc + "1";
                                 -- Calculate BAL + IDX
                                 if v_decoded.mode = MODE_ABS_X_R or
-                                   v_decoded.mode = MODE_ABS_X_W
+                                   v_decoded.mode = MODE_ABS_X_W or
+                                   v_decoded.mode = MODE_SYA_W
                                 then
-                                    v_arith_scratch :=
-                                        ("0" & reg.data_in) + reg.opstate.x;
+                                    v_idx_reg := reg.opstate.x;
                                 else
-                                    v_arith_scratch :=
-                                        ("0" & reg.data_in) + reg.opstate.y;
+                                    v_idx_reg := reg.opstate.y;
                                 end if;
+
+                                v_arith_scratch := ("0" & reg.data_in) + v_idx_reg;
                                 v_reg.c_hold(0) := v_arith_scratch(8);
                                 v_reg.addr_hold_1 := v_arith_scratch(7 downto 0);
                             when CYC_2 =>
                                 -- Get BAH,BAL + IDX
                                 v_data_bus := bus_read(reg.data_in & reg.addr_hold_1);
                                 -- Calculate BAH + c_hold (for possible carry)
-                                v_reg.addr_hold_2 := reg.data_in + reg.c_hold;
+                                case v_decoded.mode is
+                                    when MODE_SXA_W |
+                                         MODE_SYA_W =>
+                                        v_reg.addr_hold_2 := v_decoded.reg and
+                                                             (reg.data_in + "1");
+                                    when others =>
+                                        v_reg.addr_hold_2 := reg.data_in +
+                                                             reg.c_hold;
+                                end case;
                                 -- If no carry in previous cycle, decrement count by
                                 -- an additional tick (decremented again after the case)
                                 if reg.c_hold = "0" and
@@ -1725,16 +1815,21 @@ package body lib_cpu is
                                 end if;
                             when CYC_1 =>
                                 -- Get BAH + 1,BAL + IDX
-                                if v_decoded.mode = MODE_ABS_X_W or
-                                   v_decoded.mode = MODE_ABS_Y_W
-                                then
-                                       v_data_bus := bus_write(reg.addr_hold_2 &
+                                case v_decoded.mode is
+                                    when MODE_ABS_X_W |
+                                         MODE_ABS_Y_W =>
+                                        v_data_bus := bus_write(reg.addr_hold_2 &
+                                                                reg.addr_hold_1);
+                                        v_data_out := v_decoded.reg;
+                                    when MODE_ABS_X_R |
+                                         MODE_ABS_Y_R =>
+                                        v_data_bus := bus_read(reg.addr_hold_2 &
                                                                reg.addr_hold_1);
-                                       v_data_out := v_decoded.reg;
-                                else
-                                    v_data_bus := bus_read(reg.addr_hold_2 &
-                                                           reg.addr_hold_1);
-                                end if;
+                                    when others =>
+                                        v_data_bus := bus_write(reg.addr_hold_2 &
+                                                                reg.addr_hold_1);
+                                        v_data_out := reg.addr_hold_2;
+                                end case;
                             when others =>
                         end case;
                     when MODE_ZERO_X_R |
@@ -1749,12 +1844,12 @@ package body lib_cpu is
                                 if v_decoded.mode = MODE_ZERO_X_R or
                                    v_decoded.mode = MODE_ZERO_X_W
                                 then
-                                    v_reg.addr_hold_1 := reg.data_in +
-                                                         reg.opstate.x;
+                                    v_idx_reg := reg.opstate.x;
                                 else
-                                    v_reg.addr_hold_1 := reg.data_in +
-                                                         reg.opstate.y;
+                                    v_idx_reg := reg.opstate.y;
                                 end if;
+
+                                v_reg.addr_hold_1 := reg.data_in + v_idx_reg;
                             when CYC_1 =>
                                 -- Fetch 00,BAL + IDX
                                 if v_decoded.mode = MODE_ZERO_X_W or
@@ -1875,7 +1970,8 @@ package body lib_cpu is
                                 v_data_out := reg.opstate.data_out;
                             when others =>
                         end case;
-                    when MODE_ABS_X_RW =>
+                    when MODE_ABS_X_RW |
+                         MODE_ABS_Y_RW =>
                         case reg.count is
                             when CYC_5 =>
                                 -- Fetch BAH
@@ -1883,8 +1979,14 @@ package body lib_cpu is
                                 -- Increment PC
                                 v_reg.pc := reg.pc + "1";
                                 -- Calculate BAL + IDX
-                                v_arith_scratch := ("0" & reg.data_in) +
-                                                   reg.opstate.x;
+                                if v_decoded.mode = MODE_ABS_X_RW
+                                then
+                                    v_idx_reg := reg.opstate.x;
+                                else
+                                    v_idx_reg := reg.opstate.y;
+                                end if;
+
+                                v_arith_scratch := ("0" & reg.data_in) + v_idx_reg;
                                 v_reg.c_hold(0) := v_arith_scratch(8);
                                 v_reg.addr_hold_1 := v_arith_scratch(7 downto 0);
                             when CYC_4 =>
@@ -1898,6 +2000,42 @@ package body lib_cpu is
                                     bus_read(reg.addr_hold_2 & reg.addr_hold_1);
                             when CYC_2 =>
                                 -- Write garbage to BAH + c,BAL + IDX
+                                v_data_bus :=
+                                    bus_write(reg.addr_hold_2 & reg.addr_hold_1);
+                                v_data_out := reg.opstate.data_out;
+                                v_exec := true;
+                            when CYC_1 =>
+                                -- Write value to bus
+                                v_data_bus :=
+                                    bus_write(reg.addr_hold_2 & reg.addr_hold_1);
+                                v_data_out := reg.opstate.data_out;
+                            when others =>
+                        end case;
+                    when MODE_IND_X_RW =>
+                        case reg.count is
+                            when CYC_6 =>
+                                -- Put BAL on the address bus
+                                v_data_bus := bus_read(zero_addr(reg.data_in));
+                                -- Calculate BAL + X (address of ADL)
+                                v_reg.addr_hold_1 := reg.data_in + reg.opstate.x;
+                            when CYC_5 =>
+                                -- Put BAL + X on the address bus
+                                v_data_bus := bus_read(zero_addr(reg.addr_hold_1));
+                                -- Calculate BAL + X + 1 (address of ADH)
+                                v_reg.addr_hold_1 := reg.addr_hold_1 + "1";
+                            when CYC_4 =>
+                                -- Put BAL + X + 1 on the address bus
+                                v_data_bus := bus_read(zero_addr(reg.addr_hold_1));
+                                -- Save ADL
+                                v_reg.addr_hold_1 := reg.data_in;
+                            when CYC_3 =>
+                                -- Fetch ADH,ADL
+                                v_data_bus :=
+                                    bus_read(reg.data_in & reg.addr_hold_1);
+                                -- Save ADH
+                                v_reg.addr_hold_2 := reg.data_in;
+                            when CYC_2 =>
+                                -- Write garbage to ADH,ADL
                                 v_data_bus :=
                                     bus_write(reg.addr_hold_2 & reg.addr_hold_1);
                                 v_data_out := reg.opstate.data_out;

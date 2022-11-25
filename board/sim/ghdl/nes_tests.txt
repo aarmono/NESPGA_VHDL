@@ -6,6 +6,8 @@ instr_test-v5/rom_singles/03-immediate.nes | 1484ms    | 27f34d0471995434f9fb7cc
 instr_test-v5/rom_singles/04-zero_page.nes | 1984ms    | 1f6820c9cf3673bace910c22a9b2d0dde14fe5862092fbbf8651182192f28b5f *frame_00118.bmp
 instr_test-v5/rom_singles/05-zp_xy.nes     | 4369ms    | 316d0bdf0bbd51356a73c86df1a51e33baf70d3c394061529cc1fc3eebdc707e *frame_00261.bmp
 instr_test-v5/rom_singles/06-absolute.nes  | 1868ms    | c81f8b34cbb6957ac17969255182e9146434eccb7c52db036550be1b178354fe *frame_00111.bmp
+instr_test-v5/rom_singles/07-abs_xy.nes    | 6154ms    | 1f078ec7c2b07a74bd1afcdea59fd513e8c2679d98633f77d542225822d760e1 *frame_00368.bmp
+instr_test-v5/rom_singles/08-ind_x.nes     | 2468ms    | f428431dd28a0e6ff928e97ae705bdf91791d70d1345743619d94d5f530eaaaa *frame_00147.bmp
 
 branch_timing_tests/1.Branch_Basics.nes   | 250ms     | 20a1e16e169f6152248ba16ddb77565fa9704f08d2b3f692971f5b9ff2d3034e *frame_00014.bmp
 branch_timing_tests/2.Backward_Branch.nes | 300ms     | a74f3b8a15743950798b98afba0a696bb918916bd45f9cd6327724d93517cb0d *frame_00016.bmp
