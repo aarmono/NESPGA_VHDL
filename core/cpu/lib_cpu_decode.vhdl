@@ -17,9 +17,9 @@ package lib_cpu_decode is
 
     function get_decode_state
     (
-        opcode      : data_t;
-        opstate     : opstate_t;
-        addr_hold_2 : reg_t
+        opcode  : data_t;
+        opstate : opstate_t;
+        addr_hi : reg_t
     )
     return decode_state_t;
 
@@ -29,15 +29,15 @@ package body lib_cpu_decode is
 
     function get_decode_state
     (
-        opcode      : data_t;
-        opstate     : opstate_t;
-        addr_hold_2 : reg_t
+        opcode  : data_t;
+        opstate : opstate_t;
+        addr_hi : reg_t
     )
     return decode_state_t
     is
         variable ret : decode_state_t;
     begin
-        ret := decode_SBI(IN_NOP);
+        ret := decode_sbi(IN_NOP);
 
         case opcode is
             -- BRK
@@ -443,7 +443,7 @@ package body lib_cpu_decode is
             when x"93" =>
                 ret := decode_ind_y_w(opstate.x and
                                       opstate.a and
-                                      (addr_hold_2 + "1"));
+                                      (addr_hi + "1"));
             -- STY d,X
             when x"94" =>
                 ret := decode_zero_x_w(opstate, opstate.y);
@@ -469,7 +469,7 @@ package body lib_cpu_decode is
             when x"9B" =>
                 ret :=
                     decode_abs_y_w(opstate,
-                                   opstate.x and opstate.a and (addr_hold_2 + "1"),
+                                   opstate.x and opstate.a and (addr_hi + "1"),
                                    IN_TAS);
             -- SYA a,X
             when x"9C" =>
@@ -484,7 +484,7 @@ package body lib_cpu_decode is
             when x"9F" =>
                 ret :=
                     decode_abs_y_w(opstate,
-                                   opstate.x and opstate.a and (addr_hold_2 + "1"));
+                                   opstate.x and opstate.a and (addr_hi + "1"));
 
             -- LDY #
             when x"A0" =>
