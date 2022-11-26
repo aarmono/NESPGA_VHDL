@@ -67,6 +67,8 @@ architecture behavioral of nsf_soc is
     signal nmi : boolean;
     signal reset : boolean;
     signal ready : boolean;
+
+    signal clk_odd : boolean;
     
     signal audio_out   : apu_out_t;
     signal mixed_audio : mixed_audio_t;
@@ -86,7 +88,9 @@ begin
         reset => false,
         
         cpu_en => cpu_en,
-        nsf_en => nsf_en
+        nsf_en => nsf_en,
+
+        odd_cpu_cycle => clk_odd
     );
     
     -- CPU {
@@ -113,6 +117,7 @@ begin
     (
         clk => clk_50mhz,
         clk_en => cpu_en,
+        clk_odd => clk_odd,
         reset => reset,
         
         cpu_bus => apu_bus,
