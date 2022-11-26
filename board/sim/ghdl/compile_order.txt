@@ -31,6 +31,10 @@
 
 ../../../core/clk_en/clk_en.vhdl
 
+../../../core/cpu/lib_cpu_types.vhdl
+../../../core/cpu/lib_cpu_decode_defs.vhdl
+../../../core/cpu/lib_cpu_exec.vhdl
+../../../core/cpu/lib_cpu_decode.vhdl
 ../../../core/cpu/lib_cpu.vhdl
 ../../../core/cpu/cpu.vhdl
 
