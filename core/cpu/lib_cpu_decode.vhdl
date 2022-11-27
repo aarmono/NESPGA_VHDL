@@ -106,7 +106,7 @@ package body lib_cpu_decode is
                  x"74" |
                  x"D4" |
                  x"F4" =>
-                ret := decode_ind_x_r(IN_NOP);
+                ret := decode_zero_x_r(opstate, IN_NOP);
             -- ORA d,X
             when x"15" =>
                 ret := decode_zero_x_r(opstate, IN_ORA);

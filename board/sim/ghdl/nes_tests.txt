@@ -26,6 +26,8 @@ instr_misc/rom_singles/02-branch_wrap.nes     | 200ms     | 78fae2f496e56615ad46
 instr_misc/rom_singles/03-dummy_reads.nes     | 967ms     | 1a127606cf2be5e51b69b9da9ac5331c5be164b5adcfb6ce41f9a73b88713c9a *frame_00057.bmp
 instr_misc/rom_singles/04-dummy_reads_apu.nes | 2351ms    | 59c138e08d59ce15ec7d48ae2136170236ad68fdc842f531f9835f702a74e6c2 *frame_00140.bmp
 
+instr_timing/rom_singles/2-branch_timing.nes  | 2351ms    | 8f2e44f970ec93e754fa12b5ec64bd239a31e34dc2ae104839ca577175926d14 *frame_00140.bmp
+
 # Basic APU
 dmc_tests/buffer_retained.nes             | 300ms     | 47b6b1e1c4212b507cd646ed23ebea47ad52a0829ca3bdd11513304d74ee3d0f *audio.au
 dmc_tests/latency.nes                     | 300ms     | b1c1ea1c641a2ca56b62ace4cfe95ef2acc57e721cd2a174142f6a56e1cf7d9b *audio.au
@@ -54,4 +56,5 @@ vbl_nmi_timing/7.nmi_timing.nes           | 1870ms    | 0c826bc35ea2f077faab9763
 other/BLOCKS.NES                          | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp
 
 # Long tests
-#cpu_timing_test6/cpu_timing_test.nes      | 10300ms   | a51471b3cabf9aa0b14b0945f4583e5f7387f9e964fca8a5894a6bab7f4366c4 *frame_00612.bmp
+#cpu_timing_test6/cpu_timing_test.nes        | 10300ms   | a51471b3cabf9aa0b14b0945f4583e5f7387f9e964fca8a5894a6bab7f4366c4 *frame_00612.bmp
+#instr_timing/rom_singles/1-instr_timing.nes | 16911ms   | 62c57a27b42ad6a5e2af606418f7c073261bc1356f91729c36b67bad88347bbb *frame_01013.bmp
