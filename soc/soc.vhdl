@@ -87,7 +87,15 @@ package soc is
         data_from_ciram : in data_t;
         
         pixel_bus : out pixel_bus_t;
-        audio     : out mixed_audio_t
+        audio     : out mixed_audio_t;
+
+        joy_strobe : out std_logic;
+
+        shift_joy_1 : out std_logic;
+        joy_1_val   : in std_logic := '1';
+
+        shift_joy_2 : out std_logic;
+        joy_2_val   : in std_logic := '1'
     );
     end component nes_soc;
 

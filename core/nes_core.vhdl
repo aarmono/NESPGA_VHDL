@@ -11,6 +11,7 @@ use work.chr_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
+use work.joy_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
 
@@ -106,6 +107,27 @@ package nes_core is
     );
     end component oam_dma;
     
+    component joystick_io is
+    port
+    (
+        clk    : in std_logic;
+        clk_en : in boolean := true;
+        reset  : in boolean;
+
+        cpu_bus       : in  joy_bus_t;
+        data_to_joy   : in  data_t;
+        data_from_joy : out data_t;
+
+        joy_strobe : out std_logic;
+
+        shift_joy_1 : out std_logic;
+        joy_1_val   : in std_logic;
+
+        shift_joy_2 : out std_logic;
+        joy_2_val   : in std_logic
+    );
+    end component joystick_io;
+
     component clk_en is
     port
     (

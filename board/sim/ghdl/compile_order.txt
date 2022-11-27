@@ -11,6 +11,7 @@
 ../../../bus/oam_bus_types.vhdl
 ../../../bus/file_bus_types.vhdl
 ../../../bus/ppu_bus_types.vhdl
+../../../bus/joy_bus_types.vhdl
 
 ../../../core/nes_types.vhdl
 ../../../core/nes_audio_mixer.vhdl
@@ -39,6 +40,8 @@
 ../../../core/cpu/cpu.vhdl
 
 ../../../core/oam_dma/oam_dma.vhdl
+
+../../../core/joystick_io/joystick_io.vhdl
 
 ../../../core/ppu/lib_ppu.vhdl
 ../../../core/ppu/ppu.vhdl

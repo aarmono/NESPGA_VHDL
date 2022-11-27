@@ -12,6 +12,7 @@ use work.ram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.chr_bus_types.all;
 use work.palette_bus_types.all;
+use work.joy_bus_types.all;
 
 package mapper_types is
 
@@ -47,6 +48,7 @@ package mapper_types is
         
         data_from_cpu  : data_t;
         data_from_apu  : data_t;
+        data_from_joy  : data_t;
         data_from_ram  : data_t;
         data_from_sram : data_t;
         data_from_ppu  : data_t;
@@ -57,6 +59,7 @@ package mapper_types is
     -- NES CPU memory mapping
     type cpu_mmap_bus_out_t is record
         apu_bus       : apu_bus_t;
+        joy_bus       : joy_bus_t;
         ram_bus       : ram_bus_t;
         sram_bus      : sram_bus_t;
         ppu_bus       : ppu_bus_t;
@@ -65,6 +68,7 @@ package mapper_types is
         
         data_to_cpu     : data_t;
         data_to_apu     : data_t;
+        data_to_joy     : data_t;
         data_to_ram     : data_t;
         data_to_sram    : data_t;
         data_to_ppu     : data_t;
@@ -73,6 +77,7 @@ package mapper_types is
     constant CPU_MMAP_BUS_IDLE : cpu_mmap_bus_out_t :=
     (
         apu_bus => APU_BUS_IDLE,
+        joy_bus => JOY_BUS_IDLE,
         ram_bus => RAM_BUS_IDLE,
         SRAM_BUS => SRAM_BUS_IDLE,
         PPU_BUS => PPU_BUS_IDLE,
@@ -81,6 +86,7 @@ package mapper_types is
         
         data_to_cpu => (others => '-'),
         data_to_apu => (others => '-'),
+        data_to_joy => (others => '-'),
         data_to_ram => (others => '-'),
         data_to_sram => (others => '-'),
         data_to_ppu => (others => '-')
@@ -198,6 +204,8 @@ package mapper_types is
     function get_ppu_addr(addr : cpu_addr_t) return ppu_addr_t;
     
     function get_apu_addr(addr : cpu_addr_t) return apu_addr_t;
+
+    function get_joy_addr(addr : cpu_addr_t) return joy_addr_t;
     
     function get_sram_addr(addr : cpu_addr_t) return sram_addr_t;
     
@@ -299,6 +307,12 @@ package body mapper_types is
     is
     begin
         return addr(apu_addr_t'RANGE);
+    end;
+
+    function get_joy_addr(addr : cpu_addr_t) return joy_addr_t
+    is
+    begin
+        return addr(joy_addr_t'RANGE);
     end;
     
     function get_sram_addr(addr : cpu_addr_t) return sram_addr_t

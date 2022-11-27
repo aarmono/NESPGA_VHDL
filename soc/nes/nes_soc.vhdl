@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.utilities.all;
 use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
+use work.joy_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.file_bus_types.all;
@@ -58,7 +59,15 @@ port
     data_from_ciram : in data_t;
     
     pixel_bus : out pixel_bus_t;
-    audio     : out mixed_audio_t
+    audio     : out mixed_audio_t;
+
+    joy_strobe : out std_logic;
+
+    shift_joy_1 : out std_logic;
+    joy_1_val   : in std_logic := '1';
+
+    shift_joy_2 : out std_logic;
+    joy_2_val   : in std_logic := '1'
 );
 end entity;
 
@@ -77,6 +86,7 @@ is
     signal oam_dma_bus       : cpu_bus_t;
     signal oam_dma_cpu_write : boolean;
     signal apu_bus           : apu_bus_t;
+    signal joy_bus           : joy_bus_t;
     signal ppu_bus           : ppu_bus_t;
     
     signal oam_bus_from_ppu     : oam_bus_t;
@@ -94,6 +104,8 @@ is
     signal data_from_oam_dma : data_t;
     signal data_to_apu       : data_t;
     signal data_from_apu     : data_t;
+    signal data_to_joy       : data_t;
+    signal data_from_joy     : data_t;
     signal prg_data_to_ppu   : data_t;
     signal prg_data_from_ppu : data_t;
 
@@ -169,6 +181,26 @@ begin
         ready => apu_ready
     );
 
+    nes_joystick_io : joystick_io
+    port map
+    (
+        clk => clk_50mhz,
+        clk_en => cpu_en,
+        reset => int_reset,
+
+        cpu_bus => joy_bus,
+        data_to_joy => data_to_joy,
+        data_from_joy => data_from_joy,
+
+        joy_strobe => joy_strobe,
+
+        shift_joy_1 => shift_joy_1,
+        joy_1_val => joy_1_val,
+
+        shift_joy_2 => shift_joy_2,
+        joy_2_val => joy_2_val
+    );
+
     nes_ppu : ppu
     port map
     (
@@ -240,6 +272,7 @@ begin
         end if;
         
         nes_in.cpu_bus.data_from_apu := data_from_apu;
+        nes_in.cpu_bus.data_from_joy := data_from_joy;
         nes_in.cpu_bus.data_from_ram := data_from_prg_ram;
         nes_in.cpu_bus.data_from_sram := data_from_sram;
         nes_in.cpu_bus.data_from_ppu := prg_data_from_ppu;
@@ -264,6 +297,7 @@ begin
         reg_next <= nes_out.reg;
         
         apu_bus <= nes_out.cpu_bus.apu_bus;
+        joy_bus <= nes_out.cpu_bus.joy_bus;
         prg_ram_bus <= nes_out.cpu_bus.ram_bus;
         sram_bus <= nes_out.cpu_bus.sram_bus;
         ppu_bus <= nes_out.cpu_bus.ppu_bus;
@@ -272,6 +306,7 @@ begin
         
         data_to_cpu <= nes_out.cpu_bus.data_to_cpu;
         data_to_oam_dma <= nes_out.cpu_bus.data_to_cpu;
+        data_to_joy <= nes_out.cpu_bus.data_to_joy;
         
         if is_bus_read(apu_dma_bus)
         then

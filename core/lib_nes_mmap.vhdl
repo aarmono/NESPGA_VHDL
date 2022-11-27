@@ -90,16 +90,24 @@ package body lib_nes_mmap is
                     -- HACK since DMA and CPU data busses are shared
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_cpu;
                 when 16#4016# =>
-                    -- TODO: implement joystick
-                    if is_bus_read(map_in.bus_in.cpu_bus)
-                    then
-                        map_out.bus_out.data_to_cpu := (others => '0');
-                    end if;
+                    map_out.bus_out.joy_bus.address :=
+                        get_joy_addr(map_in.bus_in.cpu_bus.address);
+                    map_out.bus_out.joy_bus.read := map_in.bus_in.cpu_bus.read;
+                    map_out.bus_out.joy_bus.write := map_in.bus_in.cpu_bus.write;
+
+                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_joy;
+                    map_out.bus_out.data_to_joy := map_in.bus_in.data_from_cpu;
                 when 16#4017# =>
                     -- TODO: implement joystick
                     if is_bus_read(map_in.bus_in.cpu_bus)
                     then
-                        map_out.bus_out.data_to_cpu := (others => '0');
+                        map_out.bus_out.joy_bus.address :=
+                            get_joy_addr(map_in.bus_in.cpu_bus.address);
+                        map_out.bus_out.joy_bus.read := map_in.bus_in.cpu_bus.read;
+                        map_out.bus_out.joy_bus.write := map_in.bus_in.cpu_bus.write;
+
+                        map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_joy;
+                        map_out.bus_out.data_to_joy := map_in.bus_in.data_from_cpu;
                     elsif is_bus_write(map_in.bus_in.cpu_bus)
                     then
                         map_out.bus_out.apu_bus.address :=
