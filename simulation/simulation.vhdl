@@ -62,6 +62,25 @@ package simulation is
         done      : in boolean
     );
     end component ppu_video_record;
+
+    component fm2_joystick is
+    generic
+    (
+        FILEPATH : string
+    );
+    port
+    (
+        frame_valid : in boolean;
+
+        joy_strobe : in std_logic;
+
+        shift_joy_1 : in std_logic;
+        joy_1_val   : out std_logic;
+
+        shift_joy_2 : in std_logic;
+        joy_2_val   : out std_logic
+    );
+    end component fm2_joystick;
     
     component file_memory is
     generic

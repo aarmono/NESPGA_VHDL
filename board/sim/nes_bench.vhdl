@@ -17,10 +17,11 @@ use work.simulation.all;
 entity nes_bench is
 generic
 (
-    AU_FILEPATH  : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\out.au";
-    BMP_FILE_PREFIX : string := "C:\\GitHub\\NESPGA_VHDL\\board\\sim\\frame";
-    NES_FILEPATH : string := "C:\\GitHub\\NESPGA_VHDL\\NES\\Mario.nes";
-    NES_FILE_BYTES : integer := 196608
+    AU_FILEPATH     : string;
+    BMP_FILE_PREFIX : string;
+    NES_FILEPATH    : string;
+    FM2_FILEPATH    : string := "";
+    NES_FILE_BYTES  : integer := 196608
 );
 end nes_bench;
 
@@ -65,6 +66,14 @@ architecture behavioral of nes_bench is
     
     signal audio_out : mixed_audio_t;
     signal pixel_bus : pixel_bus_t;
+
+    signal joy_strobe : std_logic;
+
+    signal shift_joy_1 : std_logic;
+    signal joy_1_val   : std_logic;
+
+    signal shift_joy_2 : std_logic;
+    signal joy_2_val   : std_logic;
 
     signal ppu_clk_en : boolean;
     signal cpu_clk_en : boolean;
@@ -119,7 +128,15 @@ begin
         data_from_ciram => data_from_ciram,
         
         pixel_bus => pixel_bus,
-        audio => audio_out
+        audio => audio_out,
+
+        joy_strobe => joy_strobe,
+
+        shift_joy_1 => shift_joy_1,
+        joy_1_val => joy_1_val,
+
+        shift_joy_2 => shift_joy_2,
+        joy_2_val => joy_2_val
     );
     
     ppu_recorder : ppu_video_record
@@ -148,6 +165,24 @@ begin
         audio => audio_out,
         ready => output_ready,
         done => false
+    );
+
+    fm2_controller : fm2_joystick
+    generic map
+    (
+        FILEPATH => FM2_FILEPATH
+    )
+    port map
+    (
+        frame_valid => pixel_bus.frame_valid,
+
+        joy_strobe => joy_strobe,
+
+        shift_joy_1 => shift_joy_1,
+        joy_1_val => joy_1_val,
+
+        shift_joy_2 => shift_joy_2,
+        joy_2_val => joy_2_val
     );
     
     nes_file : file_memory
