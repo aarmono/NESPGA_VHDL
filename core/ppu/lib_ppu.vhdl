@@ -1574,6 +1574,9 @@ package body lib_ppu is
             render_out.reg.status.vbl := false;
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
+            render_out.reg.sprite_buffer := RESET_SPRITE_BUFFER_ARR;
+            render_out.reg.sprite_0_buffer := false;
+            render_out.reg.sprite_0_hit := false;
         end if;
 
         -- External memory access from CPU. {
