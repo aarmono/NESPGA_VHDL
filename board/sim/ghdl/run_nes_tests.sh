@@ -15,7 +15,7 @@ do
     OUTPUT_DIR=output/"$TEST_PATH"
 
     echo "Running test $TEST_PATH"
-    ./run_nes_bench.sh "$NES_FILEPATH" "$OUTPUT_DIR" --stop-time="$RUN_TIME" 1> /dev/null
+    ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" 1> /dev/null
 
     if [ "$HASH" != "" ]
     then
