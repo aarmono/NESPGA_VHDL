@@ -70,7 +70,7 @@ package body fm2_file is
             loop
                 -- Any character other than ' ' or '.' means that the button was
                 -- pressed
-                if c = '.'
+                if c = '.' or c = ' '
                 then
                     -- NES controller is active-low
                     val := '1';
