@@ -66,7 +66,8 @@ package simulation is
     component fm2_joystick is
     generic
     (
-        FILEPATH : string
+        FILEPATH     : string;
+        INPUT_OFFSET : integer := 0
     );
     port
     (

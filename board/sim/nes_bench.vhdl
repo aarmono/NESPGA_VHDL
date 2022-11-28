@@ -21,7 +21,8 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     FM2_FILEPATH    : string := "";
-    NES_FILE_BYTES  : integer := 196608
+    NES_FILE_BYTES  : integer := 196608;
+    FM2_OFFSET      : integer := 2
 );
 end nes_bench;
 
@@ -170,7 +171,8 @@ begin
     fm2_controller : fm2_joystick
     generic map
     (
-        FILEPATH => FM2_FILEPATH
+        FILEPATH => FM2_FILEPATH,
+        INPUT_OFFSET => FM2_OFFSET
     )
     port map
     (

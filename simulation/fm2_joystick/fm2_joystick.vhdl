@@ -7,7 +7,8 @@ use work.fm2_file.all;
 entity fm2_joystick is
 generic
 (
-    FILEPATH : string
+    FILEPATH     : string;
+    INPUT_OFFSET : integer := 0
 );
 port
 (
@@ -64,21 +65,50 @@ begin
         process
             file fm2_file : text;
 
-            variable joy_1_next : joy_val_t;
-            variable joy_2_next : joy_val_t;
+            -- If INPUT_OFFSET is positive then the PPU is ahead of the input
+            -- file, so the input file needs to catch up
+            -- If INPUT_OFFSET is negative than the input file is ahead of the
+            -- PPU, so the PPU needs to catch up
+            --
+            -- Examples:
+            -- INPUT_OFFSET = +2
+            -- input_frame = 0, ppu_frame = 2
+            -- Skip first two inputs to synchronize
+            --
+            -- INPUT_OFFSET = -2
+            -- input_frame = 2, ppu_frame = 0
+            -- Skip reads for first two frames to synchronize
+            variable input_frame : integer := maximum(-INPUT_OFFSET, 0);
+            variable ppu_frame   : integer := maximum(INPUT_OFFSET, 0);
+
+            variable joy_1_next : joy_val_t := (others => '1');
+            variable joy_2_next : joy_val_t := (others => '1');
         begin
 
             fm2_fopen(fm2_file, FILEPATH);
 
-            while true
+            while input_frame < ppu_frame
             loop
                 fm2_fread(fm2_file, joy_1_next, joy_2_next);
+                input_frame := input_frame + 1;
+            end loop;
 
-                joy_1_cur <= joy_1_next;
-                joy_2_cur <= joy_2_next;
+            while true
+            loop
+                if ppu_frame = input_frame
+                then
+                    fm2_fread(fm2_file, joy_1_next, joy_2_next);
+
+                    joy_1_cur <= joy_1_next;
+                    joy_2_cur <= joy_2_next;
+
+                    input_frame := input_frame + 1;
+                end if;
 
                 wait on frame_valid until not frame_valid and
                                           frame_valid'last_value;
+
+                ppu_frame := ppu_frame + 1;
             end loop;
         end process;
 
