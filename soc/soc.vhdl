@@ -79,8 +79,8 @@ package soc is
         data_from_sec_oam : in data_t;
         
         palette_bus       : out palette_bus_t;
-        data_to_palette   : out data_t;
-        data_from_palette : in data_t;
+        data_to_palette   : out pixel_t;
+        data_from_palette : in pixel_t;
         
         ciram_bus       : out chr_bus_t;
         data_to_ciram   : out data_t;

@@ -222,8 +222,8 @@ begin
         data_from_sec_oam => data_from_sec_oam,
 
         palette_bus => palette_bus,
-        data_to_palette => data_to_palette,
-        data_from_palette => data_from_palette,
+        data_to_palette => data_to_palette(pixel_t'range),
+        data_from_palette => data_from_palette(pixel_t'range),
 
         cpu_bus => cpu_bus,
         prg_data_to_ppu => prg_data_to_ppu,

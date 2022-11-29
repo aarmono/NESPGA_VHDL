@@ -32,7 +32,6 @@ architecture behavioral of nes_bench is
     type sram_t is array(0 to 16#1FFF#) of data_t;
     type oam_t is array(0 to 16#FF#) of data_t;
     type sec_oam_t is array(0 to 16#1F#) of data_t;
-    type palette_t is array(0 to 16#1F#) of data_t;
     
     signal prg_ram : ram_t;
     signal sram    : sram_t;
@@ -58,8 +57,8 @@ architecture behavioral of nes_bench is
     signal data_from_oam      : data_t;
     signal data_to_sec_oam    : data_t;
     signal data_from_sec_oam  : data_t;
-    signal data_to_palette    : data_t;
-    signal data_from_palette  : data_t;
+    signal data_to_palette    : pixel_t;
+    signal data_from_palette  : pixel_t;
     signal data_from_ciram    : data_t;
     signal data_to_ciram      : data_t;
     signal data_from_file_prg : data_t;

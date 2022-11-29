@@ -441,7 +441,7 @@ package lib_ppu is
         data_from_oam     : data_t;
         data_from_sec_oam : data_t;
         data_from_chr     : data_t;
-        data_from_palette : data_t;
+        data_from_palette : pixel_t;
     end record;
     
     
@@ -457,7 +457,7 @@ package lib_ppu is
         chr_bus         : chr_bus_t;
         data_to_chr     : data_t;
         palette_bus     : palette_bus_t;
-        data_to_palette : data_t;
+        data_to_palette : pixel_t;
         
         vint            : boolean;
         
@@ -1677,7 +1677,8 @@ package body lib_ppu is
                     then
                         render_out.palette_bus :=
                             bus_write(to_palette_addr(v_ppu_chr_addr));
-                        render_out.data_to_palette := render_in.data_from_cpu;
+                        render_out.data_to_palette :=
+                            render_in.data_from_cpu(pixel_t'range);
                     else
                         render_out.chr_bus := bus_write(v_ppu_chr_addr);
                         render_out.data_to_chr := render_in.data_from_cpu;
@@ -1719,8 +1720,8 @@ package body lib_ppu is
                         render_out.palette_bus :=
                             bus_read(to_palette_addr(v_ppu_chr_addr));
                         render_out.data_to_cpu :=
-                            render_in.data_from_palette and
-                            resize(v_palette_mask, data_t'length);
+                            resize(render_in.data_from_palette and v_palette_mask,
+                                   data_t'length);
                     else
                         -- When reading while the VRAM address is in the range
                         -- 0-$3EFF (i.e., before the palettes), the read will
@@ -1834,7 +1835,7 @@ package body lib_ppu is
             render_out.palette_bus :=
                 bus_read(to_palette_addr(v_rnd_is_sprite, v_rnd_pattern_color));
             render_out.pixel_bus.pixel :=
-                render_in.data_from_palette(pixel_t'range) and v_palette_mask;
+                render_in.data_from_palette and v_palette_mask;
             render_out.pixel_bus.line_valid := true;
         else
             render_out.pixel_bus.line_valid := false;

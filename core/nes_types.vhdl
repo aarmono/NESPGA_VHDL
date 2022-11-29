@@ -21,6 +21,14 @@ package nes_types is
     
     subtype pixel_t is std_logic_vector(5 downto 0);
     
+    type palette_t is array(0 to 16#1F#) of pixel_t;
+    
+    type ram_t is array(0 to 16#7FF#) of data_t;
+    type vram_t is array(0 to 16#3FFF#) of data_t;
+    type sram_t is array(0 to 16#1FFF#) of data_t;
+    type oam_t is array(0 to 16#FF#) of data_t;
+    type sec_oam_t is array(0 to 16#1F#) of data_t;
+    
     type pixel_bus_t is record
         pixel       : pixel_t;
         line_valid  : boolean;

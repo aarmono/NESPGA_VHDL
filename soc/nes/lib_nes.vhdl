@@ -40,6 +40,42 @@ package lib_nes is
         cur_cycle => x"0000",
         cur_state => STATE_RESET
     );
+
+    constant STARTUP_PALETTE : palette_t :=
+    (
+        resize(x"09", pixel_t'length),
+        resize(x"01", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"01", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"02", pixel_t'length),
+        resize(x"02", pixel_t'length),
+        resize(x"0D", pixel_t'length),
+        resize(x"08", pixel_t'length),
+        resize(x"10", pixel_t'length),
+        resize(x"08", pixel_t'length),
+        resize(x"24", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"04", pixel_t'length),
+        resize(x"2C", pixel_t'length),
+        resize(x"09", pixel_t'length),
+        resize(x"01", pixel_t'length),
+        resize(x"34", pixel_t'length),
+        resize(x"03", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"04", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"14", pixel_t'length),
+        resize(x"08", pixel_t'length),
+        resize(x"3A", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"02", pixel_t'length),
+        resize(x"00", pixel_t'length),
+        resize(x"20", pixel_t'length),
+        resize(x"2C", pixel_t'length),
+        resize(x"08", pixel_t'length)
+    );
     
     type nes_out_t is record
         reg             : reg_t;
@@ -50,7 +86,7 @@ package lib_nes is
         sec_oam_bus     : sec_oam_bus_t;
         data_to_sec_oam : data_t;
         palette_bus     : palette_bus_t;
-        data_to_palette : data_t;
+        data_to_palette : pixel_t;
         audio           : mixed_audio_t;
         reset           : boolean;
     end record;
@@ -64,7 +100,7 @@ package lib_nes is
         sec_oam_bus     : sec_oam_bus_t;
         data_to_sec_oam : data_t;
         palette_bus     : palette_bus_t;
-        data_to_palette : data_t;
+        data_to_palette : pixel_t;
         audio           : apu_out_t;
     end record;
 
@@ -123,7 +159,11 @@ package body lib_nes is
                 
                 ret.data_to_oam := x"00";
                 ret.data_to_sec_oam := x"00";
-                ret.data_to_palette := x"00";
+                ret.data_to_palette :=
+                    STARTUP_PALETTE
+                    (
+                        to_integer(nes_in.reg.cur_cycle(palette_addr_t'range))
+                    );
                 
                 ret.ppu_bus.data_to_ciram := x"00";
                 

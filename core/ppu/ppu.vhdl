@@ -31,8 +31,8 @@ port
     data_from_sec_oam : in data_t;
     
     palette_bus       : out palette_bus_t;
-    data_to_palette   : out data_t;
-    data_from_palette : in data_t;
+    data_to_palette   : out pixel_t;
+    data_from_palette : in pixel_t;
     
     cpu_bus           : in  ppu_bus_t;
     prg_data_from_ppu : out data_t;

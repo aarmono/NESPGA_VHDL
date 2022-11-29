@@ -51,8 +51,8 @@ port
     data_from_sec_oam : in data_t;
     
     palette_bus       : out palette_bus_t;
-    data_to_palette   : out data_t;
-    data_from_palette : in data_t;
+    data_to_palette   : out pixel_t;
+    data_from_palette : in pixel_t;
     
     ciram_bus       : out chr_bus_t;
     data_to_ciram   : out data_t;
@@ -96,7 +96,7 @@ is
     signal data_to_sec_oam_from_ppu : data_t;
     
     signal palette_bus_from_ppu     : palette_bus_t;
-    signal data_to_palette_from_ppu : data_t;
+    signal data_to_palette_from_ppu : pixel_t;
     
     signal data_to_cpu       : data_t;
     signal data_from_cpu     : data_t;
