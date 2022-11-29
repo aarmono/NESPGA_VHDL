@@ -27,11 +27,6 @@ generic
 end nes_bench;
 
 architecture behavioral of nes_bench is
-    type ram_t is array(0 to 16#7FF#) of data_t;
-    type vram_t is array(0 to 16#3FFF#) of data_t;
-    type sram_t is array(0 to 16#1FFF#) of data_t;
-    type oam_t is array(0 to 16#FF#) of data_t;
-    type sec_oam_t is array(0 to 16#1F#) of data_t;
     
     signal prg_ram : ram_t;
     signal sram    : sram_t;
