@@ -221,6 +221,8 @@ package lib_ppu is
     );
     
     function to_std_logic(status : status_t) return data_t;
+
+    function overflow(next_val : unsigned; cur_val : unsigned) return boolean;
     
     -- The current name table address, attribute table address,
     -- and attribute table offset as derived from the PPU address
@@ -523,6 +525,14 @@ package body lib_ppu is
         ret.enable_grayscale := val(0) = '1';
         
         return ret;
+    end;
+
+    function overflow(next_val : unsigned; cur_val : unsigned) return boolean
+    is
+    begin
+        assert next_val'high = cur_val'high report "overflow: unequal length"
+               severity failure;
+        return next_val(next_val'high) = '0' and cur_val(cur_val'high) = '1';
     end;
     
     function scroll_to_vram_addr(scroll : scroll_t) return vram_addr_t
@@ -1353,7 +1363,6 @@ package body lib_ppu is
                         render_out.reg.oam_data := render_in.data_from_oam;
                     else
                         v_spr_copy_sprite :=
-                            (not render_in.reg.oam_overflow) and
                             is_sprite_hit(render_in.reg.cur_time,
                                           render_in.reg.control.sprite_hgt_16,
                                           render_in.reg.oam_data);
@@ -1361,8 +1370,9 @@ package body lib_ppu is
                         -- and the sprite counter hasn't overflowed, or if
                         -- we've already started copying a sprite over, copy
                         -- this byte of data to secondary OAM memory
-                        if (not is_zero(render_in.reg.oam_addr(1 downto 0))) or
-                           v_spr_copy_sprite
+                        if not render_in.reg.oam_overflow and
+                           (not is_zero(render_in.reg.sec_oam_addr(1 downto 0)) or
+                            v_spr_copy_sprite)
                         then
 
                             -- Set a flag if this is sprite 0
@@ -1385,14 +1395,6 @@ package body lib_ppu is
                                 -- if m = 3, increment n
                                 render_out.reg.status.spr_overflow := true;
                             end if;
-
-                            -- If exactly 8 sprites have been found, disable
-                            -- writes to secondary OAM because it is full.
-                            -- This causes sprites in back to drop out
-                            if is_max_val(render_in.reg.sec_oam_addr)
-                            then
-                                render_out.reg.sec_oam_overflow := true;
-                            end if;
                             
                             render_out.reg.sec_oam_addr :=
                                 render_in.reg.sec_oam_addr + "1";
@@ -1400,12 +1402,38 @@ package body lib_ppu is
                             render_out.reg.oam_addr :=
                                 render_in.reg.oam_addr + "1";
                         else
-                            render_out.reg.oam_addr :=
-                                render_in.reg.oam_addr + "100";
+                            render_out.reg.oam_addr(oam_addr_t'high downto 2) :=
+                                render_in.reg.oam_addr(oam_addr_t'high downto 2) +
+                                "1";
+
+                            -- This reproduces a hardware bug in the original
+                            -- NES PPU
+                            --
+                            -- If the value is not in range, increment n and m
+                            -- (without carry).
+                            --
+                            -- The m increment is a hardware bug - if only n was
+                            -- incremented, the overflow flag would be set
+                            -- whenever more than 8 sprites were present on the
+                            -- same scanline, as expected.
+                            render_out.reg.oam_addr(1 downto 0) :=
+                                render_in.reg.oam_addr(1 downto 0) +
+                                to_std_logic(render_in.reg.sec_oam_overflow);
                         end if;
-                        
-                        if render_out.reg.oam_addr(oam_addr_t'high) = '0' and
-                           render_in.reg.oam_addr(oam_addr_t'high) = '1'
+
+                        -- If exactly 8 sprites have been found, disable
+                        -- writes to secondary OAM because it is full.
+                        -- This causes sprites in back to drop out
+                        if overflow(render_out.reg.sec_oam_addr,
+                                    render_in.reg.sec_oam_addr)
+                        then
+                            render_out.reg.sec_oam_overflow := true;
+                        end if;
+
+                        -- Stop OAM searching once all sprites have been
+                        -- evaluated once
+                        if overflow(render_out.reg.oam_addr,
+                                    render_in.reg.oam_addr)
                         then
                             render_out.reg.oam_overflow := true;
                         end if;
