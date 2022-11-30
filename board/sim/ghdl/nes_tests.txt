@@ -1,86 +1,86 @@
-# NES file path                           | run time  | Hash
+# NES file path                                     | run time  | Hash
 # Basic CPU
-instr_test-v5/rom_singles/01-basics.nes    | 300ms     | 5919154cfe825518e9881751652876dad0838397fae5d5a83f7c9a4c94ebd8b3 *frame_00017.bmp
-instr_test-v5/rom_singles/02-implied.nes   | 1651ms    | 09b92ec191bc2b3aca5c3bbe35995795259bbc10b3012d094fb6b939debe20a5 *frame_00098.bmp
-instr_test-v5/rom_singles/03-immediate.nes | 1484ms    | 27f34d0471995434f9fb7cc6f956ca423bd2b1de3b0c9b718c00c4784724af44 *frame_00088.bmp
-instr_test-v5/rom_singles/04-zero_page.nes | 1984ms    | 1f6820c9cf3673bace910c22a9b2d0dde14fe5862092fbbf8651182192f28b5f *frame_00118.bmp
-instr_test-v5/rom_singles/05-zp_xy.nes     | 4369ms    | 316d0bdf0bbd51356a73c86df1a51e33baf70d3c394061529cc1fc3eebdc707e *frame_00261.bmp
-instr_test-v5/rom_singles/06-absolute.nes  | 1868ms    | c81f8b34cbb6957ac17969255182e9146434eccb7c52db036550be1b178354fe *frame_00111.bmp
-instr_test-v5/rom_singles/07-abs_xy.nes    | 6154ms    | 1f078ec7c2b07a74bd1afcdea59fd513e8c2679d98633f77d542225822d760e1 *frame_00368.bmp
-instr_test-v5/rom_singles/08-ind_x.nes     | 2468ms    | f428431dd28a0e6ff928e97ae705bdf91791d70d1345743619d94d5f530eaaaa *frame_00147.bmp
-instr_test-v5/rom_singles/09-ind_y.nes     | 2318ms    | 317de6f8e9ea8fc4233a456d1c22f94e012116834fe5cca92ec27c883f2f2f81 *frame_00138.bmp
-instr_test-v5/rom_singles/10-branches.nes  | 717ms     | 1597c6ef351e2b6c1da5191008e2dd5b990a530999369d0c7228a31e5fc42d6f *frame_00042.bmp
-instr_test-v5/rom_singles/11-stack.nes     | 2768ms    | d9b448f64574f4db573e6bf29ae601594ca467c99557c2ec2ae2670d7525a202 *frame_00165.bmp
-instr_test-v5/rom_singles/12-jmp_jsr.nes   | 317ms     | 9f5e1c3ec3f7c22823e72d0040d4eda206201eb865cc458b4b43d4d0528611d6 *frame_00018.bmp
-instr_test-v5/rom_singles/13-rts.nes       | 284ms     | 6fc07fc65fb74424486bf45568557feba5e7adf14a669cd735a682d430af9099 *frame_00016.bmp
-instr_test-v5/rom_singles/14-rti.nes       | 267ms     | 4ad7f4cb8d22a14effe0a213bfba8edec64e7b1d61e168cc15927bbdae4c3b5f *frame_00015.bmp
-instr_test-v5/rom_singles/15-brk.nes       | 450ms     | 14b223865a378b0e94af031c8244e935b9f75b02a7a62c503c59c6b026d88e2b *frame_00026.bmp
-instr_test-v5/rom_singles/16-special.nes   | 233ms     | 34883a92039ce86e5b595c371cd7d4c2beaed516631c6c85afa854e298928f0d *frame_00013.bmp
+instr_test-v5/rom_singles/01-basics.nes             | 300ms     | 5919154cfe825518e9881751652876dad0838397fae5d5a83f7c9a4c94ebd8b3 *frame_00017.bmp
+instr_test-v5/rom_singles/02-implied.nes            | 1651ms    | 09b92ec191bc2b3aca5c3bbe35995795259bbc10b3012d094fb6b939debe20a5 *frame_00098.bmp
+instr_test-v5/rom_singles/03-immediate.nes          | 1484ms    | 27f34d0471995434f9fb7cc6f956ca423bd2b1de3b0c9b718c00c4784724af44 *frame_00088.bmp
+instr_test-v5/rom_singles/04-zero_page.nes          | 1984ms    | 1f6820c9cf3673bace910c22a9b2d0dde14fe5862092fbbf8651182192f28b5f *frame_00118.bmp
+instr_test-v5/rom_singles/05-zp_xy.nes              | 4387ms    | 316d0bdf0bbd51356a73c86df1a51e33baf70d3c394061529cc1fc3eebdc707e *frame_00262.bmp
+instr_test-v5/rom_singles/06-absolute.nes           | 1868ms    | c81f8b34cbb6957ac17969255182e9146434eccb7c52db036550be1b178354fe *frame_00111.bmp
+instr_test-v5/rom_singles/07-abs_xy.nes             | 6154ms    | 1f078ec7c2b07a74bd1afcdea59fd513e8c2679d98633f77d542225822d760e1 *frame_00368.bmp
+instr_test-v5/rom_singles/08-ind_x.nes              | 2468ms    | f428431dd28a0e6ff928e97ae705bdf91791d70d1345743619d94d5f530eaaaa *frame_00147.bmp
+instr_test-v5/rom_singles/09-ind_y.nes              | 2318ms    | 317de6f8e9ea8fc4233a456d1c22f94e012116834fe5cca92ec27c883f2f2f81 *frame_00138.bmp
+instr_test-v5/rom_singles/10-branches.nes           | 717ms     | 1597c6ef351e2b6c1da5191008e2dd5b990a530999369d0c7228a31e5fc42d6f *frame_00042.bmp
+instr_test-v5/rom_singles/11-stack.nes              | 2768ms    | d9b448f64574f4db573e6bf29ae601594ca467c99557c2ec2ae2670d7525a202 *frame_00165.bmp
+instr_test-v5/rom_singles/12-jmp_jsr.nes            | 317ms     | 9f5e1c3ec3f7c22823e72d0040d4eda206201eb865cc458b4b43d4d0528611d6 *frame_00018.bmp
+instr_test-v5/rom_singles/13-rts.nes                | 284ms     | 6fc07fc65fb74424486bf45568557feba5e7adf14a669cd735a682d430af9099 *frame_00016.bmp
+instr_test-v5/rom_singles/14-rti.nes                | 267ms     | 4ad7f4cb8d22a14effe0a213bfba8edec64e7b1d61e168cc15927bbdae4c3b5f *frame_00015.bmp
+instr_test-v5/rom_singles/15-brk.nes                | 450ms     | 14b223865a378b0e94af031c8244e935b9f75b02a7a62c503c59c6b026d88e2b *frame_00026.bmp
+instr_test-v5/rom_singles/16-special.nes            | 233ms     | 34883a92039ce86e5b595c371cd7d4c2beaed516631c6c85afa854e298928f0d *frame_00013.bmp
 
-branch_timing_tests/1.Branch_Basics.nes   | 250ms     | 20a1e16e169f6152248ba16ddb77565fa9704f08d2b3f692971f5b9ff2d3034e *frame_00014.bmp
-branch_timing_tests/2.Backward_Branch.nes | 300ms     | a74f3b8a15743950798b98afba0a696bb918916bd45f9cd6327724d93517cb0d *frame_00016.bmp
-branch_timing_tests/3.Forward_Branch.nes  | 300ms     | cd71b6b824a8a2803821f2c799788806a443007173525b75ae34896990d9aa16 *frame_00017.bmp
+branch_timing_tests/1.Branch_Basics.nes             | 250ms     | 20a1e16e169f6152248ba16ddb77565fa9704f08d2b3f692971f5b9ff2d3034e *frame_00014.bmp
+branch_timing_tests/2.Backward_Branch.nes           | 300ms     | a74f3b8a15743950798b98afba0a696bb918916bd45f9cd6327724d93517cb0d *frame_00016.bmp
+branch_timing_tests/3.Forward_Branch.nes            | 300ms     | cd71b6b824a8a2803821f2c799788806a443007173525b75ae34896990d9aa16 *frame_00017.bmp
 
-instr_misc/rom_singles/01-abs_x_wrap.nes      | 217ms     | 4b0eb4645843027793c8cfa2dbb40876b815125029f32d525d903ef561fa357b *frame_00012.bmp
-instr_misc/rom_singles/02-branch_wrap.nes     | 200ms     | 78fae2f496e56615ad46c41fe92a7b4531bf9166524f0064d7e0f984c5a1e296 *frame_00011.bmp
-instr_misc/rom_singles/03-dummy_reads.nes     | 967ms     | 1a127606cf2be5e51b69b9da9ac5331c5be164b5adcfb6ce41f9a73b88713c9a *frame_00057.bmp
-instr_misc/rom_singles/04-dummy_reads_apu.nes | 2351ms    | 59c138e08d59ce15ec7d48ae2136170236ad68fdc842f531f9835f702a74e6c2 *frame_00140.bmp
+instr_misc/rom_singles/01-abs_x_wrap.nes            | 217ms     | 4b0eb4645843027793c8cfa2dbb40876b815125029f32d525d903ef561fa357b *frame_00012.bmp
+instr_misc/rom_singles/02-branch_wrap.nes           | 200ms     | 78fae2f496e56615ad46c41fe92a7b4531bf9166524f0064d7e0f984c5a1e296 *frame_00011.bmp
+instr_misc/rom_singles/03-dummy_reads.nes           | 967ms     | 1a127606cf2be5e51b69b9da9ac5331c5be164b5adcfb6ce41f9a73b88713c9a *frame_00057.bmp
+instr_misc/rom_singles/04-dummy_reads_apu.nes       | 2351ms    | 59c138e08d59ce15ec7d48ae2136170236ad68fdc842f531f9835f702a74e6c2 *frame_00140.bmp
 
-instr_timing/rom_singles/2-branch_timing.nes  | 2351ms    | 8f2e44f970ec93e754fa12b5ec64bd239a31e34dc2ae104839ca577175926d14 *frame_00140.bmp
+instr_timing/rom_singles/1-instr_timing.nes         | 16911ms   | 62c57a27b42ad6a5e2af606418f7c073261bc1356f91729c36b67bad88347bbb *frame_01013.bmp
+instr_timing/rom_singles/2-branch_timing.nes        | 2351ms    | 8f2e44f970ec93e754fa12b5ec64bd239a31e34dc2ae104839ca577175926d14 *frame_00140.bmp
+
+cpu_timing_test6/cpu_timing_test.nes                | 10300ms   | a51471b3cabf9aa0b14b0945f4583e5f7387f9e964fca8a5894a6bab7f4366c4 *frame_00612.bmp
 
 # Basic APU
-dmc_tests/buffer_retained.nes             | 300ms     | 47b6b1e1c4212b507cd646ed23ebea47ad52a0829ca3bdd11513304d74ee3d0f *audio.au
-dmc_tests/latency.nes                     | 300ms     | b1c1ea1c641a2ca56b62ace4cfe95ef2acc57e721cd2a174142f6a56e1cf7d9b *audio.au
-dmc_tests/status.nes                      | 300ms     | 91725d4e648ed137e45c770869b76ea3ba945be5ed07a0dd1985c2be56710aa3 *audio.au
-dmc_tests/status_irq.nes                  | 300ms     | b13f2276f4d5cab507ae327ada567224718bfdc1fb22d73d45f0f0048566d7bf *audio.au
+dmc_tests/buffer_retained.nes                       | 300ms     | ff6c037d107970ac9b335493a3d7107114ff9912cdc495e17d1f01e18b3a4454 *audio.au
+dmc_tests/latency.nes                               | 300ms     | 281d796522f28983a703a25915c076aaf9c8c66304c6a6c0e145b2c8561732e9 *audio.au
+dmc_tests/status.nes                                | 300ms     | 67881afd2374be4bd1e384e549e911ff7195960685e5e82e786d5b73ba8b2ed5 *audio.au
+dmc_tests/status_irq.nes                            | 300ms     | 58186589542fec48592dd6f1e46ef987739d0c85a9367530d6318ce22145c08b *audio.au
 
-apu_test/rom_singles/1-len_ctr.nes         | 334ms     | f89d0540946059fe833bfc061db296f478fee5833ed97180bf38c4cd069c9105 *frame_00019.bmp
-apu_test/rom_singles/2-len_table.nes       | 250ms     | c8b767953575b78737c61e58223c722dd6c71e652cd0b193821420361aeec7d3 *frame_00014.bmp
-apu_test/rom_singles/3-irq_flag.nes        | 333ms     | c5dc99cb3b32b26a21adb72dda7740ecd70bf98dcde16159962bf236f31ae085 *frame_00019.bmp
-apu_test/rom_singles/4-jitter.nes          | 317ms     | 154efc424332817e7bb950e746933374931eca2de664d0fe74f83b8648319701 *frame_00018.bmp
-apu_test/rom_singles/5-len_timing.nes      | 1884ms    | f9cd1485c50a39ec85e032a7c444f0a7e945f72cbd4df84ecc9060153f46f4cb *frame_00112.bmp
-apu_test/rom_singles/6-irq_flag_timing.nes | 350ms     | 9c4d0520066ec00196b656c1d5c7a67ac1f218345ed9f5cb7545dde7a12b61d2 *frame_00020.bmp
-apu_test/rom_singles/7-dmc_basics.nes      | 417ms     | 4256f16e75b8ce7fdbe5e0777015e8f4b081c416bb0afa68b08932fd605400f1 *frame_00024.bmp
-apu_test/rom_singles/8-dmc_rates.nes       | 467ms     | 66c4635f0b921f66c4a002b5e1998ba461b379f5cef4949fd3bd6b381f56f357 *frame_00027.bmp
+apu_test/rom_singles/1-len_ctr.nes                  | 334ms     | f89d0540946059fe833bfc061db296f478fee5833ed97180bf38c4cd069c9105 *frame_00019.bmp
+apu_test/rom_singles/2-len_table.nes                | 250ms     | c8b767953575b78737c61e58223c722dd6c71e652cd0b193821420361aeec7d3 *frame_00014.bmp
+apu_test/rom_singles/3-irq_flag.nes                 | 333ms     | c5dc99cb3b32b26a21adb72dda7740ecd70bf98dcde16159962bf236f31ae085 *frame_00019.bmp
+apu_test/rom_singles/4-jitter.nes                   | 317ms     | 154efc424332817e7bb950e746933374931eca2de664d0fe74f83b8648319701 *frame_00018.bmp
+apu_test/rom_singles/5-len_timing.nes               | 1884ms    | f9cd1485c50a39ec85e032a7c444f0a7e945f72cbd4df84ecc9060153f46f4cb *frame_00112.bmp
+apu_test/rom_singles/6-irq_flag_timing.nes          | 350ms     | 9c4d0520066ec00196b656c1d5c7a67ac1f218345ed9f5cb7545dde7a12b61d2 *frame_00020.bmp
+apu_test/rom_singles/7-dmc_basics.nes               | 417ms     | 4256f16e75b8ce7fdbe5e0777015e8f4b081c416bb0afa68b08932fd605400f1 *frame_00024.bmp
+apu_test/rom_singles/8-dmc_rates.nes                | 467ms     | 66c4635f0b921f66c4a002b5e1998ba461b379f5cef4949fd3bd6b381f56f357 *frame_00027.bmp
 
 # PPU
-vbl_nmi_timing/1.frame_basics.nes         | 2960ms    | b05214dd08d6c4ec7a2448c83b164f91c969602eb21df841d19d19608ea2f21e *frame_00176.bmp
-vbl_nmi_timing/2.vbl_timing.nes           | 2620ms    | f2e160451bc9a38409502e8ace8ad183f0c307f54c967653cdb13375f806f780 *frame_00156.bmp
-vbl_nmi_timing/3.even_odd_frames.nes      | 1700ms    | 512dde50e22373e212711823aa637ea40280405a53fa9a63bc75378b628bcf5e *frame_00101.bmp
-vbl_nmi_timing/4.vbl_clear_timing.nes     | 2000ms    | 050e8fc00a1e20bede2116422204cc86712fda14bff3c8d0d62f58102eec7f13 *frame_00119.bmp
-vbl_nmi_timing/5.nmi_suppression.nes      | 2820ms    | 51ace9acba8753f6147e7434b7f4cb26f6e3b57563a696a9360fea9ce8e99ee4 *frame_00168.bmp
-vbl_nmi_timing/6.nmi_disable.nes          | 1890ms    | fa3c833d741cdd2d4b4eb9c054d9d199fac7e150f220294f89ea3264bd9736f1 *frame_00111.bmp
-vbl_nmi_timing/7.nmi_timing.nes           | 1870ms    | 0c826bc35ea2f077faab97630a852ed7cf2713ae07414fa5f1545b8419d8edfc *frame_00111.bmp
+oam_stress/oam_stress.nes                           | 28519ms   | bf0ae93ef420602287e426018267b865183ed0a86a5b77274b2e7bbde9778814 *frame_01709.bmp
+oam_read/oam_read.nes                               | 550ms     | 04d7042515042d76cc185f5dfa024a0165dd8a21976adaf848efeeaf1601f63f *frame_00032.bmp
 
-sprite_hit_tests_2005.10.05/01.basics.nes        | 550ms     | a50cda0d5ee822a7091bad468bfd3b437750148b15165d5a343ff12cb016961d *frame_00032.bmp
-sprite_hit_tests_2005.10.05/02.alignment.nes     | 534ms     | c742a7c6dffb67f91e4bda1762bb75b54ae5a653934cc7f82318b5595549b56c *frame_00031.bmp
-sprite_hit_tests_2005.10.05/03.corners.nes       | 367ms     | cf7952cb0f0ec0a5cdfdbb7b7a26abef280f3b266ce60730655d2b3e294a4675 *frame_00021.bmp
-sprite_hit_tests_2005.10.05/04.flip.nes          | 317ms     | a679e4a633a818c78d47ea277a809ca71c9f83173a75811c880be4b6b2b45f64 *frame_00018.bmp
-sprite_hit_tests_2005.10.05/05.left_clip.nes     | 484ms     | 7e3d4d0751f96c586b96b6af1e55060eb3ad7b67f736e08bb97b939a0f3d3850 *frame_00028.bmp
-sprite_hit_tests_2005.10.05/06.right_edge.nes    | 400ms     | e2b75995ac49563dfb29bda6016d8f3708712dbfcd7281856f1af512a11e1a28 *frame_00023.bmp
-sprite_hit_tests_2005.10.05/07.screen_bottom.nes | 417ms     | a2c5839f7b4f9b81fc5cf04f2d5493453cc808981d7d1fc74aca47c8c9f878c6 *frame_00024.bmp
-sprite_hit_tests_2005.10.05/08.double_height.nes | 350ms     | 9e81d0b6038dc0ee2ed67b3d0ff186480a8210a1d7ce9d4a24500058c35ccacc *frame_00020.bmp
-sprite_hit_tests_2005.10.05/09.timing_basics.nes | 1167ms    | caf2d88e9950c8f39d0a6b6297cc6995514c7e324b1ff604b6e154f8f1362d03 *frame_00069.bmp
-sprite_hit_tests_2005.10.05/10.timing_order.nes  | 1100ms    | 8c5d64dbdb563fef48fc735868e7e6329492aef7a5038f6fa77a9b0e6204d7cf *frame_00065.bmp
-sprite_hit_tests_2005.10.05/11.edge_timing.nes   | 1084ms    | 594561dd5d0479cb40c255febc3c81303c15dd38c80101ede1585edf7dc413ff *frame_00064.bmp
+vbl_nmi_timing/1.frame_basics.nes                   | 2960ms    | b05214dd08d6c4ec7a2448c83b164f91c969602eb21df841d19d19608ea2f21e *frame_00176.bmp
+vbl_nmi_timing/2.vbl_timing.nes                     | 2620ms    | f2e160451bc9a38409502e8ace8ad183f0c307f54c967653cdb13375f806f780 *frame_00156.bmp
+vbl_nmi_timing/3.even_odd_frames.nes                | 1700ms    | 512dde50e22373e212711823aa637ea40280405a53fa9a63bc75378b628bcf5e *frame_00101.bmp
+vbl_nmi_timing/4.vbl_clear_timing.nes               | 2000ms    | 050e8fc00a1e20bede2116422204cc86712fda14bff3c8d0d62f58102eec7f13 *frame_00119.bmp
+vbl_nmi_timing/5.nmi_suppression.nes                | 2820ms    | 51ace9acba8753f6147e7434b7f4cb26f6e3b57563a696a9360fea9ce8e99ee4 *frame_00168.bmp
+vbl_nmi_timing/6.nmi_disable.nes                    | 1890ms    | fa3c833d741cdd2d4b4eb9c054d9d199fac7e150f220294f89ea3264bd9736f1 *frame_00111.bmp
+vbl_nmi_timing/7.nmi_timing.nes                     | 1870ms    | 0c826bc35ea2f077faab97630a852ed7cf2713ae07414fa5f1545b8419d8edfc *frame_00111.bmp
 
-sprite_overflow_tests/1.Basics.nes   | 267ms     | b5a76038a1f0bb91170c58bd660fa210dc32774e325ac016b1e41da8bc55fbd9 *frame_00015.bmp
-sprite_overflow_tests/2.Details.nes  | 417ms     | dc38872cd3a7f98b921666f985ae42784fdda6c747b9fea65896f8e915f2552e *frame_00024.bmp
-sprite_overflow_tests/3.Timing.nes   | 2451ms    | ee07700d75e61d8ae7460eb7b4a787b6b9a708f9963ad8aa73b58439828579a9 *frame_00146.bmp
-sprite_overflow_tests/4.Obscure.nes  | 400ms     | 73f426daae7b8fa11cc1e4133e3d2e6ee5490f45bb94d2964b1baf93b3622317 *frame_00023.bmp
-sprite_overflow_tests/5.Emulator.nes | 250ms     | cdeaa359fd6bfa65e2f8b6630e1f9fc3e0d41d4ec64e987cfd4c6c3b3ac59e46 *frame_00014.bmp
+sprite_hit_tests_2005.10.05/01.basics.nes           | 550ms     | a50cda0d5ee822a7091bad468bfd3b437750148b15165d5a343ff12cb016961d *frame_00032.bmp
+sprite_hit_tests_2005.10.05/02.alignment.nes        | 534ms     | c742a7c6dffb67f91e4bda1762bb75b54ae5a653934cc7f82318b5595549b56c *frame_00031.bmp
+sprite_hit_tests_2005.10.05/03.corners.nes          | 367ms     | cf7952cb0f0ec0a5cdfdbb7b7a26abef280f3b266ce60730655d2b3e294a4675 *frame_00021.bmp
+sprite_hit_tests_2005.10.05/04.flip.nes             | 317ms     | a679e4a633a818c78d47ea277a809ca71c9f83173a75811c880be4b6b2b45f64 *frame_00018.bmp
+sprite_hit_tests_2005.10.05/05.left_clip.nes        | 484ms     | 7e3d4d0751f96c586b96b6af1e55060eb3ad7b67f736e08bb97b939a0f3d3850 *frame_00028.bmp
+sprite_hit_tests_2005.10.05/06.right_edge.nes       | 400ms     | e2b75995ac49563dfb29bda6016d8f3708712dbfcd7281856f1af512a11e1a28 *frame_00023.bmp
+sprite_hit_tests_2005.10.05/07.screen_bottom.nes    | 417ms     | a2c5839f7b4f9b81fc5cf04f2d5493453cc808981d7d1fc74aca47c8c9f878c6 *frame_00024.bmp
+sprite_hit_tests_2005.10.05/08.double_height.nes    | 350ms     | 9e81d0b6038dc0ee2ed67b3d0ff186480a8210a1d7ce9d4a24500058c35ccacc *frame_00020.bmp
+sprite_hit_tests_2005.10.05/09.timing_basics.nes    | 1167ms    | caf2d88e9950c8f39d0a6b6297cc6995514c7e324b1ff604b6e154f8f1362d03 *frame_00069.bmp
+sprite_hit_tests_2005.10.05/10.timing_order.nes     | 1100ms    | 8c5d64dbdb563fef48fc735868e7e6329492aef7a5038f6fa77a9b0e6204d7cf *frame_00065.bmp
+sprite_hit_tests_2005.10.05/11.edge_timing.nes      | 1084ms    | 594561dd5d0479cb40c255febc3c81303c15dd38c80101ede1585edf7dc413ff *frame_00064.bmp
 
-blargg_ppu_tests_2005.09.15b/palette_ram.nes      | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
-blargg_ppu_tests_2005.09.15b/power_up_palette.nes | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
-blargg_ppu_tests_2005.09.15b/sprite_ram.nes       | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
-blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes   | 400ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00023.bmp
-blargg_ppu_tests_2005.09.15b/vram_access.nes      | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
+sprite_overflow_tests/1.Basics.nes                  | 267ms     | b5a76038a1f0bb91170c58bd660fa210dc32774e325ac016b1e41da8bc55fbd9 *frame_00015.bmp
+sprite_overflow_tests/2.Details.nes                 | 417ms     | dc38872cd3a7f98b921666f985ae42784fdda6c747b9fea65896f8e915f2552e *frame_00024.bmp
+sprite_overflow_tests/3.Timing.nes                  | 2451ms    | ee07700d75e61d8ae7460eb7b4a787b6b9a708f9963ad8aa73b58439828579a9 *frame_00146.bmp
+sprite_overflow_tests/4.Obscure.nes                 | 400ms     | 73f426daae7b8fa11cc1e4133e3d2e6ee5490f45bb94d2964b1baf93b3622317 *frame_00023.bmp
+sprite_overflow_tests/5.Emulator.nes                | 250ms     | cdeaa359fd6bfa65e2f8b6630e1f9fc3e0d41d4ec64e987cfd4c6c3b3ac59e46 *frame_00014.bmp
 
-oam_read/oam_read.nes   | 550ms     | 04d7042515042d76cc185f5dfa024a0165dd8a21976adaf848efeeaf1601f63f *frame_00032.bmp
+blargg_ppu_tests_2005.09.15b/palette_ram.nes        | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
+blargg_ppu_tests_2005.09.15b/power_up_palette.nes   | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
+blargg_ppu_tests_2005.09.15b/sprite_ram.nes         | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
+blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes     | 400ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00023.bmp
+blargg_ppu_tests_2005.09.15b/vram_access.nes        | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
 
 # Miscellaneous
-other/BLOCKS.NES                          | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp
-
-# Long tests
-#cpu_timing_test6/cpu_timing_test.nes        | 10300ms   | a51471b3cabf9aa0b14b0945f4583e5f7387f9e964fca8a5894a6bab7f4366c4 *frame_00612.bmp
-#instr_timing/rom_singles/1-instr_timing.nes | 16911ms   | 62c57a27b42ad6a5e2af606418f7c073261bc1356f91729c36b67bad88347bbb *frame_01013.bmp
+other/BLOCKS.NES                                    | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp
