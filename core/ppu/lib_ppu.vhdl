@@ -267,7 +267,7 @@ package lib_ppu is
         attr_tmp         : attribute_t;
         -- OAM data address (0x2003). This is also used during sprite rendering
         -- as a scratch register
-        oam_addr         : unsigned(data_t'range);
+        oam_addr         : unsigned(oam_addr_t'range);
         -- OAM data value (0x2004). This is also used during sprite rendering
         -- as a scratch register
         oam_data         : data_t;
@@ -365,6 +365,8 @@ package lib_ppu is
     function is_vblank_start(cur_time : ppu_time_t) return boolean;
     function is_vblank_end(cur_time : ppu_time_t) return boolean;
     
+    function mask_oam_data(oam_addr : oam_addr_t; oam_data : data_t) return data_t;
+
     function to_color
     (
         attr_val  : attribute_t;
@@ -373,7 +375,7 @@ package lib_ppu is
     )
     return palette_idx_t;
 
-    function to_palette_mask(grayscale : boolean) return pixel_t;
+    function mask_pixel(grayscale : boolean; pixel : pixel_t) return pixel_t;
 
     function is_transparent(palette_idx : palette_idx_t) return boolean;
     
@@ -625,6 +627,20 @@ package body lib_ppu is
     begin
         return render_enabled and (left_enabled or cur_time.cycle > LEFT_END);
     end;
+
+    function mask_oam_data(oam_addr : oam_addr_t; oam_data : data_t) return data_t
+    is
+        variable mask : data_t;
+    begin
+        if oam_addr(1 downto 0) = "10"
+        then
+            mask := x"E3";
+        else
+            mask := x"FF";
+        end if;
+
+        return oam_data and mask;
+    end;
     
     function to_color
     (
@@ -638,18 +654,18 @@ package body lib_ppu is
         return attr_val & pattern_2 & pattern_1;
     end;
 
-    function to_palette_mask(grayscale : boolean) return pixel_t
+    function mask_pixel(grayscale : boolean; pixel : pixel_t) return pixel_t
     is
-        variable ret : pixel_t;
+        variable mask : pixel_t;
     begin
         if grayscale
         then
-            ret := b"11_0000";
+            mask := b"11_0000";
         else
-            ret := (others => '1');
+            mask := (others => '1');
         end if;
 
-        return ret;
+        return mask and pixel;
     end;
 
     function is_transparent(palette_idx : palette_idx_t) return boolean
@@ -1065,7 +1081,6 @@ package body lib_ppu is
         variable v_pattern_table_addr : chr_addr_t;
         variable v_rnd_pattern_color  : palette_idx_t;
         variable v_ppu_chr_addr       : unsigned(chr_addr_t'range);
-        variable v_palette_mask       : pixel_t;
         variable v_rnd_mask           : mask_t;
 
         -- background render variables
@@ -1634,7 +1649,9 @@ package body lib_ppu is
                 -- OAM Data
                 when "100" =>
                     render_out.oam_bus := bus_write(render_in.reg.oam_addr);
-                    render_out.data_to_oam := render_in.data_from_cpu;
+                    render_out.data_to_oam :=
+                        mask_oam_data(std_logic_vector(render_in.reg.oam_addr),
+                                      render_in.data_from_cpu);
                     -- OAM Address register is incremented after write access
                     render_out.reg.oam_addr := render_in.reg.oam_addr + "1";
                 -- Scroll Offset
@@ -1711,8 +1728,6 @@ package body lib_ppu is
                 when "111" =>
                     if v_ppu_chr_addr >= PALETTE_ADDR_START
                     then
-                        v_palette_mask :=
-                            to_palette_mask(render_in.reg.mask.enable_grayscale);
                         -- Reading palette data from $3F00-$3FFF works
                         -- differently. The palette data is placed immediately
                         -- on the data bus, and hence no priming read is
@@ -1720,7 +1735,8 @@ package body lib_ppu is
                         render_out.palette_bus :=
                             bus_read(to_palette_addr(v_ppu_chr_addr));
                         render_out.data_to_cpu :=
-                            resize(render_in.data_from_palette and v_palette_mask,
+                            resize(mask_pixel(render_in.reg.mask.enable_grayscale,
+                                              render_in.data_from_palette),
                                    data_t'length);
                     else
                         -- When reading while the VRAM address is in the range
@@ -1831,11 +1847,10 @@ package body lib_ppu is
                 end if;
             end loop;
 
-            v_palette_mask := to_palette_mask(v_rnd_mask.enable_grayscale);
             render_out.palette_bus :=
                 bus_read(to_palette_addr(v_rnd_is_sprite, v_rnd_pattern_color));
             render_out.pixel_bus.pixel :=
-                render_in.data_from_palette and v_palette_mask;
+                mask_pixel(v_rnd_mask.enable_grayscale, render_in.data_from_palette);
             render_out.pixel_bus.line_valid := true;
         else
             render_out.pixel_bus.line_valid := false;
