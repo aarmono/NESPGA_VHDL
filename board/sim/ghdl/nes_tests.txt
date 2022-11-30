@@ -66,7 +66,7 @@ sprite_hit_tests_2005.10.05/11.edge_timing.nes   | 1084ms    | 594561dd5d0479cb4
 
 sprite_overflow_tests/1.Basics.nes   | 267ms     | b5a76038a1f0bb91170c58bd660fa210dc32774e325ac016b1e41da8bc55fbd9 *frame_00015.bmp
 sprite_overflow_tests/2.Details.nes  | 417ms     | dc38872cd3a7f98b921666f985ae42784fdda6c747b9fea65896f8e915f2552e *frame_00024.bmp
-#sprite_overflow_tests/3.Timing.nes fails
+sprite_overflow_tests/3.Timing.nes   | 2451ms    | ee07700d75e61d8ae7460eb7b4a787b6b9a708f9963ad8aa73b58439828579a9 *frame_00146.bmp
 sprite_overflow_tests/4.Obscure.nes  | 400ms     | 73f426daae7b8fa11cc1e4133e3d2e6ee5490f45bb94d2964b1baf93b3622317 *frame_00023.bmp
 sprite_overflow_tests/5.Emulator.nes | 250ms     | cdeaa359fd6bfa65e2f8b6630e1f9fc3e0d41d4ec64e987cfd4c6c3b3ac59e46 *frame_00014.bmp
 

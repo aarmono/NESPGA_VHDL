@@ -23,27 +23,30 @@ architecture behavioral of clk_en is
     subtype nsf_count_t is unsigned(5 downto 0);
     
     -- Divide 50MHz clock by 28 to approximate NES CPU clock speed
-    constant RESET_CPU_COUNT : cpu_count_t := to_unsigned(27, cpu_count_t'length);
-    constant RESET_NSF_COUNT : nsf_count_t := to_unsigned(49, nsf_count_t'length);
-    
-    signal cpu_count : cpu_count_t := RESET_CPU_COUNT;
-    signal nsf_count : nsf_count_t := RESET_NSF_COUNT;
-
-    constant CPU_EN_COUNT : cpu_count_t := (others => '0');
+    constant MAX_CPU_COUNT : cpu_count_t := to_unsigned(27, cpu_count_t'length);
+    constant MAX_NSF_COUNT : nsf_count_t := to_unsigned(49, nsf_count_t'length);
 
     type ppu_en_arr_t is array(0 to 2) of cpu_count_t;
     -- Maintain a 3:1 ratio between CPU and PPU cycles
     constant PPU_EN_COUNT_ARR : ppu_en_arr_t :=
     (
-        CPU_EN_COUNT,
+        (others => '0'),
         to_unsigned(9, cpu_count_t'length),
         to_unsigned(18, cpu_count_t'length)
     );
 
+    constant CPU_EN_COUNT : cpu_count_t := PPU_EN_COUNT_ARR(2);
+
     -- CPU/PPU sync period is the cycle when both ppu_en and cpu_en are high.
     -- It starts just after the previous ppu_en event
-    constant PPU_SYNC_START_COUNT : cpu_count_t := CPU_EN_COUNT + x"8";
-    constant PPU_SYNC_END_COUNT : cpu_count_t := RESET_CPU_COUNT;
+    constant PPU_SYNC_START_COUNT : cpu_count_t := MAX_CPU_COUNT;
+    constant PPU_SYNC_END_COUNT : cpu_count_t := CPU_EN_COUNT - "1";
+
+    constant RESET_CPU_COUNT : cpu_count_t := PPU_SYNC_START_COUNT;
+    constant RESET_NSF_COUNT : nsf_count_t := MAX_NSF_COUNT;
+
+    signal cpu_count : cpu_count_t := RESET_CPU_COUNT;
+    signal nsf_count : nsf_count_t := RESET_NSF_COUNT;
     
 begin
 
@@ -64,12 +67,12 @@ begin
         else
             if is_zero(cpu_count)
             then
-                cpu_count <= RESET_CPU_COUNT;
+                cpu_count <= MAX_CPU_COUNT;
             else
                 cpu_count <= cpu_count - "1";
             end if;
 
-            if cpu_count = RESET_CPU_COUNT
+            if cpu_count = MAX_CPU_COUNT
             then
                 odd_cpu_cycle <= not odd_cpu_cycle;
             end if;
@@ -97,7 +100,7 @@ begin
 
             if is_zero(nsf_count)
             then
-                nsf_count <= RESET_NSF_COUNT;
+                nsf_count <= MAX_NSF_COUNT;
                 nsf_en <= true;
             else
                 nsf_count <= nsf_count - "1";
