@@ -1433,7 +1433,7 @@ package body lib_ppu is
                             -- same scanline, as expected.
                             render_out.reg.oam_addr(1 downto 0) :=
                                 render_in.reg.oam_addr(1 downto 0) +
-                                to_std_logic(render_in.reg.sec_oam_overflow);
+                                to_unsigned(render_in.reg.sec_oam_overflow, 1);
                         end if;
 
                         -- If exactly 8 sprites have been found, disable

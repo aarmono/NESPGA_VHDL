@@ -123,7 +123,6 @@ package body lib_cpu is
         -- Internal variables
         variable v_decoded       : decode_state_t;
         variable v_arith_scratch : unsigned(8 downto 0);
-        variable v_idx_reg       : reg_t;
         variable v_exec          : boolean;
 
         -- Variables which affect state or outputs
@@ -136,7 +135,6 @@ package body lib_cpu is
         variable ret : cpu_output_t;
     begin
         v_arith_scratch := (others => '-');
-        v_idx_reg := (others => '-');
         v_data_out := (others => '-');
         v_data_bus := bus_idle(v_data_bus);
         v_reg := reg;

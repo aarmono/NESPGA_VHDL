@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.joy_bus_types.all;
 use work.nes_types.all;
+use work.utilities.all;
 
 entity joystick_io is
 port
@@ -85,10 +86,14 @@ is
             case joy_in.cpu_bus.address is
                 when "0" =>
                     joy_out.reg.shift_joy_1 := '1';
-                    joy_out.data_from_joy := x"40" or joy_in.reg.joy_1_val;
+                    joy_out.data_from_joy :=
+                        x"40" or to_std_logic_vector(joy_in.reg.joy_1_val,
+                                                     data_t'length);
                 when "1" =>
                     joy_out.reg.shift_joy_2 := '1';
-                    joy_out.data_from_joy := x"40" or joy_in.reg.joy_2_val;
+                    joy_out.data_from_joy :=
+                        x"40" or to_std_logic_vector(joy_in.reg.joy_2_val,
+                                                     data_t'length);
                 when others =>
                     null;
             end case;
@@ -152,14 +157,16 @@ begin
     process(clk)
     is
     begin
-    if rising_edge(clk) and clk_en
-    then
+    -- double-IF required for synthesis
+    if rising_edge(clk) then
+    if clk_en then
         if reset
         then
             reg <= RESET_REG;
         else
             reg <= reg_next;
         end if;
+    end if;
     end if;
     end process;
 

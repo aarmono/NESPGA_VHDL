@@ -4,8 +4,26 @@ use IEEE.numeric_std.all;
 
 package utilities is
     function reverse_vector(data : std_logic_vector) return std_logic_vector;
+    
     function to_std_logic(data : boolean) return std_logic;
-    function to_integer(val : std_logic_vector) return integer;
+    
+    function to_unsigned(val : std_logic; size : positive) return unsigned;
+    
+    function to_unsigned(val : boolean; size : positive) return unsigned;
+    
+    function to_std_logic_vector
+    (
+        val  : std_logic;
+        size : positive
+    )
+    return std_logic_vector;
+    
+    function to_std_logic_vector
+    (
+        val  : boolean;
+        size : positive
+    )
+    return std_logic_vector;
     
     function add_vectors
     (
@@ -13,6 +31,8 @@ package utilities is
         val2 : std_logic_vector
     )
     return std_logic_vector;
+    
+    function to_integer(val : std_logic_vector) return integer;
     
     function zero(val : std_logic_vector) return std_logic_vector;
     function zero(val : unsigned) return unsigned;
@@ -55,6 +75,50 @@ package body utilities is
         end case;
         return result;
     end function;
+    
+    function to_unsigned(val : std_logic; size : positive) return unsigned
+    is
+    begin
+        return unsigned(to_std_logic_vector(val, size));
+    end;
+    
+    function to_unsigned(val : boolean; size : positive) return unsigned
+    is
+    begin
+        return to_unsigned(to_std_logic(val), size);
+    end;
+    
+    function to_std_logic_vector
+    (
+        val  : std_logic;
+        size : positive
+    )
+    return std_logic_vector
+    is
+        variable ret : std_logic_vector(size-1 downto 0);
+    begin
+        ret := (others => '0');
+        ret(0) := val;
+        
+        return ret;
+    end;
+    
+    function to_std_logic_vector
+    (
+        val  : boolean;
+        size : positive
+    )
+    return std_logic_vector
+    is
+    begin
+        return to_std_logic_vector(to_std_logic(val), size);
+    end;
+    
+    function to_std_logic_vector(val : character) return std_logic_vector
+    is
+    begin
+        return std_logic_vector(to_unsigned(character'pos(val), 8));
+    end;
 
     function to_integer(val : std_logic_vector) return integer is
     begin
@@ -126,12 +190,6 @@ package body utilities is
     is
     begin
         return std_logic_vector(resize(unsigned(val), len));
-    end;
-    
-    function to_std_logic_vector(val : character) return std_logic_vector
-    is
-    begin
-        return std_logic_vector(to_unsigned(character'pos(val), 8));
     end;
 
     --procedure shift_right(signal val : std_logic_vector)

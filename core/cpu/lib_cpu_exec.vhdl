@@ -207,7 +207,7 @@ package body lib_cpu_exec is
 
                 scratch := ("0" & cur_state.a) +
                            next_state.data_out +
-                           data_in(0);
+                           data_in(0 downto 0);
                 next_state.a := scratch(7 downto 0);
                 next_state.status.c(0) := scratch(8);
                 next_state.status.z := next_state.a = x"00";

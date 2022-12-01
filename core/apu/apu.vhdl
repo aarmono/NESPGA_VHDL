@@ -51,10 +51,12 @@ begin
     
     process(clk)
     begin
-        if rising_edge(clk) and clk_en
-        then
-            reg <= reg_in;
-        end if;
+    -- double-IF required for synthesis
+    if rising_edge(clk) then
+    if clk_en then
+        reg <= reg_in;
+    end if;
+    end if;
     end process;
 
 end behavioral;

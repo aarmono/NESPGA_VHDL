@@ -432,13 +432,12 @@ package body lib_apu_dmc is
     
     function get_dma_bus(dmc : dmc_t) return cpu_bus_t
     is
-        variable dma_bus : cpu_bus_t;
     begin
         if dmc.dma.state = DMA_READ_REQ and is_zero(dmc.dma.dma_buffer.data)
         then
             return bus_read(dmc.dma.dma_xfer_vals.address);
         else
-            return bus_idle(dma_bus);
+            return CPU_BUS_IDLE;
         end if;
     end;
     

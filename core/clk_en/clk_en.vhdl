@@ -60,7 +60,11 @@ architecture behavioral of clk_en is
     signal cpu_count : cpu_count_t := RESET_CPU_COUNT;
     signal nsf_count : nsf_count_t := RESET_NSF_COUNT;
     
+    signal reg_odd_cpu_cycle : boolean := false;
+    
 begin
+
+    odd_cpu_cycle <= reg_odd_cpu_cycle;
 
     process(clk_50mhz)
         variable is_ppu_en : boolean;
@@ -81,7 +85,7 @@ begin
             ppu_ram_en <= false;
 
             ppu_sync <= false;
-            odd_cpu_cycle <= true;
+            reg_odd_cpu_cycle <= true;
         else
             if is_zero(cpu_count)
             then
@@ -92,7 +96,7 @@ begin
 
             if cpu_count = MAX_CPU_COUNT
             then
-                odd_cpu_cycle <= not odd_cpu_cycle;
+                reg_odd_cpu_cycle <= not reg_odd_cpu_cycle;
             end if;
 
             cpu_en <= cpu_count = CPU_EN_COUNT;

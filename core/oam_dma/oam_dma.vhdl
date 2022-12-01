@@ -145,14 +145,16 @@ begin
     process(clk)
     is
     begin
-    if rising_edge(clk) and clk_en
-    then
+    -- double-IF required for synthesis
+    if rising_edge(clk) then
+    if clk_en then
         if reset
         then
             reg <= RESET_REG;
         else
             reg <= reg_next;
         end if;
+    end if;
     end if;
     end process;
 

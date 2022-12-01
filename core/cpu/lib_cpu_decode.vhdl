@@ -761,8 +761,10 @@ package body lib_cpu_decode is
             when OP_IRQ =>
                 ret := decode_brk(x"FE", false);
             when others =>
+                -- pragma translate_off 
                 assert false report "Invalid opcode: " & to_hstring(opcode)
                              severity failure;
+                -- pragma translate_on
         end case;
 
         return ret;

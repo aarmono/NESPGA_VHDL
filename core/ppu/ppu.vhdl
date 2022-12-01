@@ -53,8 +53,9 @@ begin
 
     process(clk)
     begin
-    if rising_edge(clk) and clk_en
-    then
+    -- double-IF is required for synthesis
+    if rising_edge(clk) then
+    if clk_en then
         if reset
         then
             reg <= RESET_PPU_REG;
@@ -67,6 +68,7 @@ begin
                 vint <= vint_next;
             end if;
         end if;
+    end if;
     end if;
     end process;
     
