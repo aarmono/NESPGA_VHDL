@@ -141,7 +141,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => cpu_ram_en,
+        clk_en => sig_cpu_ram_en,
 
         address => prg_ram_bus.address,
         read => prg_ram_bus.read,
@@ -160,7 +160,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => cpu_ram_en,
+        clk_en => sig_cpu_ram_en,
 
         address => sram_bus.address,
         read => sram_bus.read,
@@ -179,7 +179,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => ppu_ram_en,
+        clk_en => sig_ppu_ram_en,
 
         address => ciram_bus.address,
         read => ciram_bus.read,
@@ -198,7 +198,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => ppu_ram_en,
+        clk_en => sig_ppu_ram_en,
 
         address => oam_bus.address,
         read => oam_bus.read,
@@ -217,7 +217,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => ppu_ram_en,
+        clk_en => sig_ppu_ram_en,
 
         address => sec_oam_bus.address,
         read => sec_oam_bus.read,
@@ -236,7 +236,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => ppu_ram_en,
+        clk_en => sig_ppu_ram_en,
 
         address => palette_bus.address,
         read => palette_bus.read,
