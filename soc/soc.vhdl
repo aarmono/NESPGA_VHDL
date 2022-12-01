@@ -102,6 +102,40 @@ package soc is
     );
     end component nes_soc;
 
+    -- Variant of nes_soc that uses on-chip RAM
+    component nes_soc_ocram is
+    port
+    (
+        clk_50mhz : in std_logic;
+        reset     : in boolean;
+
+        nes_running : out boolean;
+
+        cpu_clk_en : out boolean;
+        ppu_clk_en : out boolean;
+
+        cpu_ram_en : out boolean;
+        ppu_ram_en : out boolean;
+
+        file_bus_prg       : out file_bus_t;
+        data_from_file_prg : in data_t;
+
+        file_bus_chr       : out file_bus_t;
+        data_from_file_chr : in data_t;
+
+        pixel_bus : out pixel_bus_t;
+        audio     : out mixed_audio_t;
+
+        joy_strobe : out std_logic;
+
+        shift_joy_1 : out std_logic;
+        joy_1_val   : in std_logic := '1';
+
+        shift_joy_2 : out std_logic;
+        joy_2_val   : in std_logic := '1'
+    );
+    end component nes_soc_ocram;
+
 end soc;
 
 package body soc is
