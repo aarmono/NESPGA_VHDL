@@ -138,6 +138,9 @@ package nes_core is
         ppu_en        : out boolean;
         nsf_en        : out boolean;
 
+        cpu_ram_en : out boolean;
+        ppu_ram_en : out boolean;
+
         ppu_sync      : out boolean;
         odd_cpu_cycle : out boolean
     );

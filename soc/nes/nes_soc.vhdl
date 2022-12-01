@@ -27,6 +27,9 @@ port
 
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
+
+    cpu_ram_en : out boolean;
+    ppu_ram_en : out boolean;
     
     file_bus_prg       : out file_bus_t;
     data_from_file_prg : in data_t;
@@ -141,6 +144,9 @@ begin
         
         cpu_en => cpu_en,
         ppu_en => ppu_en,
+
+        cpu_ram_en => cpu_ram_en,
+        ppu_ram_en => ppu_ram_en,
 
         ppu_sync => ppu_sync,
         odd_cpu_cycle => cpu_odd
