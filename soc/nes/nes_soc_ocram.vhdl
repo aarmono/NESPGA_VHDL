@@ -23,6 +23,9 @@ port
 
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
+
+    cpu_ram_en : out boolean;
+    ppu_ram_en : out boolean;
     
     file_bus_prg       : out file_bus_t;
     data_from_file_prg : in data_t;
@@ -45,8 +48,8 @@ end nes_soc_ocram;
 
 architecture behavioral of nes_soc_ocram is
 
-    signal cpu_ram_en : boolean;
-    signal ppu_ram_en : boolean;
+    signal sig_cpu_ram_en : boolean;
+    signal sig_ppu_ram_en : boolean;
     
     signal prg_ram_bus  : ram_bus_t;
     signal sram_bus     : sram_bus_t;
@@ -70,6 +73,9 @@ architecture behavioral of nes_soc_ocram is
     
 begin
 
+    cpu_ram_en <= sig_cpu_ram_en;
+    ppu_ram_en <= sig_ppu_ram_en;
+
     soc : entity work.nes_soc(behavioral)
     port map
     (
@@ -81,8 +87,8 @@ begin
         ppu_clk_en => ppu_clk_en,
         cpu_clk_en => cpu_clk_en,
 
-        cpu_ram_en => cpu_ram_en,
-        ppu_ram_en => ppu_ram_en,
+        cpu_ram_en => sig_cpu_ram_en,
+        ppu_ram_en => sig_ppu_ram_en,
         
         file_bus_prg => file_bus_prg,
         data_from_file_prg => data_from_file_prg,
