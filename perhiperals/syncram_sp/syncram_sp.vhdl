@@ -1,10 +1,12 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.perhipheral_types.all;
 
 entity syncram_sp is
 generic
 (
+    VENDOR    : vendor_t := VENDOR_ALTERA;
     ADDR_BITS : positive;
     DATA_BITS : positive := 8
 );
@@ -28,34 +30,40 @@ architecture behavioral of syncram_sp is
     subtype ram_elem_t is std_logic_vector(data_in'range);
     subtype ram_addr_t is unsigned(address'range);
 
-    constant DATA_IGNORE : ram_elem_t := (others => '-');
-
     type ram_t is array(0 to RAM_SIZE-1) of ram_elem_t;
     signal ram : ram_t;
-    
-    signal reg_address : ram_addr_t := (others => '0');
+
 begin
 
-    process(clk)
+    altera_syncram_sp : if VENDOR = VENDOR_ALTERA generate
+
+        signal reg_address : ram_addr_t := (others => '0');
+
     begin
-    if rising_edge(clk)
-    then
-        -- Infers the Altera Cyclone II Single port RAM. Successfully inferring
-        -- this is tricky, so be very careful when changing this logic
-        if write and clk_en
+
+        process(clk)
+        begin
+        if rising_edge(clk)
         then
-            ram(to_integer(unsigned(address))) <= data_in;
+            -- Infers the Altera Cyclone II Single port RAM. Successfully
+            -- inferring this is tricky, so be very careful when changing this
+            -- logic
+            if write and clk_en
+            then
+                ram(to_integer(unsigned(address))) <= data_in;
+            end if;
+            
+            -- Can't use clock enable signal here since Quartus
+            -- infers a dual-port RAM if we do. This shouldn't be
+            -- and issue for this application since the main concern
+            -- is overwriting memory we don't want to due to the
+            -- address/data lines not being stable
+            reg_address <= unsigned(address);
         end if;
+        end process;
         
-        -- Can't use clock enable signal here since Quartus
-        -- infers a dual-port RAM if we do. This shouldn't be
-        -- and issue for this application since the main concern
-        -- is overwriting memory we don't want to due to the
-        -- address/data lines not being stable
-        reg_address <= unsigned(address);
-    end if;
-    end process;
-    
-    data_out <= ram(to_integer(reg_address));
+        data_out <= ram(to_integer(reg_address));
+
+    end generate;
 
 end behavioral;

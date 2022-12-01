@@ -1,10 +1,9 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.perhipheral_types.all;
 
 package perhipherals is
-
-    subtype wm_audio_t is std_logic_vector(15 downto 0);
 
     component wm8731 is
     port
@@ -25,6 +24,7 @@ package perhipherals is
     component syncram_sp is
     generic
     (
+        VENDOR    : vendor_t := VENDOR_ALTERA;
         ADDR_BITS : positive;
         DATA_BITS : positive := 8
     );

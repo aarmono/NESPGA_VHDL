@@ -16,6 +16,7 @@
 ../../../core/nes_types.vhdl
 ../../../core/nes_audio_mixer.vhdl
 
+../../../perhiperals/perhipheral_types.vhdl
 ../../../perhiperals/syncram_sp/syncram_sp.vhdl
 ../../../perhiperals/perhipherals.vhdl
 
