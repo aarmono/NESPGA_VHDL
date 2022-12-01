@@ -22,6 +22,26 @@ package perhipherals is
     );
     end component wm8731;
 
+    component syncram_sp is
+    generic
+    (
+        ADDR_BITS : positive;
+        DATA_BITS : positive := 8
+    );
+    port
+    (
+        clk              : in std_logic;
+        clk_en           : in boolean;
+
+        address : in std_logic_vector(ADDR_BITS-1 downto 0);
+        read    : in boolean;
+        write   : in boolean;
+
+        data_in : in std_logic_vector(DATA_BITS-1 downto 0);
+        data_out : out std_logic_vector(DATA_BITS-1 downto 0)
+    );
+    end component syncram_sp;
+
 end perhipherals;
 
 package body perhipherals is
