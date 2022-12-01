@@ -27,35 +27,10 @@ generic
 end nes_bench;
 
 architecture behavioral of nes_bench is
-    
-    signal prg_ram : ram_t;
-    signal sram    : sram_t;
-    signal oam     : oam_t;
-    signal sec_oam : sec_oam_t;
-    signal palette : palette_t;
-    signal ciram   : vram_t;
-    
-    signal prg_ram_bus  : ram_bus_t;
-    signal sram_bus     : sram_bus_t;
-    signal oam_bus      : oam_bus_t;
-    signal sec_oam_bus  : sec_oam_bus_t;
-    signal palette_bus  : palette_bus_t;
-    signal ciram_bus    : chr_bus_t;
+
     signal file_bus_prg : file_bus_t;
     signal file_bus_chr : file_bus_t;
     
-    signal data_to_sram       : data_t;
-    signal data_from_sram     : data_t;
-    signal data_to_prg_ram    : data_t;
-    signal data_from_prg_ram  : data_t;
-    signal data_to_oam        : data_t;
-    signal data_from_oam      : data_t;
-    signal data_to_sec_oam    : data_t;
-    signal data_from_sec_oam  : data_t;
-    signal data_to_palette    : pixel_t;
-    signal data_from_palette  : pixel_t;
-    signal data_from_ciram    : data_t;
-    signal data_to_ciram      : data_t;
     signal data_from_file_prg : data_t;
     signal data_from_file_chr : data_t;
     
@@ -81,7 +56,7 @@ architecture behavioral of nes_bench is
     
 begin
 
-    soc : nes_soc
+    soc : nes_soc_ocram
     port map
     (
         clk_50mhz => clk_50mhz,
@@ -97,30 +72,6 @@ begin
         
         file_bus_chr => file_bus_chr,
         data_from_file_chr => data_from_file_chr,
-        
-        sram_bus => sram_bus,
-        data_to_sram => data_to_sram,
-        data_from_sram => data_from_sram,
-        
-        prg_ram_bus => prg_ram_bus,
-        data_to_prg_ram => data_to_prg_ram,
-        data_from_prg_ram => data_from_prg_ram,
-        
-        oam_bus => oam_bus,
-        data_to_oam => data_to_oam,
-        data_from_oam => data_from_oam,
-        
-        sec_oam_bus => sec_oam_bus,
-        data_to_sec_oam => data_to_sec_oam,
-        data_from_sec_oam => data_from_sec_oam,
-        
-        palette_bus => palette_bus,
-        data_to_palette => data_to_palette,
-        data_from_palette => data_from_palette,
-        
-        ciram_bus => ciram_bus,
-        data_to_ciram => data_to_ciram,
-        data_from_ciram => data_from_ciram,
         
         pixel_bus => pixel_bus,
         audio => audio_out,
@@ -195,72 +146,6 @@ begin
        file_bus_2 => file_bus_chr,
        data_from_file_2 => data_from_file_chr
     );
-    
-    process(all)
-    begin
-        if is_bus_write(sram_bus)
-        then
-            sram(to_integer(sram_bus.address)) <= data_to_sram;
-        elsif is_bus_read(sram_bus)
-        then
-            data_from_sram <= sram(to_integer(sram_bus.address));
-        end if;
-    end process;
-    
-    process(all)
-    begin
-        if is_bus_write(prg_ram_bus)
-        then
-            prg_ram(to_integer(prg_ram_bus.address)) <= data_to_prg_ram;
-        elsif is_bus_read(prg_ram_bus)
-        then
-            data_from_prg_ram <= prg_ram(to_integer(prg_ram_bus.address));
-        end if;
-    end process;
-    
-    process(all)
-    begin
-        if is_bus_write(ciram_bus)
-        then
-            ciram(to_integer(ciram_bus.address)) <= data_to_ciram;
-        elsif is_bus_read(ciram_bus)
-        then
-            data_from_ciram <= ciram(to_integer(ciram_bus.address));
-        end if;
-    end process;
-    
-    process(all)
-    begin
-        if is_bus_write(oam_bus)
-        then
-            oam(to_integer(oam_bus.address)) <= data_to_oam;
-        elsif is_bus_read(oam_bus)
-        then
-            data_from_oam <= oam(to_integer(oam_bus.address));
-        end if;
-    end process;
-    
-    process(all)
-    begin
-        if is_bus_write(sec_oam_bus)
-        then
-            sec_oam(to_integer(sec_oam_bus.address)) <= data_to_sec_oam;
-        elsif is_bus_read(sec_oam_bus)
-        then
-            data_from_sec_oam <= sec_oam(to_integer(sec_oam_bus.address));
-        end if;
-    end process;
-    
-    process(all)
-    begin
-        if is_bus_write(palette_bus)
-        then
-            palette(to_integer(palette_bus.address)) <= data_to_palette;
-        elsif is_bus_read(palette_bus)
-        then
-            data_from_palette <= palette(to_integer(palette_bus.address));
-        end if;
-    end process;
     
     clk_50mhz_gen : clock
     generic map
