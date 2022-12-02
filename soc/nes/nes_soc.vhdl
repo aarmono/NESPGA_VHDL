@@ -31,11 +31,8 @@ port
     cpu_ram_en : out boolean;
     ppu_ram_en : out boolean;
     
-    file_bus_prg       : out file_bus_t;
-    data_from_file_prg : in data_t;
-    
-    file_bus_chr       : out file_bus_t;
-    data_from_file_chr : in data_t;
+    file_bus       : out file_bus_t;
+    data_from_file : in data_t;
     
     sram_bus       : out sram_bus_t;
     data_to_sram   : out data_t;
@@ -77,6 +74,24 @@ end entity;
 architecture behavioral of nes_soc
 is
 
+    component file_bus_mux is
+    port
+    (
+        clk    : in std_logic;
+        clk_en : in boolean;
+        reset  : in boolean;
+
+        file_bus_chr    : in file_bus_t;
+        data_to_chr_bus : out data_t;
+
+        file_bus_prg    : in file_bus_t;
+        data_to_prg_bus : out data_t;
+
+        file_bus_out    : out file_bus_t;
+        data_from_file  : in data_t
+    );
+    end component;
+
     signal reg      : reg_t := RESET_REG;
     signal reg_next : reg_t;
     
@@ -112,10 +127,18 @@ is
     signal prg_data_to_ppu   : data_t;
     signal prg_data_from_ppu : data_t;
 
-    signal cpu_en   : boolean;
-    signal ppu_en   : boolean;
-    signal ppu_sync : boolean;
-    signal cpu_odd  : boolean;
+    signal file_bus_prg       : file_bus_t;
+    signal data_from_file_prg : data_t;
+    
+    signal file_bus_chr       : file_bus_t;
+    signal data_from_file_chr : data_t;
+
+    signal cpu_en         : boolean;
+    signal ppu_en         : boolean;
+    signal ppu_sync       : boolean;
+    signal cpu_odd        : boolean;
+    signal sig_ppu_ram_en : boolean;
+    signal sig_cpu_ram_en : boolean;
     
     signal audio_out : apu_out_t;
     
@@ -134,7 +157,27 @@ begin
     cpu_clk_en <= cpu_en;
     ppu_clk_en <= ppu_en;
 
+    ppu_ram_en <= sig_ppu_ram_en;
+    cpu_ram_en <= sig_cpu_ram_en;
+
     ready <= apu_ready and dma_ready;
+
+    file_mux : file_bus_mux
+    port map
+    (
+        clk => clk_50mhz,
+        clk_en => sig_ppu_ram_en,
+        reset => reset,
+
+        file_bus_chr => file_bus_chr,
+        data_to_chr_bus => data_from_file_chr,
+
+        file_bus_prg => file_bus_prg,
+        data_to_prg_bus => data_from_file_prg,
+
+        file_bus_out => file_bus,
+        data_from_file => data_from_file
+    );
 
     nes_clk_en : clk_en
     port map
@@ -145,8 +188,8 @@ begin
         cpu_en => cpu_en,
         ppu_en => ppu_en,
 
-        cpu_ram_en => cpu_ram_en,
-        ppu_ram_en => ppu_ram_en,
+        cpu_ram_en => sig_cpu_ram_en,
+        ppu_ram_en => sig_ppu_ram_en,
 
         ppu_sync => ppu_sync,
         odd_cpu_cycle => cpu_odd

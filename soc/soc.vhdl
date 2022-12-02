@@ -59,11 +59,8 @@ package soc is
         cpu_ram_en : out boolean;
         ppu_ram_en : out boolean;
         
-        file_bus_prg       : out file_bus_t;
-        data_from_file_prg : in data_t;
-        
-        file_bus_chr       : out file_bus_t;
-        data_from_file_chr : in data_t;
+        file_bus       : out file_bus_t;
+        data_from_file : in data_t;
         
         sram_bus       : out sram_bus_t;
         data_to_sram   : out data_t;
@@ -114,14 +111,8 @@ package soc is
         cpu_clk_en : out boolean;
         ppu_clk_en : out boolean;
 
-        cpu_ram_en : out boolean;
-        ppu_ram_en : out boolean;
-
-        file_bus_prg       : out file_bus_t;
-        data_from_file_prg : in data_t;
-
-        file_bus_chr       : out file_bus_t;
-        data_from_file_chr : in data_t;
+        file_bus       : out file_bus_t;
+        data_from_file : in data_t;
 
         pixel_bus : out pixel_bus_t;
         audio     : out mixed_audio_t;

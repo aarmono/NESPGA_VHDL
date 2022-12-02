@@ -60,6 +60,8 @@ begin
         elsif is_bus_write(file_bus_1)
         then
             mem(to_integer(file_bus_1.address)) <= data_to_file_1 after WRITE_DELAY;
+        else
+            data_from_file_1 <= (others => '-');
         end if;
         
         if is_bus_read(file_bus_2)
@@ -68,6 +70,8 @@ begin
         elsif is_bus_write(file_bus_2)
         then
             mem(to_integer(file_bus_2.address)) <= data_to_file_2 after WRITE_DELAY;
+        else
+            data_from_file_2 <= (others => '-');
         end if;
     end process;
 

@@ -28,11 +28,8 @@ end nes_bench;
 
 architecture behavioral of nes_bench is
 
-    signal file_bus_prg : file_bus_t;
-    signal file_bus_chr : file_bus_t;
-    
-    signal data_from_file_prg : data_t;
-    signal data_from_file_chr : data_t;
+    signal file_bus       : file_bus_t;
+    signal data_from_file : data_t;
     
     signal audio_out : mixed_audio_t;
     signal pixel_bus : pixel_bus_t;
@@ -67,11 +64,8 @@ begin
         ppu_clk_en => ppu_clk_en,
         cpu_clk_en => cpu_clk_en,
         
-        file_bus_prg => file_bus_prg,
-        data_from_file_prg => data_from_file_prg,
-        
-        file_bus_chr => file_bus_chr,
-        data_from_file_chr => data_from_file_chr,
+        file_bus => file_bus,
+        data_from_file => data_from_file,
         
         pixel_bus => pixel_bus,
         audio => audio_out,
@@ -136,15 +130,13 @@ begin
     generic map
     (
        FILEPATH => NES_FILEPATH,
-       MEM_BYTES => NES_FILE_BYTES
+       MEM_BYTES => NES_FILE_BYTES,
+       READ_DELAY => 110 ns
     )
     port map
     (
-       file_bus_1 => file_bus_prg,
-       data_from_file_1 => data_from_file_prg,
-       
-       file_bus_2 => file_bus_chr,
-       data_from_file_2 => data_from_file_chr
+       file_bus_1 => file_bus,
+       data_from_file_1 => data_from_file
     );
     
     clk_50mhz_gen : clock
