@@ -65,7 +65,11 @@ begin
         end if;
         end process;
         
-        data_out <= ram(to_integer(reg_address));
+        data_out <=
+            -- pragma translate_off
+            (others => '-') when is_x(std_logic_vector(reg_address)) else
+            -- pragma translate_on
+            ram(to_integer(reg_address));
 
     end generate;
 
