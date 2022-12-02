@@ -9,8 +9,10 @@ use work.file_bus_types.all;
 entity file_memory is
 generic
 (
-    FILEPATH  : string;
-    MEM_BYTES : integer := 65536
+    FILEPATH    : string;
+    MEM_BYTES   : integer := 65536;
+    READ_DELAY  : time := 0 ns;
+    WRITE_DELAY : time := 0 ns
 );
 port
 (
@@ -54,18 +56,18 @@ begin
         
         if is_bus_read(file_bus_1)
         then
-            data_from_file_1 <= mem(to_integer(file_bus_1.address));
+            data_from_file_1 <= mem(to_integer(file_bus_1.address)) after READ_DELAY;
         elsif is_bus_write(file_bus_1)
         then
-            mem(to_integer(file_bus_1.address)) <= data_to_file_1;
+            mem(to_integer(file_bus_1.address)) <= data_to_file_1 after WRITE_DELAY;
         end if;
         
         if is_bus_read(file_bus_2)
         then
-            data_from_file_2 <= mem(to_integer(file_bus_2.address));
+            data_from_file_2 <= mem(to_integer(file_bus_2.address)) after READ_DELAY;
         elsif is_bus_write(file_bus_2)
         then
-            mem(to_integer(file_bus_2.address)) <= data_to_file_2;
+            mem(to_integer(file_bus_2.address)) <= data_to_file_2 after WRITE_DELAY;
         end if;
     end process;
 

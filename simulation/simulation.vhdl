@@ -86,8 +86,10 @@ package simulation is
     component file_memory is
     generic
     (
-        FILEPATH  : string;
-        MEM_BYTES : integer := 131072
+        FILEPATH    : string;
+        MEM_BYTES   : integer := 131072;
+        READ_DELAY  : time := 0 ns;
+        WRITE_DELAY : time := 0 ns
     );
     port
     (
