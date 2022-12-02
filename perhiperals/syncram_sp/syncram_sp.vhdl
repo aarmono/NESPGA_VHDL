@@ -31,13 +31,16 @@ architecture behavioral of syncram_sp is
     subtype ram_addr_t is unsigned(address'range);
 
     type ram_t is array(0 to RAM_SIZE-1) of ram_elem_t;
-    signal ram : ram_t;
 
 begin
 
     altera_syncram_sp : if VENDOR = VENDOR_ALTERA generate
 
+        signal ram : ram_t;
         signal reg_address : ram_addr_t := (others => '0');
+
+        attribute ramstyle : string;
+        attribute ramstyle of ram : signal is "no_rw_check";
 
     begin
 
