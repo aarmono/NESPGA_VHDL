@@ -2,16 +2,17 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
-use work.nes_core.all;
 use work.utilities.all;
 use work.perhipherals.all;
+use work.perhipheral_types.all;
 use work.file_bus_types.all;
+use work.soc.all;
 
 entity nes_de1 is
 port
 (
     CLOCK_50 : in std_logic;
-    CLOCK_24 : in std_logic;
+    CLOCK_24 : in std_logic_vector(1 downto 0);
 
     I2C_SDAT : out std_logic;
     I2C_SCLK : out std_logic;
@@ -30,11 +31,11 @@ end nes_de1;
 
 architecture behavioral of nes_de1 is
     
-    signal audio_out : mixed_out_t;
+    signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
     
-    signal reg_audio_cpu_clk : mixed_out_t := (others => '0');
-    signal reg_audio_aud_clk : mixed_out_t := (others => '0');
+    signal reg_audio_cpu_clk : mixed_audio_t := (others => '0');
+    signal reg_audio_aud_clk : mixed_audio_t := (others => '0');
 
     signal cpu_clk_en  : boolean;
     signal nes_running : boolean;
@@ -45,26 +46,25 @@ architecture behavioral of nes_de1 is
     
     signal flash_bus : file_bus_t;
 
-    component nes_pll is
+    component aud_pll is
     port
     (
         inclk0 : in std_logic;
-        c0     : out std_logic;
-        c1     : out std_logic
+        c0     : out std_logic
     );
-    end component nes_pll;
+    end component aud_pll;
     
 begin
     
     reset <= false;
 
-    fl_addr <= resize(flash_bus.address, fl_addr'length)
+    fl_addr <= resize(flash_bus.address, fl_addr'length);
     fl_we_n <= '1';
     fl_oe_n <= '0';
     fl_rst_n <= '1';
     
     -- Audio PLL {
-    pll : nes_pll
+    pll : aud_pll
     port map
     (
         inclk0 => CLOCK_50,
@@ -95,7 +95,7 @@ begin
     nes : nes_soc_ocram
     port map
     (
-        clk => CLOCK_50
+        clk_50mhz => CLOCK_50,
         reset => reset,
 
         nes_running => nes_running,
@@ -119,9 +119,9 @@ begin
     end if;
     end process;
 
-    process(aud_clk)
+    process(clk_aud)
     begin
-    if rising_edge(aud_clk)
+    if rising_edge(clk_aud)
     then
         reg_audio_aud_clk <= reg_audio_cpu_clk;
     end if;

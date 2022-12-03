@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
 use work.lib_wm8731.all;
+use work.perhipheral_types.all;
 
 entity wm8731 is
 port
