@@ -5,8 +5,14 @@ use work.nes_core.all;
 use work.binary_io.all;
 use work.au_file.all;
 use work.utilities.all;
+use work.nes_types.all;
 
 entity nsf_de1_bench is
+generic
+(
+    AU_FILEPATH  : string;
+    NSF_FILEPATH : string
+);
 end nsf_de1_bench;
 
 architecture behavioral of nsf_de1_bench is
@@ -42,7 +48,7 @@ begin
         I2C_SDAT => i2c_sdat,
         I2C_SCLK => i2c_sclk,
         
-        SW => "1111",
+        SW => "1111111111",
         
         FL_DQ => fl_dq,
         FL_ADDR => fl_addr,
@@ -58,7 +64,7 @@ begin
     if rising_edge(bclk) then
         if not aud_initialized
         then
-            au_fopen_16(audio_file, "C:\\GitHub\\NESPGA_VHDL\\sim\\out.au", x"00017700");
+            au_fopen_16(audio_file, AU_FILEPATH, x"00017700");
             aud_initialized <= true;
         end if;
         
@@ -86,7 +92,7 @@ begin
     begin
         if not mem_initialized
         then
-            byte_fopen(test_mem, "C:\\GitHub\\NESPGA_VHDL\\NSF\\Mario.nsf", read_mode);
+            byte_fopen(test_mem, NSF_FILEPATH, read_mode);
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then
