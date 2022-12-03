@@ -11,7 +11,6 @@ end nsf_de1_bench;
 
 architecture behavioral of nsf_de1_bench is
     signal clk_50 : std_logic := '0';
-    signal clk_aud : std_logic := '0';
     
     signal i2c_sdat : std_logic;
     signal i2c_sclk : std_logic;
@@ -35,23 +34,22 @@ architecture behavioral of nsf_de1_bench is
     signal aud_count : unsigned(3 downto 0) := x"F";
 begin
 
-    nsf : entity work.nsf_de1(behavioral)
+    nsf : entity work.nsf_top(behavioral)
     port map
     (
-        clk_50 => clk_50,
-        clk_aud => clk_aud,
+        CLOCK_50 => clk_50,
         
-        i2c_sdat => i2c_sdat,
-        i2c_sclk => i2c_sclk,
+        I2C_SDAT => i2c_sdat,
+        I2C_SCLK => i2c_sclk,
         
-        sw => "1111",
+        SW => "1111",
         
-        fl_dq => fl_dq,
-        fl_addr => fl_addr,
+        FL_DQ => fl_dq,
+        FL_ADDR => fl_addr,
         
-        aud_bclk => bclk,
-        aud_dacdat => dacdat,
-        aud_daclrck => daclrck
+        AUD_BCLK => bclk,
+        AUD_DACDAT => dacdat,
+        AUD_DACLRCK => daclrck
     );
     
     process(bclk)
@@ -112,14 +110,6 @@ begin
         while true loop
             clk_50 <= not clk_50;
             wait for 10 ns;
-        end loop;
-    end process;
-    
-    process
-    begin
-        while true loop
-            clk_aud <= not clk_aud;
-            wait for 27 ns;
         end loop;
     end process;
     
