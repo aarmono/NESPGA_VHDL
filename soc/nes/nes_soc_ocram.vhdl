@@ -27,6 +27,8 @@ port
 
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
+
+    cpu_ram_en : out boolean;
     
     file_bus       : out file_bus_t;
     data_from_file : in data_t;
@@ -152,6 +154,7 @@ begin
     begin
         sram_bus <= SRAM_BUS_IDLE;
         data_to_sram <= (others => '-');
+        cpu_ram_en <= false;
 
         sram : syncram_sp
         generic map
@@ -178,6 +181,7 @@ begin
         sram_bus <= sig_sram_bus;
         data_to_sram <= sig_data_to_sram;
         sig_data_from_sram <= data_from_sram;
+        cpu_ram_en <= sig_cpu_ram_en;
     end generate;
 
     ciram : syncram_sp
