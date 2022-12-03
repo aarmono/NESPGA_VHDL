@@ -64,24 +64,12 @@ package ps2 is
         key   => KEY_STATE_T_RESET
     );
 
-    function ps2_keyboard(state : keyboard_state_t;
-                          key   : key_state_t)
-             return keyboard_out_t;
-
-    component keyboard is
-    port
+    function next_keyboard_state
     (
-        clk           : in std_logic;
-        reset         : in boolean := false;
-
-        ps2_clk       : inout std_logic;
-        ps2_data      : inout std_logic;
-
-        ascii_out     : out std_logic_vector(7 downto 0);
-        ascii_out_clk : out std_logic;
-        ascii_pressed : out boolean 
-    );
-    end component;
+        state : keyboard_state_t;
+        key   : key_state_t
+    )
+    return keyboard_out_t;
 
 end ps2;
 
@@ -1330,9 +1318,12 @@ package body ps2 is
 
     end function;
 
-    function ps2_keyboard(state : keyboard_state_t;
-                          key : key_state_t)
-             return keyboard_out_t
+    function next_keyboard_state
+    (
+        state : keyboard_state_t;
+        key   : key_state_t
+    )
+    return keyboard_out_t
     is
         variable case_in    : std_logic_vector(9 downto 0);
         variable ret        : keyboard_out_t;

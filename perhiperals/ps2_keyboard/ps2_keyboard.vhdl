@@ -67,7 +67,7 @@ begin
                     ps2_state <= ps2_out.state;
                     if ps2_out.key.valid
                     then
-                        key_out := ps2_keyboard(key_state, ps2_out.key);
+                        key_out := next_keyboard_state(key_state, ps2_out.key);
                         key_state <= key_out.state;
                         if key_out.key.valid
                         then
