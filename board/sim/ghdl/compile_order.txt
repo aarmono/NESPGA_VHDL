@@ -75,6 +75,7 @@
 
 ../../../soc/nsf/lib_nsf.vhdl
 ../../../soc/nsf/nsf_soc.vhdl
+../../../soc/nsf/nsf_soc_ocram.vhdl
 
 ../../../soc/nes/lib_nes.vhdl
 ../../../soc/nes/file_bus_mux.vhdl

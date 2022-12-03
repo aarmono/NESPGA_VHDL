@@ -26,6 +26,8 @@ package soc is
         
         file_bus       : out file_bus_t;
         data_from_file : in data_t;
+
+        cpu_ram_en : out boolean;
         
         sram_bus       : out sram_bus_t;
         data_to_sram   : out data_t;
@@ -35,15 +37,39 @@ package soc is
         data_to_ram   : out data_t;
         data_from_ram : in data_t;
         
-        enable_square_1 : in boolean;
-        enable_square_2 : in boolean;
-        enable_triangle : in boolean;
-        enable_noise    : in boolean;
-        enable_dmc      : in boolean;
+        enable_square_1 : in boolean := true;
+        enable_square_2 : in boolean := true;
+        enable_triangle : in boolean := true;
+        enable_noise    : in boolean := true;
+        enable_dmc      : in boolean := true;
         
         audio : out mixed_audio_t
     );
     end component nsf_soc;
+
+    component nsf_soc_ocram is
+    port
+    (
+        clk_50mhz : in std_logic;
+        reset_in  : in boolean;
+        
+        reset_out : out boolean;
+        
+        next_stb : in std_logic;
+        prev_stb : in std_logic;
+        
+        file_bus       : out file_bus_t;
+        data_from_file : in data_t;
+        
+        enable_square_1 : in boolean := true;
+        enable_square_2 : in boolean := true;
+        enable_triangle : in boolean := true;
+        enable_noise    : in boolean := true;
+        enable_dmc      : in boolean := true;
+        
+        audio : out mixed_audio_t
+    );
+    end component nsf_soc_ocram;
     
     component nes_soc is
     port
