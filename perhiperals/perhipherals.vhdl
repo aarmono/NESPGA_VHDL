@@ -42,6 +42,21 @@ package perhipherals is
     );
     end component syncram_sp;
 
+    component ps2_keyboard is
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean := false;
+
+        ps2_clk  : inout std_logic;
+        ps2_data : inout std_logic;
+
+        ascii_out     : out std_logic_vector(7 downto 0);
+        ascii_out_clk : out std_logic;
+        ascii_pressed : out boolean 
+    );
+    end component ps2_keyboard;
+
 end perhipherals;
 
 package body perhipherals is
