@@ -19,20 +19,8 @@ generic
 end nsf_bench;
 
 architecture behavioral of nsf_bench is
-    type ram_t is array(0 to 16#7FF#) of data_t;
-    type sram_t is array(0 to 16#1FFF#) of data_t;
     
-    signal ram : ram_t;
-    signal sram : sram_t;
-    
-    signal ram_bus     : ram_bus_t;
-    signal sram_bus    : sram_bus_t;
     signal file_bus    : file_bus_t;
-    
-    signal data_to_sram     : data_t;
-    signal data_from_sram   : data_t;
-    signal data_to_ram      : data_t;
-    signal data_from_ram    : data_t;
     signal data_from_file   : data_t;
     
     signal audio_out : mixed_audio_t;
@@ -48,7 +36,7 @@ architecture behavioral of nsf_bench is
     signal enable_dmc      : boolean := true;
 begin
 
-    soc : nsf_soc
+    soc : nsf_soc_ocram
     port map
     (
         clk_50mhz => clk_50mhz,
@@ -61,14 +49,6 @@ begin
         
         file_bus => file_bus,
         data_from_file => data_from_file,
-        
-        sram_bus => sram_bus,
-        data_to_sram => data_to_sram,
-        data_from_sram => data_from_sram,
-        
-        ram_bus => ram_bus,
-        data_to_ram => data_to_ram,
-        data_from_ram => data_from_ram,
         
         enable_square_1 => enable_square_1,
         enable_square_2 => enable_square_2,
@@ -104,30 +84,6 @@ begin
        file_bus_1 => file_bus,
        data_from_file_1 => data_from_file
     );
-    -- }
-    
-    -- RAM {
-    process(all)
-    begin
-        if is_bus_write(sram_bus)
-        then
-            sram(to_integer(sram_bus.address)) <= data_to_sram;
-        elsif is_bus_read(sram_bus)
-        then
-            data_from_sram <= sram(to_integer(sram_bus.address));
-        end if;
-    end process;
-    
-    process(all)
-    begin
-        if is_bus_write(ram_bus)
-        then
-            ram(to_integer(ram_bus.address)) <= data_to_ram;
-        elsif is_bus_read(ram_bus)
-        then
-            data_from_ram <= ram(to_integer(ram_bus.address));
-        end if;
-    end process;
     -- }
     
     -- Clock {
