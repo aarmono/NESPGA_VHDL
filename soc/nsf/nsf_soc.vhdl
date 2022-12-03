@@ -157,6 +157,8 @@ begin
         nsf_in.bus_in.data_from_file := data_from_file;
         -- No PPU
         nsf_in.bus_in.data_from_ppu := (others => '-');
+        -- No joystick
+        nsf_in.bus_in.data_from_joy := (others => '-');
         
         nsf_in.enable_square_1 := enable_square_1;
         nsf_in.enable_square_2 := enable_square_2;
@@ -196,8 +198,8 @@ begin
     -- Register update process {
     process(clk_50mhz)
     begin
-    if rising_edge(clk_50mhz) and cpu_en
-    then
+    if rising_edge(clk_50mhz) then
+    if cpu_en then
         if reset_in
         then
             reg <= RESET_REG;
@@ -205,14 +207,15 @@ begin
             reg <= reg_in;
         end if;
     end if;
+    end if;
     end process;
     -- }
     
     -- Song selector {
     process(clk_50mhz)
     begin
-    if rising_edge(clk_50mhz) and nsf_en
-    then
+    if rising_edge(clk_50mhz) then
+    if nsf_en then
         if reset_in
         then
             song_sel_reg <= RESET_SONG_SEL;
@@ -220,10 +223,11 @@ begin
             song_sel_reg <= cycle_song_sel(song_sel_reg,
                                            next_stb,
                                            prev_stb,
-                                           audio);
+                                           mixed_audio);
         end if;
         
         nsf_reg <= nsf_reg_in;
+    end if;
     end if;
     end process;
     

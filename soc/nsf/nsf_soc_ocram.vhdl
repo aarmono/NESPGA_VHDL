@@ -51,6 +51,8 @@ begin
     (
         clk_50mhz => clk_50mhz,
         reset_in => reset_in,
+        
+        reset_out => reset_out,
 
         next_stb => next_stb,
         prev_stb => prev_stb,
