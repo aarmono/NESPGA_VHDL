@@ -297,6 +297,8 @@ package lib_ppu is
         sprite_0_hit     : boolean;
         -- True if the scanline render buffers presently contain sprite zero
         sprite_0_buffer  : boolean;
+        -- Bus address used for $2007 reads
+        chr_bus          : chr_bus_t;
     end record;
     
     constant RESET_PPU_REG : ppu_reg_t :=
@@ -326,7 +328,8 @@ package lib_ppu is
         count => (others => '0'),
         sec_oam_addr => (others => '0'),
         sprite_0_hit => false,
-        sprite_0_buffer => false
+        sprite_0_buffer => false,
+        chr_bus => CHR_BUS_IDLE
     );
     
     function reload_pattern_table
@@ -1754,7 +1757,7 @@ package body lib_ppu is
                     -- though, but the data placed in it is the mirrored
                     -- nametable data that would appear "underneath" the palette.
                     render_out.chr_bus := bus_read(v_ppu_chr_addr);
-                    render_out.reg.ppu_data := render_in.data_from_chr;
+                    render_out.reg.chr_bus := render_out.chr_bus;
 
                     -- After access, the video memory address will increment
                     -- by an amount determined by bit 2 of $2000.
@@ -1862,6 +1865,15 @@ package body lib_ppu is
         -- cycle it would be output
         render_out.vint := render_out.reg.status.vbl and
                            render_out.reg.control.vbl_enable;
+
+        if is_bus_active(render_in.reg.chr_bus)
+        then
+            render_out.chr_bus := render_in.reg.chr_bus;
+            render_out.reg.chr_bus := CHR_BUS_IDLE;
+
+            -- Update the PPUDATA register for the next access
+            render_out.reg.ppu_data := render_in.data_from_chr;
+        end if;
         
         return render_out;
     end;
