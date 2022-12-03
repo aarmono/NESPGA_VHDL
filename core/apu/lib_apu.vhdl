@@ -48,7 +48,6 @@ package lib_apu is
         reg         : reg_t;
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
-        reset       : boolean;
         odd_cycle   : boolean
     )
     return apu_output_t;
@@ -62,7 +61,6 @@ package body lib_apu is
         reg         : reg_t;
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
-        reset       : boolean;
         odd_cycle   : boolean
     )
     return apu_output_t
@@ -232,10 +230,6 @@ package body lib_apu is
 
         -- Update the frame interrupt at the end
         v_reg.frame_seq := update_frame_irq(v_reg.frame_seq);
-        
-        if reset then
-            v_reg := RESET_REG;
-        end if;
         
         ret.reg := v_reg;
         ret.audio := v_audio;

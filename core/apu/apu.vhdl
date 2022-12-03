@@ -38,7 +38,7 @@ begin
         variable v_output : apu_output_t;
     begin
 
-        v_output := cycle_apu(reg, cpu_bus, data_to_apu, reset, clk_odd);
+        v_output := cycle_apu(reg, cpu_bus, data_to_apu, clk_odd);
 
         reg_in <= v_output.reg;
         audio <= v_output.audio;
@@ -54,7 +54,12 @@ begin
     -- double-IF required for synthesis
     if rising_edge(clk) then
     if clk_en then
-        reg <= reg_in;
+        if reset
+        then
+            reg <= RESET_REG;
+        else
+            reg <= reg_in;
+        end if;
     end if;
     end if;
     end process;
