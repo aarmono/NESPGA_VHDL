@@ -1,5 +1,7 @@
 db
 incremental_db
+simulation
 *.summary
 *.done
 *.rpt
+*.smsg
