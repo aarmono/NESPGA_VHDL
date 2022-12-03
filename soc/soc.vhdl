@@ -62,10 +62,6 @@ package soc is
         file_bus       : out file_bus_t;
         data_from_file : in data_t;
         
-        sram_bus       : out sram_bus_t;
-        data_to_sram   : out data_t;
-        data_from_sram : in data_t;
-        
         prg_ram_bus       : out ram_bus_t;
         data_to_prg_ram   : out data_t;
         data_from_prg_ram : in data_t;
@@ -101,6 +97,10 @@ package soc is
 
     -- Variant of nes_soc that uses on-chip RAM
     component nes_soc_ocram is
+    generic
+    (
+        USE_EXT_SRAM : boolean := false
+    );
     port
     (
         clk_50mhz : in std_logic;
@@ -113,6 +113,10 @@ package soc is
 
         file_bus       : out file_bus_t;
         data_from_file : in data_t;
+        
+        sram_bus       : out sram_bus_t;
+        data_to_sram   : out data_t;
+        data_from_sram : in data_t := (others => '-');
 
         pixel_bus : out pixel_bus_t;
         audio     : out mixed_audio_t;

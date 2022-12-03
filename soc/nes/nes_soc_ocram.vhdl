@@ -14,6 +14,10 @@ use work.utilities.all;
 use work.perhipherals.all;
 
 entity nes_soc_ocram is
+generic
+(
+    USE_EXT_SRAM : boolean := false
+);
 port
 (
     clk_50mhz : in std_logic;
@@ -26,7 +30,11 @@ port
     
     file_bus       : out file_bus_t;
     data_from_file : in data_t;
-    
+
+    sram_bus       : out sram_bus_t;
+    data_to_sram   : out data_t;
+    data_from_sram : in data_t := (others => '-');
+
     pixel_bus : out pixel_bus_t;
     audio     : out mixed_audio_t;
 
@@ -45,8 +53,11 @@ architecture behavioral of nes_soc_ocram is
     signal sig_cpu_ram_en : boolean;
     signal sig_ppu_ram_en : boolean;
     
+    signal sig_sram_bus       : sram_bus_t;
+    signal sig_data_to_sram   : data_t;
+    signal sig_data_from_sram : data_t;
+
     signal prg_ram_bus  : ram_bus_t;
-    signal sram_bus     : sram_bus_t;
     signal oam_bus      : oam_bus_t;
     signal sec_oam_bus  : sec_oam_bus_t;
     signal palette_bus  : palette_bus_t;
@@ -54,8 +65,6 @@ architecture behavioral of nes_soc_ocram is
     
     signal data_to_prg_ram    : data_t;
     signal data_from_prg_ram  : data_t;
-    signal data_to_sram       : data_t;
-    signal data_from_sram     : data_t;
     signal data_to_oam        : data_t;
     signal data_from_oam      : data_t;
     signal data_to_sec_oam    : data_t;
@@ -84,9 +93,9 @@ begin
         file_bus => file_bus,
         data_from_file => data_from_file,
         
-        sram_bus => sram_bus,
-        data_to_sram => data_to_sram,
-        data_from_sram => data_from_sram,
+        sram_bus => sig_sram_bus,
+        data_to_sram => sig_data_to_sram,
+        data_from_sram => sig_data_from_sram,
         
         prg_ram_bus => prg_ram_bus,
         data_to_prg_ram => data_to_prg_ram,
@@ -139,24 +148,37 @@ begin
         data_out => data_from_prg_ram
     );
 
-    sram : syncram_sp
-    generic map
-    (
-        ADDR_BITS => sram_addr_t'length,
-        DATA_BITS => data_t'length
-    )
-    port map
-    (
-        clk => clk_50mhz,
-        clk_en => sig_cpu_ram_en,
+    gen_sram : if not USE_EXT_SRAM generate
+    begin
+        sram_bus <= SRAM_BUS_IDLE;
+        data_to_sram <= (others => '-');
 
-        address => sram_bus.address,
-        read => sram_bus.read,
-        write => sram_bus.write,
+        sram : syncram_sp
+        generic map
+        (
+            ADDR_BITS => sram_addr_t'length,
+            DATA_BITS => data_t'length
+        )
+        port map
+        (
+            clk => clk_50mhz,
+            clk_en => sig_cpu_ram_en,
 
-        data_in => data_to_sram,
-        data_out => data_from_sram
-    );
+            address => sig_sram_bus.address,
+            read => sig_sram_bus.read,
+            write => sig_sram_bus.write,
+
+            data_in => sig_data_to_sram,
+            data_out => sig_data_from_sram
+        );
+    end generate;
+
+    drive_sram : if USE_EXT_SRAM generate
+    begin
+        sram_bus <= sig_sram_bus;
+        data_to_sram <= sig_data_to_sram;
+        sig_data_from_sram <= data_from_sram;
+    end generate;
 
     ciram : syncram_sp
     generic map
