@@ -1,19 +1,20 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.de1_types.all;
+use work.nes_types.all;
 use work.utilities.all;
+use work.de1_types.all;
 
 entity vga_gen is
 port
 (
-    clk         : in std_logic;
-    reset       : in boolean;
-    
-    ppu_clk     : in std_logic;
-    ppu_valid   : in boolean;
-    ppu_in      : in vga_color_t;
-    
+    clk     : in std_logic;
+    reset   : in boolean;
+
+    sram_dq   : in std_logic_vector(15 downto 0);
+    sram_addr : out std_logic_vector(17 downto 0);
+    sram_oe_n : out std_logic;
+
     vga_out     : out vga_out_t
 );
 end vga_gen;
@@ -32,16 +33,32 @@ is
         row => (others => '0'),
         col => (others => '0')
     );
+
+    type reg_t is record
+        cur_time   : video_time_t;
+        pixel_addr : pixel_addr_t;
+        vga_out    : vga_out_t;
+    end record;
+    
+    constant RESET_REG : reg_t :=
+    (
+        cur_time => TIME_ZERO,
+        pixel_addr => (others => '0'),
+        vga_out => VGA_RESET
+    );
     
     constant LINE_SYNC_TIME         : time_t := to_unsigned(64, time_t'LENGTH);
-    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(80, time_t'LENGTH);
-    constant LINE_ACTIVE_TIME       : time_t := to_unsigned(640, time_t'LENGTH);
+    -- Normally 80 for 640 pixels, but 144 for 512
+    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(144, time_t'LENGTH);
+    -- Normally 640, but NES is 512
+    constant LINE_ACTIVE_TIME       : time_t := to_unsigned(512, time_t'LENGTH);
+    -- Normally 16 for 640 pixels, but 80 for 512
     constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(16, time_t'LENGTH);
     
-    constant FRAME_SYNC_TIME         : time_t := to_unsigned(3, time_t'LENGTH);
+    constant FRAME_SYNC_TIME         : time_t := to_unsigned(4, time_t'LENGTH);
     constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(13, time_t'LENGTH);
     constant FRAME_ACTIVE_TIME       : time_t := to_unsigned(480, time_t'LENGTH);
-    constant FRAME_FRONT_PORCH_TIME  : time_t := to_unsigned(1, time_t'LENGTH);
+    constant FRAME_FRONT_PORCH_TIME  : time_t := to_unsigned(3, time_t'LENGTH);
     
     constant V_ACTIVE_START          : time_t := FRAME_SYNC_TIME +
                                                  FRAME_BACK_PORCH_TIME;
@@ -189,125 +206,97 @@ is
         return ret;
     end;
     
-    function average(val1 : vga_color_t; val2 : vga_color_t) return vga_color_t
-    is
-        variable red : unsigned(4 downto 0);
-        variable green : unsigned(4 downto 0);
-        variable blue : unsigned(4 downto 0);
-        variable ret : vga_color_t;
-    begin
-        red := resize(unsigned(val1.red), red'LENGTH) + unsigned(val2.red);
-        green := resize(unsigned(val1.green), green'LENGTH) + unsigned(val2.green);
-        blue := resize(unsigned(val1.blue), blue'LENGTH) + unsigned(val2.blue);
-        
-        ret.red := std_logic_vector(red(4 downto 1));
-        ret.green := std_logic_vector(green(4 downto 1));
-        ret.blue := std_logic_vector(blue(4 downto 1));
-        
-        return ret;
-    end;
-    
-    type reg_t is record
-        cur_time : video_time_t;
-        vga_out  : vga_out_t;
-    end record;
-    
-    constant RESET_REG : reg_t :=
-    (
-        cur_time => TIME_ZERO,
-        vga_out => VGA_RESET
-    );
-    
     signal reg : reg_t := RESET_REG;
-    
-    type ram_t is array (0 to 511) of vga_color_t;
-    signal ram        : ram_t;
-    signal write_addr : unsigned(8 downto 0);
-    signal read_pix   : unsigned(7 downto 0);
-    signal avg_count  : unsigned(1 downto 0);
-    signal prev_val   : vga_color_t;
+    signal reg_next : reg_t;
     
 begin
 
     vga_out <= reg.vga_out;
     
-    process(clk)
+    process(all)
         variable v_vert_state : vert_state_t := V_FRONT;
         variable v_horz_state : horz_state_t := H_FRONT;
-        variable v_cur_time   : video_time_t;
-        variable v_read_addr  : unsigned(8 downto 0) := (others => '-');
-        variable v_mem        : vga_color_t := COLOR_BLACK;
-        variable v_pix_row    : unsigned(9 downto 0) := (others => '-');
+
+        constant MAX_ROW : unsigned(7 downto 0) := to_unsigned(239, 8);
+
+        alias ppu_pixel_row : unsigned(7 downto 0) is reg.pixel_addr(15 downto 8);
+        alias ppu_pixel_col : unsigned(7 downto 0) is reg.pixel_addr(7 downto 0);
+
+        alias next_ppu_pixel_row : unsigned(7 downto 0) is reg_next.pixel_addr(15 downto 8);
+        alias next_ppu_pixel_col : unsigned(7 downto 0) is reg_next.pixel_addr(7 downto 0);
     begin
-    if rising_edge(clk) then
-        v_cur_time := reg.cur_time;
-        v_vert_state := get_vert_state(v_cur_time);
-        v_horz_state := get_horz_state(v_cur_time);
+        v_vert_state := get_vert_state(reg.cur_time);
+        v_horz_state := get_horz_state(reg.cur_time);
         
-        reg.vga_out.v_sync <= get_v_sync(v_vert_state);
-        reg.vga_out.h_sync <= get_h_sync(v_horz_state);
+        reg_next <= reg;
+        reg_next.vga_out.v_sync <= get_v_sync(v_vert_state);
+        reg_next.vga_out.h_sync <= get_h_sync(v_horz_state);
+        reg_next.vga_out.lval <= false;
+        reg_next.vga_out.fval <= false;
+
+        sram_oe_n <= '1';
+        sram_addr <= std_logic_vector(resize(reg.pixel_addr, sram_addr'length));
         
         case v_vert_state is
             when V_FRONT =>
-                reg.vga_out.color <= COLOR_BLACK;
+                reg_next.vga_out.color <= COLOR_BLACK;
+                reg_next.vga_out.fval <= false;
             when V_SYNC =>
-                reg.vga_out.color <= COLOR_BLACK;
+                reg_next.vga_out.color <= COLOR_BLACK;
+                reg_next.vga_out.fval <= false;
             when V_ACTIVE =>
+                reg_next.vga_out.fval <= true;
                 case v_horz_state is
                     when H_FRONT =>
-                        reg.vga_out.color <= COLOR_BLACK;
+                        reg_next.vga_out.color <= COLOR_BLACK;
+                        reg_next.vga_out.lval <= false;
                     when H_SYNC =>
-                        reg.vga_out.color <= COLOR_BLACK;
+                        reg_next.vga_out.color <= COLOR_BLACK;
+                        reg_next.vga_out.lval <= false;
                     when H_ACTIVE =>
-                        v_pix_row := v_cur_time.row - V_ACTIVE_START;
-                        
-                        v_read_addr := v_pix_row(1) & read_pix;
-                        v_mem := ram(to_integer(v_read_addr));
-                        if avg_count = to_unsigned(1, 2)
+                        sram_oe_n <= '0';
+
+                        reg_next.vga_out.color.red <= sram_dq(11 downto 8);
+                        reg_next.vga_out.color.green <= sram_dq(7 downto 4);
+                        reg_next.vga_out.color.blue <= sram_dq(3 downto 0);
+                        reg_next.vga_out.lval <= true;
+
+                        if reg.cur_time.col(0) = '1'
                         then
-                            prev_val <= v_mem;
-                            reg.vga_out.color <= v_mem;
-                            read_pix <= read_pix + "1";
-                            avg_count <= avg_count + "1";
-                        elsif avg_count = to_unsigned(2, 2)
-                        then
-                            reg.vga_out.color <= average(v_mem, prev_val);
-                            avg_count <= ZERO(avg_count);
-                        else
-                            reg.vga_out.color <= v_mem;
-                            avg_count <= avg_count + "1";
+                            next_ppu_pixel_col <= ppu_pixel_col + "1";
                         end if;
                     when H_BACK =>
-                        reg.vga_out.color <= COLOR_BLACK;
-                        
+                        reg_next.vga_out.color <= COLOR_BLACK;
+                        reg_next.vga_out.lval <= false;
                 end case;
+
+                if reg.cur_time.col = LINE_END and reg.cur_time.row(0) = '0'
+                then
+                    if ppu_pixel_row = MAX_ROW
+                    then
+                        next_ppu_pixel_row <= (others => '0');
+                    else
+                        next_ppu_pixel_row <= ppu_pixel_row + "1";
+                    end if;
+                end if;
                 
             when V_BACK =>
-                reg.vga_out.color <= COLOR_BLACK;
+                reg_next.vga_out.fval <= false;
+                reg_next.vga_out.color <= COLOR_BLACK;
         end case;
         
-        reg.cur_time <= incr_time(v_cur_time);
-        
-        if reset
-        then
-            reg <= RESET_REG;
-            avg_count <= ZERO(avg_count);
-            read_pix <= ZERO(read_pix);
-        end if;
-    
-    end if;
+        reg_next.cur_time <= incr_time(reg.cur_time);
     end process;
-    
-    process(ppu_clk) begin
-    if rising_edge(ppu_clk)
+
+    process(clk)
+    begin
+    if rising_edge(clk)
     then
         if reset
         then
-            write_addr <= ZERO(write_addr);
-        elsif ppu_valid
-        then
-            ram(to_integer(write_addr)) <= ppu_in;
-            write_addr <= write_addr + "1";
+            reg <= RESET_REG;
+        else
+            reg <= reg_next;
         end if;
     end if;
     end process;

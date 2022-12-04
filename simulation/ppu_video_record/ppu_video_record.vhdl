@@ -142,11 +142,11 @@ begin
             then
                 frame_num := frame_num + 1;
                 scanline_num := 0;
-                bmp_fopen(bmp_file,
-                          FILE_PREFIX & "_" & format_frame_num(frame_num, 5) & ".bmp",
-                          WIDTH,
-                          HEIGHT,
-                          palette);
+                bmp_fopen_indexed(bmp_file,
+                                  FILE_PREFIX & "_" & format_frame_num(frame_num, 5) & ".bmp",
+                                  WIDTH,
+                                  HEIGHT,
+                                  palette);
             elsif (not pixel_bus.frame_valid) and prev_frame_valid
             then
                 bmp_fclose(bmp_file);
@@ -166,7 +166,7 @@ begin
                 if pixel_bus.line_valid
                 then
                     pixel_val := "00" & pixel_bus.pixel;
-                    bmp_fwrite(bmp_file, pixel_val);
+                    bmp_fwrite_indexed(bmp_file, pixel_val);
 
                     pixel_num := pixel_num + 1;
                 end if;

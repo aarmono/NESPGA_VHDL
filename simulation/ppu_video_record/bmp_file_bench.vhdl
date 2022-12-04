@@ -34,7 +34,7 @@ begin
                 x"00" & std_logic_vector(palette_val & palette_val & palette_val);
         end loop;
 
-        bmp_fopen(bitmap, FILEPATH, WIDTH, HEIGHT, palette);
+        bmp_fopen_indexed(bitmap, FILEPATH, WIDTH, HEIGHT, palette);
 
         for y in 1 to to_integer(HEIGHT)
         loop
@@ -42,7 +42,7 @@ begin
             loop
                 pixel := to_unsigned(x, pixel_idx_t'length) +
                          to_unsigned(y, pixel_idx_t'length);
-                bmp_fwrite(bitmap, std_logic_vector(pixel));
+                bmp_fwrite_indexed(bitmap, std_logic_vector(pixel));
             end loop;
         end loop;
 

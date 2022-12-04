@@ -1,14 +1,16 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
---use work.lib_wm8731.all;
+use work.nes_types.all;
 
 package de1_types is
     
+    subtype vga_channel_t is std_logic_vector(3 downto 0);
+
     type vga_color_t is record
-        red   : std_logic_vector(3 downto 0);
-        green : std_logic_vector(3 downto 0);
-        blue  : std_logic_vector(3 downto 0);
+        red   : vga_channel_t;
+        green : vga_channel_t;
+        blue  : vga_channel_t;
     end record;
     
     constant COLOR_BLACK : vga_color_t :=
@@ -29,52 +31,60 @@ package de1_types is
         color  : vga_color_t;
         h_sync : std_logic;
         v_sync : std_logic;
+        lval   : boolean;
+        fval   : boolean;
     end record;
     
     constant VGA_RESET : vga_out_t :=
     (
         color => COLOR_BLACK,
         h_sync => '1',
-        v_sync => '1'
+        v_sync => '1',
+        lval => false,
+        fval => false
     );
-    
---    component wm8731 is
---    port
---    (
---        clk      : in std_logic;
---        reset    : in boolean;
---        
---        audio    : in wm_audio_t;
---        
---        sclk     : out std_logic;
---        sdat     : out std_logic;
---        bclk     : out std_logic;
---        dac_dat  : out std_logic;
---        dac_lrck : out std_logic
---    );
---    end component wm8731;
+
+    subtype pixel_addr_t is unsigned(15 downto 0);
+    constant PIXEL_ADDR_MAX : pixel_addr_t :=
+        to_unsigned(61439, pixel_addr_t'length);
     
     component vga_gen is
     port
     (
-        clk            : in std_logic;
-        reset          : in boolean;
-        
-        ppu_clk        : in std_logic;
-        ppu_valid      : in boolean;
-        ppu_in         : in vga_color_t;
-        
-        vga_out        : out vga_out_t
+        clk     : in std_logic;
+        reset   : in boolean;
+
+        sram_dq   : in std_logic_vector(15 downto 0);
+        sram_addr : out std_logic_vector(17 downto 0);
+        sram_oe_n : out std_logic;
+
+        vga_out     : out vga_out_t
     );
     end component vga_gen;
-    
-    component main_pll is
+
+    component ppu_video_ram_mux is
     port
     (
-        inclk0 : in std_logic;
-        c0     : out std_logic
+        clk_50mhz : in std_logic;
+        reset     : in boolean;
+
+        sram_dq   : inout std_logic_vector(15 downto 0);
+        sram_addr : out std_logic_vector(17 downto 0);
+        sram_lb_n : out std_logic;
+        sram_ub_n : out std_logic;
+        sram_oe_n : out std_logic;
+        sram_we_n : out std_logic;
+
+        ppu_clk_en  : in boolean;
+        pixel_bus   : in pixel_bus_t;
+
+        data_to_vga    : out std_logic_vector(15 downto 0);
+        vga_sram_addr  : in std_logic_vector(17 downto 0);
+        vga_sram_oe_n  : in std_logic;
+
+        vga_line_valid : in boolean
     );
-    end component main_pll;
+    end component ppu_video_ram_mux;
     
 end de1_types;
 

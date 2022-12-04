@@ -8,12 +8,14 @@ use work.perhipheral_types.all;
 use work.file_bus_types.all;
 use work.sram_bus_types.all;
 use work.soc.all;
+use work.de1_types.all;
 
 entity nes_de1 is
 port
 (
-    CLOCK_50 : in std_logic;
-    CLOCK_24 : in std_logic_vector(1 downto 0);
+    CLOCK_50  : in std_logic;
+    CLOCK_24  : in std_logic;
+    CLOCK_AUD : in std_logic;
 
     I2C_SDAT : out std_logic;
     I2C_SCLK : out std_logic;
@@ -31,6 +33,14 @@ port
     SRAM_CE_N : out std_logic;
     SRAM_OE_N : out std_logic;
     SRAM_WE_N : out std_logic;
+
+    VGA_R    : out std_logic_vector(3 downto 0);
+    VGA_G    : out std_logic_vector(3 downto 0);
+    VGA_B    : out std_logic_vector(3 downto 0);
+    VGA_HS   : out std_logic;
+    VGA_VS   : out std_logic;
+    VGA_LVAL : out std_logic;
+    VGA_FVAL : out std_logic;
     
     AUD_BCLK    : out std_logic;
     AUD_DACDAT  : out std_logic;
@@ -42,67 +52,51 @@ architecture behavioral of nes_de1 is
     
     signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
+
+    signal pixel_bus : pixel_bus_t;
+
+    signal vga_sram_dq   : std_logic_vector(SRAM_DQ'range);
+    signal vga_sram_addr : std_logic_vector(SRAM_ADDR'range);
+    signal vga_sram_oe_n : std_logic;
     
+    signal vga_out : vga_out_t;
+
     signal reg_audio_cpu_clk : mixed_audio_t := (others => '0');
     signal reg_audio_aud_clk : mixed_audio_t := (others => '0');
 
     signal cpu_clk_en  : boolean;
+    signal ppu_clk_en  : boolean;
+
     signal nes_running : boolean;
-    signal cpu_ram_en  : boolean;
 
     signal reset : boolean;
     
-    signal clk_aud  : std_logic;
-    
     signal flash_bus : file_bus_t;
-    
-    signal sram_bus       : sram_bus_t;
-    signal data_to_sram   : data_t;
-    signal data_from_sram : data_t;
-    
-    signal reg_sram_addr : std_logic_vector(SRAM_ADDR'range) := (others => '0');
-    signal reg_sram_oe_n : std_logic := '1';
-    signal reg_sram_we_n : std_logic := '1';
-
-    component aud_pll is
-    port
-    (
-        inclk0 : in std_logic;
-        c0     : out std_logic
-    );
-    end component aud_pll;
     
 begin
     
     reset <= false;
 
-    fl_addr <= resize(flash_bus.address, fl_addr'length);
-    fl_we_n <= '1';
-    fl_oe_n <= '0';
-    fl_rst_n <= '1';
-    
-    SRAM_CE_N <= '0';
-    SRAM_LB_N <= '0';
-    SRAM_UB_N <= '1';
-    
-    SRAM_WE_N <= reg_sram_oe_n;
-    SRAM_OE_N <= reg_sram_oe_n;
-    SRAM_ADDR <= reg_sram_addr;
-    
-    -- Audio PLL {
-    pll : aud_pll
-    port map
-    (
-        inclk0 => CLOCK_50,
-        c0 => clk_aud
-    );
-    -- }
+    FL_ADDR <= resize(flash_bus.address, fl_addr'length);
+    FL_WE_N <= '1';
+    FL_OE_N <= not to_std_logic(is_bus_read(flash_bus));
+    FL_RST_N <= '1';
+
+    SRAM_CE_N <= '1';
+
+    VGA_R <= vga_out.color.red;
+    VGA_G <= vga_out.color.green;
+    VGA_B <= vga_out.color.blue;
+    VGA_HS <= vga_out.h_sync;
+    VGA_VS <= vga_out.v_sync;
+    VGA_LVAL <= to_std_logic(vga_out.lval);
+    VGA_FVAL <= to_std_logic(vga_out.fval);
     
     -- WM8731 interface {
     aud_out : wm8731
     port map
     (
-        clk => clk_aud,
+        clk => CLOCK_AUD,
         reset => reset,
         
         audio => audio,
@@ -118,10 +112,46 @@ begin
     
     audio <= "0" & std_logic_vector(reg_audio_aud_clk) & "0000000";
 
+    vram_mux : ppu_video_ram_mux
+    port map
+    (
+        clk_50mhz => CLOCK_50,
+        reset => reset,
+
+        sram_dq => SRAM_DQ,
+        sram_addr => SRAM_ADDR,
+        sram_lb_n => SRAM_LB_N,
+        sram_ub_n => SRAM_UB_N,
+        sram_oe_n => SRAM_OE_N,
+        sram_we_n => SRAM_WE_N,
+
+        ppu_clk_en => ppu_clk_en,
+        pixel_bus  => pixel_bus,
+
+        data_to_vga => vga_sram_dq,
+        vga_sram_addr => vga_sram_addr,
+        vga_sram_oe_n => vga_sram_oe_n,
+
+        vga_line_valid => vga_out.lval
+    );
+
+    vga : vga_gen
+    port map
+    (
+        clk => CLOCK_24,
+        reset => reset,
+
+        sram_dq => vga_sram_dq,
+        sram_addr => vga_sram_addr,
+        sram_oe_n => vga_sram_oe_n,
+
+        vga_out => vga_out
+    );
+
     nes : nes_soc_ocram
     generic map
     (
-        USE_EXT_SRAM => true
+        USE_EXT_SRAM => false
     )
     port map
     (
@@ -131,44 +161,14 @@ begin
         nes_running => nes_running,
 
         cpu_clk_en => cpu_clk_en,
-        cpu_ram_en => cpu_ram_en,
+        ppu_clk_en => ppu_clk_en,
 
         file_bus => flash_bus,
         data_from_file => FL_DQ,
-        
-        sram_bus => sram_bus,
-        data_to_sram => data_to_sram,
-        data_from_sram => data_from_sram,
 
+        pixel_bus => pixel_bus,
         audio => audio_out
     );
-    
-    process(CLOCK_50)
-    begin
-    if rising_edge(CLOCK_50) then
-    if cpu_ram_en then
-        reg_sram_addr <= resize(sram_bus.address, SRAM_ADDR'length);
-        reg_sram_oe_n <= not to_std_logic(sram_bus.read);
-        reg_sram_oe_n <= not to_std_logic(sram_bus.write);
-    end if;
-    end if;
-    end process;
-    
-    process(all)
-    begin
-        if reg_sram_oe_n
-        then
-            SRAM_DQ <= (others => 'Z');
-            data_from_sram <= SRAM_DQ(data_from_sram'range);
-        elsif reg_sram_we_n
-        then
-            SRAM_DQ <= resize(data_to_sram, SRAM_DQ'length);
-            data_from_sram <= (others => '-');
-        else
-            SRAM_DQ <= (others => 'Z');
-            data_from_sram <= (others => '-');
-        end if;
-    end process;
 
     process(CLOCK_50)
     begin
@@ -181,9 +181,9 @@ begin
     end if;
     end process;
 
-    process(clk_aud)
+    process(CLOCK_AUD)
     begin
-    if rising_edge(clk_aud)
+    if rising_edge(CLOCK_AUD)
     then
         reg_audio_aud_clk <= reg_audio_cpu_clk;
     end if;
