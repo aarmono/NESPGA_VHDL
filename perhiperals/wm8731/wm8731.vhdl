@@ -22,15 +22,6 @@ port
 end wm8731;
 
 architecture behavioral of wm8731 is
-    type reg_t is record
-        data    : wm8731_dat_t;
-        audio   : wm8731_aud_t;
-        count   : unsigned(wm_addr_t'RANGE);
-        aud_div : unsigned(1 downto 0);
-        dat_div : unsigned(9 downto 0);
-    end record;
-    
-    signal reg, reg_in : reg_t;
 
     constant CLOCK_RATE : unsigned(27 downto 0) := x"1194000";
     constant SAMPLE_RATE : unsigned(16 downto 0) := to_unsigned(96000, 17);
@@ -41,6 +32,27 @@ architecture behavioral of wm8731 is
     constant DAT_FREQ : unsigned(14 downto 0) := to_unsigned(20000, 15);
     constant DAT_PERIOD : unsigned(9 downto 0) :=
         resize((CLOCK_RATE / DAT_FREQ) -  "1", 10);
+        
+    type reg_t is record
+        data    : wm8731_dat_t;
+        audio   : wm8731_aud_t;
+        count   : unsigned(wm_addr_t'RANGE);
+        aud_div : unsigned(1 downto 0);
+        dat_div : unsigned(9 downto 0);
+    end record;
+    
+    constant RESET_REG : reg_t :=
+    (
+        data => RESET_DAT,
+        audio => RESET_AUD,
+        count => (others => '0'),
+        aud_div => AUD_PERIOD,
+        dat_div => DAT_PERIOD
+    );  
+    
+    signal reg    : reg_t := RESET_REG;
+    signal reg_in : reg_t;
+    
 begin
     
     process(reg, audio, reset)

@@ -19,6 +19,12 @@ package lib_wm8731 is
         count : unsigned(5 downto 0);
     end record;
     
+    constant RESET_DAT : wm8731_dat_t :=
+    (
+        fifo => (others => '0'),
+        count => (others => '0')
+    );
+    
     function sdat_out(val : wm8731_dat_t) return std_logic;
     function sclk_out(val : wm8731_dat_t) return std_logic;
     function start_write(addr : wm_addr_t; data : wm_data_t) return wm8731_dat_t;
@@ -36,6 +42,12 @@ package lib_wm8731 is
         fifo  : wm_audio_t;
         count : unsigned(5 downto 0);
     end record;
+    
+    constant RESET_AUD : wm8731_aud_t :=
+    (
+        fifo => (others => '0'),
+        count => (others => '0')
+    );
     
     function bus_out(val : wm8731_aud_t) return audio_bus_t;
     function start_sample(audio : wm_audio_t) return wm8731_aud_t;
