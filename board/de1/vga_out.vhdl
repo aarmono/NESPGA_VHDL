@@ -53,7 +53,7 @@ is
     -- Normally 640, but NES is 512
     constant LINE_ACTIVE_TIME       : time_t := to_unsigned(512, time_t'LENGTH);
     -- Normally 16 for 640 pixels, but 80 for 512
-    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(16, time_t'LENGTH);
+    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(80, time_t'LENGTH);
     
     constant FRAME_SYNC_TIME         : time_t := to_unsigned(4, time_t'LENGTH);
     constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(13, time_t'LENGTH);
@@ -239,18 +239,22 @@ begin
         
         case v_vert_state is
             when V_FRONT =>
+                reg_next.pixel_addr <= (others => '0');
                 reg_next.vga_out.color <= COLOR_BLACK;
                 reg_next.vga_out.fval <= false;
             when V_SYNC =>
+                reg_next.pixel_addr <= (others => '0');
                 reg_next.vga_out.color <= COLOR_BLACK;
                 reg_next.vga_out.fval <= false;
             when V_ACTIVE =>
                 reg_next.vga_out.fval <= true;
                 case v_horz_state is
                     when H_FRONT =>
+                        next_ppu_pixel_col <= (others => '0');
                         reg_next.vga_out.color <= COLOR_BLACK;
                         reg_next.vga_out.lval <= false;
                     when H_SYNC =>
+                        next_ppu_pixel_col <= (others => '0');
                         reg_next.vga_out.color <= COLOR_BLACK;
                         reg_next.vga_out.lval <= false;
                     when H_ACTIVE =>
@@ -266,21 +270,18 @@ begin
                             next_ppu_pixel_col <= ppu_pixel_col + "1";
                         end if;
                     when H_BACK =>
+                        next_ppu_pixel_col <= (others => '0');
                         reg_next.vga_out.color <= COLOR_BLACK;
                         reg_next.vga_out.lval <= false;
                 end case;
 
                 if reg.cur_time.col = LINE_END and reg.cur_time.row(0) = '0'
                 then
-                    if ppu_pixel_row = MAX_ROW
-                    then
-                        next_ppu_pixel_row <= (others => '0');
-                    else
-                        next_ppu_pixel_row <= ppu_pixel_row + "1";
-                    end if;
+                    next_ppu_pixel_row <= ppu_pixel_row + "1";
                 end if;
                 
             when V_BACK =>
+                reg_next.pixel_addr <= (others => '0');
                 reg_next.vga_out.fval <= false;
                 reg_next.vga_out.color <= COLOR_BLACK;
         end case;

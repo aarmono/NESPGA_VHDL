@@ -130,9 +130,7 @@ begin
 
         data_to_vga => vga_sram_dq,
         vga_sram_addr => vga_sram_addr,
-        vga_sram_oe_n => vga_sram_oe_n,
-
-        vga_line_valid => vga_out.lval
+        vga_sram_oe_n => vga_sram_oe_n
     );
 
     vga : vga_gen

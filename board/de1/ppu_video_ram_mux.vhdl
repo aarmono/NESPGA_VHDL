@@ -23,9 +23,7 @@ port
 
     data_to_vga    : out std_logic_vector(15 downto 0);
     vga_sram_addr  : in std_logic_vector(17 downto 0);
-    vga_sram_oe_n  : in std_logic;
-
-    vga_line_valid : in boolean
+    vga_sram_oe_n  : in std_logic
 );
 end ppu_video_ram_mux;
 
@@ -33,7 +31,10 @@ architecture behavioral of ppu_video_ram_mux
 is
     subtype sram_data_t is std_logic_vector(sram_dq'range);
 
-    type ppu_pixel_buf_t is array(0 to 255) of pixel_t;
+    subtype buffer_addr_t is unsigned(7 downto 0);
+    constant BUFFER_SIZE : positive := 2 ** buffer_addr_t'length;
+
+    type ppu_pixel_buf_t is array(0 to BUFFER_SIZE-1) of pixel_t;
     signal ppu_pixel_buf : ppu_pixel_buf_t;
 
     constant MAX_ROW : unsigned(7 downto 0) := to_unsigned(239, 8);
@@ -107,25 +108,46 @@ is
         x"0000"
     );
 
+    function incr_pixel_addr(pixel_addr : pixel_addr_t) return pixel_addr_t
+    is
+        variable ret : pixel_addr_t;
+    begin
+        if is_max_val(pixel_addr(7 downto 0)) and
+           pixel_addr(15 downto 8) = MAX_ROW
+        then
+            ret := (others => '0');
+        else
+            ret := pixel_addr + "1";
+        end if;
+
+        return ret;
+    end;
+
     type reg_t is record
-        ppu_pixel_addr : pixel_addr_t;
+        write_pixel_addr  : pixel_addr_t;
+        read_pixel_addr   : pixel_addr_t;
 
         sram_we_n : std_logic;
         sram_data : std_logic_vector(sram_dq'range);
         sram_addr : std_logic_vector(sram_addr'range);
 
-        buffer_empty : boolean;
-        buffer_initialized : boolean;
+        vga_sram_oe_n      : std_logic;
+        vga_line_valid     : boolean;
+        frame_overflow     : boolean;
     end record;
 
     constant RESET_REG : reg_t :=
     (
-        ppu_pixel_addr => (others => '0'),
+        write_pixel_addr => (others => '0'),
+        read_pixel_addr => (others => '0'),
+
         sram_we_n => '1',
         sram_data => (others => '0'),
         sram_addr => (others => '0'),
-        buffer_empty => true,
-        buffer_initialized => false
+        
+        vga_sram_oe_n => '1',
+        vga_line_valid => false,
+        frame_overflow => false
     );
 
     signal reg : reg_t := RESET_REG;
@@ -136,64 +158,66 @@ begin
     sram_ub_n <= '0';
 
     process(clk_50mhz)
-        alias pixel_row : unsigned(7 downto 0) is reg.ppu_pixel_addr(15 downto 8);
-        alias pixel_col : unsigned(7 downto 0) is reg.ppu_pixel_addr(7 downto 0);
+        alias write_buffer_addr : buffer_addr_t is
+            reg.write_pixel_addr(buffer_addr_t'range);
+        alias read_buffer_addr : buffer_addr_t is
+            reg.read_pixel_addr(buffer_addr_t'range);
 
         variable v_pixel : pixel_t;
+        variable next_write_pixel_addr : pixel_addr_t;
+        variable next_read_pixel_addr : pixel_addr_t;
     begin
     if rising_edge(clk_50mhz)
     then
         if reset
         then
             reg <= RESET_REG;
-        elsif not reg.buffer_initialized
+        elsif pixel_bus.line_valid and ppu_clk_en
         then
-            ppu_pixel_buf(to_integer(pixel_col)) <= (others => '0');
-            if is_max_val(pixel_col)
+            ppu_pixel_buf(to_integer(write_buffer_addr)) <= pixel_bus.pixel;
+            
+            next_write_pixel_addr := incr_pixel_addr(reg.write_pixel_addr);
+
+            if next_write_pixel_addr(pixel_addr_t'high) = '0' and
+               reg.write_pixel_addr(pixel_addr_t'high) = '1'
             then
-                reg.buffer_initialized <= true;
+                reg.frame_overflow <= true;
             end if;
 
-            pixel_col <= pixel_col + "1";
-        elsif pixel_bus.line_valid
-        then
-            reg.sram_we_n <= '1';
-            if ppu_clk_en
-            then
-                ppu_pixel_buf(to_integer(pixel_col)) <= pixel_bus.pixel;
-                pixel_col <= pixel_col + "1";
+            reg.write_pixel_addr <= next_write_pixel_addr;
+        end if;
 
-                reg.buffer_empty <= false;
-            end if;
-        elsif not vga_line_valid and not reg.buffer_empty
+        if not reg.vga_line_valid and
+           ((reg.write_pixel_addr > reg.read_pixel_addr) or reg.frame_overflow)
         then
-            reg.sram_addr <= std_logic_vector(resize(reg.ppu_pixel_addr,
-                                                     sram_addr'length));
-            v_pixel := ppu_pixel_buf(to_integer(pixel_col));
+            reg.sram_addr <=
+                std_logic_vector(resize(reg.read_pixel_addr, sram_addr'length));
+            v_pixel := ppu_pixel_buf(to_integer(read_buffer_addr));
             reg.sram_data <= PALETTE(to_integer(v_pixel));
             reg.sram_we_n <= '0';
 
-            if is_max_val(pixel_col)
+            next_read_pixel_addr := incr_pixel_addr(reg.read_pixel_addr);
+
+            if next_read_pixel_addr(pixel_addr_t'high) = '0' and
+               reg.read_pixel_addr(pixel_addr_t'high) = '1'
             then
-                reg.buffer_empty <= true;
-                if pixel_row = MAX_ROW
-                then
-                    reg.ppu_pixel_addr <= (others => '0');
-                else
-                    reg.ppu_pixel_addr <= reg.ppu_pixel_addr + "1";
-                end if;
-            else
-                pixel_col <= pixel_col + "1";
+                reg.frame_overflow <= false;
             end if;
+
+            reg.read_pixel_addr <= next_read_pixel_addr;
         else
             reg.sram_we_n <= '1';
         end if;
+
+        -- Register to try to reduce clock domain crossing issues
+        reg.vga_sram_oe_n <= vga_sram_oe_n;
+        reg.vga_line_valid <= reg.vga_sram_oe_n = '0';
     end if;
     end process;
 
     process(all)
     begin
-        if reg.sram_we_n = '1'
+        if vga_sram_oe_n = '0'
         then
             sram_addr <= vga_sram_addr;
             sram_oe_n <= vga_sram_oe_n;

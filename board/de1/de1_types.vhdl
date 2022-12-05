@@ -80,9 +80,7 @@ package de1_types is
 
         data_to_vga    : out std_logic_vector(15 downto 0);
         vga_sram_addr  : in std_logic_vector(17 downto 0);
-        vga_sram_oe_n  : in std_logic;
-
-        vga_line_valid : in boolean
+        vga_sram_oe_n  : in std_logic
     );
     end component ppu_video_ram_mux;
     
