@@ -47,18 +47,18 @@ is
         vga_out => VGA_RESET
     );
     
-    constant LINE_SYNC_TIME         : time_t := to_unsigned(64, time_t'LENGTH);
-    -- Normally 80 for 640 pixels, but 144 for 512
-    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(144, time_t'LENGTH);
+    constant LINE_SYNC_TIME         : time_t := to_unsigned(96, time_t'LENGTH);
+    -- Normally 48 for 640 pixels, but 112 for 512
+    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(112, time_t'LENGTH);
     -- Normally 640, but NES is 512
     constant LINE_ACTIVE_TIME       : time_t := to_unsigned(512, time_t'LENGTH);
     -- Normally 16 for 640 pixels, but 80 for 512
     constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(80, time_t'LENGTH);
     
-    constant FRAME_SYNC_TIME         : time_t := to_unsigned(4, time_t'LENGTH);
-    constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(13, time_t'LENGTH);
+    constant FRAME_SYNC_TIME         : time_t := to_unsigned(2, time_t'LENGTH);
+    constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(32, time_t'LENGTH);
     constant FRAME_ACTIVE_TIME       : time_t := to_unsigned(480, time_t'LENGTH);
-    constant FRAME_FRONT_PORCH_TIME  : time_t := to_unsigned(3, time_t'LENGTH);
+    constant FRAME_FRONT_PORCH_TIME  : time_t := to_unsigned(11, time_t'LENGTH);
     
     constant V_ACTIVE_START          : time_t := FRAME_SYNC_TIME +
                                                  FRAME_BACK_PORCH_TIME;
@@ -265,7 +265,7 @@ begin
                         reg_next.vga_out.color.blue <= sram_dq(3 downto 0);
                         reg_next.vga_out.lval <= true;
 
-                        if reg.cur_time.col(0) = '1'
+                        if reg.cur_time.col(0) = '0'
                         then
                             next_ppu_pixel_col <= ppu_pixel_col + "1";
                         end if;
