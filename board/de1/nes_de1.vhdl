@@ -82,8 +82,6 @@ begin
     FL_OE_N <= not to_std_logic(is_bus_read(flash_bus));
     FL_RST_N <= '1';
 
-    SRAM_CE_N <= '1';
-
     VGA_R <= vga_out.color.red;
     VGA_G <= vga_out.color.green;
     VGA_B <= vga_out.color.blue;
@@ -124,6 +122,7 @@ begin
         sram_ub_n => SRAM_UB_N,
         sram_oe_n => SRAM_OE_N,
         sram_we_n => SRAM_WE_N,
+        sram_ce_n => SRAM_CE_N,
 
         ppu_clk_en => ppu_clk_en,
         pixel_bus  => pixel_bus,

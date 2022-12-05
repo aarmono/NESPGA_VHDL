@@ -74,6 +74,7 @@ package de1_types is
         sram_ub_n : out std_logic;
         sram_oe_n : out std_logic;
         sram_we_n : out std_logic;
+        sram_ce_n : out std_logic;
 
         ppu_clk_en  : in boolean;
         pixel_bus   : in pixel_bus_t;

@@ -17,6 +17,7 @@ port
     sram_ub_n : out std_logic;
     sram_oe_n : out std_logic;
     sram_we_n : out std_logic;
+    sram_ce_n : out std_logic;
 
     ppu_clk_en  : in boolean;
     pixel_bus   : in pixel_bus_t;
@@ -36,8 +37,6 @@ is
 
     type ppu_pixel_buf_t is array(0 to BUFFER_SIZE-1) of pixel_t;
     signal ppu_pixel_buf : ppu_pixel_buf_t;
-
-    constant MAX_ROW : unsigned(7 downto 0) := to_unsigned(239, 8);
 
     type palette_t is array(0 to 63) of sram_data_t;
     constant PALETTE : palette_t :=
@@ -112,8 +111,7 @@ is
     is
         variable ret : pixel_addr_t;
     begin
-        if is_max_val(pixel_addr(7 downto 0)) and
-           pixel_addr(15 downto 8) = MAX_ROW
+        if pixel_addr = PIXEL_ADDR_MAX
         then
             ret := (others => '0');
         else
@@ -131,8 +129,6 @@ is
         sram_data : std_logic_vector(sram_dq'range);
         sram_addr : std_logic_vector(sram_addr'range);
 
-        vga_sram_oe_n      : std_logic;
-        vga_line_valid     : boolean;
         frame_overflow     : boolean;
     end record;
 
@@ -145,8 +141,6 @@ is
         sram_data => (others => '0'),
         sram_addr => (others => '0'),
         
-        vga_sram_oe_n => '1',
-        vga_line_valid => false,
         frame_overflow => false
     );
 
@@ -187,11 +181,12 @@ begin
             reg.write_pixel_addr <= next_write_pixel_addr;
         end if;
 
-        if not reg.vga_line_valid and
+        if vga_sram_oe_n = '1' and
            ((reg.write_pixel_addr > reg.read_pixel_addr) or reg.frame_overflow)
         then
             reg.sram_addr <=
                 std_logic_vector(resize(reg.read_pixel_addr, sram_addr'length));
+            
             v_pixel := ppu_pixel_buf(to_integer(read_buffer_addr));
             reg.sram_data <= PALETTE(to_integer(v_pixel));
             reg.sram_we_n <= '0';
@@ -208,10 +203,6 @@ begin
         else
             reg.sram_we_n <= '1';
         end if;
-
-        -- Register to try to reduce clock domain crossing issues
-        reg.vga_sram_oe_n <= vga_sram_oe_n;
-        reg.vga_line_valid <= reg.vga_sram_oe_n = '0';
     end if;
     end process;
 
@@ -221,13 +212,15 @@ begin
         then
             sram_addr <= vga_sram_addr;
             sram_oe_n <= vga_sram_oe_n;
+            sram_ce_n <= vga_sram_oe_n;
             sram_we_n <= '1';
             sram_dq <= (others => 'Z');
             data_to_vga <= sram_dq;
         else
             sram_addr <= reg.sram_addr;
             sram_oe_n <= '1';
-            sram_we_n <= reg.sram_we_n;
+            sram_we_n <= reg.sram_we_n or clk_50mhz;
+            sram_ce_n <= reg.sram_we_n or clk_50mhz;
             sram_dq <= reg.sram_data;
 
             data_to_vga <= x"0F00";
