@@ -4,7 +4,9 @@ use IEEE.std_logic_1164.all;
 entity clock is
 generic
 (
-    PERIOD : time
+    PERIOD : time;
+    OFFSET : time := 0 ns;
+    DUTY   : real range 0.0 to 1.0 := 0.5
 );
 port
 (
@@ -21,11 +23,12 @@ begin
         variable v_clk : std_logic := '0';
         -- Compute low and high time this way to prevent
         -- rounding errors
-        constant low_time  : time := PERIOD / 2;
-        constant high_time : time := PERIOD - low_time;
+        constant high_time : time := PERIOD * DUTY;
+        constant low_time  : time := PERIOD - high_time;
     begin
         clk <= '0';
         reset <= true;
+        wait for OFFSET;
         while not done loop
             wait for low_time;
             clk <= '1';
