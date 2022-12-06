@@ -17,7 +17,12 @@
 ../../../core/nes_audio_mixer.vhdl
 
 ../../../perhiperals/perhipheral_types.vhdl
+
+../../../perhiperals/wm8731/lib_wm8731.vhdl
+../../../perhiperals/wm8731/wm8731.vhdl
+
 ../../../perhiperals/syncram_sp/syncram_sp.vhdl
+
 ../../../perhiperals/perhipherals.vhdl
 
 ../../../simulation/simulation.vhdl
@@ -30,6 +35,7 @@
 ../../../simulation/file_memory/file_memory.vhdl
 ../../../simulation/clock/clock.vhdl
 ../../../simulation/apu_audio_record/apu_audio_record.vhdl
+../../../simulation/sram/sram.vhdl
 
 ../../../simulation/fm2_joystick/fm2_joystick.vhdl
 ../../../simulation/fm2_joystick/fm2_file_bench.vhdl
@@ -86,3 +92,10 @@
 
 ../../../board/sim/nsf_bench.vhdl
 ../../../board/sim/nes_bench.vhdl
+
+../../../board/de1/de1_types.vhdl
+../../../board/de1/ppu_video_ram_mux.vhdl
+../../../board/de1/vga_out.vhdl
+../../../board/de1/nes_de1.vhdl
+../../../board/de1/vga_video_record.vhdl
+../../../board/de1/nes_de1_bench.vhdl

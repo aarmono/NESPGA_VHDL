@@ -19,9 +19,10 @@ generic
 end nes_de1_bench;
 
 architecture behavioral of nes_de1_bench is
-    signal clk_50 : std_logic := '0';
-    signal clk_24 : std_logic := '0';
+    signal clk_50  : std_logic := '0';
+    signal clk_vga : std_logic := '0';
     signal clk_aud : std_logic := '0';
+    signal clk_we  : std_logic := '0';
     
     signal i2c_sdat : std_logic;
     signal i2c_sclk : std_logic;
@@ -36,6 +37,7 @@ architecture behavioral of nes_de1_bench is
     signal sram_addr : std_logic_vector(17 downto 0);
     signal sram_oe_n : std_logic;
     signal sram_we_n : std_logic;
+    signal sram_ce_n : std_logic;
     
     signal bclk    : std_logic;
     signal dacdat  : std_logic;
@@ -50,10 +52,6 @@ architecture behavioral of nes_de1_bench is
     signal vga_fval : std_logic;
 
     signal vga_out : vga_out_t;
-
-    subtype sram_data_t is std_logic_vector(15 downto 0);
-    type sram_t is array(0 to (2**sram_addr'length)-1) of sram_data_t;
-    signal sram : sram_t := (others => (others => '0'));
     
     file audio_file : byte_file_t;
     signal aud_initialized : boolean := false;
@@ -65,8 +63,10 @@ begin
     port map
     (
         CLOCK_50 => clk_50,
-        CLOCK_24 => clk_24,
+        CLOCK_VGA => clk_vga,
         CLOCK_AUD => clk_aud,
+        CLOCK_WE => clk_we,
+        RESET_N => '1',
         
         I2C_SDAT => i2c_sdat,
         I2C_SCLK => i2c_sclk,
@@ -79,6 +79,7 @@ begin
         SRAM_ADDR => sram_addr,
         SRAM_OE_N => sram_oe_n,
         SRAM_WE_N => sram_we_n,
+        SRAM_CE_N => sram_ce_n,
 
         VGA_R => vga_r,
         VGA_G => vga_g,
@@ -126,20 +127,27 @@ begin
         end if;
     end if;
     end process;
-    
-    process(all)
-    begin
-        if sram_oe_n = '1'
-        then
-            sram_dq <= (others => 'Z');
-            if sram_we_n = '0'
-            then
-                sram(to_integer(unsigned(sram_addr))) <= sram_dq;
-            end if;
-        else
-            sram_dq <= sram(to_integer(unsigned(sram_addr)));
-        end if;
-    end process;
+
+    video_ram : component sram
+    generic map
+    (
+        clear_on_power_up => true,
+        download_on_power_up => false,
+        trace_ram_load => false,
+
+        size => 16#40000#,
+        adr_width => 18,
+        width => 16
+    )
+    port map
+    (
+        nCE => sram_ce_n,
+        nOE => sram_oe_n,
+        nWE => sram_we_n,
+
+        A => sram_addr,
+        D => sram_dq
+    );
     
 
     flash_bus.read <= fl_oe_n = '0';
@@ -166,7 +174,7 @@ begin
     )
     port map
     (
-        clk => clk_24,
+        clk => clk_vga,
 
         vga_out => vga_out
     );
@@ -174,7 +182,8 @@ begin
     clk_50mhz_gen : clock
     generic map
     (
-        PERIOD => 20 ns
+        PERIOD => 20 ns,
+        OFFSET => 20 ns
     )
     port map
     (
@@ -182,14 +191,14 @@ begin
         done => false
     );
 
-    clk_24mhz_gen : clock
+    clk_vga_gen : clock
     generic map
     (
-        PERIOD => 42 ns
+        PERIOD => 39722 ps
     )
     port map
     (
-        clk => clk_24,
+        clk => clk_vga,
         done => false
     );
 
@@ -201,6 +210,18 @@ begin
     port map
     (
         clk => clk_aud,
+        done => false
+    );
+
+    clk_we_gen : clock
+    generic map
+    (
+        PERIOD => 20 ns,
+        OFFSET => 18 ns
+    )
+    port map
+    (
+        clk => clk_we,
         done => false
     );
 

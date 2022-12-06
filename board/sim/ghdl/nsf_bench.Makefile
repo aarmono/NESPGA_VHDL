@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: nsf_bench
 
 # Elaboration target
-nsf_bench: /usr/local/lib/ghdl/std/v08/textio.o /usr/local/lib/ghdl/std/v08/textio-body.o /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/std_logic_1164-body.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o /usr/local/lib/ghdl/ieee/v08/numeric_std-body.o utilities.o nes_types.o ram_bus_types.o sram_bus_types.o cpu_bus_types.o file_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o chr_bus_types.o soc.o apu_bus_types.o nes_audio_mixer.o simulation.o nsf_bench.o ppu_bus_types.o joy_bus_types.o mapper_types.o lib_nsf_rom.o lib_mapper_220.o lib_mapper_000.o lib_mapper_002.o lib_mapper.o lib_nes_mmap.o lib_nsf.o prg_bus_types.o nes_core.o nsf_soc.o binary_io.o au_file.o apu_audio_record.o file_memory.o clock.o clk_en.o lib_cpu_types.o lib_cpu_decode_defs.o lib_cpu_decode.o lib_cpu_exec.o lib_cpu.o cpu.o lib_apu_frame_seq.o lib_apu_length.o lib_apu_envelope.o lib_apu_square.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o lib_apu.o apu.o
+nsf_bench: /usr/local/lib/ghdl/std/v08/textio.o /usr/local/lib/ghdl/std/v08/textio-body.o /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/std_logic_1164-body.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o /usr/local/lib/ghdl/ieee/v08/numeric_std-body.o utilities.o nes_types.o ram_bus_types.o sram_bus_types.o cpu_bus_types.o file_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o chr_bus_types.o soc.o apu_bus_types.o nes_audio_mixer.o simulation.o nsf_bench.o perhipheral_types.o perhipherals.o ppu_bus_types.o joy_bus_types.o mapper_types.o lib_nsf_rom.o lib_mapper_220.o lib_mapper_000.o lib_mapper_002.o lib_mapper.o lib_nes_mmap.o lib_nsf.o prg_bus_types.o nes_core.o nsf_soc.o nsf_soc_ocram.o binary_io.o au_file.o apu_audio_record.o file_memory.o clock.o clk_en.o lib_cpu_types.o lib_cpu_decode_defs.o lib_cpu_decode.o lib_cpu_exec.o lib_cpu.o cpu.o lib_apu_frame_seq.o lib_apu_length.o lib_apu_envelope.o lib_apu_square.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o lib_apu.o apu.o syncram_sp.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -66,6 +66,10 @@ simulation.o: ../../../simulation/simulation.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nsf_bench.o: ../../../board/sim/nsf_bench.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+perhipheral_types.o: ../../../perhiperals/perhipheral_types.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+perhipherals.o: ../../../perhiperals/perhipherals.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 ppu_bus_types.o: ../../../bus/ppu_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 joy_bus_types.o: ../../../bus/joy_bus_types.vhdl
@@ -91,6 +95,8 @@ prg_bus_types.o: ../../../bus/prg_bus_types.vhdl
 nes_core.o: ../../../core/nes_core.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nsf_soc.o: ../../../soc/nsf/nsf_soc.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+nsf_soc_ocram.o: ../../../soc/nsf/nsf_soc_ocram.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 binary_io.o: ../../../simulation/binary_io.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -134,6 +140,8 @@ lib_apu.o: ../../../core/apu/lib_apu.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 apu.o: ../../../core/apu/apu.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+syncram_sp.o: ../../../perhiperals/syncram_sp/syncram_sp.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 
 # Files dependences
 /usr/local/lib/ghdl/std/v08/textio.o: 
@@ -157,6 +165,8 @@ apu_bus_types.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/g
 nes_audio_mixer.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o nes_types.o
 simulation.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o apu_bus_types.o file_bus_types.o nes_types.o nes_audio_mixer.o
 nsf_bench.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/std_logic_1164-body.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o /usr/local/lib/ghdl/ieee/v08/numeric_std-body.o nes_types.o ram_bus_types.o sram_bus_types.o cpu_bus_types.o file_bus_types.o utilities.o soc.o simulation.o
+perhipheral_types.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o
+perhipherals.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o
 ppu_bus_types.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o
 joy_bus_types.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o
 mapper_types.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o utilities.o nes_types.o cpu_bus_types.o sram_bus_types.o file_bus_types.o apu_bus_types.o ram_bus_types.o ppu_bus_types.o chr_bus_types.o palette_bus_types.o joy_bus_types.o
@@ -170,6 +180,7 @@ lib_nsf.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ie
 prg_bus_types.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o
 nes_core.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o apu_bus_types.o ram_bus_types.o sram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o joy_bus_types.o nes_types.o utilities.o
 nsf_soc.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o utilities.o cpu_bus_types.o apu_bus_types.o ram_bus_types.o sram_bus_types.o file_bus_types.o nes_types.o lib_nsf.o nes_core.o
+nsf_soc_ocram.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o utilities.o ram_bus_types.o sram_bus_types.o file_bus_types.o nes_types.o perhipherals.o nsf_soc.o
 binary_io.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 au_file.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o binary_io.o
 apu_audio_record.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o nes_types.o binary_io.o au_file.o
@@ -191,3 +202,4 @@ lib_apu_noise.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/g
 lib_apu_dmc.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o
 lib_apu.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o nes_types.o apu_bus_types.o cpu_bus_types.o utilities.o lib_apu_frame_seq.o lib_apu_square.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o
 apu.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o nes_types.o lib_apu.o apu_bus_types.o cpu_bus_types.o utilities.o
+syncram_sp.o:  /usr/local/lib/ghdl/ieee/v08/std_logic_1164.o /usr/local/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o
