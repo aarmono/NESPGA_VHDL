@@ -183,7 +183,10 @@ begin
     begin
     if rising_edge(CLOCK_50) then
     if cpu_clk_en then
-        reg_audio_cpu_clk <= audio_out;
+        if nes_running
+        then
+            reg_audio_cpu_clk <= audio_out;
+        end if;
     end if;
     end if;
     end process;
