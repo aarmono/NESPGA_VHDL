@@ -131,7 +131,7 @@ is
         sram_data : std_logic_vector(sram_dq'range);
         sram_addr : std_logic_vector(sram_addr'range);
 
-        vga_sram_ce_n : std_logic;
+        vga_sram_ce_n : std_logic_vector(1 downto 0);
 
         frame_overflow : boolean;
     end record;
@@ -145,7 +145,7 @@ is
         sram_data => (others => '0'),
         sram_addr => (others => '0'),
         
-        vga_sram_ce_n => '1',
+        vga_sram_ce_n => (others => '1'),
         
         frame_overflow => false
     );
@@ -184,7 +184,7 @@ begin
             reg.write_pixel_addr <= next_write_pixel_addr;
         end if;
 
-        if reg.vga_sram_ce_n = '1' and
+        if reg.vga_sram_ce_n(reg.vga_sram_ce_n'high) = '1' and
            ((reg.write_pixel_addr > reg.read_pixel_addr) or reg.frame_overflow)
         then
             reg.sram_addr <=
@@ -207,7 +207,11 @@ begin
             reg.sram_we_n <= '1';
         end if;
         
-        reg.vga_sram_ce_n <= vga_sram_ce_n;
+        for i in reg.vga_sram_ce_n'high downto 1
+        loop
+            reg.vga_sram_ce_n(i) <= reg.vga_sram_ce_n(i-1);
+        end loop;
+        reg.vga_sram_ce_n(0) <= vga_sram_ce_n;
         
         if reset
         then
