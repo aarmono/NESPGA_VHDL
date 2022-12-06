@@ -5,3 +5,7 @@ simulation
 *.done
 *.rpt
 *.smsg
+*.pin
+*.txt
+*.sof
+*.pof
