@@ -57,6 +57,7 @@ package de1_types is
         sram_dq   : in std_logic_vector(15 downto 0);
         sram_addr : out std_logic_vector(17 downto 0);
         sram_oe_n : out std_logic;
+        sram_ce_n : out std_logic;
 
         vga_out     : out vga_out_t
     );
@@ -66,6 +67,7 @@ package de1_types is
     port
     (
         clk_50mhz : in std_logic;
+        clk_we    : in std_logic;
         reset     : in boolean;
 
         sram_dq   : inout std_logic_vector(15 downto 0);
@@ -81,7 +83,8 @@ package de1_types is
 
         data_to_vga    : out std_logic_vector(15 downto 0);
         vga_sram_addr  : in std_logic_vector(17 downto 0);
-        vga_sram_oe_n  : in std_logic
+        vga_sram_oe_n  : in std_logic;
+        vga_sram_ce_n  : in std_logic
     );
     end component ppu_video_ram_mux;
     

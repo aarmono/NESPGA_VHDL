@@ -16,6 +16,7 @@ port
     CLOCK_50  : in std_logic;
     CLOCK_VGA : in std_logic;
     CLOCK_AUD : in std_logic;
+    CLOCK_WE  : in std_logic;
     RESET_N   : in std_logic;
 
     I2C_SDAT : out std_logic;
@@ -60,6 +61,7 @@ architecture behavioral of nes_de1 is
     signal vga_sram_dq   : std_logic_vector(SRAM_DQ'range);
     signal vga_sram_addr : std_logic_vector(SRAM_ADDR'range);
     signal vga_sram_oe_n : std_logic;
+    signal vga_sram_ce_n : std_logic;
     
     signal vga_out : vga_out_t;
 
@@ -118,6 +120,7 @@ begin
     port map
     (
         clk_50mhz => CLOCK_50,
+        clk_we => CLOCK_WE,
         reset => reset,
 
         sram_dq => SRAM_DQ,
@@ -133,7 +136,8 @@ begin
 
         data_to_vga => vga_sram_dq,
         vga_sram_addr => vga_sram_addr,
-        vga_sram_oe_n => vga_sram_oe_n
+        vga_sram_oe_n => vga_sram_oe_n,
+        vga_sram_ce_n => vga_sram_ce_n
     );
 
     vga : vga_gen
@@ -145,6 +149,7 @@ begin
         sram_dq => vga_sram_dq,
         sram_addr => vga_sram_addr,
         sram_oe_n => vga_sram_oe_n,
+        sram_ce_n => vga_sram_ce_n,
 
         vga_out => vga_out
     );

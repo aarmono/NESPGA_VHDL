@@ -9,6 +9,7 @@ entity ppu_video_ram_mux is
 port
 (
     clk_50mhz : in std_logic;
+    clk_we    : in std_logic;
     reset     : in boolean;
 
     sram_dq   : inout std_logic_vector(15 downto 0);
@@ -24,7 +25,8 @@ port
 
     data_to_vga    : out std_logic_vector(15 downto 0);
     vga_sram_addr  : in std_logic_vector(17 downto 0);
-    vga_sram_oe_n  : in std_logic
+    vga_sram_oe_n  : in std_logic;
+    vga_sram_ce_n  : in std_logic
 );
 end ppu_video_ram_mux;
 
@@ -129,7 +131,9 @@ is
         sram_data : std_logic_vector(sram_dq'range);
         sram_addr : std_logic_vector(sram_addr'range);
 
-        frame_overflow     : boolean;
+        vga_sram_ce_n : std_logic;
+
+        frame_overflow : boolean;
     end record;
 
     constant RESET_REG : reg_t :=
@@ -140,6 +144,8 @@ is
         sram_we_n => '1',
         sram_data => (others => '0'),
         sram_addr => (others => '0'),
+        
+        vga_sram_ce_n => '1',
         
         frame_overflow => false
     );
@@ -178,7 +184,7 @@ begin
             reg.write_pixel_addr <= next_write_pixel_addr;
         end if;
 
-        if vga_sram_oe_n = '1' and
+        if reg.vga_sram_ce_n = '1' and
            ((reg.write_pixel_addr > reg.read_pixel_addr) or reg.frame_overflow)
         then
             reg.sram_addr <=
@@ -201,6 +207,8 @@ begin
             reg.sram_we_n <= '1';
         end if;
         
+        reg.vga_sram_ce_n <= vga_sram_ce_n;
+        
         if reset
         then
             reg <= RESET_REG;
@@ -210,21 +218,28 @@ begin
 
     process(all)
     begin
-        if vga_sram_oe_n = '0'
+        if reg.sram_we_n = '1'
         then
             sram_addr <= vga_sram_addr;
             sram_oe_n <= vga_sram_oe_n;
-            sram_ce_n <= vga_sram_oe_n;
+            sram_ce_n <= vga_sram_ce_n;
             sram_we_n <= '1';
             sram_dq <= (others => 'Z');
             data_to_vga <= sram_dq;
         else
             sram_addr <= reg.sram_addr;
             sram_oe_n <= '1';
-            sram_we_n <= reg.sram_we_n or clk_50mhz;
-            sram_ce_n <= reg.sram_we_n or clk_50mhz;
+            -- The write enable clock is a derived
+            -- clock from the main 50MHz clock shifted
+            -- forward a few ns to ensure the data written
+            -- to the sram is stable when the WE signal
+            -- goes high
+            sram_we_n <= reg.sram_we_n or clk_we;
+            sram_ce_n <= reg.sram_we_n or clk_we;
             sram_dq <= reg.sram_data;
 
+            -- Deliberately output red so that glitches
+            -- are easy to spot during test
             data_to_vga <= x"0F00";
         end if;
     end process;

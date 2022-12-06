@@ -52,7 +52,9 @@ architecture behavioral of nes_top is
     port
     (
         inclk0 : in std_logic  := '0';
-        c0     : out std_logic
+        c0     : out std_logic;
+        c1     : out std_logic;
+        locked : out std_logic
     );
     end component aud_pll;
     
@@ -67,17 +69,24 @@ architecture behavioral of nes_top is
 
     signal clk_aud : std_logic;
     signal clk_vga : std_logic;
+    signal clk_we  : std_logic;
     
+    signal aud_locked : std_logic;
+    signal vga_locked : std_logic;
     signal reset_n : std_logic;
 
 begin
+    
+    reset_n <= aud_locked and vga_locked;
     
     -- 54 ns clock period 
     aud_clock_gen : aud_pll
     port map
     (
         inclk0 => CLOCK_50,
-        c0 => clk_aud
+        c0 => clk_aud,
+        c1 => clk_we,
+        locked => aud_locked
     );
     
     -- 40 ns clock period
@@ -86,7 +95,7 @@ begin
     (
         inclk0 => CLOCK_27(0),
         c0 => clk_vga,
-        locked => reset_n
+        locked => vga_locked
     );
     
     nes : entity work.nes_de1(behavioral)
@@ -95,6 +104,7 @@ begin
         CLOCK_50 => CLOCK_50,
         CLOCK_VGA => clk_vga,
         CLOCK_AUD => clk_aud,
+        CLOCK_WE => clk_we,
         RESET_N => reset_n,
         
         I2C_SDAT => I2C_SDAT,

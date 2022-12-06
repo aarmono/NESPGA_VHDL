@@ -14,6 +14,7 @@ port
     sram_dq   : in std_logic_vector(15 downto 0);
     sram_addr : out std_logic_vector(17 downto 0);
     sram_oe_n : out std_logic;
+    sram_ce_n : out std_logic;
 
     vga_out     : out vga_out_t
 );
@@ -47,13 +48,18 @@ is
         vga_out => VGA_RESET
     );
     
+    -- The sum of all these values should equal 800
     constant LINE_SYNC_TIME         : time_t := to_unsigned(96, time_t'LENGTH);
     -- Normally 48 for 640 pixels, but 112 for 512
-    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(112, time_t'LENGTH);
+    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(100, time_t'LENGTH);
+    -- Time before the active period where the sram bus is taken
+    constant LINE_LEFT_MARGIN_TIME  : time_t := to_unsigned(12, time_t'length);
     -- Normally 640, but NES is 512
     constant LINE_ACTIVE_TIME       : time_t := to_unsigned(512, time_t'LENGTH);
+    -- Time after the active period where the SRAM bus is taken
+    constant LINE_RIGHT_MARGIN_TIME : time_t := to_unsigned(4, time_t'LENGTH);
     -- Normally 16 for 640 pixels, but 80 for 512
-    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(80, time_t'LENGTH);
+    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(76, time_t'LENGTH);
     
     constant FRAME_SYNC_TIME         : time_t := to_unsigned(2, time_t'LENGTH);
     constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(32, time_t'LENGTH);
@@ -65,7 +71,9 @@ is
     
     constant LINE_END : time_t := LINE_SYNC_TIME +
                                   LINE_BACK_PORCH_TIME +
+                                  LINE_LEFT_MARGIN_TIME +
                                   LINE_ACTIVE_TIME +
+                                  LINE_RIGHT_MARGIN_TIME +
                                   LINE_FRONT_PORCH_TIME -
                                   "1";
     constant FRAME_END : time_t := FRAME_SYNC_TIME +
@@ -86,7 +94,9 @@ is
     (
         H_FRONT,
         H_SYNC,
+        H_RIGHT_MARGIN,
         H_ACTIVE,
+        H_LEFT_MARGIN,
         H_BACK
     );
     
@@ -106,9 +116,11 @@ is
     begin
         case state is
             when H_FRONT => return '1';
+            when H_RIGHT_MARGIN => return '1';
             when H_SYNC => return '0';
             when H_ACTIVE => return '1';
             when H_BACK => return '1';
+            when H_LEFT_MARGIN => return '1';
         end case;
     end;
     
@@ -151,19 +163,25 @@ is
     
     function get_horz_state(cur_time : video_time_t) return horz_state_t
     is
-        constant SYNC_TIME         : time_t := LINE_SYNC_TIME;
-        constant BACK_PORCH_TIME   : time_t := LINE_BACK_PORCH_TIME;
-        constant ACTIVE_TIME       : time_t := LINE_ACTIVE_TIME;
-        constant FRONT_PORCH_TIME  : time_t := LINE_FRONT_PORCH_TIME;
+        constant SYNC_TIME          : time_t := LINE_SYNC_TIME;
+        constant BACK_PORCH_TIME    : time_t := LINE_BACK_PORCH_TIME;
+        constant LEFT_MARGIN_TIME   : time_t := LINE_LEFT_MARGIN_TIME;
+        constant ACTIVE_TIME        : time_t := LINE_ACTIVE_TIME;
+        constant RIGHT_MARGIN_TIME  : time_t := LINE_RIGHT_MARGIN_TIME;
+        constant FRONT_PORCH_TIME   : time_t := LINE_FRONT_PORCH_TIME;
         
-        constant SYNC_START        : time_t := to_unsigned(0, time_t'LENGTH);
-        constant SYNC_END          : time_t := SYNC_TIME - "1";
-        constant BACK_PORCH_START  : time_t := SYNC_END + "1";
-        constant BACK_PORCH_END    : time_t := BACK_PORCH_START + BACK_PORCH_TIME - "1";
-        constant ACTIVE_START      : time_t := BACK_PORCH_END + "1";
-        constant ACTIVE_END        : time_t := ACTIVE_START + ACTIVE_TIME - "1";
-        constant FRONT_PORCH_START : time_t := ACTIVE_END + "1";
-        constant FRONT_PORCH_END   : time_t := FRONT_PORCH_START + FRONT_PORCH_TIME - "1";
+        constant SYNC_START         : time_t := to_unsigned(0, time_t'LENGTH);
+        constant SYNC_END           : time_t := SYNC_TIME - "1";
+        constant BACK_PORCH_START   : time_t := SYNC_END + "1";
+        constant BACK_PORCH_END     : time_t := BACK_PORCH_START + BACK_PORCH_TIME - "1";
+        constant LEFT_MARGIN_START  : time_t := BACK_PORCH_END + "1";
+        constant LEFT_MARGIN_END    : time_t := LEFT_MARGIN_START + LEFT_MARGIN_TIME - "1";
+        constant ACTIVE_START       : time_t := LEFT_MARGIN_END + "1";
+        constant ACTIVE_END         : time_t := ACTIVE_START + ACTIVE_TIME - "1";
+        constant RIGHT_MARGIN_START : time_t := ACTIVE_END + "1";
+        constant RIGHT_MARGIN_END   : time_t := RIGHT_MARGIN_START + RIGHT_MARGIN_TIME - "1";
+        constant FRONT_PORCH_START  : time_t := RIGHT_MARGIN_END + "1";
+        constant FRONT_PORCH_END    : time_t := FRONT_PORCH_START + FRONT_PORCH_TIME - "1";
     begin
         if cur_time.col >= FRONT_PORCH_START and
            cur_time.col <= FRONT_PORCH_END
@@ -177,10 +195,18 @@ is
               cur_time.col <= BACK_PORCH_END
         then
             return H_BACK;
+        elsif cur_time.col >= LEFT_MARGIN_START and
+              cur_time.col <= LEFT_MARGIN_END
+        then
+            return H_LEFT_MARGIN;
         elsif cur_time.col >= ACTIVE_START and
               cur_time.col <= ACTIVE_END
         then
             return H_ACTIVE;
+        elsif cur_time.col >= RIGHT_MARGIN_START and
+              cur_time.col <= RIGHT_MARGIN_END
+        then
+            return H_RIGHT_MARGIN;
         else
             return H_FRONT;
         end if;
@@ -235,6 +261,7 @@ begin
         reg_next.vga_out.fval <= false;
 
         sram_oe_n <= '1';
+        sram_ce_n <= '1';
         sram_addr <= std_logic_vector(resize(reg.pixel_addr, sram_addr'length));
         
         case v_vert_state is
@@ -249,7 +276,13 @@ begin
             when V_ACTIVE =>
                 reg_next.vga_out.fval <= true;
                 case v_horz_state is
-                    when H_FRONT =>
+                    when H_FRONT |
+                         H_RIGHT_MARGIN =>
+                        if v_horz_state = H_RIGHT_MARGIN
+                        then
+                            sram_ce_n <= '0';
+                        end if;
+                        
                         next_ppu_pixel_col <= (others => '0');
                         reg_next.vga_out.color <= COLOR_BLACK;
                         reg_next.vga_out.lval <= false;
@@ -259,6 +292,7 @@ begin
                         reg_next.vga_out.lval <= false;
                     when H_ACTIVE =>
                         sram_oe_n <= '0';
+                        sram_ce_n <= '0';
 
                         reg_next.vga_out.color.red <= sram_dq(11 downto 8);
                         reg_next.vga_out.color.green <= sram_dq(7 downto 4);
@@ -269,7 +303,13 @@ begin
                         then
                             next_ppu_pixel_col <= ppu_pixel_col + "1";
                         end if;
-                    when H_BACK =>
+                    when H_BACK |
+                         H_LEFT_MARGIN =>
+                        if v_horz_state = H_LEFT_MARGIN
+                        then
+                            sram_ce_n <= '0';
+                        end if;
+                        
                         next_ppu_pixel_col <= (others => '0');
                         reg_next.vga_out.color <= COLOR_BLACK;
                         reg_next.vga_out.lval <= false;
