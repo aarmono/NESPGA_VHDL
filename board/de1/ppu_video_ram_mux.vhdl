@@ -163,10 +163,7 @@ begin
     begin
     if rising_edge(clk_50mhz)
     then
-        if reset
-        then
-            reg <= RESET_REG;
-        elsif pixel_bus.line_valid and ppu_clk_en
+        if pixel_bus.line_valid and ppu_clk_en
         then
             ppu_pixel_buf(to_integer(write_buffer_addr)) <= pixel_bus.pixel;
             
@@ -202,6 +199,11 @@ begin
             reg.read_pixel_addr <= next_read_pixel_addr;
         else
             reg.sram_we_n <= '1';
+        end if;
+        
+        if reset
+        then
+            reg <= RESET_REG;
         end if;
     end if;
     end process;
