@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
-use work.lib_wm8731.all;
+use work.perhipheral_types.all;
 
 entity audio_top is
 port
