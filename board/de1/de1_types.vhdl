@@ -88,6 +88,26 @@ package de1_types is
     );
     end component ppu_video_ram_mux;
     
+    component ps2_joystick is
+    port
+    (
+        clk_key : in std_logic;
+        clk_cpu : in std_logic;
+        reset   : in boolean;
+        
+        ps2_clk : inout std_logic;
+        ps2_dat : inout std_logic;
+        
+        joy_strobe  : in std_logic;
+        
+        shift_joy_1 : in std_logic;
+        joy_1_val   : out std_logic;
+        
+        shift_joy_2 : in std_logic;
+        joy_2_val   : out std_logic
+    );
+    end component ps2_joystick;
+    
 end de1_types;
 
 package body de1_types is

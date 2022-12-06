@@ -19,6 +19,9 @@ port
     I2C_SDAT : out std_logic;
     I2C_SCLK : out std_logic;
     
+    PS2_CLK : inout std_logic;
+    PS2_DAT : inout std_logic;
+    
     FL_DQ    : in std_logic_vector(7 downto 0);
     FL_ADDR  : out std_logic_vector(21 downto 0);
     FL_WE_N  : out std_logic;
@@ -109,6 +112,9 @@ begin
         
         I2C_SDAT => I2C_SDAT,
         I2C_SCLK => I2C_SCLK,
+        
+        PS2_CLK => PS2_CLK,
+        PS2_DAT => PS2_DAT,
         
         FL_DQ    => FL_DQ,
         FL_ADDR  => FL_ADDR,

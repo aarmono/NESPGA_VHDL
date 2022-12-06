@@ -22,6 +22,9 @@ port
     I2C_SDAT : out std_logic;
     I2C_SCLK : out std_logic;
     
+    PS2_CLK : inout std_logic;
+    PS2_DAT : inout std_logic;
+    
     FL_DQ    : in std_logic_vector(7 downto 0);
     FL_ADDR  : out std_logic_vector(21 downto 0);
     FL_WE_N  : out std_logic;
@@ -76,6 +79,14 @@ architecture behavioral of nes_de1 is
     signal reset : boolean;
     
     signal flash_bus : file_bus_t;
+    
+    signal joy_strobe : std_logic;
+    
+    signal shift_joy_1 : std_logic;
+    signal joy_1_val   : std_logic;
+    
+    signal shift_joy_2 : std_logic;
+    signal joy_2_val   : std_logic;
     
 begin
     
@@ -176,7 +187,34 @@ begin
         data_from_sram => (others => '0'),
 
         pixel_bus => pixel_bus,
-        audio => audio_out
+        audio => audio_out,
+        
+        joy_strobe => joy_strobe,
+        
+        shift_joy_1 => shift_joy_1,
+        joy_1_val => joy_1_val,
+        
+        shift_joy_2 => shift_joy_2,
+        joy_2_val => joy_2_val
+    );
+    
+    joystick : ps2_joystick
+    port map
+    (
+        clk_key => CLOCK_AUD,
+        clk_cpu => CLOCK_50,
+        reset => reset,
+        
+        ps2_clk => PS2_CLK,
+        ps2_dat => PS2_DAT,
+        
+        joy_strobe => joy_strobe,
+        
+        shift_joy_1 => shift_joy_1,
+        joy_1_val => joy_1_val,
+        
+        shift_joy_2 => shift_joy_2,
+        joy_2_val => joy_2_val
     );
 
     process(CLOCK_50)
