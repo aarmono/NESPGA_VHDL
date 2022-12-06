@@ -31,7 +31,7 @@ architecture behavioral of wm8731 is
     constant AUD_PERIOD : unsigned(1 downto 0) := resize(CLOCK_DIV - "1", 2);
     constant DAT_FREQ : unsigned(14 downto 0) := to_unsigned(20000, 15);
     constant DAT_PERIOD : unsigned(9 downto 0) :=
-        resize((CLOCK_RATE / DAT_FREQ) -  "1", 10);
+        shift_right(resize((CLOCK_RATE / DAT_FREQ) -  "1", 10), 2);
         
     type reg_t is record
         data    : wm8731_dat_t;
@@ -63,7 +63,8 @@ begin
     begin
         v_audio := bus_out(reg.audio);
         v_reg := reg;
-        
+
+        v_sclk := sclk_out(reg.data);
         v_sdat := sdat_out(reg.data);
         
         if reset
@@ -83,7 +84,7 @@ begin
                     -- 0dB gain, enable zero-cross circuit (to update volume when
                     -- output near zero), and assign to both L and R channels
                     when "0000010" =>
-                        v_reg.data := start_write(wm_addr_t(reg.count), b"1_1_0110000");
+                        v_reg.data := start_write(wm_addr_t(reg.count), b"1_1_1111001");
                     -- Route DAC to Lineout, disable others
                     when "0000100" =>
                         v_reg.data := start_write(wm_addr_t(reg.count), b"0_11_0_1_0_0_1_0");
@@ -108,7 +109,7 @@ begin
                 end case;
                 v_reg.count := reg.count + "1";
             else
-                v_reg.data := next_dat(reg.data);
+                v_reg.data := next_dat(v_reg.data);
             end if;
         else
             v_reg.dat_div := reg.dat_div - "1";
@@ -131,7 +132,6 @@ begin
             v_reg.aud_div := reg.aud_div - "1";
         end if;
     
-        v_sclk := sclk_out(v_reg.data);
         sclk <= v_sclk;
         sdat <= v_sdat;
         
