@@ -16,6 +16,7 @@ port
     CLOCK_50  : in std_logic;
     CLOCK_VGA : in std_logic;
     CLOCK_AUD : in std_logic;
+    RESET_N   : in std_logic;
 
     I2C_SDAT : out std_logic;
     I2C_SCLK : out std_logic;
@@ -44,7 +45,8 @@ port
     
     AUD_BCLK    : out std_logic;
     AUD_DACDAT  : out std_logic;
-    AUD_DACLRCK : out std_logic
+    AUD_DACLRCK : out std_logic;
+    AUD_XCK     : out std_logic
 );
 end nes_de1;
 
@@ -75,7 +77,7 @@ architecture behavioral of nes_de1 is
     
 begin
     
-    reset <= false;
+    reset <= RESET_N = '0';
 
     FL_ADDR <= resize(flash_bus.address, fl_addr'length);
     FL_WE_N <= '1';
@@ -89,6 +91,8 @@ begin
     VGA_VS <= vga_out.v_sync;
     VGA_LVAL <= to_std_logic(vga_out.lval);
     VGA_FVAL <= to_std_logic(vga_out.fval);
+    
+    AUD_XCK <= CLOCK_AUD;
     
     -- WM8731 interface {
     aud_out : wm8731
@@ -174,9 +178,7 @@ begin
     begin
     if rising_edge(CLOCK_50) then
     if cpu_clk_en then
-        if nes_running then
-            reg_audio_cpu_clk <= audio_out;
-        end if;
+        reg_audio_cpu_clk <= audio_out;
     end if;
     end if;
     end process;
