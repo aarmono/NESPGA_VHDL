@@ -62,6 +62,12 @@ The simulator supports the following:
 * Dumping video frames to .bmp files
 * Reading joystick input data from FCEUX .fm2 files
 
+Scripts are included which can take the audio and video files and use ffmpeg to
+generate video files from the data
+([example](https://www.youtube.com/watch?v=CVuoEuP-UWM)). This is mostly a
+gimmick since the simulation is so slow (that video took 2 days to render) but
+may be useful in limited situations.
+
 There are also scripts which will automatically execute test ROMs and compare
 the output to known good values to minimize regression issues. This test suite
 runs using the open source GHDL simulator and runs within the official GHDL
