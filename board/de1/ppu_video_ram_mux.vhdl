@@ -39,6 +39,9 @@ is
 
     type ppu_pixel_buf_t is array(0 to BUFFER_SIZE-1) of pixel_t;
     signal ppu_pixel_buf : ppu_pixel_buf_t;
+    
+    attribute ramstyle : string;
+    attribute ramstyle of ppu_pixel_buf : signal is "logic";
 
     type palette_t is array(0 to 63) of sram_data_t;
     constant PALETTE : palette_t :=
