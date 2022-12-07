@@ -168,7 +168,7 @@ begin
     nes : nes_soc_ocram
     generic map
     (
-        USE_EXT_SRAM => true
+        USE_EXT_SRAM => false
     )
     port map
     (
@@ -182,9 +182,6 @@ begin
 
         file_bus => flash_bus,
         data_from_file => FL_DQ,
-
-        -- Temporarily disable SRAM
-        data_from_sram => (others => '0'),
 
         pixel_bus => pixel_bus,
         audio => audio_out,

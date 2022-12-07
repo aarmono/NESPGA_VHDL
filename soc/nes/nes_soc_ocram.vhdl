@@ -12,6 +12,7 @@ use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.utilities.all;
 use work.perhipherals.all;
+use work.perhipheral_types.all;
 
 entity nes_soc_ocram is
 generic
@@ -206,6 +207,7 @@ begin
     oam : syncram_sp
     generic map
     (
+        MEM_TYPE  => MEMORY_REGISTER,
         ADDR_BITS => oam_addr_t'length,
         DATA_BITS => data_t'length
     )
@@ -225,6 +227,7 @@ begin
     sec_oam : syncram_sp
     generic map
     (
+        MEM_TYPE => MEMORY_REGISTER,
         ADDR_BITS => sec_oam_addr_t'length,
         DATA_BITS => data_t'length
     )
@@ -244,6 +247,7 @@ begin
     palette : syncram_sp
     generic map
     (
+        MEM_TYPE => MEMORY_REGISTER,
         ADDR_BITS => palette_addr_t'length,
         DATA_BITS => pixel_t'length
     )

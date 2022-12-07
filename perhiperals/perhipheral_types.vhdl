@@ -6,9 +6,10 @@ package perhipheral_types is
 
     subtype wm_audio_t is std_logic_vector(15 downto 0);
 
-    type vendor_t is
+    type memory_type_t is
     (
-        VENDOR_ALTERA
+        MEMORY_ALTERA,
+        MEMORY_REGISTER
     );
 
 end perhipheral_types;

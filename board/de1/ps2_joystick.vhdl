@@ -78,35 +78,43 @@ begin
             val := not to_std_logic(key_pressed);
             case key_ascii is
                 -- w (Up)
-                when x"77" =>
+                when x"77" |
+                     x"57" =>
                     idx := 4;
                     update := true;
                 -- s (Down)
-                when x"73" =>
+                when x"73" |
+                     x"53" =>
                     idx := 5;
                     update := true;
                 -- a (Left)
-                when x"61" =>
+                when x"61" |
+                     x"41" =>
                     idx := 6;
                     update := true;
                 -- d (Right)
-                when x"64" =>
+                when x"64" |
+                     x"44" =>
                     idx := 7;
                     update := true;
                 -- j (b)
-                when x"6A" =>
+                when x"6A" |
+                     x"4A" =>
                     idx := 1;
                     update := true;
                 -- k (a)
-                when x"6B" =>
+                when x"6B" |
+                     x"4B" =>
                     idx := 0;
                     update := true;
                 -- u (Start)
-                when x"75" =>
+                when x"75" |
+                     x"55" =>
                     idx := 3;
                     update := true;
                 -- i (Select)
-                when x"69" =>
+                when x"69" |
+                     x"49" =>
                     idx := 2;
                     update := true;
                 when others =>
