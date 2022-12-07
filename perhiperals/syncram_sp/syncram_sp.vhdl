@@ -6,7 +6,7 @@ use work.perhipheral_types.all;
 entity syncram_sp is
 generic
 (
-    VENDOR    : vendor_t := VENDOR_ALTERA;
+    MEM_TYPE  : memory_type_t := MEMORY_ALTERA;
     ADDR_BITS : positive;
     DATA_BITS : positive := 8
 );
@@ -34,7 +34,8 @@ architecture behavioral of syncram_sp is
 
 begin
 
-    altera_syncram_sp : if VENDOR = VENDOR_ALTERA generate
+syncram_gen : case MEM_TYPE generate
+    when MEMORY_ALTERA =>
 
         signal ram : ram_t;
         signal reg_address : ram_addr_t := (others => '0');
@@ -70,7 +71,32 @@ begin
             (others => '-') when is_x(std_logic_vector(reg_address)) else
             -- pragma translate_on
             ram(to_integer(reg_address));
+    end;
+    
+    when MEMORY_REGISTER =>
+    
+        signal ram : ram_t;
+        
+    begin
+    
+        process(clk)
+        begin
+        if rising_edge(clk) then
+        if write and clk_en
+        then
+            ram(to_integer(unsigned(address))) <= data_in;
+        end if;
+        end if;
+        end process;
+        
+        -- Asynchronous access should prevent RAM from being inferred
+        data_out <=
+            -- pragma translate_off
+            (others => '-') when is_x(std_logic_vector(address)) else
+            -- pragma translate_on
+            ram(to_integer(unsigned(address)));
+    end;
 
-    end generate;
+end generate;
 
 end behavioral;

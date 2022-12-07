@@ -24,7 +24,7 @@ package perhipherals is
     component syncram_sp is
     generic
     (
-        VENDOR    : vendor_t := VENDOR_ALTERA;
+        MEM_TYPE  : memory_type_t := MEMORY_ALTERA;
         ADDR_BITS : positive;
         DATA_BITS : positive := 8
     );
