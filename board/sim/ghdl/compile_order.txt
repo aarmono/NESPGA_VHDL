@@ -23,6 +23,12 @@
 
 ../../../perhiperals/syncram_sp/syncram_sp.vhdl
 
+../../../perhiperals/ps2_keyboard/counter.vhdl
+../../../perhiperals/ps2_keyboard/edge_detector.vhdl
+../../../perhiperals/ps2_keyboard/ps2_bus.vhdl
+../../../perhiperals/ps2_keyboard/ps2.vhdl
+../../../perhiperals/ps2_keyboard/ps2_keyboard.vhdl
+
 ../../../perhiperals/perhipherals.vhdl
 
 ../../../simulation/simulation.vhdl
@@ -97,5 +103,6 @@
 ../../../board/de1/ppu_video_ram_mux.vhdl
 ../../../board/de1/vga_out.vhdl
 ../../../board/de1/nes_de1.vhdl
+../../../board/de1/ps2_joystick.vhdl
 ../../../board/de1/vga_video_record.vhdl
 ../../../board/de1/nes_de1_bench.vhdl
