@@ -1,8 +1,17 @@
 # NESPGA - A Synthesizable NES on an FPGA
 
+The goal of this project is/was to make a better, open source version of those
+knock-off NES consoles that all use the same NES-on-a-chip using a low-cost, off
+the shelf FPGA board. There is no co-processor design that tries to replicate
+various functions traditionally found in emulators. Someone could probably 
+take my design and add that to it, but that is outside the scope of this
+project. This project simply plays games the way those retro consoles do.
+
 NESPGA currently targets the (now obsolete) DE1 board from Terasic. This board
 features a Cyclone II with 20K logic elements, and the design fits comfortably
-in that. The current status is:
+in that. The NES poses no difficulty for modern FPGA hardware: the main
+constraint is memory which more modern FPGAs have much more of.
+The current status is:
 
 * Games playable from embedded flash memory on the DE1 board
 * Video using the on-board VGA output (color resolution is 4-bit per channel
