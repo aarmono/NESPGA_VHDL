@@ -11,5 +11,7 @@
 **/*.bin
 **/*.bak
 **/*.py
+**/*.dmp
+**/*.png
 NES
 NSF
