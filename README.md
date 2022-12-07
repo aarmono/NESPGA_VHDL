@@ -1,0 +1,60 @@
+# NESPGA - A Synthesizable NES on an FPGA
+
+NESPGA currently targets the (now obsolete) DE1 board from Terasic. This board
+features a Cyclone II with 20K logic elements, and the design fits comfortably
+in that. The current status is:
+
+* Games playable from embedded flash memory on the DE1 board
+* Video using the on-board VGA output (color resolution is 4-bit per channel
+  due to the way the VGA hardware is designed, but this does not appear to
+  matter significantly)
+* Audio from the line out on the board
+* Joystick control using a PS2 keyboard (key map is hardcoded)
+
+Joystick keymap
+* wsad for directional buttons
+* j = B Button
+* k = A Button
+* u = Start
+* i = Select
+
+Mappers currently supported:
+* 000
+* 002
+
+So very much a work in progress still. However my emphasis to date has been on
+emulation accuracy of the CPU, PPU, and APU to make sure that's solid.
+
+The design is synthesized using Quartus 13.0.1 Web Edition, the last version
+to support the Cyclone II.
+
+## How This Differs from MiSTer
+
+The simple answer is that MiSTer didn't exist when I started this project, and
+my goals were less ambitious than MiSTer's. If it had existed, perhaps this
+project wouldn't have existed at all. Regardless, there are a couple significant
+differences.
+
+The primary difference is the design is written in a very high-level style. I am
+a programmer by profession, so I wrote the design like I would if it were a
+program. Most of the logic is written in VHDL functions which are then used
+to update registers and output signals. My hope is that this makes the code
+more approachable and also easier to understand. Since there was a 10-year
+gap where I wasn't working or thinking about the project at all, I consider
+this goal met.
+
+The second difference is I spent time getting automated test-benches set up
+and running using a VHDL simulator. I find simulators invaluable when
+interfacing with hardware, so I wanted to make sure I had one that worked well.
+The simulator supports the following:
+
+* Loading .NES files into simulated flash memory
+* Dumping audio data to uncompressed .au files
+* Dumping video frames to .bmp files
+* Reading joystick input data from FCEUX .fm2 files
+
+There are also scripts which will automatically execute test ROMs and compare
+the output to known good values to minimize regression issues. This test suite
+runs using the open source GHDL simulator and runs within the official GHDL
+Docker image. Multiple tests can be run in parallel since GHDL is
+single-threaded, to improve performance.
