@@ -4,8 +4,13 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.de1_types.all;
+use work.perhipheral_types.all;
 
 entity ppu_video_ram_mux is
+generic
+(
+    MEM_TYPE : memory_type_t := MEMORY_INFERRED
+);
 port
 (
     clk_50mhz : in std_logic;
@@ -41,7 +46,9 @@ is
     signal ppu_pixel_buf : ppu_pixel_buf_t;
     
     attribute ramstyle : string;
-    attribute ramstyle of ppu_pixel_buf : signal is "logic";
+    attribute ramstyle of ppu_pixel_buf : signal is ramtype_attr_str(VENDOR_ALTERA,
+                                                                     MEM_TYPE,
+                                                                     "");
 
     type palette_t is array(0 to 63) of sram_data_t;
     constant PALETTE : palette_t :=

@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
+use work.perhipheral_types.all;
 
 package de1_types is
     
@@ -64,6 +65,10 @@ package de1_types is
     end component vga_gen;
 
     component ppu_video_ram_mux is
+    generic
+    (
+        MEM_TYPE : memory_type_t := MEMORY_INFERRED
+    );
     port
     (
         clk_50mhz : in std_logic;
