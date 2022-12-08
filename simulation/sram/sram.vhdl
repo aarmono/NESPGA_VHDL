@@ -187,24 +187,24 @@ END sram;
 
 ARCHITECTURE behavior OF sram IS
 
-  FUNCTION Check_For_Valid_Data (a: std_logic_vector) RETURN BOOLEAN IS
+  FUNCTION Check_For_Valid_Data (adr: std_logic_vector) RETURN BOOLEAN IS
     VARIABLE result: BOOLEAN;
    BEGIN
     result := TRUE;
-    FOR i IN a'RANGE LOOP
-      result := (a(i) = '0') OR (a(i) = '1');
+    FOR i IN adr'RANGE LOOP
+      result := (adr(i) = '0') OR (adr(i) = '1');
       IF NOT result THEN EXIT;
       END IF;
     END LOOP;
     RETURN result;
   END Check_For_Valid_Data;
 
-  FUNCTION Check_For_Tristate (a: std_logic_vector) RETURN BOOLEAN IS
+  FUNCTION Check_For_Tristate (adr: std_logic_vector) RETURN BOOLEAN IS
     VARIABLE result: BOOLEAN;
    BEGIN
     result := TRUE;
-    FOR i IN a'RANGE LOOP
-      result := (a(i) = 'Z');
+    FOR i IN adr'RANGE LOOP
+      result := (adr(i) = 'Z');
       IF NOT result THEN EXIT;
       END IF;
     END LOOP;
@@ -258,7 +258,7 @@ BEGIN
 
 
 
-    PROCEDURE power_up (mem: inout memory_array; clear: boolean) IS
+    PROCEDURE power_up (m: inout memory_array; clear: boolean) IS
 
       VARIABLE init_value: std_logic;
 
@@ -273,16 +273,16 @@ BEGIN
       END IF;
       FOR add IN low_address TO high_address LOOP
         FOR j IN (width-1) DOWNTO 0 LOOP
-          mem(add)(j) := init_value;
+          m(add)(j) := init_value;
         END LOOP;
       END LOOP; 
 
     END power_up;
 
 
-    PROCEDURE load (mem: INOUT memory_array; download_filename: IN string) IS
+    PROCEDURE load (m: INOUT memory_array; filename: IN string) IS
 
-      FILE source : text OPEN READ_MODE IS download_filename;
+      FILE source : text OPEN READ_MODE IS filename;
       VARIABLE inline, outline : line;
       VARIABLE add: natural;
       VARIABLE c : character;
@@ -290,7 +290,7 @@ BEGIN
       VARIABLE init_value: std_logic := 'U';
 
      BEGIN
-      REPORT "Loading SRAM from file " & download_filename & string'(" ... ")
+      REPORT "Loading SRAM from file " & filename & string'(" ... ")
       SEVERITY NOTE;
       WHILE NOT endfile(source) LOOP
         readline(source, inline);
@@ -298,7 +298,7 @@ BEGIN
         read(inline, c); 
         IF (c /= ' ') THEN
           write(outline, string'("Syntax error in file '"));
-          write(outline, download_filename);
+          write(outline, filename);
           write(outline,  string'("', line "));
           write(outline, source_line_nr);
           REPORT outline.all
@@ -310,20 +310,20 @@ BEGIN
         FOR i IN (width -1) DOWNTO 0 LOOP
           read(inline, c);
 	  IF (c = '1') THEN
-            mem(add)(i) := '1';
+            m(add)(i) := '1';
           ELSE
             IF (c /= '0') THEN
               write(outline, string'("-W- Invalid character '"));
               write(outline, c);
               write(outline, string'("' in Bitstring in '"));
-              write(outline, download_filename);
+              write(outline, filename);
               write(outline, '(');
               write(outline, source_line_nr);
               write(outline, string'(") is set to '0'"));
               REPORT outline.all
               SEVERITY WARNING;
             END IF;
-            mem(add)(i) := '0';
+            m(add)(i) := '0';
           END IF;
         END LOOP;
         IF (trace_ram_load) THEN
@@ -342,26 +342,26 @@ BEGIN
 
 
 
-    PROCEDURE do_dump (mem: INOUT memory_array; 
-                       dump_start, dump_end: IN natural; 
-                       dump_filename: IN string) IS
+    PROCEDURE do_dump (m: INOUT memory_array; 
+                       ds, de: IN natural; 
+                       filename: IN string) IS
 
-      FILE dest : text OPEN WRITE_MODE IS dump_filename;
+      FILE dest : text OPEN WRITE_MODE IS filename;
       VARIABLE l : line;
       VARIABLE c : character;
 
      BEGIN
 
-      IF (dump_start > dump_end)  OR (dump_end >= size) THEN
+      IF (ds > de)  OR (de >= size) THEN
         ASSERT FALSE
         REPORT "Invalid addresses for memory dump. Cancelled."
         SEVERITY ERROR;
       ELSE
-        FOR add IN dump_start TO dump_end LOOP
+        FOR add IN ds TO de LOOP
           write(l, add);
           write(l, ' ');
           FOR i IN (width-1) downto 0 LOOP
-            write(l, mem(add)(i));
+            write(l, m(add)(i));
           END LOOP;
           writeline(dest, l);
         END LOOP;
