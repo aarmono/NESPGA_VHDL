@@ -25,6 +25,10 @@ port
     PS2_CLK : inout std_logic;
     PS2_DAT : inout std_logic;
     
+    SW   : in std_logic_vector(9 downto 0);
+    LEDR : out std_logic_vector(9 downto 0);
+    LEDG : out std_logic_vector(7 downto 0);
+    
     FL_DQ    : in std_logic_vector(7 downto 0);
     FL_ADDR  : out std_logic_vector(21 downto 0);
     FL_WE_N  : out std_logic;
@@ -84,6 +88,7 @@ architecture behavioral of nes_de1 is
     
     signal shift_joy_1 : std_logic;
     signal joy_1_val   : std_logic;
+    signal joy_1_reg   : std_logic_vector(7 downto 0);
     
     signal shift_joy_2 : std_logic;
     signal joy_2_val   : std_logic;
@@ -106,6 +111,11 @@ begin
     VGA_FVAL <= to_std_logic(vga_out.fval);
     
     AUD_XCK <= CLOCK_AUD;
+    
+    LEDR(9) <= SW(9);
+    LEDR(8 downto 0) <= (others => '0');
+    
+    LEDG <= not joy_1_reg;
     
     -- WM8731 interface {
     aud_out : wm8731
@@ -206,6 +216,8 @@ begin
         clk_cpu => CLOCK_50,
         reset => reset,
         
+        filter_invalid => SW(9) = '1',
+        
         ps2_clk => PS2_CLK,
         ps2_dat => PS2_DAT,
         
@@ -213,6 +225,7 @@ begin
         
         shift_joy_1 => shift_joy_1,
         joy_1_val => joy_1_val,
+        joy_1_reg => joy_1_reg,
         
         shift_joy_2 => shift_joy_2,
         joy_2_val => joy_2_val
