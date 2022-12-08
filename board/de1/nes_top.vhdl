@@ -22,6 +22,10 @@ port
     PS2_CLK : inout std_logic;
     PS2_DAT : inout std_logic;
     
+    SW   : in std_logic_vector(9 downto 0);
+    LEDR : out std_logic_vector(9 downto 0);
+    LEDG : out std_logic_vector(7 downto 0);
+    
     FL_DQ    : in std_logic_vector(7 downto 0);
     FL_ADDR  : out std_logic_vector(21 downto 0);
     FL_WE_N  : out std_logic;
@@ -115,6 +119,10 @@ begin
         
         PS2_CLK => PS2_CLK,
         PS2_DAT => PS2_DAT,
+        
+        SW => SW,
+        LEDR => LEDR,
+        LEDG => LEDG,
         
         FL_DQ    => FL_DQ,
         FL_ADDR  => FL_ADDR,

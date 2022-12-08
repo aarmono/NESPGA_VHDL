@@ -100,6 +100,8 @@ package de1_types is
         clk_cpu : in std_logic;
         reset   : in boolean;
         
+        filter_invalid : in boolean;
+        
         ps2_clk : inout std_logic;
         ps2_dat : inout std_logic;
         
@@ -107,9 +109,11 @@ package de1_types is
         
         shift_joy_1 : in std_logic;
         joy_1_val   : out std_logic;
+        joy_1_reg   : out std_logic_vector(7 downto 0);
         
         shift_joy_2 : in std_logic;
-        joy_2_val   : out std_logic
+        joy_2_val   : out std_logic;
+        joy_2_reg   : out std_logic_vector(7 downto 0)
     );
     end component ps2_joystick;
     
