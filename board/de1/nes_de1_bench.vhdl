@@ -70,6 +70,8 @@ begin
         
         I2C_SDAT => i2c_sdat,
         I2C_SCLK => i2c_sclk,
+
+        SW => (others => '0'),
         
         FL_DQ => fl_dq,
         FL_ADDR => fl_addr,
