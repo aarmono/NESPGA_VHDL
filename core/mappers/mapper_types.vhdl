@@ -198,6 +198,13 @@ package mapper_types is
         mapper_out : ppu_mapper_bus_out_t
     )
     return ppu_mmap_bus_out_t;
+
+    function get_mirrored_address
+    (
+        chr_addr : chr_addr_t;
+        mirror   : mirror_t
+    )
+    return chr_addr_t;
     
     function get_ram_addr(addr : cpu_addr_t) return ram_addr_t;
     
@@ -289,6 +296,33 @@ package body mapper_types is
         mmap_out.data_to_ciram := mapper_out.data_to_ciram;
         
         return mmap_out;
+    end;
+
+    function get_mirrored_address
+    (
+        chr_addr : chr_addr_t;
+        mirror   : mirror_t
+    )
+    return chr_addr_t
+    is
+        variable mirrored_addr : chr_addr_t;
+        -- CIRAM is 2KB, starting at address 0x2000
+        constant MIRROR_MASK : chr_addr_t := b"10_0111_1111_1111";
+        constant QUAD_MASK : chr_addr_t := b"10_1111_1111_1111";
+    begin
+        if mirror(1) = '1'
+        then
+            mirrored_addr := chr_addr and QUAD_MASK;
+        else
+            mirrored_addr := chr_addr and MIRROR_MASK;
+            if mirror(0) = '0'
+            then
+                -- Horizontal mirror (CIRAM A10 = PPU A11)
+                mirrored_addr(10) := chr_addr(11);
+            end if;
+        end if;
+
+        return mirrored_addr;
     end;
     
     function get_ram_addr(addr : cpu_addr_t) return ram_addr_t

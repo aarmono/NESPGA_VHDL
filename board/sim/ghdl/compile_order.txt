@@ -80,6 +80,7 @@
 ../../../core/mappers/mapper_types.vhdl
 ../../../core/mappers/000/lib_mapper_000.vhdl
 ../../../core/mappers/002/lib_mapper_002.vhdl
+../../../core/mappers/004/lib_mapper_004.vhdl
 ../../../core/mappers/220/lib_nsf_rom.vhdl
 ../../../core/mappers/220/lib_mapper_220.vhdl
 ../../../core/mappers/lib_mapper.vhdl

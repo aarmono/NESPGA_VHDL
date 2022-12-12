@@ -82,5 +82,10 @@ blargg_ppu_tests_2005.09.15b/sprite_ram.nes         | 317ms     | 5fd7a0f2809eed
 blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes     | 400ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00023.bmp
 blargg_ppu_tests_2005.09.15b/vram_access.nes        | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
 
+# Mappers
+mmc3_test/1-clocking.nes                            | 417ms     | 7c92bb9b311ba8606067da217a7c14d78abac49e51248b82f876559dcf8981b4 *frame_00024.bmp
+mmc3_test/2-details.nes                             | 450ms     | 911958c9323566d4c860878135bb449556a84d07097686437e29bfa00602eb53 *frame_00026.bmp
+mmc3_test/3-A12_clocking.nes                        |           | 
+
 # Miscellaneous
 other/BLOCKS.NES                                    | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp

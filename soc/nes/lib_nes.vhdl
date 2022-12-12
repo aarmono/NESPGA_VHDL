@@ -89,6 +89,7 @@ package lib_nes is
         data_to_palette : pixel_t;
         audio           : mixed_audio_t;
         reset           : boolean;
+        irq             : boolean;
     end record;
     
     type nes_in_t is record
@@ -134,6 +135,7 @@ package body lib_nes is
         
         ret.audio := (others => '-');
         ret.reset := false;
+        ret.irq   := false;
         
         case nes_in.reg.cur_state is
             when STATE_RESET =>
@@ -239,6 +241,7 @@ package body lib_nes is
                 ret.reg.mapper_reg := ppu_map_out.reg;
                 ret.cpu_bus := cpu_map_out.bus_out;
                 ret.ppu_bus := ppu_map_out.bus_out;
+                ret.irq := ppu_map_out.irq;
         end case;
         
         return ret;

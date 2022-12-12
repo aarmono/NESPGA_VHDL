@@ -144,7 +144,10 @@ is
     
     signal int_reset : boolean;
     signal nmi : boolean;
-    signal irq : boolean;
+    
+    signal apu_irq  : boolean;
+    signal cart_irq : boolean;
+    signal irq      : boolean;
     
     signal apu_ready : boolean;
     signal dma_ready : boolean;
@@ -161,6 +164,8 @@ begin
     cpu_ram_en <= sig_cpu_ram_en;
 
     ready <= apu_ready and dma_ready;
+
+    irq <= apu_irq or cart_irq;
 
     file_mux : file_bus_mux
     port map
@@ -226,7 +231,7 @@ begin
         audio => audio_out,
 
         dma_bus => apu_dma_bus,
-        irq => irq,
+        irq => apu_irq,
         ready => apu_ready
     );
 
@@ -385,6 +390,8 @@ begin
         
         audio <= nes_out.audio;
         int_reset <= nes_out.reset;
+
+        cart_irq <= nes_out.irq;
         
     end process;
     
@@ -396,7 +403,7 @@ begin
         if reset
         then
             reg <= RESET_REG;
-        elsif cpu_en
+        elsif (reg.cur_state = STATE_RUN and ppu_en) or cpu_en
         then
             reg <= reg_next;
         end if;

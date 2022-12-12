@@ -35,6 +35,7 @@ package lib_nes_mmap is
     type ppu_mmap_out_t is record
         reg     : mapper_reg_t;
         bus_out : ppu_mmap_bus_out_t;
+        irq     : boolean;
     end record;
     
     function mmap_ppu_memory(map_in : ppu_mmap_in_t) return ppu_mmap_out_t;
@@ -142,15 +143,14 @@ package body lib_nes_mmap is
         map_out.reg := map_in.reg;
         map_out.bus_out := PPU_MMAP_BUS_IDLE;
         
-        if is_bus_active(map_in.bus_in.chr_bus)
-        then
-            mapper_in.reg := map_in.reg;
-            mapper_in.bus_in := ppu_mmap_in_to_mapper_in(map_in.bus_in);
-            
-            mapper_out := map_ppu_using_mapper(mapper_in);
-            map_out.bus_out :=
-                ppu_mapper_out_to_mmap_out(mapper_out.bus_out);
-        end if;
+        mapper_in.reg := map_in.reg;
+        mapper_in.bus_in := ppu_mmap_in_to_mapper_in(map_in.bus_in);
+        
+        mapper_out := map_ppu_using_mapper(mapper_in);
+        map_out.bus_out :=
+            ppu_mapper_out_to_mmap_out(mapper_out.bus_out);
+        map_out.reg := mapper_out.reg;
+        map_out.irq := mapper_out.irq;
         
         return map_out;
     end;

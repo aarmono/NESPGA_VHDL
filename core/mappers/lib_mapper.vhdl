@@ -11,6 +11,7 @@ use work.file_bus_types.all;
 use work.mapper_types.all;
 use work.lib_mapper_000.all;
 use work.lib_mapper_002.all;
+use work.lib_mapper_004.all;
 use work.lib_mapper_220.all;
 
 package lib_mapper is
@@ -20,6 +21,7 @@ package lib_mapper is
         common        : mapper_common_reg_t;
         
         mapper_002_reg : mapper_002_reg_t;
+        mapper_004_reg : mapper_004_reg_t;
         mapper_220_reg : mapper_220_reg_t;
     end record;
     
@@ -29,6 +31,7 @@ package lib_mapper is
         common => RESET_MAPPER_COMMON_REG,
         
         mapper_002_reg => RESET_MAPPER_002_REG,
+        mapper_004_reg => RESET_MAPPER_004_REG,
         mapper_220_reg => RESET_MAPPER_220_REG
     );
     
@@ -56,6 +59,7 @@ package lib_mapper is
     type ppu_mapper_out_t is record
         reg     : mapper_reg_t;
         bus_out : ppu_mapper_bus_out_t;
+        irq     : boolean;
     end record;
     
     function map_ppu_using_mapper
@@ -79,13 +83,6 @@ package lib_mapper is
     )
     return ppu_mapper_def_out_t;
 
-    function get_mirrored_address
-    (
-        chr_addr : chr_addr_t;
-        mirror   : mirror_t
-    )
-    return chr_addr_t;
-
 end package lib_mapper;
 
 package body lib_mapper is
@@ -103,6 +100,9 @@ package body lib_mapper is
 
         variable mapper_002_in : cpu_mapper_002_in_t;
         variable mapper_002_out : cpu_mapper_002_out_t;
+
+        variable mapper_004_in : cpu_mapper_004_in_t;
+        variable mapper_004_out : cpu_mapper_004_out_t;
     
         variable mapper_220_in : mapper_220_in_t;
         variable mapper_220_out : mapper_220_out_t;
@@ -135,6 +135,19 @@ package body lib_mapper is
                 
                 map_out.reg.mapper_002_reg := mapper_002_out.reg;
                 map_out.bus_out := mapper_002_out.bus_out;
+            -- MMC3
+            when x"004" =>
+                mapper_004_in :=
+                (
+                    common => map_in.reg.common,
+                    reg    => map_in.reg.mapper_004_reg,
+                    bus_in => map_in.bus_in
+                );
+
+                mapper_004_out := cpu_map_using_mapper_004(mapper_004_in);
+
+                map_out.reg.mapper_004_reg := mapper_004_out.reg;
+                map_out.bus_out := mapper_004_out.bus_out;
             -- NSF pseudo-mapper
             when x"0DC" =>
                 mapper_220_in :=
@@ -166,9 +179,13 @@ package body lib_mapper is
         
         variable mapper_def_in : ppu_mapper_def_in_t;
         variable mapper_def_out : ppu_mapper_def_out_t;
+
+        variable mapper_004_in : ppu_mapper_004_in_t;
+        variable mapper_004_out : ppu_mapper_004_out_t;
     begin
         map_out.reg := map_in.reg;
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
+        map_out.irq := false;
         
         case map_in.reg.mapper_num is
             -- NROM
@@ -184,6 +201,20 @@ package body lib_mapper is
                 mapper_def_out := ppu_map_using_mapper_def(mapper_def_in);
                 
                 map_out.bus_out := mapper_def_out.bus_out;
+            -- MMC3
+            when x"004" =>
+                mapper_004_in :=
+                (
+                    common => map_in.reg.common,
+                    reg    => map_in.reg.mapper_004_reg,
+                    bus_in => map_in.bus_in
+                );
+
+                mapper_004_out := ppu_map_using_mapper_004(mapper_004_in);
+
+                map_out.bus_out := mapper_004_out.bus_out;
+                map_out.reg.mapper_004_reg := mapper_004_out.reg;
+                map_out.irq := mapper_004_out.irq;
             when others =>
                 assert false report "Mapper not supported: " &
                     integer'image(to_integer(map_in.reg.mapper_num))
@@ -206,64 +237,40 @@ package body lib_mapper is
     begin
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
         
-        case to_integer(map_in.bus_in.chr_bus.address) is
-            when 16#0000# to 16#1FFF# =>
-                if not is_zero(map_in.common.chr_rom_8kb_blocks)
-                    then
-                    file_offset :=
-                        get_file_offset(map_in.common.prg_rom_16kb_blocks,
-                                        map_in.common.has_trainer);
-                    
-                    address := unsigned(map_in.bus_in.chr_bus.address);
-                    map_out.bus_out.file_bus := bus_read(address + file_offset);
-                    map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_file;
-                else
-                    map_out.bus_out.ciram_bus := map_in.bus_in.chr_bus;
+        if is_bus_active(map_in.bus_in.chr_bus)
+        then
+            case to_integer(map_in.bus_in.chr_bus.address) is
+                when 16#0000# to 16#1FFF# =>
+                    if not is_zero(map_in.common.chr_rom_8kb_blocks)
+                        then
+                        file_offset :=
+                            get_file_offset(map_in.common.prg_rom_16kb_blocks,
+                                            map_in.common.has_trainer);
+                        
+                        address := unsigned(map_in.bus_in.chr_bus.address);
+                        map_out.bus_out.file_bus := bus_read(address + file_offset);
+                        map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_file;
+                    else
+                        map_out.bus_out.ciram_bus := map_in.bus_in.chr_bus;
 
+                        map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_ciram;
+                        map_out.bus_out.data_to_ciram := map_in.bus_in.data_from_ppu;
+                    end if;
+                when 16#2000# to 16#3FFF# =>
+                    map_out.bus_out.ciram_bus.address :=
+                        get_mirrored_address(map_in.bus_in.chr_bus.address,
+                                             map_in.common.mirror);
+
+                    map_out.bus_out.ciram_bus.read := map_in.bus_in.chr_bus.read;
+                    map_out.bus_out.ciram_bus.write := map_in.bus_in.chr_bus.write;
                     map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_ciram;
                     map_out.bus_out.data_to_ciram := map_in.bus_in.data_from_ppu;
-                end if;
-            when 16#2000# to 16#3FFF# =>
-                map_out.bus_out.ciram_bus.address :=
-                    get_mirrored_address(map_in.bus_in.chr_bus.address,
-                                         map_in.common.mirror);
-
-                map_out.bus_out.ciram_bus.read := map_in.bus_in.chr_bus.read;
-                map_out.bus_out.ciram_bus.write := map_in.bus_in.chr_bus.write;
-                map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_ciram;
-                map_out.bus_out.data_to_ciram := map_in.bus_in.data_from_ppu;
-            when others =>
-                null;
-        end case;
+                when others =>
+                    null;
+            end case;
+        end if;
         
         return map_out;
-    end;
-
-    function get_mirrored_address
-    (
-        chr_addr : chr_addr_t;
-        mirror   : mirror_t
-    )
-    return chr_addr_t
-    is
-        variable mirrored_addr : chr_addr_t;
-        -- CIRAM is 2KB, starting at address 0x2000
-        constant MIRROR_MASK : chr_addr_t := b"10_0111_1111_1111";
-        constant QUAD_MASK : chr_addr_t := b"10_1111_1111_1111";
-    begin
-        if mirror(1) = '1'
-        then
-            mirrored_addr := chr_addr and QUAD_MASK;
-        else
-            mirrored_addr := chr_addr and MIRROR_MASK;
-            if mirror(0) = '0'
-            then
-                -- Horizontal mirror (CIRAM A10 = PPU A11)
-                mirrored_addr(10) := chr_addr(11);
-            end if;
-        end if;
-
-        return mirrored_addr;
     end;
 
 end package body;
