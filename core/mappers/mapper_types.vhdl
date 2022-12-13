@@ -368,14 +368,14 @@ package body mapper_types is
     )
     return file_off_t
     is
-        variable ret : unsigned(15 downto 0);
+        variable ret : file_off_t;
     begin
-        ret := offset_16kb(1 downto 0) &
+        ret := offset_16kb(5 downto 0) &
                "0000" &
                to_std_logic(has_trainer) &
                b"0_0001_0000";
         
-        return resize(ret, file_off_t'length);
+        return ret;
     end;
 
 end package body;
