@@ -97,6 +97,8 @@ package lib_ppu is
     
     function scroll_to_vram_addr(scroll : scroll_t) return vram_addr_t;
     function vram_addr_to_scroll(addr : vram_addr_t) return scroll_t;
+
+    function bus_read_scroll(scroll : scroll_t) return chr_bus_t;
     
     -- Encapsulates the current time for the PPU
     type ppu_time_t is record
@@ -569,6 +571,14 @@ package body lib_ppu is
         ret.fine_y_scroll := addr(14 downto 12);
         
         return ret;
+    end;
+
+    function bus_read_scroll(scroll : scroll_t) return chr_bus_t
+    is
+        variable vram_addr : vram_addr_t;
+    begin
+        vram_addr := scroll_to_vram_addr(scroll);
+        return bus_read(vram_addr(chr_addr_t'range));
     end;
 
     -- scanline_valid function {
@@ -1346,7 +1356,7 @@ package body lib_ppu is
         -- address and data bus to fetch tiles to render, as well as internally
         -- fetching sprite data from the OAM.
         if rendering_enabled(render_in.reg.mask) and
-           scanline_valid(render_in.reg.cur_time)
+           background_active(render_in.reg.cur_time)
         then
             case to_integer(render_in.reg.cur_time.cycle) is
                 when 0 to 63 =>
@@ -1374,8 +1384,10 @@ package body lib_ppu is
                         shift_sprite_buffers(render_in.reg.sprite_buffer);
                 when 64 to 255 =>
                     -- Even-numbered memory accesses are reads from OAM
-                    -- memory
-                    if render_in.reg.cur_time.cycle(0) = '0'
+                    -- memory. And during the pre-render scanline disable
+                    -- sprite hit detection
+                    if render_in.reg.cur_time.cycle(0) = '0' or
+                       not scanline_valid(render_in.reg.cur_time)
                     then
                         render_out.oam_bus := bus_read(render_in.reg.oam_addr);
                         render_out.reg.oam_data := render_in.data_from_oam;
@@ -1496,7 +1508,7 @@ package body lib_ppu is
                                 render_in.data_from_sec_oam;
                         when "010" =>
                             render_out.chr_bus :=
-                                bus_read(v_bg_tile_idx_addr.name_table_addr);
+                                bus_read(v_bg_tile_idx_addr.attr_table_addr);
                             -- Read the sprite attributes
                             render_out.sec_oam_bus :=
                                 bus_read(v_sec_oam_fetch_addr);
@@ -1504,7 +1516,7 @@ package body lib_ppu is
                                 to_sprite_attr(render_in.data_from_sec_oam);
                         when "011" =>
                             render_out.chr_bus :=
-                                bus_read(v_bg_tile_idx_addr.name_table_addr);
+                                bus_read(v_bg_tile_idx_addr.attr_table_addr);
                             -- Save relevant sprite attributes
                             render_out.reg.sprite_buffer(v_spr_buf_addr).palette :=
                                 render_in.reg.sprite_attr.palette;
@@ -1620,9 +1632,6 @@ package body lib_ppu is
             render_out.reg.status.vbl := false;
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
-            render_out.reg.sprite_buffer := RESET_SPRITE_BUFFER_ARR;
-            render_out.reg.sprite_0_buffer := false;
-            render_out.reg.sprite_0_hit := false;
         end if;
 
         -- External memory access from CPU. {
@@ -1689,6 +1698,8 @@ package body lib_ppu is
                             unsigned(render_in.data_from_cpu(7 downto 5));
                         -- Update using OUTPUT value
                         render_out.reg.ppu_addr := render_out.reg.scroll;
+                        render_out.chr_bus :=
+                            bus_read_scroll(render_out.reg.ppu_addr);
                     end if;
                     render_out.reg.count := render_in.reg.count + "1";
                 -- PPU Data
@@ -1709,6 +1720,9 @@ package body lib_ppu is
                     render_out.reg.ppu_addr :=
                         incr_ppu_addr(render_in.reg.ppu_addr,
                                       render_in.reg.control.ppu_incr_32);
+
+                    render_out.reg.chr_bus :=
+                        bus_read_scroll(render_out.reg.ppu_addr);
                 when others =>
                     null;
             end case;
@@ -1757,13 +1771,18 @@ package body lib_ppu is
                     -- though, but the data placed in it is the mirrored
                     -- nametable data that would appear "underneath" the palette.
                     render_out.chr_bus := bus_read(v_ppu_chr_addr);
-                    render_out.reg.chr_bus := render_out.chr_bus;
+
+                    -- Update the PPUDATA register for the next access
+                    render_out.reg.ppu_data := render_in.data_from_chr;
 
                     -- After access, the video memory address will increment
                     -- by an amount determined by bit 2 of $2000.
                     render_out.reg.ppu_addr :=
                         incr_ppu_addr(render_in.reg.ppu_addr,
                                       render_in.reg.control.ppu_incr_32);
+
+                    render_out.reg.chr_bus :=
+                        bus_read_scroll(render_out.reg.ppu_addr);
                 when others =>
                     render_out.data_to_cpu := (others => '0');
             end case;
@@ -1870,9 +1889,6 @@ package body lib_ppu is
         then
             render_out.chr_bus := render_in.reg.chr_bus;
             render_out.reg.chr_bus := CHR_BUS_IDLE;
-
-            -- Update the PPUDATA register for the next access
-            render_out.reg.ppu_data := render_in.data_from_chr;
         end if;
         
         return render_out;
