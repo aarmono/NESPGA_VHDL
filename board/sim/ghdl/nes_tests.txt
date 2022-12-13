@@ -83,9 +83,23 @@ blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes     | 400ms     | 5fd7a0f2809eed
 blargg_ppu_tests_2005.09.15b/vram_access.nes        | 317ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00018.bmp
 
 # Mappers
+mmc3_irq_tests/1.Clocking.nes                       | 333ms     | 3b44ce552796e9bf83f8de13b8682ac303f366363e44e1dbafd531ea02a20250 *frame_00019.bmp
+mmc3_irq_tests/2.Details.nes                        | 400ms     | 07c31f60dc13ec1251af5a39e8f6e487eb0b502af7bf96a6ca3b5a90f2dbe2e3 *frame_00023.bmp
+mmc3_irq_tests/3.A12_clocking.nes                   | 317ms     | 0b8c4420b91a110f42049a249c91adca67624b4faa41fbe4c0501bf75f564abe *frame_00018.bmp
+mmc3_irq_tests/4.Scanline_timing.nes                | 1351ms    | 44a02a0d005edb679956214684e7c8f1cd783f28c3fcad95965829fbfe80ab53 *frame_00080.bmp
+mmc3_irq_tests/6.MMC3_rev_B.nes                     | 300ms     | a35f0a9a7699589f6aa090780a5c8acd976f37e646fd12f0f013a632990daeb8 *frame_00017.bmp
+
 mmc3_test/1-clocking.nes                            | 417ms     | 7c92bb9b311ba8606067da217a7c14d78abac49e51248b82f876559dcf8981b4 *frame_00024.bmp
 mmc3_test/2-details.nes                             | 450ms     | 911958c9323566d4c860878135bb449556a84d07097686437e29bfa00602eb53 *frame_00026.bmp
-mmc3_test/3-A12_clocking.nes                        |           | 
+mmc3_test/3-A12_clocking.nes                        | 417ms     | 08159de55af55b414199755c3b723e04e1007b35e3a7f232b9ae8d353480c5bd *frame_00024.bmp
+# mmc3_test/4-scanline_timing.nes Fails
+mmc3_test/5-MMC3.nes                                | 417ms     | 0271ba3e5515837c7eb972cab807c40877793361bf71ba465012dad55db443e2 *frame_00024.bmp
+
+mmc3_test_2/rom_singles/1-clocking.nes              | 433ms     | 7c92bb9b311ba8606067da217a7c14d78abac49e51248b82f876559dcf8981b4 *frame_00025.bmp
+mmc3_test_2/rom_singles/2-details.nes               | 484ms     | 911958c9323566d4c860878135bb449556a84d07097686437e29bfa00602eb53 *frame_00028.bmp
+mmc3_test_2/rom_singles/3-A12_clocking.nes          | 434ms     | 08159de55af55b414199755c3b723e04e1007b35e3a7f232b9ae8d353480c5bd *frame_00025.bmp
+# mmc3_test_2/rom_singles/4-scanline_timing.nes Fails
+mmc3_test_2/rom_singles/5-MMC3.nes                  | 434ms     | 0271ba3e5515837c7eb972cab807c40877793361bf71ba465012dad55db443e2 *frame_00025.bmp
 
 # Miscellaneous
 other/BLOCKS.NES                                    | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp
