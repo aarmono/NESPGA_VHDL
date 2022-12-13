@@ -408,13 +408,15 @@ begin
         if reset
         then
             reg <= RESET_REG;
-            cart_irq <= false;
         elsif (reg.cur_state = STATE_RUN and ppu_en) or cpu_en
         then
             reg <= reg_next;
         end if;
 
-        if cpu_en
+        if reset
+        then
+            cart_irq <= false;
+        elsif cpu_en
         then
             cart_irq <= next_cart_irq;
         end if;
