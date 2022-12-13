@@ -16,6 +16,7 @@ use work.palette_bus_types.all;
 use work.nes_types.all;
 use work.nes_core.all;
 use work.lib_nes.all;
+use work.lib_ppu.all;
 
 entity nes_soc is
 port
@@ -145,13 +146,17 @@ is
     signal int_reset : boolean;
     signal nmi : boolean;
     
-    signal apu_irq  : boolean;
     signal cart_irq : boolean;
+    signal next_cart_irq : boolean;
+
+    signal apu_irq  : boolean;
     signal irq      : boolean;
     
     signal apu_ready : boolean;
     signal dma_ready : boolean;
     signal ready     : boolean;
+
+    signal ppu_time : ppu_time_t;
 
 begin
 
@@ -391,10 +396,10 @@ begin
         audio <= nes_out.audio;
         int_reset <= nes_out.reset;
 
-        cart_irq <= nes_out.irq;
+        next_cart_irq <= nes_out.irq;
         
     end process;
-    
+
     process(clk_50mhz)
     is
     begin
@@ -403,9 +408,15 @@ begin
         if reset
         then
             reg <= RESET_REG;
+            cart_irq <= false;
         elsif (reg.cur_state = STATE_RUN and ppu_en) or cpu_en
         then
             reg <= reg_next;
+        end if;
+
+        if cpu_en
+        then
+            cart_irq <= next_cart_irq;
         end if;
     end if;
     end process;
