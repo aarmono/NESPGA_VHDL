@@ -102,6 +102,7 @@ package lib_mapper_004 is
     (
         reg         : mapper_004_reg_t;
         mirror      : mirror_t;
+        num_banks   : bank_t;
         file_offset : file_off_t;
         bus_in      : ppu_mapper_bus_in_t
     )
@@ -124,8 +125,9 @@ package lib_mapper_004 is
 
     function get_ppu_chr_addr
     (
-        addr_in : chr_addr_t;
-        bank    : bank_t
+        addr_in   : chr_addr_t;
+        bank      : bank_t;
+        num_banks : bank_t
     )
     return chr_rom_addr_t;
 
@@ -156,16 +158,20 @@ package body lib_mapper_004 is
 
     function get_ppu_chr_addr
     (
-        addr_in : chr_addr_t;
-        bank    : bank_t
+        addr_in   : chr_addr_t;
+        bank      : bank_t;
+        num_banks : bank_t
     )
     return chr_rom_addr_t
     is
         variable ret : chr_rom_addr_t;
         variable bank_addr : unsigned(chr_addr_t'range);
+        variable mod_bank : bank_t;
     begin
+        mod_bank := bank and (num_banks - "1");
+
         bank_addr := unsigned(addr_in);
-        ret := bank & bank_addr(9 downto 0);
+        ret := mod_bank & bank_addr(9 downto 0);
 
         return ret;
     end;
@@ -322,9 +328,12 @@ package body lib_mapper_004 is
         variable mirror : mirror_t;
 
         variable bank : bank_t;
+        variable num_banks : bank_t;
     begin
         map_out.reg := map_in.reg;
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
+
+        num_banks := shift_left(map_in.common.chr_rom_8kb_blocks, 3);
 
         if not is_bus_active(map_in.bus_in.chr_bus) or
            map_in.bus_in.chr_bus.address(12) = '0'
@@ -368,6 +377,7 @@ package body lib_mapper_004 is
             else
                 map_out.bus_out := ppu_map_using_mapper_004_rom(map_in.reg,
                                                                 mirror,
+                                                                num_banks,
                                                                 file_offset,
                                                                 map_in.bus_in);
             end if;
@@ -380,6 +390,7 @@ package body lib_mapper_004 is
     (
         reg         : mapper_004_reg_t;
         mirror      : mirror_t;
+        num_banks   : bank_t;
         file_offset : file_off_t;
         bus_in      : ppu_mapper_bus_in_t
     )
@@ -402,7 +413,9 @@ package body lib_mapper_004 is
                     bank := reg.banks(2);
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#0400# to 16#07FF# =>
@@ -414,7 +427,9 @@ package body lib_mapper_004 is
                     bank := reg.banks(3);
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#0800# to 16#0BFF# =>
@@ -426,7 +441,9 @@ package body lib_mapper_004 is
                     bank := reg.banks(4);
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#0C00# to 16#0FFF# =>
@@ -438,7 +455,9 @@ package body lib_mapper_004 is
                     bank := reg.banks(5);
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#1000# to 16#13FF# =>
@@ -450,7 +469,9 @@ package body lib_mapper_004 is
                     bank(0) := '0';
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#1400# to 16#17FF# =>
@@ -462,7 +483,9 @@ package body lib_mapper_004 is
                     bank(0) := '1';
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#1800# to 16#1BFF# =>
@@ -474,7 +497,9 @@ package body lib_mapper_004 is
                     bank(0) := '0';
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#1C00# to 16#1FFF# =>
@@ -486,7 +511,9 @@ package body lib_mapper_004 is
                     bank(0) := '1';
                 end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address, bank);
+                address := get_ppu_chr_addr(bus_in.chr_bus.address,
+                                            bank,
+                                            num_banks);
                 bus_out.file_bus := bus_read(address + file_offset);
                 bus_out.data_to_ppu := bus_in.data_from_file;
             when 16#2000# to 16#3FFF# =>
