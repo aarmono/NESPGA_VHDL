@@ -4,7 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.chr_bus_types.all;
+use work.ciram_bus_types.all;
 use work.cpu_bus_types.all;
 use work.file_bus_types.all;
 use work.oam_bus_types.all;
@@ -64,7 +64,8 @@ architecture behavioral of nes_soc_ocram is
     signal oam_bus      : oam_bus_t;
     signal sec_oam_bus  : sec_oam_bus_t;
     signal palette_bus  : palette_bus_t;
-    signal ciram_bus    : chr_bus_t;
+    signal chr_ram_bus  : sram_bus_t;
+    signal ciram_bus    : ciram_bus_t;
     
     signal data_to_prg_ram    : data_t;
     signal data_from_prg_ram  : data_t;
@@ -74,6 +75,8 @@ architecture behavioral of nes_soc_ocram is
     signal data_from_sec_oam  : data_t;
     signal data_to_palette    : pixel_t;
     signal data_from_palette  : pixel_t;
+    signal data_from_chr_ram  : data_t;
+    signal data_to_chr_ram    : data_t;
     signal data_from_ciram    : data_t;
     signal data_to_ciram      : data_t;
     
@@ -116,6 +119,10 @@ begin
         data_to_palette => data_to_palette,
         data_from_palette => data_from_palette,
         
+        chr_ram_bus => chr_ram_bus,
+        data_to_chr_ram => data_to_chr_ram,
+        data_from_chr_ram => data_from_chr_ram,
+
         ciram_bus => ciram_bus,
         data_to_ciram => data_to_ciram,
         data_from_ciram => data_from_ciram,
@@ -185,10 +192,29 @@ begin
         cpu_ram_en <= sig_cpu_ram_en;
     end generate;
 
+    chr_ram : syncram_sp
+    generic map
+    (
+        ADDR_BITS => sram_addr_t'length,
+        DATA_BITS => data_t'length
+    )
+    port map
+    (
+        clk => clk_50mhz,
+        clk_en => sig_ppu_ram_en,
+
+        address => chr_ram_bus.address,
+        read => chr_ram_bus.read,
+        write => chr_ram_bus.write,
+
+        data_in => data_to_chr_ram,
+        data_out => data_from_chr_ram
+    );
+
     ciram : syncram_sp
     generic map
     (
-        ADDR_BITS => chr_addr_t'length,
+        ADDR_BITS => ciram_addr_t'length,
         DATA_BITS => data_t'length
     )
     port map

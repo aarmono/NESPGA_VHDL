@@ -1,6 +1,7 @@
 ../../../common/utilities.vhdl
 
 ../../../bus/chr_bus_types.vhdl
+../../../bus/ciram_bus_types.vhdl
 ../../../bus/sec_oam_bus_types.vhdl
 ../../../bus/palette_bus_types.vhdl
 ../../../bus/apu_bus_types.vhdl

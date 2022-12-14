@@ -251,10 +251,17 @@ package body lib_mapper is
                         map_out.bus_out.file_bus := bus_read(address + file_offset);
                         map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_file;
                     else
-                        map_out.bus_out.ciram_bus := map_in.bus_in.chr_bus;
+                        map_out.bus_out.chr_ram_bus.address :=
+                            get_chr_ram_addr(map_in.bus_in.chr_bus.address);
+                        map_out.bus_out.chr_ram_bus.read :=
+                            map_in.bus_in.chr_bus.read;
+                        map_out.bus_out.chr_ram_bus.write :=
+                            map_in.bus_in.chr_bus.write;
 
-                        map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_ciram;
-                        map_out.bus_out.data_to_ciram := map_in.bus_in.data_from_ppu;
+                        map_out.bus_out.data_to_ppu :=
+                            map_in.bus_in.data_from_chr_ram;
+                        map_out.bus_out.data_to_chr_ram :=
+                            map_in.bus_in.data_from_ppu;
                     end if;
                 when 16#2000# to 16#3FFF# =>
                     map_out.bus_out.ciram_bus.address :=

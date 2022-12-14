@@ -11,6 +11,7 @@ use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.chr_bus_types.all;
+use work.ciram_bus_types.all;
 use work.palette_bus_types.all;
 use work.joy_bus_types.all;
 
@@ -140,50 +141,60 @@ package mapper_types is
         
         data_from_ppu     : data_t;
         data_from_file    : data_t;
+        data_from_chr_ram : data_t;
         data_from_ciram   : data_t;
     end record;
     
     -- The complete set of bus outputs for
     -- NES PPU memory mapping
     type ppu_mmap_bus_out_t is record
-        ciram_bus   : chr_bus_t;
+        chr_ram_bus : sram_bus_t;
+        ciram_bus   : ciram_bus_t;
         file_bus    : file_bus_t;
         
         data_to_ppu     : data_t;
+        data_to_chr_ram : data_t;
         data_to_ciram   : data_t;
     end record;
     
     constant PPU_MMAP_BUS_IDLE : ppu_mmap_bus_out_t :=
     (
-        ciram_bus => CHR_BUS_IDLE,
+        chr_ram_bus => SRAM_BUS_IDLE,
+        ciram_bus => CIRAM_BUS_IDLE,
         file_bus => FILE_BUS_IDLE,
         
         data_to_ppu => (others => '-'),
+        data_to_chr_ram => (others => '-'),
         data_to_ciram => (others => '-')
     );
     
     type ppu_mapper_bus_in_t is record
         chr_bus : chr_bus_t;
         
-        data_from_ppu   : data_t;
-        data_from_file  : data_t;
-        data_from_ciram : data_t;
+        data_from_ppu     : data_t;
+        data_from_file    : data_t;
+        data_from_chr_ram : data_t;
+        data_from_ciram   : data_t;
     end record;
     
     type ppu_mapper_bus_out_t is record
-        ciram_bus : chr_bus_t;
-        file_bus  : file_bus_t;
+        chr_ram_bus : sram_bus_t;
+        ciram_bus   : ciram_bus_t;
+        file_bus    : file_bus_t;
         
-        data_to_ppu   : data_t;
-        data_to_ciram : data_t;
+        data_to_ppu     : data_t;
+        data_to_chr_ram : data_t;
+        data_to_ciram   : data_t;
     end record;
     
     constant PPU_MAPPER_BUS_IDLE : ppu_mapper_bus_out_t :=
     (
-        ciram_bus => CHR_BUS_IDLE,
+        chr_ram_bus => SRAM_BUS_IDLE,
+        ciram_bus => CIRAM_BUS_IDLE,
         file_bus => FILE_BUS_IDLE,
         
         data_to_ppu => (others => '-'),
+        data_to_chr_ram => (others => '-'),
         data_to_ciram => (others => '-')
     );
     
@@ -204,7 +215,7 @@ package mapper_types is
         chr_addr : chr_addr_t;
         mirror   : mirror_t
     )
-    return chr_addr_t;
+    return ciram_addr_t;
     
     function get_ram_addr(addr : cpu_addr_t) return ram_addr_t;
     
@@ -217,6 +228,8 @@ package mapper_types is
     function get_sram_addr(addr : cpu_addr_t) return sram_addr_t;
     
     function get_palette_addr(addr : chr_addr_t) return palette_addr_t;
+
+    function get_chr_ram_addr(addr : chr_addr_t) return sram_addr_t;
 
     function get_file_offset
     (
@@ -275,6 +288,7 @@ package body mapper_types is
         mapper_in.chr_bus := mmap_in.chr_bus;
         mapper_in.data_from_ppu := mmap_in.data_from_ppu;
         mapper_in.data_from_file := mmap_in.data_from_file;
+        mapper_in.data_from_chr_ram := mmap_in.data_from_chr_ram;
         mapper_in.data_from_ciram := mmap_in.data_from_ciram;
         
         return mapper_in;
@@ -289,10 +303,12 @@ package body mapper_types is
         variable mmap_out : ppu_mmap_bus_out_t;
     begin
         mmap_out := PPU_MMAP_BUS_IDLE;
+        mmap_out.chr_ram_bus := mapper_out.chr_ram_bus;
         mmap_out.ciram_bus := mapper_out.ciram_bus;
         mmap_out.file_bus := mapper_out.file_bus;
         
         mmap_out.data_to_ppu := mapper_out.data_to_ppu;
+        mmap_out.data_to_chr_ram := mapper_out.data_to_chr_ram;
         mmap_out.data_to_ciram := mapper_out.data_to_ciram;
         
         return mmap_out;
@@ -303,18 +319,17 @@ package body mapper_types is
         chr_addr : chr_addr_t;
         mirror   : mirror_t
     )
-    return chr_addr_t
+    return ciram_addr_t
     is
-        variable mirrored_addr : chr_addr_t;
+        variable mirrored_addr : ciram_addr_t;
         -- CIRAM is 2KB, starting at address 0x2000
-        constant MIRROR_MASK : chr_addr_t := b"10_0111_1111_1111";
-        constant QUAD_MASK : chr_addr_t := b"10_1111_1111_1111";
+        constant MIRROR_MASK : ciram_addr_t := b"0111_1111_1111";
     begin
         if mirror(1) = '1'
         then
-            mirrored_addr := chr_addr and QUAD_MASK;
+            mirrored_addr := chr_addr(ciram_addr_t'range);
         else
-            mirrored_addr := chr_addr and MIRROR_MASK;
+            mirrored_addr := chr_addr(ciram_addr_t'range) and MIRROR_MASK;
             if mirror(0) = '0'
             then
                 -- Horizontal mirror (CIRAM A10 = PPU A11)
@@ -359,6 +374,12 @@ package body mapper_types is
     is
     begin
         return addr(palette_addr_t'RANGE);
+    end;
+
+    function get_chr_ram_addr(addr : chr_addr_t) return sram_addr_t
+    is
+    begin
+        return addr(sram_addr_t'range);
     end;
 
     function get_file_offset

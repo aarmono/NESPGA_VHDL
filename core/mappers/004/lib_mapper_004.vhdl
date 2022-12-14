@@ -502,10 +502,13 @@ package body lib_mapper_004 is
     begin
         case to_integer(bus_in.chr_bus.address) is
             when 16#0000# to 16#1FFF# =>
-                bus_out.ciram_bus := bus_in.chr_bus;
+                bus_out.chr_ram_bus.address :=
+                    get_chr_ram_addr(bus_in.chr_bus.address);
+                bus_out.chr_ram_bus.read := bus_in.chr_bus.read;
+                bus_out.chr_ram_bus.write := bus_in.chr_bus.write;
 
-                bus_out.data_to_ppu := bus_in.data_from_ciram;
-                bus_out.data_to_ciram := bus_in.data_from_ppu;
+                bus_out.data_to_ppu := bus_in.data_from_chr_ram;
+                bus_out.data_to_chr_ram := bus_in.data_from_ppu;
             when 16#2000# to 16#3FFF# =>
                 bus_out.ciram_bus.address :=
                     get_mirrored_address(bus_in.chr_bus.address, mirror);

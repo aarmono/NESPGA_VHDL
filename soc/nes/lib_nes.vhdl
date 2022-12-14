@@ -6,6 +6,7 @@ use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.chr_bus_types.all;
+use work.ciram_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.prg_bus_types.all;
@@ -153,8 +154,10 @@ package body lib_nes is
                 ret.palette_bus :=
                     bus_write(nes_in.reg.cur_cycle(palette_addr_t'range));
                 
+                ret.ppu_bus.chr_ram_bus :=
+                    bus_write(nes_in.reg.cur_cycle(sram_addr_t'range));
                 ret.ppu_bus.ciram_bus :=
-                    bus_write(nes_in.reg.cur_cycle(chr_addr_t'range));
+                    bus_write(nes_in.reg.cur_cycle(ciram_addr_t'range));
                 
                 ret.cpu_bus.data_to_ram := x"00";
                 ret.cpu_bus.data_to_sram := x"00";
@@ -167,6 +170,7 @@ package body lib_nes is
                         to_integer(nes_in.reg.cur_cycle(palette_addr_t'range))
                     );
                 
+                ret.ppu_bus.data_to_chr_ram := x"00";
                 ret.ppu_bus.data_to_ciram := x"00";
                 
                 ret.reg.mapper_reg := RESET_MAPPER_REG;

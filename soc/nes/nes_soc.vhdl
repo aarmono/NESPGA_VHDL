@@ -9,6 +9,7 @@ use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.file_bus_types.all;
 use work.chr_bus_types.all;
+use work.ciram_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.ppu_bus_types.all;
@@ -16,7 +17,6 @@ use work.palette_bus_types.all;
 use work.nes_types.all;
 use work.nes_core.all;
 use work.lib_nes.all;
-use work.lib_ppu.all;
 
 entity nes_soc is
 port
@@ -55,7 +55,11 @@ port
     data_to_palette   : out pixel_t;
     data_from_palette : in pixel_t;
     
-    ciram_bus       : out chr_bus_t;
+    chr_ram_bus       : out sram_bus_t;
+    data_to_chr_ram   : out data_t;
+    data_from_chr_ram : in data_t;
+
+    ciram_bus       : out ciram_bus_t;
     data_to_ciram   : out data_t;
     data_from_ciram : in data_t;
     
@@ -155,8 +159,6 @@ is
     signal apu_ready : boolean;
     signal dma_ready : boolean;
     signal ready     : boolean;
-
-    signal ppu_time : ppu_time_t;
 
 begin
 
@@ -340,6 +342,7 @@ begin
         nes_in.ppu_bus.chr_bus := chr_bus;
         nes_in.ppu_bus.data_from_ppu := chr_data_from_ppu;
         nes_in.ppu_bus.data_from_file := data_from_file_chr;
+        nes_in.ppu_bus.data_from_chr_ram := data_from_chr_ram;
         nes_in.ppu_bus.data_from_ciram := data_from_ciram;
         
         nes_in.oam_bus := oam_bus_from_ppu;
@@ -379,9 +382,11 @@ begin
         prg_data_to_ppu <= nes_out.cpu_bus.data_to_ppu;
         
         file_bus_chr <= nes_out.ppu_bus.file_bus;
+        chr_ram_bus <= nes_out.ppu_bus.chr_ram_bus;
         ciram_bus <= nes_out.ppu_bus.ciram_bus;
         
         chr_data_to_ppu <= nes_out.ppu_bus.data_to_ppu;
+        data_to_chr_ram <= nes_out.ppu_bus.data_to_chr_ram;
         data_to_ciram <= nes_out.ppu_bus.data_to_ciram;
         
         oam_bus <= nes_out.oam_bus;
