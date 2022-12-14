@@ -25,24 +25,162 @@ end entity;
 
 architecture behavioral of file_bus_mux
 is
-    constant RESET_BUS_REG : file_bus_t :=
+
+    type cache_entry_t is record
+        address : file_addr_t;
+        data    : data_t;
+    end record;
+
+    constant RESET_CACHE_ENTRY : cache_entry_t :=
     (
-        address => (others => '0'),
-        read => false,
-        write => false
+        address => (others => '1'),
+        data => (others => '1')
     );
 
-    type bus_sel_t is
+    type cache_result_t is record
+        update_cache : boolean;
+        cache_miss   : boolean;
+        data         : data_t;
+    end record;
+
+    constant RESULT_INIT : cache_result_t :=
     (
-        BUS_CHR,
-        BUS_PRG
+        update_cache => false,
+        cache_miss => false,
+        data => (others => '-')
     );
 
-    signal reg_bus_sel : bus_sel_t := BUS_CHR;
-    signal reg_file_bus_out : file_bus_t := RESET_BUS_REG;
+    type cache_t is array(integer range <>) of cache_entry_t;
+
+    subtype prg_cache_t is cache_t(0 to 7);
+    subtype chr_cache_t is cache_t(0 to 3);
+
+    signal prg_cache : prg_cache_t := (others => RESET_CACHE_ENTRY);
+    signal chr_cache : chr_cache_t := (others => RESET_CACHE_ENTRY);
+
+    signal next_prg_cache : prg_cache_t;
+    signal next_chr_cache : chr_cache_t;
+
+    signal sig_data_to_chr_bus : data_t;
+    signal sig_data_to_prg_bus : data_t;
+
+    function update_cache
+    (
+        cache_in : cache_t;
+        address  : file_addr_t;
+        data     : data_t
+    )
+    return cache_t
+    is
+        variable cache_out : cache_t(cache_in'range);
+        variable idx : integer;
+    begin
+        cache_out := cache_in;
+        -- If address not already in cache, eject least recently accessed
+        -- element
+        idx := cache_in'high;
+
+        for i in cache_in'reverse_range
+        loop
+            if cache_in(i).address = address
+            then
+                idx := i;
+            end if;
+        end loop;
+
+        for i in cache_in'high downto 1
+        loop
+            -- If address already in cache, move it to the front
+            if i <= idx
+            then
+                -- Shift elements ahead of it back to make room
+                cache_out(i) := cache_in(i-1);
+            end if;
+        end loop;
+
+        cache_out(0).address := address;
+        cache_out(0).data := data;
+
+        return cache_out;
+    end;
+
+    function cache_lookup
+    (
+        cache_in : in cache_t;
+        file_bus : in file_bus_t
+    )
+    return cache_result_t
+    is
+        variable ret : cache_result_t := RESULT_INIT;
+    begin
+        if is_bus_active(file_bus)
+        then
+            ret.cache_miss := true;
+
+            for i in cache_in'reverse_range
+            loop
+                if cache_in(i).address = file_bus.address
+                then
+                    ret.cache_miss := false;
+                    ret.update_cache := true;
+                    ret.data := cache_in(i).data;
+                end if;
+            end loop;
+        end if;
+
+        return ret;
+    end;
+
 begin
 
-    file_bus_out <= reg_file_bus_out;
+    data_to_chr_bus <= sig_data_to_chr_bus;
+    data_to_prg_bus <= sig_data_to_prg_bus;
+
+    process(all)
+        variable chr_result : cache_result_t := RESULT_INIT;
+        variable prg_result : cache_result_t := RESULT_INIT;
+    begin
+
+        file_bus_out <= FILE_BUS_IDLE;
+
+        next_chr_cache <= chr_cache;
+        next_prg_cache <= prg_cache;
+
+        chr_result := cache_lookup(chr_cache, file_bus_chr);
+        sig_data_to_chr_bus <= chr_result.data;
+
+        prg_result := cache_lookup(prg_cache, file_bus_prg);
+        sig_data_to_prg_bus <= prg_result.data;
+
+        if chr_result.cache_miss
+        then
+            chr_result.update_cache := true;
+
+            file_bus_out <= file_bus_chr;
+            sig_data_to_chr_bus <= data_from_file;
+        elsif prg_result.cache_miss
+        then
+            prg_result.update_cache := true;
+
+            file_bus_out <= file_bus_prg;
+            sig_data_to_prg_bus <= data_from_file;
+        end if;
+
+        if chr_result.update_cache
+        then
+            next_chr_cache <= update_cache(chr_cache,
+                                           file_bus_chr.address,
+                                           sig_data_to_chr_bus);
+        end if;
+
+        if prg_result.update_cache
+        then
+            next_prg_cache <= update_cache(prg_cache,
+                                           file_bus_prg.address,
+                                           sig_data_to_prg_bus);
+        end if;
+
+    end process;
 
     process(clk)
     begin
@@ -50,70 +188,11 @@ begin
     if clk_en then
         if reset
         then
-            reg_bus_sel <= BUS_CHR;
-            reg_file_bus_out <= RESET_BUS_REG;
+            chr_cache <= (others => RESET_CACHE_ENTRY);
+            prg_cache <= (others => RESET_CACHE_ENTRY);
         else
-            -- How muxing works:
-            -- The clock enable line is tied to the PPU RAM enable line.
-            --
-            -- The PPU runs more quickly than the CPU, but all its memory
-            -- accesses take two PPU clock cycles. That means that for a given
-            -- CHR access the same address is on the line for two clock cycles.
-            -- So we put the PPU address on the bus for that first cycle, then
-            -- if the next PPU cycle is for the same memory address we store
-            -- the data read during the first cycle in a register and return it,
-            -- then put the CPU address on the bus for the second. Once that
-            -- data is read, we store it in a register to return to the CPU
-            -- and are ready to read data for the PPU again
-            -- 
-            -- The CPU reads memory once per CPU clock cycle, but since there
-            -- are 3 PPU cycles per CPU cycle, this all works perfectly without
-            -- depending on any tight timing constraints
-            case reg_bus_sel is
-                when BUS_CHR =>
-                    if is_bus_active(reg_file_bus_out)
-                    then
-                        data_to_chr_bus <= data_from_file;
-                    end if;
-
-                    -- CHR bus has priority
-                    if is_bus_active(file_bus_chr) and
-                       (not is_bus_active(reg_file_bus_out) or
-                        file_bus_chr.address /= reg_file_bus_out.address)
-                    then
-                        reg_bus_sel <= BUS_CHR;
-                        reg_file_bus_out <= file_bus_chr;
-                    -- If there's nothing new on the CHR bus and a request on
-                    -- the PRG bus, service it
-                    elsif is_bus_active(file_bus_prg)
-                    then
-                        reg_bus_sel <= BUS_PRG;
-                        reg_file_bus_out <= file_bus_prg;
-                    else
-                        reg_file_bus_out.read <= false;
-                        reg_file_bus_out.write <= false;
-                    end if;
-                when BUS_PRG =>
-                    if is_bus_active(reg_file_bus_out)
-                    then
-                        data_to_prg_bus <= data_from_file;
-                    end if;
-
-                    -- CHR bus has priority
-                    if is_bus_active(file_bus_chr)
-                    then
-                        reg_bus_sel <= BUS_CHR;
-                        reg_file_bus_out <= file_bus_chr;
-                    -- Otherwise continue servicing CPU requests
-                    elsif is_bus_active(file_bus_prg)
-                    then
-                        reg_bus_sel <= BUS_PRG;
-                        reg_file_bus_out <= file_bus_prg;
-                    else
-                        reg_file_bus_out.read <= false;
-                        reg_file_bus_out.write <= false;
-                    end if;
-            end case;
+            chr_cache <= next_chr_cache;
+            prg_cache <= next_prg_cache;
         end if;
     end if;
     end if;

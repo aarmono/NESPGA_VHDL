@@ -176,7 +176,7 @@ begin
     port map
     (
         clk => clk_50mhz,
-        clk_en => sig_ppu_ram_en,
+        clk_en => ppu_en,
         reset => reset,
 
         file_bus_chr => file_bus_chr,
