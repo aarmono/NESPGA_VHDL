@@ -116,8 +116,9 @@ package lib_mapper_004 is
     
     function get_cpu_prg_addr
     (
-        addr_in : cpu_addr_t;
-        bank    : bank_t
+        addr_in   : cpu_addr_t;
+        bank      : bank_t;
+        num_banks : bank_t
     )
     return prg_rom_addr_t;
 
@@ -135,16 +136,20 @@ package body lib_mapper_004 is
     
     function get_cpu_prg_addr
     (
-        addr_in : cpu_addr_t;
-        bank    : bank_t
+        addr_in   : cpu_addr_t;
+        bank      : bank_t;
+        num_banks : bank_t
     )
     return prg_rom_addr_t
     is
         variable ret : prg_rom_addr_t;
         variable bank_addr : unsigned(cpu_addr_t'range);
+        variable mod_bank : bank_t;
     begin
+        mod_bank := bank and (num_banks - "1");
+
         bank_addr := unsigned(addr_in);
-        ret := bank(5 downto 0) & bank_addr(12 downto 0);
+        ret := mod_bank(5 downto 0) & bank_addr(12 downto 0);
         
         return ret;
     end;
@@ -178,15 +183,15 @@ package body lib_mapper_004 is
 
         variable bank : bank_t;
 
-        variable num_8k_prg_blocks : rom_blocks_t;
+        variable num_banks : rom_blocks_t;
         variable max_bank : bank_t;
     begin
         
         map_out.bus_out := CPU_MAPPER_BUS_IDLE;
         map_out.reg := map_in.reg;
 
-        num_8k_prg_blocks := shift_left(map_in.common.prg_rom_16kb_blocks, 1);
-        max_bank := num_8k_prg_blocks - "1";
+        num_banks := shift_left(map_in.common.prg_rom_16kb_blocks, 1);
+        max_bank := num_banks - "1";
 
         file_offset := get_file_offset(x"00", map_in.common.has_trainer);
 
@@ -222,7 +227,9 @@ package body lib_mapper_004 is
                     end if;
 
                     prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address, bank);
+                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
+                                         bank,
+                                         num_banks);
 
                     map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
@@ -238,7 +245,9 @@ package body lib_mapper_004 is
                 then
                     bank := map_in.reg.banks(7);
                     prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address, bank);
+                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
+                                         bank,
+                                         num_banks);
 
                     map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
@@ -263,7 +272,9 @@ package body lib_mapper_004 is
                     end if;
 
                     prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address, bank);
+                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
+                                         bank,
+                                         num_banks);
 
                     map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
@@ -283,7 +294,9 @@ package body lib_mapper_004 is
                     -- Hardcoded to the last bank
                     bank := max_bank;
                     prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address, bank);
+                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
+                                         bank,
+                                         num_banks);
 
                     map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
