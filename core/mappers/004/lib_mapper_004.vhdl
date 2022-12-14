@@ -218,7 +218,7 @@ package body lib_mapper_004 is
                     then
                         bank := map_in.reg.banks(6);
                     else
-                        bank := num_8k_prg_blocks - x"2";
+                        bank := max_bank - "1";
                     end if;
 
                     prg_address :=
@@ -228,7 +228,13 @@ package body lib_mapper_004 is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
                 end if;
             when 16#A000# to 16#BFFF# =>
-                if is_bus_read(map_in.bus_in.cpu_bus)
+                if is_bus_write(map_in.bus_in.cpu_bus)
+                then
+                    if map_in.bus_in.cpu_bus.address(0) = '0'
+                    then
+                        map_out.reg.mirroring := map_in.bus_in.data_from_cpu(0);
+                    end if;
+                elsif is_bus_read(map_in.bus_in.cpu_bus)
                 then
                     bank := map_in.reg.banks(7);
                     prg_address :=
@@ -251,7 +257,7 @@ package body lib_mapper_004 is
                 then
                     if map_in.reg.prg_mode = '0'
                     then
-                        bank := num_8k_prg_blocks - x"2";
+                        bank := max_bank - "1";
                     else
                         bank := map_in.reg.banks(6);
                     end if;
