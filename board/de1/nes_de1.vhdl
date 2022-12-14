@@ -138,10 +138,6 @@ begin
     audio <= "0" & std_logic_vector(reg_audio_aud_clk) & "0000000";
 
     vram_mux : ppu_video_ram_mux
-    generic map
-    (
-        MEM_TYPE => MEMORY_REGISTER
-    )
     port map
     (
         clk_50mhz => CLOCK_50,
