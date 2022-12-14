@@ -72,11 +72,14 @@ architecture behavioral of ps2_joystick is
     
     signal shift_joy_1_prev : std_logic;
 
+    signal sig_joy_1_reg : joy_vals_t;
+
 begin
 
     joy_1_val <= joy_1_shift(0);
     joy_2_val <= '1';
     
+    joy_1_reg <= sig_joy_1_reg;
     joy_2_reg <= (others => '1');
 
     keyboard_controller : ps2_keyboard
@@ -160,8 +163,10 @@ begin
     end if;
     end process;
     
+    sig_joy_1_reg <= apply_filter(joy_1_vals_cpu) when filter_invalid else
+                     joy_1_vals_cpu;
+    
     process(clk_cpu)
-        variable shift_input : joy_vals_t;
     begin
     if rising_edge(clk_cpu) then
         if reset
@@ -169,7 +174,6 @@ begin
             joy_1_vals_cpu   <= (others => '1');
             shift_joy_1_prev <= '0';
             joy_1_shift      <= (others => '1');
-            joy_1_reg        <= (others => '1');
         else
             shift_joy_1_prev <= shift_joy_1;
             
@@ -178,15 +182,7 @@ begin
             
             if joy_strobe = '1'
             then
-                if filter_invalid
-                then
-                    shift_input := apply_filter(joy_1_vals_cpu);
-                else
-                    shift_input := joy_1_vals_cpu;
-                end if;
-                
-                joy_1_shift <= unsigned(shift_input);
-                joy_1_reg <= shift_input;
+                joy_1_shift <= unsigned(sig_joy_1_reg);
             elsif shift_joy_1 = '1' and shift_joy_1_prev = '0'
             then
                 joy_1_shift <= shift_right(joy_1_shift, 1) or x"80";
