@@ -1869,8 +1869,15 @@ package body lib_ppu is
                 end if;
             end loop;
 
-            render_out.palette_bus :=
-                bus_read(to_palette_addr(v_rnd_is_sprite, v_rnd_pattern_color));
+            -- "If the current VRAM address points in the range $3F00-$3FFF
+            -- during forced blanking, the color indicated by this palette
+            -- location will be shown on screen instead of the backdrop color."
+            if not is_bus_active(render_out.palette_bus)
+            then
+                render_out.palette_bus :=
+                    bus_read(to_palette_addr(v_rnd_is_sprite,
+                                             v_rnd_pattern_color));
+            end if;
             render_out.pixel_bus.pixel :=
                 mask_pixel(v_rnd_mask.enable_grayscale, render_in.data_from_palette);
             render_out.pixel_bus.line_valid := true;
