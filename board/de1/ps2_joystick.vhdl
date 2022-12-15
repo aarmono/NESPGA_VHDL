@@ -142,15 +142,15 @@ begin
                      x"4B" =>
                     idx := KEY_IDX_A;
                     update := true;
-                -- u (Start)
+                -- u (Select)
                 when x"75" |
                      x"55" =>
-                    idx := KEY_IDX_START;
+                    idx := KEY_IDX_SELECT;
                     update := true;
-                -- i (Select)
+                -- i (Start)
                 when x"69" |
                      x"49" =>
-                    idx := KEY_IDX_SELECT;
+                    idx := KEY_IDX_START;
                     update := true;
                 when others =>
             end case;
