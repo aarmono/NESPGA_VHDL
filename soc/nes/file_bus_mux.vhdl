@@ -156,7 +156,7 @@ begin
         -- If this is the sync cycle and there is a cache miss, prioritize
         -- PRG because this is the last chance for the CPU to receive data
         -- this cycle, and most PPU memory accesses take 2 PPU cycles
-        if prg_result.cache_miss and clk_sync
+        if prg_result.cache_miss and (clk_sync or not chr_result.cache_miss)
         then
             prg_result.update_cache := true;
 
@@ -170,12 +170,6 @@ begin
 
             file_bus_out <= file_bus_chr;
             sig_data_to_chr_bus <= data_from_file;
-        elsif prg_result.cache_miss
-        then
-            prg_result.update_cache := true;
-
-            file_bus_out <= file_bus_prg;
-            sig_data_to_prg_bus <= data_from_file;
         end if;
 
         if chr_result.update_cache
