@@ -82,9 +82,10 @@ is
     component file_bus_mux is
     port
     (
-        clk    : in std_logic;
-        clk_en : in boolean;
-        reset  : in boolean;
+        clk      : in std_logic;
+        clk_en   : in boolean;
+        clk_sync : in boolean;
+        reset    : in boolean;
 
         file_bus_chr    : in file_bus_t;
         data_to_chr_bus : out data_t;
@@ -179,6 +180,7 @@ begin
     (
         clk => clk_50mhz,
         clk_en => ppu_en,
+        clk_sync => ppu_sync,
         reset => reset,
 
         file_bus_chr => file_bus_chr,

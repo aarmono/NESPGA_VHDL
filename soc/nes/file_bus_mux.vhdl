@@ -8,9 +8,10 @@ use work.nes_types.all;
 entity file_bus_mux is
 port
 (
-    clk    : in std_logic;
-    clk_en : in boolean;
-    reset  : in boolean;
+    clk     : in std_logic;
+    clk_en  : in boolean;
+    clk_sync : in boolean;
+    reset   : in boolean;
 
     file_bus_chr    : in file_bus_t;
     data_to_chr_bus : out data_t;
@@ -152,7 +153,18 @@ begin
         prg_result := cache_lookup(prg_cache, file_bus_prg);
         sig_data_to_prg_bus <= prg_result.data;
 
-        if chr_result.cache_miss
+        -- If this is the sync cycle and there is a cache miss, prioritize
+        -- PRG because this is the last chance for the CPU to receive data
+        -- this cycle, and most PPU memory accesses take 2 PPU cycles
+        if prg_result.cache_miss and clk_sync
+        then
+            prg_result.update_cache := true;
+
+            file_bus_out <= file_bus_prg;
+            sig_data_to_prg_bus <= data_from_file;
+        -- Otherwise prioritize CHR because we usually have several PPU
+        -- cycles to retrieve PRG data
+        elsif chr_result.cache_miss
         then
             chr_result.update_cache := true;
 
