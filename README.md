@@ -24,12 +24,13 @@ Joystick keymap
 * wsad for directional buttons
 * j = B Button
 * k = A Button
-* u = Start
-* i = Select
+* u = Select
+* i = Start
 
 Mappers currently supported:
 * 000
 * 002
+* 004
 
 So very much a work in progress still. However my emphasis to date has been on
 emulation accuracy of the CPU, PPU, and APU to make sure that's solid.
