@@ -53,8 +53,8 @@ is
 
     type cache_t is array(integer range <>) of cache_entry_t;
 
-    subtype prg_cache_t is cache_t(0 to 7);
-    subtype chr_cache_t is cache_t(0 to 3);
+    subtype prg_cache_t is cache_t(0 to 0);
+    subtype chr_cache_t is cache_t(0 to 0);
 
     signal prg_cache : prg_cache_t := (others => RESET_CACHE_ENTRY);
     signal chr_cache : chr_cache_t := (others => RESET_CACHE_ENTRY);
@@ -75,32 +75,38 @@ is
     is
         variable cache_out : cache_t(cache_in'range);
         variable idx : integer;
+
+        constant IDX_ONE : integer := cache_in'low + 1;
     begin
         cache_out := cache_in;
-        -- If address not already in cache, eject least recently accessed
-        -- element
-        idx := cache_in'high;
 
-        for i in cache_in'reverse_range
-        loop
-            if cache_in(i).address = address
-            then
-                idx := i;
-            end if;
-        end loop;
+        if cache_in'length > 1
+        then
+            -- If address not already in cache, eject least recently accessed
+            -- element
+            idx := cache_in'high;
 
-        for i in cache_in'high downto 1
-        loop
-            -- If address already in cache, move it to the front
-            if i <= idx
-            then
-                -- Shift elements ahead of it back to make room
-                cache_out(i) := cache_in(i-1);
-            end if;
-        end loop;
+            for i in cache_in'reverse_range
+            loop
+                if cache_in(i).address = address
+                then
+                    idx := i;
+                end if;
+            end loop;
 
-        cache_out(0).address := address;
-        cache_out(0).data := data;
+            for i in cache_in'high downto IDX_ONE
+            loop
+                -- If address already in cache, move it to the front
+                if i <= idx
+                then
+                    -- Shift elements ahead of it back to make room
+                    cache_out(i) := cache_in(i-1);
+                end if;
+            end loop;
+        end if;
+
+        cache_out(cache_in'low).address := address;
+        cache_out(cache_in'low).data := data;
 
         return cache_out;
     end;
@@ -155,7 +161,9 @@ begin
 
         -- If this is the sync cycle and there is a cache miss, prioritize
         -- PRG because this is the last chance for the CPU to receive data
-        -- this cycle, and most PPU memory accesses take 2 PPU cycles
+        -- this cycle, and under normal circumstances PPU memory accesses
+        -- take 2 PPU cycles; so next PPU cycle the PPU should be requesting
+        -- data at the same address
         if prg_result.cache_miss and (clk_sync or not chr_result.cache_miss)
         then
             prg_result.update_cache := true;
