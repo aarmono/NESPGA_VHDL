@@ -182,9 +182,7 @@ begin
             data_in => sig_data_to_sram,
             data_out => sig_data_from_sram
         );
-    end generate;
-
-    drive_sram : if USE_EXT_SRAM generate
+    else generate
     begin
         sram_bus <= sig_sram_bus;
         data_to_sram <= sig_data_to_sram;
