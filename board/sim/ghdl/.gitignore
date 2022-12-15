@@ -3,3 +3,6 @@
 *.ghw
 *dump
 *output
+*.fm2
+*.txt
+*.sig
