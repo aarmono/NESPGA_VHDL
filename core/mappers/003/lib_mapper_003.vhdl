@@ -125,7 +125,7 @@ package body lib_mapper_003 is
     is
         variable map_out : ppu_mapper_003_out_t;
         
-        variable bus_address : unsigned(cpu_addr_t'range);
+        variable bus_address : unsigned(chr_addr_t'range);
         variable bank_offset : unsigned(12 downto 0);
         variable address : file_off_t;
         variable file_offset : file_off_t;
