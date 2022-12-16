@@ -383,8 +383,6 @@ set_global_assignment -name VHDL_FILE ../../perhiperals/perhipheral_types.vhdl
 set_global_assignment -name VHDL_FILE ../../core/ppu/ppu.vhdl
 set_global_assignment -name VHDL_FILE ../../core/ppu/lib_ppu.vhdl
 set_global_assignment -name VHDL_FILE ../../core/oam_dma/oam_dma.vhdl
-set_global_assignment -name VHDL_FILE ../../core/mappers/220/lib_nsf_rom.vhdl
-set_global_assignment -name VHDL_FILE ../../core/mappers/220/lib_mapper_220.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/004/lib_mapper_004.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/003/lib_mapper_003.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/002/lib_mapper_002.vhdl
