@@ -211,7 +211,7 @@ package body lib_mapper_004 is
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_sram;
                 map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
             when 16#8000# to 16#9FFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus)
+                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
                 then
                     if map_in.bus_in.cpu_bus.address(0) = '0'
                     then
@@ -241,7 +241,7 @@ package body lib_mapper_004 is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
                 end if;
             when 16#A000# to 16#BFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus)
+                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
                 then
                     if map_in.bus_in.cpu_bus.address(0) = '0'
                     then
@@ -259,7 +259,7 @@ package body lib_mapper_004 is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
                 end if;
             when 16#C000# to 16#DFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus)
+                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
                 then
                     if map_in.bus_in.cpu_bus.address(0) = '0'
                     then
@@ -286,7 +286,7 @@ package body lib_mapper_004 is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
                 end if;
             when 16#E000# to 16#FFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus)
+                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
                 then
                     map_out.reg.irq_enable :=
                         map_in.bus_in.cpu_bus.address(0) = '1';

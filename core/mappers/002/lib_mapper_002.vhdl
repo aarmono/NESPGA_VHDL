@@ -89,7 +89,7 @@ package body lib_mapper_002 is
 
         case int_address is
             when 16#8000# to 16#FFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus)
+                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
                 then
                     if map_in.common.prg_rom_16kb_blocks > x"08"
                     then

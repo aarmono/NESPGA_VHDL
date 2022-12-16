@@ -46,6 +46,8 @@ package mapper_types is
     -- NES CPU memory mapping
     type cpu_mmap_bus_in_t is record
         cpu_bus : cpu_bus_t;
+
+        clk_sync : boolean;
         
         data_from_cpu  : data_t;
         data_from_apu  : data_t;
@@ -97,6 +99,8 @@ package mapper_types is
     -- by a cartridge mapper
     type cpu_mapper_bus_in_t is record
         cpu_bus : cpu_bus_t;
+
+        clk_sync : boolean;
         
         data_from_cpu  : data_t;
         data_from_sram : data_t;
@@ -252,6 +256,7 @@ package body mapper_types is
         variable mapper_in : cpu_mapper_bus_in_t;
     begin
         mapper_in.cpu_bus := mmap_in.cpu_bus;
+        mapper_in.clk_sync := mmap_in.clk_sync;
         mapper_in.data_from_cpu := mmap_in.data_from_cpu;
         mapper_in.data_from_sram := mmap_in.data_from_sram;
         mapper_in.data_from_file := mmap_in.data_from_file;

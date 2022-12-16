@@ -333,6 +333,8 @@ begin
             nes_in.cpu_bus.cpu_bus := cpu_bus;
             nes_in.cpu_bus.data_from_cpu := data_from_cpu;
         end if;
+
+        nes_in.cpu_bus.clk_sync := ppu_sync;
         
         nes_in.cpu_bus.data_from_apu := data_from_apu;
         nes_in.cpu_bus.data_from_joy := data_from_joy;
