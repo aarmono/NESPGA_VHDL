@@ -13,7 +13,6 @@ use work.lib_mapper_000.all;
 use work.lib_mapper_002.all;
 use work.lib_mapper_003.all;
 use work.lib_mapper_004.all;
-use work.lib_mapper_220.all;
 
 package lib_mapper is
 
@@ -24,7 +23,6 @@ package lib_mapper is
         mapper_002_reg : mapper_002_reg_t;
         mapper_003_reg : mapper_003_reg_t;
         mapper_004_reg : mapper_004_reg_t;
-        mapper_220_reg : mapper_220_reg_t;
     end record;
     
     constant RESET_MAPPER_REG : mapper_reg_t :=
@@ -34,8 +32,7 @@ package lib_mapper is
         
         mapper_002_reg => RESET_MAPPER_002_REG,
         mapper_003_reg => RESET_MAPPER_003_REG,
-        mapper_004_reg => RESET_MAPPER_004_REG,
-        mapper_220_reg => RESET_MAPPER_220_REG
+        mapper_004_reg => RESET_MAPPER_004_REG
     );
     
     type cpu_mapper_in_t is record
@@ -109,9 +106,6 @@ package body lib_mapper is
 
         variable mapper_004_in : cpu_mapper_004_in_t;
         variable mapper_004_out : cpu_mapper_004_out_t;
-    
-        variable mapper_220_in : mapper_220_in_t;
-        variable mapper_220_out : mapper_220_out_t;
     begin
         map_out.reg := map_in.reg;
         map_out.bus_out := CPU_MAPPER_BUS_IDLE;
@@ -167,18 +161,6 @@ package body lib_mapper is
 
                 map_out.reg.mapper_004_reg := mapper_004_out.reg;
                 map_out.bus_out := mapper_004_out.bus_out;
-            -- NSF pseudo-mapper
-            when x"0DC" =>
-                mapper_220_in :=
-                (
-                    reg => map_in.reg.mapper_220_reg,
-                    bus_in => map_in.bus_in
-                );
-                
-                mapper_220_out := map_using_mapper_220(mapper_220_in);
-                
-                map_out.reg.mapper_220_reg := mapper_220_out.reg;
-                map_out.bus_out := mapper_220_out.bus_out;
             when others =>
                 assert false report "Mapper not supported: " &
                     integer'image(to_integer(map_in.reg.mapper_num))
