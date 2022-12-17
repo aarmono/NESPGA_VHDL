@@ -299,7 +299,7 @@ begin
                         reg_next.vga_out.color.blue <= sram_dq(3 downto 0);
                         reg_next.vga_out.lval <= true;
 
-                        if reg.cur_time.col(0) = '0'
+                        if reg.cur_time.col(0) = '1'
                         then
                             next_ppu_pixel_col <= ppu_pixel_col + "1";
                         end if;
@@ -315,7 +315,7 @@ begin
                         reg_next.vga_out.lval <= false;
                 end case;
 
-                if reg.cur_time.col = LINE_END and reg.cur_time.row(0) = '0'
+                if reg.cur_time.col = LINE_END and reg.cur_time.row(0) = '1'
                 then
                     next_ppu_pixel_row <= ppu_pixel_row + "1";
                 end if;
