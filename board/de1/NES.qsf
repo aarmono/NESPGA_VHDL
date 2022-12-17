@@ -386,6 +386,7 @@ set_global_assignment -name VHDL_FILE ../../core/oam_dma/oam_dma.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/004/lib_mapper_004.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/003/lib_mapper_003.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/002/lib_mapper_002.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/001/lib_mapper_001.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/000/lib_mapper_000.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mapper_types.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/lib_mapper.vhdl
