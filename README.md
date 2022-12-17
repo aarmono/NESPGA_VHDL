@@ -29,7 +29,9 @@ Joystick keymap
 
 Mappers currently supported:
 * 000
+* 001
 * 002
+* 003
 * 004
 
 So very much a work in progress still. However my emphasis to date has been on
