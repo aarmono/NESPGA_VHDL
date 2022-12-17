@@ -48,9 +48,7 @@ package lib_mapper_003 is
     end record;
 
     type ppu_mapper_003_out_t is record
-        reg     : mapper_003_reg_t;
         bus_out : ppu_mapper_bus_out_t;
-        irq     : boolean;
     end record;
 
     function ppu_map_using_mapper_003
@@ -133,7 +131,6 @@ package body lib_mapper_003 is
         variable max_bank : bank_t;
         variable mod_bank : bank_t;
     begin
-        map_out.reg := map_in.reg;
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
 
         if is_bus_active(map_in.bus_in.chr_bus)

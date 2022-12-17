@@ -99,7 +99,6 @@ package body lib_nes_mmap is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_joy;
                     map_out.bus_out.data_to_joy := map_in.bus_in.data_from_cpu;
                 when 16#4017# =>
-                    -- TODO: implement joystick
                     if is_bus_read(map_in.bus_in.cpu_bus)
                     then
                         map_out.bus_out.joy_bus.address :=
@@ -121,7 +120,9 @@ package body lib_nes_mmap is
                     end if;
                 when others =>
                     mapper_in.reg := map_in.reg;
-                    mapper_in.bus_in := cpu_mmap_in_to_mapper_in(map_in.bus_in);
+                    mapper_in.bus_in :=
+                        cpu_mmap_in_to_mapper_in(map_in.bus_in,
+                                                 map_in.reg.write_prev);
                     
                     mapper_out := map_cpu_using_mapper(mapper_in);
                     
@@ -131,6 +132,11 @@ package body lib_nes_mmap is
             end case;
         end if;
         
+        if map_in.bus_in.clk_sync
+        then
+            map_out.reg.write_prev := map_in.bus_in.cpu_bus.write;
+        end if;
+
         return map_out;
     end;
     

@@ -10,6 +10,7 @@ use work.file_bus_types.all;
 
 use work.mapper_types.all;
 use work.lib_mapper_000.all;
+use work.lib_mapper_001.all;
 use work.lib_mapper_002.all;
 use work.lib_mapper_003.all;
 use work.lib_mapper_004.all;
@@ -19,7 +20,10 @@ package lib_mapper is
     type mapper_reg_t is record
         mapper_num    : mapper_num_t;
         common        : mapper_common_reg_t;
+
+        write_prev    : boolean;
         
+        mapper_001_reg : mapper_001_reg_t;
         mapper_002_reg : mapper_002_reg_t;
         mapper_003_reg : mapper_003_reg_t;
         mapper_004_reg : mapper_004_reg_t;
@@ -29,7 +33,10 @@ package lib_mapper is
     (
         mapper_num => (others => '0'),
         common => RESET_MAPPER_COMMON_REG,
+
+        write_prev => false,
         
+        mapper_001_reg => RESET_MAPPER_001_REG,
         mapper_002_reg => RESET_MAPPER_002_REG,
         mapper_003_reg => RESET_MAPPER_003_REG,
         mapper_004_reg => RESET_MAPPER_004_REG
@@ -98,6 +105,9 @@ package body lib_mapper is
         variable mapper_000_in : cpu_mapper_000_in_t;
         variable mapper_000_out : cpu_mapper_000_out_t;
 
+        variable mapper_001_in : cpu_mapper_001_in_t;
+        variable mapper_001_out : cpu_mapper_001_out_t;
+
         variable mapper_002_in : cpu_mapper_002_in_t;
         variable mapper_002_out : cpu_mapper_002_out_t;
 
@@ -122,6 +132,19 @@ package body lib_mapper is
                 mapper_000_out := cpu_map_using_mapper_000(mapper_000_in);
                 
                 map_out.bus_out := mapper_000_out.bus_out;
+            -- MMC1
+            when x"001" =>
+                mapper_001_in :=
+                (
+                    common => map_in.reg.common,
+                    reg    => map_in.reg.mapper_001_reg,
+                    bus_in => map_in.bus_in
+                );
+
+                mapper_001_out := cpu_map_using_mapper_001(mapper_001_in);
+
+                map_out.reg.mapper_001_reg := mapper_001_out.reg;
+                map_out.bus_out := mapper_001_out.bus_out;
             -- UxROM
             when x"002" =>
                 mapper_002_in :=
@@ -181,6 +204,9 @@ package body lib_mapper is
         variable mapper_def_in : ppu_mapper_def_in_t;
         variable mapper_def_out : ppu_mapper_def_out_t;
 
+        variable mapper_001_in : ppu_mapper_001_in_t;
+        variable mapper_001_out : ppu_mapper_001_out_t;
+
         variable mapper_003_in : ppu_mapper_003_in_t;
         variable mapper_003_out : ppu_mapper_003_out_t;
 
@@ -205,6 +231,18 @@ package body lib_mapper is
                 mapper_def_out := ppu_map_using_mapper_def(mapper_def_in);
                 
                 map_out.bus_out := mapper_def_out.bus_out;
+            -- MMC1
+            when x"001" =>
+                mapper_001_in :=
+                (
+                    common => map_in.reg.common,
+                    reg    => map_in.reg.mapper_001_reg,
+                    bus_in => map_in.bus_in
+                );
+
+                mapper_001_out := ppu_map_using_mapper_001(mapper_001_in);
+
+                map_out.bus_out := mapper_001_out.bus_out;
             -- CNROM
             when x"003" =>
                 mapper_003_in :=
@@ -217,7 +255,6 @@ package body lib_mapper is
                 mapper_003_out := ppu_map_using_mapper_003(mapper_003_in);
 
                 map_out.bus_out := mapper_003_out.bus_out;
-                map_out.reg.mapper_003_reg := mapper_003_out.reg;
             -- MMC3
             when x"004" =>
                 mapper_004_in :=

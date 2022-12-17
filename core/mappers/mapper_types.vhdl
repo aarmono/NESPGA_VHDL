@@ -100,7 +100,8 @@ package mapper_types is
     type cpu_mapper_bus_in_t is record
         cpu_bus : cpu_bus_t;
 
-        clk_sync : boolean;
+        clk_sync    : boolean;
+        first_write : boolean;
         
         data_from_cpu  : data_t;
         data_from_sram : data_t;
@@ -128,7 +129,8 @@ package mapper_types is
     
     function cpu_mmap_in_to_mapper_in
     (
-        mmap_in : cpu_mmap_bus_in_t
+        mmap_in    : cpu_mmap_bus_in_t;
+        prev_write : boolean
     )
     return cpu_mapper_bus_in_t;
     
@@ -249,7 +251,8 @@ package body mapper_types is
 
     function cpu_mmap_in_to_mapper_in
     (
-        mmap_in : cpu_mmap_bus_in_t
+        mmap_in    : cpu_mmap_bus_in_t;
+        prev_write : boolean
     )
     return cpu_mapper_bus_in_t
     is
@@ -257,6 +260,7 @@ package body mapper_types is
     begin
         mapper_in.cpu_bus := mmap_in.cpu_bus;
         mapper_in.clk_sync := mmap_in.clk_sync;
+        mapper_in.first_write := mmap_in.cpu_bus.write and not prev_write;
         mapper_in.data_from_cpu := mmap_in.data_from_cpu;
         mapper_in.data_from_sram := mmap_in.data_from_sram;
         mapper_in.data_from_file := mmap_in.data_from_file;
