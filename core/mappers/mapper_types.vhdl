@@ -20,8 +20,16 @@ package mapper_types is
     subtype mapper_num_t is std_logic_vector(11 downto 0);
     subtype submapper_num_t is std_logic_vector(3 downto 0);
     subtype rom_blocks_t is unsigned(7 downto 0);
-    subtype mirror_t is std_logic_vector(1 downto 0);
     subtype file_off_t is unsigned(file_addr_t'range);
+
+    type mirror_t is
+    (
+        MIRROR_HORZ,
+        MIRROR_VERT,
+        MIRROR_A,
+        MIRROR_B,
+        MIRROR_FOUR
+    );
 
     type mapper_common_reg_t is record
         submapper_num       : submapper_num_t;
@@ -37,7 +45,7 @@ package mapper_types is
         submapper_num => (others => '0'),
         prg_rom_16kb_blocks => (others => '0'),
         chr_rom_8kb_blocks => (others => '0'),
-        mirror => (others => '0'),
+        mirror => MIRROR_HORZ,
         has_prg_ram => false,
         has_trainer => false
     );
@@ -334,17 +342,22 @@ package body mapper_types is
         -- CIRAM is 2KB, starting at address 0x2000
         constant MIRROR_MASK : ciram_addr_t := b"0111_1111_1111";
     begin
-        if mirror(1) = '1'
-        then
-            mirrored_addr := chr_addr(ciram_addr_t'range);
-        else
-            mirrored_addr := chr_addr(ciram_addr_t'range) and MIRROR_MASK;
-            if mirror(0) = '0'
-            then
+        case mirror is
+            when MIRROR_FOUR =>
+                mirrored_addr := chr_addr(ciram_addr_t'range);
+            when MIRROR_HORZ =>
+                mirrored_addr := chr_addr(ciram_addr_t'range) and MIRROR_MASK;
                 -- Horizontal mirror (CIRAM A10 = PPU A11)
                 mirrored_addr(10) := chr_addr(11);
-            end if;
-        end if;
+            when MIRROR_VERT =>
+                mirrored_addr := chr_addr(ciram_addr_t'range) and MIRROR_MASK;
+            when MIRROR_A =>
+                mirrored_addr := chr_addr(ciram_addr_t'range) and MIRROR_MASK;
+                mirrored_addr(10) := '0';
+            when MIRROR_B =>
+                mirrored_addr := chr_addr(ciram_addr_t'range) and MIRROR_MASK;
+                mirrored_addr(10) := '1';
+        end case;
 
         return mirrored_addr;
     end;

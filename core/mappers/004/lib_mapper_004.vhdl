@@ -365,8 +365,15 @@ package body lib_mapper_004 is
         file_offset := get_file_offset(map_in.common.prg_rom_16kb_blocks,
                                        map_in.common.has_trainer);
 
-        mirror := map_in.common.mirror;
-        mirror(0) := not map_in.reg.mirroring;
+        if map_in.common.mirror = MIRROR_FOUR
+        then
+            mirror := map_in.common.mirror;
+        elsif map_in.reg.mirroring = '1'
+        then
+            mirror := MIRROR_HORZ;
+        else
+            mirror := MIRROR_VERT;
+        end if;
 
         if is_bus_active(map_in.bus_in.chr_bus)
         then

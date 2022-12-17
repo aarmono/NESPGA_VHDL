@@ -108,9 +108,30 @@ package lib_nes is
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t;
 
+    function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t;
+
 end lib_nes;
 
 package body lib_nes is
+
+    function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t
+    is
+        variable ret : mirror_t;
+    begin
+        case mirror is
+            when "00" =>
+                ret := MIRROR_HORZ;
+            when "01" =>
+                ret := MIRROR_VERT;
+            when "10" |
+                 "11" =>
+                ret := MIRROR_FOUR;
+            when others =>
+                ret := MIRROR_HORZ;
+        end case;
+
+        return ret;
+    end;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t
     is
@@ -121,6 +142,8 @@ package body lib_nes is
         
         variable ppu_map_in  : ppu_mmap_in_t;
         variable ppu_map_out : ppu_mmap_out_t;
+
+        variable mirror : std_logic_vector(1 downto 0);
     begin
         ret.reg := nes_in.reg;
         
@@ -198,9 +221,9 @@ package body lib_nes is
                             unsigned(nes_in.cpu_bus.data_from_file);
                     -- Flags 6
                     when x"0006" =>
-                        ret.reg.mapper_reg.common.mirror :=
-                            nes_in.cpu_bus.data_from_file(3) &
-                            nes_in.cpu_bus.data_from_file(0);
+                        mirror := nes_in.cpu_bus.data_from_file(3) &
+                                  nes_in.cpu_bus.data_from_file(0);
+                        ret.reg.mapper_reg.common.mirror := parse_mirror(mirror);
                         ret.reg.mapper_reg.common.has_prg_ram :=
                             nes_in.cpu_bus.data_from_file(1) = '1';
                         ret.reg.mapper_reg.mapper_num(3 downto 0) :=

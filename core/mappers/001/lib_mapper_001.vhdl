@@ -20,7 +20,7 @@ package lib_mapper_001 is
     subtype prg_rom_addr_t is unsigned(17 downto 0);
 
     subtype chr_bank_t is unsigned(4 downto 0);
-    subtype chr_rom_addr_t is unsigned(17 downto 0);
+    subtype chr_rom_addr_t is unsigned(16 downto 0);
 
     type mapper_001_reg_t is record
         shift : unsigned(3 downto 0);
@@ -194,15 +194,16 @@ package body lib_mapper_001 is
                     elsif map_in.bus_in.first_write and
                           map_in.reg.count < SHIFT_MAX
                     then
-                        map_out.reg.shift := map_in.reg.shift(2 downto 0) &
-                                             map_in.bus_in.data_from_cpu(0);
+                        map_out.reg.shift := map_in.bus_in.data_from_cpu(0) &
+                                             map_in.reg.shift(3 downto 1);
                         map_out.reg.count := map_in.reg.count + "1";
                     elsif map_in.bus_in.first_write
                     then
                         map_out.reg.shift := (others => '0');
                         map_out.reg.count := (others => '0');
-                        reg_val := map_in.reg.shift &
-                                   map_in.bus_in.data_from_cpu(0);
+                        reg_val := map_in.bus_in.data_from_cpu(0) &
+                                   map_in.reg.shift;
+                        
                         case map_in.bus_in.cpu_bus.address(14 downto 13) is
                             when "00" =>
                                 map_out.reg.mirroring := reg_val(1 downto 0);
@@ -224,7 +225,8 @@ package body lib_mapper_001 is
                     case to_integer(map_in.bus_in.cpu_bus.address) is
                         when 16#8000# to 16#BFFF# =>
                             case map_in.reg.prg_bank_mode is
-                                when "00" | "01" =>
+                                when "00" |
+                                     "01" =>
                                     bank := map_in.reg.prg_bank;
                                     bank(0) := '0';
                                 when "10" =>
@@ -294,10 +296,82 @@ package body lib_mapper_001 is
     begin
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
 
-        num_banks := map_in.common.chr_rom_8kb_blocks(num_banks'range);
-
+        num_banks :=
+            shift_right(map_in.common.chr_rom_8kb_blocks, 1)(num_banks'range);
         file_offset := get_file_offset(map_in.common.prg_rom_16kb_blocks,
                                        map_in.common.has_trainer);
+
+        case map_in.reg.mirroring is
+            when "00" =>
+                mirror := MIRROR_A;
+            when "01" =>
+                mirror := MIRROR_B;
+            when "10" =>
+                mirror := MIRROR_VERT;
+            when "11" =>
+                mirror := MIRROR_HORZ;
+            when others =>
+                mirror := MIRROR_HORZ;
+        end case;
+
+        if is_bus_active(map_in.bus_in.chr_bus)
+        then
+            case to_integer(map_in.bus_in.chr_bus.address) is
+                when 16#0000# to 16#1FFF# =>
+                    if not is_zero(map_in.common.chr_rom_8kb_blocks)
+                    then
+                        case to_integer(map_in.bus_in.chr_bus.address) is
+                            when 16#0000# to 16#0FFF# =>
+                                if map_in.reg.chr_bank_mode = '0'
+                                then
+                                    bank := map_in.reg.chr_bank_0;
+                                    bank(0) := '0';
+                                else
+                                    bank := map_in.reg.chr_bank_0;
+                                end if;
+                            when 16#1000# to 16#1FFF# =>
+                                if map_in.reg.chr_bank_mode = '0'
+                                then
+                                    bank := map_in.reg.chr_bank_0;
+                                    bank(0) := '1';
+                                else
+                                    bank := map_in.reg.chr_bank_1;
+                                end if;
+                            when others =>
+                                bank := (others => '0');
+                        end case;
+
+                        address := get_ppu_chr_addr(map_in.bus_in.chr_bus.address,
+                                                    bank,
+                                                    num_banks);
+                        map_out.bus_out.file_bus := bus_read(address + file_offset);
+                        map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_file;
+                    else
+                        map_out.bus_out.chr_ram_bus.address :=
+                            get_chr_ram_addr(map_in.bus_in.chr_bus.address);
+                        map_out.bus_out.chr_ram_bus.read :=
+                            map_in.bus_in.chr_bus.read;
+                        map_out.bus_out.chr_ram_bus.write :=
+                            map_in.bus_in.chr_bus.write;
+
+                        map_out.bus_out.data_to_ppu :=
+                            map_in.bus_in.data_from_chr_ram;
+                        map_out.bus_out.data_to_chr_ram :=
+                            map_in.bus_in.data_from_ppu;
+                    end if;
+                when 16#2000# to 16#3FFF# =>
+                    map_out.bus_out.ciram_bus.address :=
+                        get_mirrored_address(map_in.bus_in.chr_bus.address,
+                                             mirror);
+
+                    map_out.bus_out.ciram_bus.read := map_in.bus_in.chr_bus.read;
+                    map_out.bus_out.ciram_bus.write := map_in.bus_in.chr_bus.write;
+                    map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_ciram;
+                    map_out.bus_out.data_to_ciram := map_in.bus_in.data_from_ppu;
+                when others =>
+                    null;
+            end case;
+        end if;
 
         return map_out;
     end;
