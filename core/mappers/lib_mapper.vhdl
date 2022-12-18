@@ -14,6 +14,7 @@ use work.lib_mapper_001.all;
 use work.lib_mapper_002.all;
 use work.lib_mapper_003.all;
 use work.lib_mapper_004.all;
+use work.lib_mapper_066.all;
 
 package lib_mapper is
 
@@ -27,6 +28,7 @@ package lib_mapper is
         mapper_002_reg : mapper_002_reg_t;
         mapper_003_reg : mapper_003_reg_t;
         mapper_004_reg : mapper_004_reg_t;
+        mapper_066_reg : mapper_066_reg_t;
     end record;
     
     constant RESET_MAPPER_REG : mapper_reg_t :=
@@ -39,7 +41,8 @@ package lib_mapper is
         mapper_001_reg => RESET_MAPPER_001_REG,
         mapper_002_reg => RESET_MAPPER_002_REG,
         mapper_003_reg => RESET_MAPPER_003_REG,
-        mapper_004_reg => RESET_MAPPER_004_REG
+        mapper_004_reg => RESET_MAPPER_004_REG,
+        mapper_066_reg => RESET_MAPPER_066_REG
     );
     
     type cpu_mapper_in_t is record
@@ -116,6 +119,9 @@ package body lib_mapper is
 
         variable mapper_004_in : cpu_mapper_004_in_t;
         variable mapper_004_out : cpu_mapper_004_out_t;
+
+        variable mapper_066_in : cpu_mapper_066_in_t;
+        variable mapper_066_out : cpu_mapper_066_out_t;
     begin
         map_out.reg := map_in.reg;
         map_out.bus_out := CPU_MAPPER_BUS_IDLE;
@@ -184,6 +190,19 @@ package body lib_mapper is
 
                 map_out.reg.mapper_004_reg := mapper_004_out.reg;
                 map_out.bus_out := mapper_004_out.bus_out;
+            -- GxROM
+            when x"042" =>
+                mapper_066_in :=
+                (
+                    common => map_in.reg.common,
+                    reg    => map_in.reg.mapper_066_reg,
+                    bus_in => map_in.bus_in
+                );
+
+                mapper_066_out := cpu_map_using_mapper_066(mapper_066_in);
+
+                map_out.reg.mapper_066_reg := mapper_066_out.reg;
+                map_out.bus_out := mapper_066_out.bus_out;
             when others =>
                 assert false report "Mapper not supported: " &
                     integer'image(to_integer(map_in.reg.mapper_num))
@@ -212,6 +231,9 @@ package body lib_mapper is
 
         variable mapper_004_in : ppu_mapper_004_in_t;
         variable mapper_004_out : ppu_mapper_004_out_t;
+
+        variable mapper_066_in : ppu_mapper_066_in_t;
+        variable mapper_066_out : ppu_mapper_066_out_t;
     begin
         map_out.reg := map_in.reg;
         map_out.bus_out := PPU_MAPPER_BUS_IDLE;
@@ -269,6 +291,18 @@ package body lib_mapper is
                 map_out.bus_out := mapper_004_out.bus_out;
                 map_out.reg.mapper_004_reg := mapper_004_out.reg;
                 map_out.irq := mapper_004_out.irq;
+            -- GxROM
+            when x"042" =>
+                mapper_066_in :=
+                (
+                    common => map_in.reg.common,
+                    reg    => map_in.reg.mapper_066_reg,
+                    bus_in => map_in.bus_in
+                );
+
+                mapper_066_out := ppu_map_using_mapper_066(mapper_066_in);
+
+                map_out.bus_out := mapper_066_out.bus_out;
             when others =>
                 assert false report "Mapper not supported: " &
                     integer'image(to_integer(map_in.reg.mapper_num))

@@ -84,6 +84,7 @@
 ../../../core/mappers/002/lib_mapper_002.vhdl
 ../../../core/mappers/003/lib_mapper_003.vhdl
 ../../../core/mappers/004/lib_mapper_004.vhdl
+../../../core/mappers/066/lib_mapper_066.vhdl
 ../../../core/mappers/lib_mapper.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
