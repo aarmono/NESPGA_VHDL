@@ -51,15 +51,15 @@ is
     -- The sum of all these values should equal 800
     constant LINE_SYNC_TIME         : time_t := to_unsigned(96, time_t'LENGTH);
     -- Normally 48 for 640 pixels, but 112 for 512
-    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(100, time_t'LENGTH);
+    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(96, time_t'LENGTH);
     -- Time before the active period where the sram bus is taken
-    constant LINE_LEFT_MARGIN_TIME  : time_t := to_unsigned(12, time_t'length);
+    constant LINE_LEFT_MARGIN_TIME  : time_t := to_unsigned(16, time_t'length);
     -- Normally 640, but NES is 512
     constant LINE_ACTIVE_TIME       : time_t := to_unsigned(512, time_t'LENGTH);
     -- Time after the active period where the SRAM bus is taken
-    constant LINE_RIGHT_MARGIN_TIME : time_t := to_unsigned(4, time_t'LENGTH);
+    constant LINE_RIGHT_MARGIN_TIME : time_t := to_unsigned(16, time_t'LENGTH);
     -- Normally 16 for 640 pixels, but 80 for 512
-    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(76, time_t'LENGTH);
+    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(64, time_t'LENGTH);
     
     constant FRAME_SYNC_TIME         : time_t := to_unsigned(2, time_t'LENGTH);
     constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(32, time_t'LENGTH);
