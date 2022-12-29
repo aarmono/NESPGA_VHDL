@@ -86,7 +86,13 @@ package lib_apu_triangle is
 
     function write_reg_1(val : triangle_t; reg : data_t) return triangle_t;
 
-    function write_reg_2(val : triangle_t; reg : data_t) return triangle_t;
+    function write_reg_2
+    (
+        val           : triangle_t;
+        reg           : data_t;
+        update_length : boolean
+    )
+    return triangle_t;
 
     function write_reg_3(val : triangle_t; reg : std_logic) return triangle_t;
 
@@ -246,12 +252,18 @@ package body lib_apu_triangle is
     end;
 
     -- write_reg_2 function {
-    function write_reg_2(val : triangle_t; reg : data_t) return triangle_t
+    function write_reg_2
+    (
+        val           : triangle_t;
+        reg           : data_t;
+        update_length : boolean
+    )
+    return triangle_t
     is
         variable ret : triangle_t;
     begin
         ret := val;
-        ret.length := write_reg_1(val.length, reg(7 downto 3));
+        ret.length := write_reg_1(val.length, reg(7 downto 3), update_length);
         ret.period(10 downto 8) := unsigned(reg(2 downto 0));
         -- when register $400B is written to, the halt flag is set
         ret.linear.halt := true;

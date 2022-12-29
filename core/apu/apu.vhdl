@@ -31,9 +31,14 @@ architecture behavioral of apu is
     
     signal reg    : reg_t := RESET_REG;
     signal reg_in : reg_t;
+
+    signal irq_in : boolean;
+    signal irq_delay : boolean_vector(1 downto 0);
     
 begin
     
+    irq <= irq_delay(irq_delay'high);
+
     process(all)
         variable v_output : apu_output_t;
     begin
@@ -44,7 +49,7 @@ begin
         audio <= v_output.audio;
         data_from_apu <= v_output.cpu_data_out;
         dma_bus <= v_output.dma_bus;
-        irq <= v_output.irq;
+        irq_in <= v_output.irq;
         ready <= v_output.ready;
 
     end process;
@@ -57,8 +62,20 @@ begin
         if reset
         then
             reg <= RESET_REG;
+            irq_delay <= (others => false);
         else
             reg <= reg_in;
+            if not irq_in
+            then
+                irq_delay <= (others => false);
+            else
+                for i in irq_delay'high downto 1
+                loop
+                    irq_delay(i) <= irq_delay(i - 1);
+                end loop;
+
+                irq_delay(0) <= irq_in;
+            end if;
         end if;
     end if;
     end if;

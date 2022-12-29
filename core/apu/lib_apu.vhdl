@@ -131,7 +131,9 @@ package body lib_apu is
                     v_reg.square_1 := write_reg_2(v_reg.square_1, cpu_data_in);
                 -- $4003
                 when "00011" =>
-                    v_reg.square_1 := write_reg_3(v_reg.square_1, cpu_data_in);
+                    v_reg.square_1 := write_reg_3(v_reg.square_1,
+                                                  cpu_data_in,
+                                                  v_update_length);
 
                 -- Square Channel 2
                 -- $4004
@@ -145,7 +147,9 @@ package body lib_apu is
                     v_reg.square_2 := write_reg_2(v_reg.square_2, cpu_data_in);
                 -- $4007
                 when "00111" =>
-                    v_reg.square_2 := write_reg_3(v_reg.square_2, cpu_data_in);
+                    v_reg.square_2 := write_reg_3(v_reg.square_2,
+                                                  cpu_data_in,
+                                                  v_update_length);
 
                 -- Triangle Channel
                 -- Linear Counter registers
@@ -159,7 +163,9 @@ package body lib_apu is
                 -- Timer period high and length counter reload
                 -- $400B
                 when "01011" =>
-                    v_reg.triangle := write_reg_2(v_reg.triangle, cpu_data_in);
+                    v_reg.triangle := write_reg_2(v_reg.triangle,
+                                                  cpu_data_in,
+                                                  v_update_length);
 
                 -- Noise Channel
                 -- $400C
@@ -170,7 +176,9 @@ package body lib_apu is
                     v_reg.noise := write_reg_1(v_reg.noise, cpu_data_in);
                 -- $400F
                 when "01111" =>
-                    v_reg.noise := write_reg_2(v_reg.noise, cpu_data_in);
+                    v_reg.noise := write_reg_2(v_reg.noise,
+                                               cpu_data_in,
+                                               v_update_length);
 
                 -- DMC Channel
                 -- $4010

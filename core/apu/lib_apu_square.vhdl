@@ -164,7 +164,13 @@ package lib_apu_square is
 
     function write_reg_2(val : square_t; reg : data_t) return square_t;
 
-    function write_reg_3(val : square_t; reg : data_t) return square_t;
+    function write_reg_3
+    (
+        val           : square_t;
+        reg           : data_t;
+        update_length : boolean
+    )
+    return square_t;
 
     function write_reg_4(val : square_t; reg : std_logic) return square_t;
 
@@ -498,12 +504,18 @@ package body lib_apu_square is
         return ret;
     end;
 
-    function write_reg_3(val : square_t; reg : data_t) return square_t
+    function write_reg_3
+    (
+        val           : square_t;
+        reg           : data_t;
+        update_length : boolean
+    )
+    return square_t
     is
         variable ret : square_t;
     begin
         ret := val;
-        ret.length := write_reg_1(val.length, reg(7 downto 3));
+        ret.length := write_reg_1(val.length, reg(7 downto 3), update_length);
         ret.sweep := write_reg_2(val.sweep, reg(2 downto 0));
         -- Writes to fourth register reset envelope and force reload
         -- of sequencer period

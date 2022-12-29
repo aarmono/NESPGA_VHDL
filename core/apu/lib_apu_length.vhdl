@@ -77,8 +77,9 @@ package lib_apu_length is
     
     function write_reg_1
     (
-        val : length_t;
-        reg : std_logic_vector(4 downto 0)
+        val           : length_t;
+        reg           : std_logic_vector(4 downto 0);
+        update_length : boolean
     )
     return length_t;
     
@@ -148,15 +149,16 @@ package body lib_apu_length is
     -- write_reg_1 function {
     function write_reg_1
     (
-        val : length_t;
-        reg : std_logic_vector(4 downto 0)
+        val           : length_t;
+        reg           : std_logic_vector(4 downto 0);
+        update_length : boolean
     )
     return length_t
     is
         variable ret : length_t;
     begin
         ret := val;
-        if ret.enable
+        if ret.enable and (not update_length or is_zero(ret.count))
         then
             ret.count := get_length_val(unsigned(reg));
         end if;

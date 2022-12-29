@@ -91,7 +91,13 @@ package lib_apu_noise is
 
     function write_reg_1(val : noise_t; reg : data_t) return noise_t;
 
-    function write_reg_2(val : noise_t; reg : data_t) return noise_t;
+    function write_reg_2
+    (
+        val           : noise_t;
+        reg           : data_t;
+        update_length : boolean
+    )
+    return noise_t;
 
     function write_reg_3(val : noise_t; reg : std_logic) return noise_t;
 
@@ -218,12 +224,18 @@ package body lib_apu_noise is
         return ret;
     end;
 
-    function write_reg_2(val : noise_t; reg : data_t) return noise_t
+    function write_reg_2
+    (
+        val           : noise_t;
+        reg           : data_t;
+        update_length : boolean
+    )
+    return noise_t
     is
         variable ret : noise_t;
     begin
         ret := val;
-        ret.length := write_reg_1(val.length, reg(7 downto 3));
+        ret.length := write_reg_1(val.length, reg(7 downto 3), update_length);
         -- if there was a write to the fourth channel register since
         -- the last clock, the counter is set to 15 and the divider
         -- is reset
