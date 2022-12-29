@@ -97,6 +97,8 @@ package nes_core is
         clk_odd        : in boolean;
         reset          : in boolean;
         
+        pause_dma : in boolean;
+
         write_from_cpu : in boolean;
         data_to_dma    : in data_t;
         

@@ -50,6 +50,8 @@ apu_test/rom_singles/8-dmc_rates.nes                | 467ms     | 66c4635f0b921f
 oam_stress/oam_stress.nes                           | 28519ms   | bf0ae93ef420602287e426018267b865183ed0a86a5b77274b2e7bbde9778814 *frame_01709.bmp
 oam_read/oam_read.nes                               | 550ms     | 04d7042515042d76cc185f5dfa024a0165dd8a21976adaf848efeeaf1601f63f *frame_00032.bmp
 
+sprdma_and_dmc_dma/sprdma_and_dmc_dma.nes           | 2335ms    | 32afb1e7430ab2ba5198ada04480c737840d681db03c370cb2ee5115d32f0384 *frame_00139.bmp
+
 vbl_nmi_timing/1.frame_basics.nes                   | 2960ms    | b05214dd08d6c4ec7a2448c83b164f91c969602eb21df841d19d19608ea2f21e *frame_00176.bmp
 vbl_nmi_timing/2.vbl_timing.nes                     | 2620ms    | f2e160451bc9a38409502e8ace8ad183f0c307f54c967653cdb13375f806f780 *frame_00156.bmp
 vbl_nmi_timing/3.even_odd_frames.nes                | 1700ms    | 512dde50e22373e212711823aa637ea40280405a53fa9a63bc75378b628bcf5e *frame_00101.bmp
@@ -64,14 +66,14 @@ sprite_hit_tests_2005.10.05/03.corners.nes          | 367ms     | cf7952cb0f0ec0
 sprite_hit_tests_2005.10.05/04.flip.nes             | 317ms     | a679e4a633a818c78d47ea277a809ca71c9f83173a75811c880be4b6b2b45f64 *frame_00018.bmp
 sprite_hit_tests_2005.10.05/05.left_clip.nes        | 484ms     | 7e3d4d0751f96c586b96b6af1e55060eb3ad7b67f736e08bb97b939a0f3d3850 *frame_00028.bmp
 sprite_hit_tests_2005.10.05/06.right_edge.nes       | 400ms     | e2b75995ac49563dfb29bda6016d8f3708712dbfcd7281856f1af512a11e1a28 *frame_00023.bmp
-sprite_hit_tests_2005.10.05/07.screen_bottom.nes    | 417ms     | a2c5839f7b4f9b81fc5cf04f2d5493453cc808981d7d1fc74aca47c8c9f878c6 *frame_00024.bmp
-sprite_hit_tests_2005.10.05/08.double_height.nes    | 350ms     | 9e81d0b6038dc0ee2ed67b3d0ff186480a8210a1d7ce9d4a24500058c35ccacc *frame_00020.bmp
+sprite_hit_tests_2005.10.05/07.screen_bottom.nes    | 434ms     | a2c5839f7b4f9b81fc5cf04f2d5493453cc808981d7d1fc74aca47c8c9f878c6 *frame_00025.bmp
+sprite_hit_tests_2005.10.05/08.double_height.nes    | 367ms     | 9e81d0b6038dc0ee2ed67b3d0ff186480a8210a1d7ce9d4a24500058c35ccacc *frame_00021.bmp
 sprite_hit_tests_2005.10.05/09.timing_basics.nes    | 1167ms    | caf2d88e9950c8f39d0a6b6297cc6995514c7e324b1ff604b6e154f8f1362d03 *frame_00069.bmp
 sprite_hit_tests_2005.10.05/10.timing_order.nes     | 1100ms    | 8c5d64dbdb563fef48fc735868e7e6329492aef7a5038f6fa77a9b0e6204d7cf *frame_00065.bmp
 sprite_hit_tests_2005.10.05/11.edge_timing.nes      | 1084ms    | 594561dd5d0479cb40c255febc3c81303c15dd38c80101ede1585edf7dc413ff *frame_00064.bmp
 
 sprite_overflow_tests/1.Basics.nes                  | 267ms     | b5a76038a1f0bb91170c58bd660fa210dc32774e325ac016b1e41da8bc55fbd9 *frame_00015.bmp
-sprite_overflow_tests/2.Details.nes                 | 417ms     | dc38872cd3a7f98b921666f985ae42784fdda6c747b9fea65896f8e915f2552e *frame_00024.bmp
+sprite_overflow_tests/2.Details.nes                 | 450ms     | dc38872cd3a7f98b921666f985ae42784fdda6c747b9fea65896f8e915f2552e *frame_00026.bmp
 sprite_overflow_tests/3.Timing.nes                  | 2451ms    | ee07700d75e61d8ae7460eb7b4a787b6b9a708f9963ad8aa73b58439828579a9 *frame_00146.bmp
 sprite_overflow_tests/4.Obscure.nes                 | 400ms     | 73f426daae7b8fa11cc1e4133e3d2e6ee5490f45bb94d2964b1baf93b3622317 *frame_00023.bmp
 sprite_overflow_tests/5.Emulator.nes                | 250ms     | cdeaa359fd6bfa65e2f8b6630e1f9fc3e0d41d4ec64e987cfd4c6c3b3ac59e46 *frame_00014.bmp

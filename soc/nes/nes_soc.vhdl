@@ -303,6 +303,8 @@ begin
         clk_en => cpu_en,
         clk_odd => cpu_odd,
         reset => int_reset,
+
+        pause_dma => is_bus_active(apu_dma_bus),
         
         write_from_cpu => oam_dma_cpu_write,
         data_to_dma => data_to_oam_dma,
@@ -320,15 +322,15 @@ begin
     begin
         nes_in.reg := reg;
         
-        if is_bus_active(oam_dma_bus)
-        then
-            nes_in.cpu_bus.cpu_bus := oam_dma_bus;
-            nes_in.cpu_bus.data_from_cpu := data_from_oam_dma;
-        elsif is_bus_active(apu_dma_bus)
+        if is_bus_active(apu_dma_bus)
         then
             nes_in.cpu_bus.cpu_bus := apu_dma_bus;
             -- APU DMA is read-only, so this is a don't care
             nes_in.cpu_bus.data_from_cpu := data_from_cpu;
+        elsif is_bus_active(oam_dma_bus)
+        then
+            nes_in.cpu_bus.cpu_bus := oam_dma_bus;
+            nes_in.cpu_bus.data_from_cpu := data_from_oam_dma;
         else
             nes_in.cpu_bus.cpu_bus := cpu_bus;
             nes_in.cpu_bus.data_from_cpu := data_from_cpu;

@@ -101,7 +101,8 @@ subtype dmc_data_t is unsigned(data_t'range);
     (
         cur_val        : dma_t;
         shift_reloaded : boolean;
-        cpu_data_in    : data_t
+        cpu_data_in    : data_t;
+        clk_odd        : boolean
     )
     return dma_t;
     
@@ -209,7 +210,13 @@ subtype dmc_data_t is unsigned(data_t'range);
     
     function get_audio(dmc : dmc_t) return dmc_audio_t;
     
-    function next_dmc(cur_val : dmc_t; cpu_data_in : data_t) return dmc_t;
+    function next_dmc
+    (
+        cur_val     : dmc_t;
+        cpu_data_in : data_t; 
+        clk_odd     : boolean
+    )
+    return dmc_t;
     
     function dmc_irq_active(dmc : dmc_t) return boolean;
     
@@ -282,7 +289,8 @@ package body lib_apu_dmc is
     (
         cur_val        : dma_t;
         shift_reloaded : boolean;
-        cpu_data_in    : data_t
+        cpu_data_in    : data_t;
+        clk_odd        : boolean
     )
     return dma_t
     is
@@ -293,7 +301,8 @@ package body lib_apu_dmc is
         case cur_val.state is
             when DMA_IDLE =>
                 if not cur_val.dma_buffer.valid and
-                   not is_zero(cur_val.dma_xfer_vals.bytes_remaining)
+                   not is_zero(cur_val.dma_xfer_vals.bytes_remaining) and
+                   not clk_odd
                 then
                     next_val.dma_buffer.data := x"03";
                     next_val.state := DMA_READ_REQ;
@@ -468,7 +477,8 @@ package body lib_apu_dmc is
     function next_dmc
     (
         cur_val     : dmc_t;
-        cpu_data_in : data_t
+        cpu_data_in : data_t;
+        clk_odd     : boolean
     )
     return dmc_t
     is
@@ -481,7 +491,7 @@ package body lib_apu_dmc is
         
         next_val.output := next_dmc_output(cur_val.output,
                                            cur_val.dma.dma_buffer);
-        next_val.dma := next_dma(cur_val.dma, v_update_shift, cpu_data_in);
+        next_val.dma := next_dma(cur_val.dma, v_update_shift, cpu_data_in, clk_odd);
         
         return next_val;
     end;

@@ -12,6 +12,8 @@ port
     clk_en         : in boolean := true;
     clk_odd        : in boolean;
     reset          : in boolean;
+
+    pause_dma : in boolean;
     
     write_from_cpu : in boolean;
     data_to_dma    : in data_t;
@@ -59,6 +61,7 @@ is
     type dma_in_t is record
         reg            : reg_t;
         clk_odd        : boolean;
+        pause_dma      : boolean;
         write_from_cpu : boolean;
         data_to_dma    : data_t;
     end record;
@@ -94,11 +97,17 @@ is
                 end if;
             when READING =>
                 dma_out.ready := false;
-                
-                dma_out.dma_bus := bus_read(dma_in.reg.address);
-                dma_out.reg.data := dma_in.data_to_dma;
-                
-                dma_out.reg.state := WRITING;
+
+                if dma_in.pause_dma
+                then
+                    dma_out.reg.state := WAITING;
+                    dma_out.reg.delay := false;
+                else
+                    dma_out.dma_bus := bus_read(dma_in.reg.address);
+                    dma_out.reg.data := dma_in.data_to_dma;
+                    
+                    dma_out.reg.state := WRITING;
+                end if;
             when WRITING =>
                 dma_out.ready := false;
                 
@@ -108,6 +117,10 @@ is
                 if dma_in.reg.address(7 downto 0) = x"FF"
                 then
                     dma_out.reg.state := IDLE;
+                elsif dma_in.pause_dma
+                then
+                    dma_out.reg.state := WAITING;
+                    dma_out.reg.delay := true;
                 else
                     dma_out.reg.state := READING;
                 end if;
@@ -133,6 +146,7 @@ begin
         dma_in.write_from_cpu := write_from_cpu;
         dma_in.data_to_dma := data_to_dma;
         dma_in.clk_odd := clk_odd;
+        dma_in.pause_dma := pause_dma;
         
         dma_out := cycle_dma(dma_in);
         

@@ -110,7 +110,7 @@ package body lib_apu is
         v_reg.noise := next_noise(reg.noise,
                                   v_update_envelope,
                                   v_update_length);
-        v_reg.dmc := next_dmc(reg.dmc, cpu_data_in);
+        v_reg.dmc := next_dmc(reg.dmc, cpu_data_in, odd_cycle);
 
         v_dmc_irq := dmc_irq_active(reg.dmc);
         v_frame_irq := frame_irq_active(reg.frame_seq);
