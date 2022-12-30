@@ -33,7 +33,7 @@ architecture behavioral of apu is
     signal reg_in : reg_t;
 
     signal irq_in : boolean;
-    signal irq_delay : boolean_vector(1 downto 0);
+    signal irq_delay : boolean_array(1 downto 0);
     
 begin
     
@@ -69,12 +69,7 @@ begin
             then
                 irq_delay <= (others => false);
             else
-                for i in irq_delay'high downto 1
-                loop
-                    irq_delay(i) <= irq_delay(i - 1);
-                end loop;
-
-                irq_delay(0) <= irq_in;
+                irq_delay <= shift_left(irq_delay, irq_in);
             end if;
         end if;
     end if;

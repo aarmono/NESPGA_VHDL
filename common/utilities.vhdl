@@ -3,6 +3,10 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
 package utilities is
+    type boolean_array is array (natural range <>) of boolean;
+    
+    function shift_left(val : boolean_array; lsb : boolean) return boolean_array;
+
     function reverse_vector(data : std_logic_vector) return std_logic_vector;
     
     function to_std_logic(data : boolean) return std_logic;
@@ -54,6 +58,20 @@ package utilities is
 end utilities;
 
 package body utilities is
+
+    function shift_left(val : boolean_array; lsb : boolean) return boolean_array
+    is
+        variable ret : boolean_array(val'range);
+    begin
+        for i in val'high downto val'low+1
+        loop
+            ret(i) := val(i - 1);
+        end loop;
+        
+        ret(val'low) := lsb;
+        
+        return ret;
+    end function;
 
     function reverse_vector(data : std_logic_vector) return std_logic_vector is
         variable reversed : std_logic_vector(data'RANGE);
