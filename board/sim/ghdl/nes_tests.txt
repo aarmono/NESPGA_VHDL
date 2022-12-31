@@ -72,6 +72,17 @@ vbl_nmi_timing/5.nmi_suppression.nes                | 2820ms    | 51ace9acba8753
 vbl_nmi_timing/6.nmi_disable.nes                    | 1890ms    | fa3c833d741cdd2d4b4eb9c054d9d199fac7e150f220294f89ea3264bd9736f1 *frame_00111.bmp
 vbl_nmi_timing/7.nmi_timing.nes                     | 1870ms    | 0c826bc35ea2f077faab97630a852ed7cf2713ae07414fa5f1545b8419d8edfc *frame_00111.bmp
 
+ppu_vbl_nmi/rom_singles/01-vbl_basics.nes           | 2368ms    | f1c780659fce38a000e93dd29830d2b77a9e8f0a713903d9fc519f98b8320f80 *frame_00141.bmp
+ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes         | 2852ms    | 6dd9036bb6b23c2bc361d689c42264779633b00ea548a6fd6179d7fbabb875d7 *frame_00170.bmp
+ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes       | 2802ms    | 181022ccfb367a2d989420f6de1d461519a282d5f4deaf66b6d113bfca06ab07 *frame_00167.bmp
+ppu_vbl_nmi/rom_singles/04-nmi_control.nes          | 550ms     | 093721397d115b74610890f7af86fefeab0a73517e50abac62b77ee66ecf7638 *frame_00032.bmp
+ppu_vbl_nmi/rom_singles/05-nmi_timing.nes           | 3636ms    | 78b090aa75006d759fdcb64b9507c0cd7fd6831e0b8fa1b78b15c843803af149 *frame_00217.bmp
+ppu_vbl_nmi/rom_singles/06-suppression.nes          | 3686ms    | c82cd82e53031562fd8cb71baf7eb7b86bd6ab1fb584b5926921ca96d6d74011 *frame_00220.bmp
+ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes        | 3269ms    | 592ffe68f5501d6b1f2aa7f3fefa3ce671ae72cb830f0643008988b35cd264db *frame_00195.bmp
+ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes       | 3669ms    | 5f4504936d5f881c3f1dd8ceccab1b01b782d358a2a11b8dc0d2516ea33ba1ca *frame_00219.bmp
+ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes      | 1301ms    | ed24d74b17c00bb843bf62742614b5c555d7479c7e2e8f83ae61e2c20f0a360d *frame_00077.bmp
+# ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes      |           | 
+
 sprite_hit_tests_2005.10.05/01.basics.nes           | 550ms     | a50cda0d5ee822a7091bad468bfd3b437750148b15165d5a343ff12cb016961d *frame_00032.bmp
 sprite_hit_tests_2005.10.05/02.alignment.nes        | 534ms     | c742a7c6dffb67f91e4bda1762bb75b54ae5a653934cc7f82318b5595549b56c *frame_00031.bmp
 sprite_hit_tests_2005.10.05/03.corners.nes          | 367ms     | cf7952cb0f0ec0a5cdfdbb7b7a26abef280f3b266ce60730655d2b3e294a4675 *frame_00021.bmp
