@@ -11,7 +11,7 @@ run_nes_test() {
     HASH=`echo "$1" | cut -f 3 -d '|' | xargs`
     OUTPUT_DIR=output/"$TEST_PATH"
 
-    echo "Test starting: $TEST_PATH"
+    echo "Test start: $TEST_PATH"
     ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" 1> /dev/null
 
     if [ "$HASH" != "" ]
@@ -24,7 +24,7 @@ run_nes_test() {
             STATUS=FAIL
         fi
 
-        echo "Test $STATUS: $TEST_PATH"
+        echo "Test  $STATUS: $TEST_PATH"
         popd &> /dev/null
     else
         echo "Test complete: $TEST_PATH"
