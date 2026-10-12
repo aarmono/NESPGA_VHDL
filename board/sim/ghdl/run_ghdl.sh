@@ -2,7 +2,7 @@
 
 set -e
 
-IMAGE=ghdl/ghdl:ubuntu22-llvm-11
+IMAGE=nespga-ghdl:7.0.0-dev-llvm-ubuntu-22.04
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
