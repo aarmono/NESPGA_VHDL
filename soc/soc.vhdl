@@ -14,10 +14,14 @@ use work.nes_types.all;
 package soc is
     
     component nes_soc is
+    generic
+    (
+        CLK_FREQ : positive := 50_000_000
+    );
     port
     (
-        clk_50mhz : in std_logic;
-        reset     : in boolean;
+        clk   : in std_logic;
+        reset : in boolean;
 
         nes_running : out boolean;
 
@@ -71,12 +75,13 @@ package soc is
     component nes_soc_ocram is
     generic
     (
-        USE_EXT_SRAM : boolean := false
+        USE_EXT_SRAM : boolean := false;
+        CLK_FREQ     : positive := 50_000_000
     );
     port
     (
-        clk_50mhz : in std_logic;
-        reset     : in boolean;
+        clk   : in std_logic;
+        reset : in boolean;
 
         nes_running : out boolean;
 

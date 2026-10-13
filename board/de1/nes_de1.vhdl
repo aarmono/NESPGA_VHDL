@@ -182,7 +182,7 @@ begin
     )
     port map
     (
-        clk_50mhz => CLOCK_50,
+        clk => CLOCK_50,
         reset => reset,
 
         nes_running => nes_running,

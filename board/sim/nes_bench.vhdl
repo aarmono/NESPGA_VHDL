@@ -28,6 +28,12 @@ end nes_bench;
 
 architecture behavioral of nes_bench is
 
+    -- The simulated clock runs at 50MHz * (6 / 28) so that a CPU cycle has
+    -- the same duration as with a 50MHz clock, but with fewer clock events
+    -- to simulate
+    constant CLK_FREQ : positive := 50_000_000 * 6 / 28;
+    constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
+
     signal file_bus       : file_bus_t;
     signal data_from_file : data_t;
     
@@ -47,16 +53,20 @@ architecture behavioral of nes_bench is
     
     signal reset : boolean;
     
-    signal clk_50mhz : std_logic := '0';
+    signal clk : std_logic := '0';
 
     signal output_ready : boolean;
     
 begin
 
     soc : nes_soc_ocram
+    generic map
+    (
+        CLK_FREQ => CLK_FREQ
+    )
     port map
     (
-        clk_50mhz => clk_50mhz,
+        clk => clk,
         reset => false,
 
         nes_running => output_ready,
@@ -86,7 +96,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => ppu_clk_en,
         pixel_bus => pixel_bus,
         ready => output_ready,
@@ -100,7 +110,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => cpu_clk_en,
         audio => audio_out,
         ready => output_ready,
@@ -131,7 +141,7 @@ begin
     (
        FILEPATH => NES_FILEPATH,
        MEM_BYTES => NES_FILE_BYTES,
-       READ_DELAY => 110 ns
+       READ_DELAY => 20 ns
     )
     port map
     (
@@ -139,14 +149,14 @@ begin
        data_from_file_1 => data_from_file
     );
     
-    clk_50mhz_gen : clock
+    clk_gen : clock
     generic map
     (
-        PERIOD => 20 ns
+        PERIOD => CLK_PERIOD
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         done => false
     );
 

@@ -131,9 +131,13 @@ package nes_core is
     end component joystick_io;
 
     component clk_en is
+    generic
+    (
+        CLK_FREQ : positive := 50_000_000
+    );
     port
     (
-        clk_50mhz     : in std_logic;
+        clk           : in std_logic;
         reset         : in boolean;
         
         cpu_en        : out boolean;

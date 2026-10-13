@@ -19,10 +19,14 @@ use work.nes_core.all;
 use work.lib_nes.all;
 
 entity nes_soc is
+generic
+(
+    CLK_FREQ : positive := 50_000_000
+);
 port
 (
-    clk_50mhz : in std_logic;
-    reset     : in boolean;
+    clk   : in std_logic;
+    reset : in boolean;
 
     nes_running : out boolean;
 
@@ -178,7 +182,7 @@ begin
     file_mux : file_bus_mux
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => ppu_en,
         clk_sync => ppu_sync,
         reset => reset,
@@ -194,9 +198,13 @@ begin
     );
 
     nes_clk_en : clk_en
+    generic map
+    (
+        CLK_FREQ => CLK_FREQ
+    )
     port map
     (
-        clk_50mhz => clk_50mhz,
+        clk => clk,
         reset => reset,
         
         cpu_en => cpu_en,
@@ -212,7 +220,7 @@ begin
     nes_cpu : cpu
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => cpu_en,
         reset => int_reset,
         
@@ -228,7 +236,7 @@ begin
     nes_apu : apu
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => cpu_en,
         clk_odd => cpu_odd,
         reset => int_reset,
@@ -247,7 +255,7 @@ begin
     nes_joystick_io : joystick_io
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => cpu_en,
         reset => int_reset,
 
@@ -267,7 +275,7 @@ begin
     nes_ppu : ppu
     port map
     (
-        clk    => clk_50mhz,
+        clk    => clk,
         clk_en => ppu_en,
         clk_sync => ppu_sync,
         reset  => int_reset,
@@ -299,7 +307,7 @@ begin
     nes_oam_dma : oam_dma
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => cpu_en,
         clk_odd => cpu_odd,
         reset => int_reset,
@@ -411,10 +419,10 @@ begin
         
     end process;
 
-    process(clk_50mhz)
+    process(clk)
     is
     begin
-    if rising_edge(clk_50mhz)
+    if rising_edge(clk)
     then
         if reset
         then

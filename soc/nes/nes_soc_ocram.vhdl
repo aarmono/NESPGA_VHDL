@@ -17,12 +17,13 @@ use work.perhipheral_types.all;
 entity nes_soc_ocram is
 generic
 (
-    USE_EXT_SRAM : boolean := false
+    USE_EXT_SRAM : boolean := false;
+    CLK_FREQ     : positive := 50_000_000
 );
 port
 (
-    clk_50mhz : in std_logic;
-    reset     : in boolean;
+    clk   : in std_logic;
+    reset : in boolean;
 
     nes_running : out boolean;
 
@@ -83,9 +84,13 @@ architecture behavioral of nes_soc_ocram is
 begin
 
     soc : entity work.nes_soc(behavioral)
+    generic map
+    (
+        CLK_FREQ => CLK_FREQ
+    )
     port map
     (
-        clk_50mhz => clk_50mhz,
+        clk => clk,
         reset => reset,
 
         nes_running => nes_running,
@@ -147,7 +152,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => sig_cpu_ram_en,
 
         address => prg_ram_bus.address,
@@ -172,7 +177,7 @@ begin
         )
         port map
         (
-            clk => clk_50mhz,
+            clk => clk,
             clk_en => sig_cpu_ram_en,
 
             address => sig_sram_bus.address,
@@ -198,7 +203,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => sig_ppu_ram_en,
 
         address => chr_ram_bus.address,
@@ -217,7 +222,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => sig_ppu_ram_en,
 
         address => ciram_bus.address,
@@ -236,7 +241,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => sig_ppu_ram_en,
 
         address => oam_bus.address,
@@ -255,7 +260,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => sig_ppu_ram_en,
 
         address => sec_oam_bus.address,
@@ -274,7 +279,7 @@ begin
     )
     port map
     (
-        clk => clk_50mhz,
+        clk => clk,
         clk_en => sig_ppu_ram_en,
 
         address => palette_bus.address,

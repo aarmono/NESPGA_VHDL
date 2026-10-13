@@ -4,10 +4,18 @@ use IEEE.numeric_std.all;
 use work.utilities.all;
 
 entity clk_en is
+generic
+(
+    -- Frequency of clk in Hz. The CPU clock is derived by dividing this by
+    -- the nearest integer ratio to the NES CPU clock rate (1.789773MHz), so
+    -- 50MHz gives a divisor of 28. The minimum supported clock is 6x the CPU
+    -- clock.
+    CLK_FREQ : positive := 50_000_000
+);
 port
 (
-    clk_50mhz : in std_logic;
-    reset     : in boolean;
+    clk   : in std_logic;
+    reset : in boolean;
 
     cpu_en : out boolean;
     ppu_en : out boolean;
@@ -25,24 +33,38 @@ architecture behavioral of clk_en is
     subtype cpu_count_t is unsigned(4 downto 0);
     subtype nsf_count_t is unsigned(5 downto 0);
     
-    -- Divide 50MHz clock by 28 to approximate NES CPU clock speed
-    constant MAX_CPU_COUNT : cpu_count_t := to_unsigned(27, cpu_count_t'length);
-    constant MAX_NSF_COUNT : nsf_count_t := to_unsigned(49, nsf_count_t'length);
+    constant NES_CPU_HZ : integer := 1_789_773;
+
+    -- Divide the input clock to approximate NES CPU clock speed
+    constant CPU_DIV : integer := (CLK_FREQ + NES_CPU_HZ / 2) / NES_CPU_HZ;
+    -- The NSF clock is a 1MHz tick
+    constant NSF_DIV : integer := (CLK_FREQ + 500_000) / 1_000_000;
+
+    constant MAX_CPU_COUNT : cpu_count_t := to_unsigned(CPU_DIV - 1, cpu_count_t'length);
+    constant MAX_NSF_COUNT : nsf_count_t := to_unsigned(NSF_DIV - 1, nsf_count_t'length);
+
+    -- Input clocks between PPU enables. Any remainder is absorbed by the
+    -- interval which wraps around the end of the count
+    constant PPU_DIV : integer := CPU_DIV / 3;
+    constant PPU_DIV_REMAINDER : integer := CPU_DIV mod 3;
+
+    -- Input clocks between a PPU enable and the following RAM enable
+    constant RAM_OFFSET : integer := maximum(1, (4 * CPU_DIV) / 28);
 
     type ppu_en_arr_t is array(0 to 2) of cpu_count_t;
     -- Maintain a 3:1 ratio between CPU and PPU cycles
     constant PPU_EN_COUNT_ARR : ppu_en_arr_t :=
     (
         (others => '0'),
-        to_unsigned(9, cpu_count_t'length),
-        to_unsigned(18, cpu_count_t'length)
+        to_unsigned(PPU_DIV, cpu_count_t'length),
+        to_unsigned(2 * PPU_DIV, cpu_count_t'length)
     );
 
     constant PPU_RAM_EN_COUNT_ARR : ppu_en_arr_t :=
     (
-        to_unsigned(5, cpu_count_t'length),
-        to_unsigned(14, cpu_count_t'length),
-        to_unsigned(23, cpu_count_t'length)
+        to_unsigned(CPU_DIV - RAM_OFFSET - PPU_DIV_REMAINDER, cpu_count_t'length),
+        to_unsigned(PPU_DIV - RAM_OFFSET, cpu_count_t'length),
+        to_unsigned(2 * PPU_DIV - RAM_OFFSET, cpu_count_t'length)
     );
 
     constant CPU_EN_COUNT : cpu_count_t := PPU_EN_COUNT_ARR(2);
@@ -64,13 +86,23 @@ architecture behavioral of clk_en is
     
 begin
 
+    assert CPU_DIV >= 6 and CPU_DIV <= 31
+        and abs(CLK_FREQ - CPU_DIV * NES_CPU_HZ) * 50 <= CLK_FREQ
+        report "clk_en: CLK_FREQ must be within 2% of 6 to 31 times the "
+             & "NES CPU clock"
+        severity failure;
+
+    assert NSF_DIV >= 1 and NSF_DIV <= 64
+        report "clk_en: CLK_FREQ out of range for NSF clock"
+        severity failure;
+
     odd_cpu_cycle <= reg_odd_cpu_cycle;
 
-    process(clk_50mhz)
+    process(clk)
         variable is_ppu_en : boolean;
         variable is_ppu_ram_en : boolean;
     begin
-    if rising_edge(clk_50mhz)
+    if rising_edge(clk)
     then
         if reset
         then
