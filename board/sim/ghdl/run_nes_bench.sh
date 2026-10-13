@@ -60,4 +60,5 @@ exec ./nes_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                  -gNES_FILE_BYTES="$NES_SIZE"    \
                  $FM2_PARM                       \
                  $TIME_PARM                      \
-                 --unbuffered
+                 --asserts=disable               \
+                 --ieee-asserts=disable
