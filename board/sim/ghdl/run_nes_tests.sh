@@ -31,6 +31,12 @@ run_nes_test() {
     fi
 }
 
+if ! make -s -f nes_bench.Makefile
+then
+    echo "nes_bench make failed"
+    exit 1
+fi
+
 IFS='
 '
 
