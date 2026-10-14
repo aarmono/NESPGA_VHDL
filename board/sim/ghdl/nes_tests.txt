@@ -92,8 +92,8 @@ sprite_hit_tests_2005.10.05/05.left_clip.nes        | 484ms     | 7e3d4d0751f96c
 sprite_hit_tests_2005.10.05/06.right_edge.nes       | 400ms     | e2b75995ac49563dfb29bda6016d8f3708712dbfcd7281856f1af512a11e1a28 *frame_00023.bmp
 sprite_hit_tests_2005.10.05/07.screen_bottom.nes    | 434ms     | a2c5839f7b4f9b81fc5cf04f2d5493453cc808981d7d1fc74aca47c8c9f878c6 *frame_00025.bmp
 sprite_hit_tests_2005.10.05/08.double_height.nes    | 367ms     | 9e81d0b6038dc0ee2ed67b3d0ff186480a8210a1d7ce9d4a24500058c35ccacc *frame_00021.bmp
-sprite_hit_tests_2005.10.05/09.timing_basics.nes    | 1167ms    | caf2d88e9950c8f39d0a6b6297cc6995514c7e324b1ff604b6e154f8f1362d03 *frame_00069.bmp
-sprite_hit_tests_2005.10.05/10.timing_order.nes     | 1100ms    | 8c5d64dbdb563fef48fc735868e7e6329492aef7a5038f6fa77a9b0e6204d7cf *frame_00065.bmp
+sprite_hit_tests_2005.10.05/09.timing_basics.nes    | 1269ms    | caf2d88e9950c8f39d0a6b6297cc6995514c7e324b1ff604b6e154f8f1362d03 *frame_00073.bmp
+sprite_hit_tests_2005.10.05/10.timing_order.nes     | 1269ms    | 8c5d64dbdb563fef48fc735868e7e6329492aef7a5038f6fa77a9b0e6204d7cf *frame_00073.bmp
 sprite_hit_tests_2005.10.05/11.edge_timing.nes      | 1084ms    | 594561dd5d0479cb40c255febc3c81303c15dd38c80101ede1585edf7dc413ff *frame_00064.bmp
 
 sprite_overflow_tests/1.Basics.nes                  | 267ms     | b5a76038a1f0bb91170c58bd660fa210dc32774e325ac016b1e41da8bc55fbd9 *frame_00015.bmp
