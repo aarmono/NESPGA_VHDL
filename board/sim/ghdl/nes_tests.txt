@@ -32,10 +32,10 @@ instr_timing/rom_singles/2-branch_timing.nes        | 2351ms    | 8f2e44f970ec93
 cpu_timing_test6/cpu_timing_test.nes                | 10300ms   | a51471b3cabf9aa0b14b0945f4583e5f7387f9e964fca8a5894a6bab7f4366c4 *frame_00612.bmp
 
 # Basic APU
-dmc_tests/buffer_retained.nes                       | 300ms     | ff6c037d107970ac9b335493a3d7107114ff9912cdc495e17d1f01e18b3a4454 *audio.au
-dmc_tests/latency.nes                               | 300ms     | 281d796522f28983a703a25915c076aaf9c8c66304c6a6c0e145b2c8561732e9 *audio.au
-dmc_tests/status.nes                                | 300ms     | 67881afd2374be4bd1e384e549e911ff7195960685e5e82e786d5b73ba8b2ed5 *audio.au
-dmc_tests/status_irq.nes                            | 300ms     | 95096d5fe15d2263d6c783485c526d62d53ede61bbcc71e222ac305505f9025b *audio.au
+dmc_tests/buffer_retained.nes                       | 300ms     | f2b698da1cd765237f5de26375559505f71fb96795f9aabee72d70a68c147ae8 *audio.au
+dmc_tests/latency.nes                               | 300ms     | d3b67b3c3cda34f2b8c9f06e9ff4907a79304ca453193e5586c3114f9ffea99c *audio.au
+dmc_tests/status.nes                                | 300ms     | 1b1d21707684e7445e49b941a63d4227af4227a910365489060766b61239256c *audio.au
+dmc_tests/status_irq.nes                            | 300ms     | 7b6145dad36c3774a4061cc98da41d022d5940a6b658a3e780cd35e822504f25 *audio.au
 
 apu_test/rom_singles/1-len_ctr.nes                  | 334ms     | f89d0540946059fe833bfc061db296f478fee5833ed97180bf38c4cd069c9105 *frame_00019.bmp
 apu_test/rom_singles/2-len_table.nes                | 250ms     | c8b767953575b78737c61e58223c722dd6c71e652cd0b193821420361aeec7d3 *frame_00014.bmp
@@ -63,6 +63,7 @@ oam_stress/oam_stress.nes                           | 28519ms   | bf0ae93ef42060
 oam_read/oam_read.nes                               | 550ms     | 04d7042515042d76cc185f5dfa024a0165dd8a21976adaf848efeeaf1601f63f *frame_00032.bmp
 
 sprdma_and_dmc_dma/sprdma_and_dmc_dma.nes           | 2335ms    | 32afb1e7430ab2ba5198ada04480c737840d681db03c370cb2ee5115d32f0384 *frame_00139.bmp
+sprdma_and_dmc_dma/sprdma_and_dmc_dma_512.nes       | 2385ms    | 816c36b962a0374ff160bf677c5c3196ae639bc815d4893780c5fd66ed9332fe *frame_00142.bmp
 
 vbl_nmi_timing/1.frame_basics.nes                   | 2960ms    | b05214dd08d6c4ec7a2448c83b164f91c969602eb21df841d19d19608ea2f21e *frame_00176.bmp
 vbl_nmi_timing/2.vbl_timing.nes                     | 2620ms    | f2e160451bc9a38409502e8ace8ad183f0c307f54c967653cdb13375f806f780 *frame_00156.bmp

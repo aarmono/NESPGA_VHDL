@@ -44,6 +44,8 @@ package nes_core is
         clk_odd       : in  boolean;
         reset         : in  boolean;
 
+        oam_dma       : in  oam_dma_status_t;
+
         cpu_bus       : in  apu_bus_t;
         data_to_apu   : in  data_t;
         data_from_apu : out data_t;
@@ -105,6 +107,8 @@ package nes_core is
         dma_bus         : out cpu_bus_t;
         data_from_dma   : out data_t;
         
+        status          : out oam_dma_status_t;
+
         ready           : out boolean
     );
     end component oam_dma;

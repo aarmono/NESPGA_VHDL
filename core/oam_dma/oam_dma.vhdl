@@ -21,6 +21,8 @@ port
     dma_bus         : out cpu_bus_t;
     data_from_dma   : out data_t;
     
+    status          : out oam_dma_status_t;
+
     ready           : out boolean
 );
 end entity;
@@ -56,6 +58,7 @@ is
         dma_bus       : cpu_bus_t;
         data_from_dma : data_t;
         ready         : boolean;
+        status        : oam_dma_status_t;
     end record;
     
     type dma_in_t is record
@@ -75,6 +78,8 @@ is
         dma_out.reg := dma_in.reg;
         dma_out.dma_bus := CPU_BUS_IDLE;
         dma_out.data_from_dma := (others => '-');
+        dma_out.status.active := dma_in.reg.state /= IDLE;
+        dma_out.status.read_cycle := dma_in.reg.state = READING;
         
         case dma_in.reg.state is
             when IDLE =>
@@ -82,7 +87,9 @@ is
                 
                 if dma_in.write_from_cpu
                 then
-                    dma_out.reg.delay := not dma_in.clk_odd;
+                    -- OAM DMA reads must fall on the same cycle parity as
+                    -- DMC DMA reads, which only ever occur on even CPU cycles
+                    dma_out.reg.delay := dma_in.clk_odd;
                     dma_out.reg.state := WAITING;
                     dma_out.reg.address := unsigned(dma_in.data_to_dma) & x"00";
                 end if;
@@ -117,11 +124,9 @@ is
                 if dma_in.reg.address(7 downto 0) = x"FF"
                 then
                     dma_out.reg.state := IDLE;
-                elsif dma_in.pause_dma
-                then
-                    dma_out.reg.state := WAITING;
-                    dma_out.reg.delay := true;
                 else
+                    -- A DMC DMA read only ever replaces an OAM read cycle,
+                    -- so the write cycle is never interrupted
                     dma_out.reg.state := READING;
                 end if;
                 
@@ -153,6 +158,7 @@ begin
         reg_next <= dma_out.reg;
         dma_bus <= dma_out.dma_bus;
         data_from_dma <= dma_out.data_from_dma;
+        status <= dma_out.status;
         ready <= dma_out.ready;
     end process;
     

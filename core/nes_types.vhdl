@@ -34,6 +34,11 @@ package nes_types is
         line_valid  : boolean;
         frame_valid : boolean;
     end record;
+    
+    type oam_dma_status_t is record
+        active     : boolean;
+        read_cycle : boolean;
+    end record;
 
 end nes_types;
 

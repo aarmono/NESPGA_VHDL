@@ -48,7 +48,8 @@ package lib_apu is
         reg         : reg_t;
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
-        odd_cycle   : boolean
+        odd_cycle   : boolean;
+        oam_dma     : oam_dma_status_t
     )
     return apu_output_t;
 
@@ -61,7 +62,8 @@ package body lib_apu is
         reg         : reg_t;
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
-        odd_cycle   : boolean
+        odd_cycle   : boolean;
+        oam_dma     : oam_dma_status_t
     )
     return apu_output_t
     is
@@ -89,7 +91,7 @@ package body lib_apu is
         
         v_ready := assert_ready(reg.dmc);
         
-        v_dma_bus := get_dma_bus(reg.dmc);
+        v_dma_bus := get_dma_bus(reg.dmc, oam_dma);
         
         v_reg.frame_seq := next_sequence(reg.frame_seq);
 
@@ -110,7 +112,7 @@ package body lib_apu is
         v_reg.noise := next_noise(reg.noise,
                                   v_update_envelope,
                                   v_update_length);
-        v_reg.dmc := next_dmc(reg.dmc, cpu_data_in, odd_cycle);
+        v_reg.dmc := next_dmc(reg.dmc, cpu_data_in, odd_cycle, oam_dma);
 
         v_dmc_irq := dmc_irq_active(reg.dmc);
         v_frame_irq := frame_irq_active(reg.frame_seq);
@@ -201,7 +203,7 @@ package body lib_apu is
                     v_reg.square_2 := write_reg_4(v_reg.square_2, cpu_data_in(1));
                     v_reg.triangle := write_reg_3(v_reg.triangle, cpu_data_in(2));
                     v_reg.noise := write_reg_3(v_reg.noise, cpu_data_in(3));
-                    v_reg.dmc := write_reg_4(v_reg.dmc, cpu_data_in(4));
+                    v_reg.dmc := write_reg_4(v_reg.dmc, cpu_data_in(4), odd_cycle);
 
                 -- Frame Sequencer
                 -- $4017

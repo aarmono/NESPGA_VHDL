@@ -151,6 +151,8 @@ is
     signal sig_cpu_ram_en : boolean;
     
     signal audio_out : apu_out_t;
+
+    signal oam_dma_status : oam_dma_status_t;
     
     signal int_reset : boolean;
     signal nmi : boolean;
@@ -240,6 +242,8 @@ begin
         clk_en => cpu_en,
         clk_odd => cpu_odd,
         reset => int_reset,
+
+        oam_dma => oam_dma_status,
         
         cpu_bus => apu_bus,
         data_to_apu => data_to_apu,
@@ -320,6 +324,8 @@ begin
         dma_bus => oam_dma_bus,
         data_from_dma => data_from_oam_dma,
         
+        status => oam_dma_status,
+
         ready => dma_ready
     );
 
