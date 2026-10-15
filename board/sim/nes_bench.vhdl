@@ -141,7 +141,7 @@ begin
     (
        FILEPATH => NES_FILEPATH,
        MEM_BYTES => NES_FILE_BYTES,
-       READ_DELAY => 20 ns
+       READ_DELAY => CLK_PERIOD / 2
     )
     port map
     (
