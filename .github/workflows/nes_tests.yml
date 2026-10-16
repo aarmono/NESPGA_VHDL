@@ -1,0 +1,48 @@
+name: NES tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# A full run takes hours; cancel it when newer commits are pushed to the
+# same branch or pull request
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nes-tests:
+    name: NES tests (shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Add or remove entries to change the number of shards. Tests in
+        # nes_tests.txt are distributed between shards automatically by
+        # run time (see run_nes_tests.sh -s)
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Build GHDL image
+        run: board/sim/ghdl/build_ghdl_image.sh
+
+      - name: List tests
+        working-directory: board/sim/ghdl
+        run: ./run_nes_tests.sh -l -s ${{ matrix.shard }}/${{ strategy.job-total }}
+
+      - name: Run tests
+        working-directory: board/sim/ghdl
+        run: ./run_ghdl.sh ./run_nes_tests.sh -s ${{ matrix.shard }}/${{ strategy.job-total }}
+
+      - name: Upload failed test output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nes-test-failures-shard-${{ matrix.shard }}
+          path: board/sim/ghdl/output/failures/
+          if-no-files-found: ignore
