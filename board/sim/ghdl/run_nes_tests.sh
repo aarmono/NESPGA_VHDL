@@ -1,5 +1,57 @@
 #!/usr/bin/env bash
 
+usage() {
+    echo "Usage: $0 [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
+    echo "  -f  Test list to run (default: nes_tests.txt)"
+    echo "  -s  Only run shard SHARD (1-based) of SHARD_COUNT. Tests are"
+    echo "      distributed so each shard has about the same total run time"
+    echo "  -l  List the selected tests and their run times, then exit"
+}
+
+exit_abnormal() {
+    usage
+    exit 1
+}
+
+# Prints the non-comment lines of the test list in $1, longest run time
+# first. If $2/$3 are given, only prints the lines in shard $2 of $3.
+#
+# Shards are assigned greedily (longest test to the shard with the least
+# total run time so far), which is deterministic, so every shard computes
+# the same partition independently. Running longest tests first also
+# minimizes the wall time when tests run in parallel.
+select_tests() {
+    awk -F '|' '
+        function to_ms(t,    num, unit) {
+            gsub(/[ \t]/, "", t)
+            if (!match(t, /^[0-9.]+/)) return 0
+            num = substr(t, 1, RLENGTH)
+            unit = substr(t, RLENGTH + 1)
+            if (unit == "fs")  return num / 1000000000000
+            if (unit == "ps")  return num / 1000000000
+            if (unit == "ns")  return num / 1000000
+            if (unit == "us")  return num / 1000
+            if (unit == "ms")  return num
+            if (unit == "sec") return num * 1000
+            if (unit == "min") return num * 60000
+            if (unit == "hr")  return num * 3600000
+            return 0
+        }
+        /^#/ || /^[ \t]*$/ { next }
+        { print to_ms($2) "\t" $0 }
+    ' "$1" |
+    sort -s -t "$(printf '\t')" -k 1,1gr |
+    awk -F '\t' -v shard="${2:-1}" -v count="${3:-1}" '
+        {
+            best = 1
+            for (i = 2; i <= count; i++)
+                if (load[i] < load[best]) best = i
+            load[best] += $1
+            if (best == shard) print $2
+        }
+    '
+}
+
 check_hash() {
     echo "$1" | sha256sum -c --status --quiet &> /dev/null
 }
@@ -23,13 +75,63 @@ run_nes_test() {
         else
             STATUS=FAIL
         fi
+        popd &> /dev/null
+
+        if [ "$STATUS" == "FAIL" ]
+        then
+            # Keep the file the hash was computed over so it can be inspected
+            HASH_FILE=`echo "$HASH" | sed -E 's/^[0-9a-fA-F]+ [ *]//'`
+            mkdir -p "$FAILURES_DIR"/"$TEST_PATH"
+            cp -f "$OUTPUT_DIR"/"$HASH_FILE" "$FAILURES_DIR"/"$TEST_PATH"/ 2> /dev/null
+        fi
 
         echo "Test  $STATUS: $TEST_PATH"
-        popd &> /dev/null
     else
+        STATUS=DONE
         echo "Test complete: $TEST_PATH"
     fi
+
+    echo "$STATUS $TEST_PATH" >> "$RESULTS_FILE"
 }
+
+TESTS_FILE=nes_tests.txt
+SHARD=1
+SHARD_COUNT=1
+LIST_ONLY=0
+
+while getopts f:s:lh flag
+do
+    case "${flag}" in
+        f) TESTS_FILE="${OPTARG}";;
+        s) SHARD="${OPTARG%/*}"
+           SHARD_COUNT="${OPTARG#*/}";;
+        l) LIST_ONLY=1;;
+        h) usage
+           exit 0;;
+        *) exit_abnormal;;
+    esac
+done
+
+if ! [[ "$SHARD" =~ ^[0-9]+$ && "$SHARD_COUNT" =~ ^[0-9]+$ ]] ||
+   [ "$SHARD" -lt 1 ] || [ "$SHARD" -gt "$SHARD_COUNT" ]
+then
+    echo "Error: invalid shard '$SHARD/$SHARD_COUNT'"
+    exit_abnormal
+fi
+
+if [ ! -f "$TESTS_FILE" ]
+then
+    echo "Error: test list '$TESTS_FILE' not found"
+    exit 1
+fi
+
+TESTS=`select_tests "$TESTS_FILE" "$SHARD" "$SHARD_COUNT"`
+
+if [ $LIST_ONLY -eq 1 ]
+then
+    echo "$TESTS" | cut -f 1,2 -d '|'
+    exit 0
+fi
 
 if ! make -s -f nes_bench.Makefile
 then
@@ -41,11 +143,14 @@ IFS='
 '
 
 BASEDIR=../../../nes-test-roms
+RESULTS_FILE=output/results.txt
+FAILURES_DIR=output/failures
 
 rm -rf output/*
+mkdir -p output
 
 N=`nproc`
-for line in `grep -v '^#' nes_tests.txt`
+for line in $TESTS
 do
     run_nes_test "$line" &
 
@@ -55,3 +160,18 @@ do
     fi
 done
 wait
+
+touch "$RESULTS_FILE"
+PASSED=`grep -c '^PASS ' "$RESULTS_FILE"`
+FAILED=`grep -c '^FAIL ' "$RESULTS_FILE"`
+TOTAL=`echo "$TESTS" | grep -c .`
+FINISHED=`grep -c . "$RESULTS_FILE"`
+
+echo
+echo "Passed: $PASSED  Failed: $FAILED  Total: $TOTAL"
+grep '^FAIL ' "$RESULTS_FILE" | sed -e 's/^FAIL /  FAIL: /'
+
+if [ $FAILED -ne 0 ] || [ $FINISHED -ne $TOTAL ]
+then
+    exit 1
+fi
