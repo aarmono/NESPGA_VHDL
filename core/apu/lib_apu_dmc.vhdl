@@ -123,10 +123,10 @@ subtype dmc_data_t is unsigned(data_t'range);
     )
     return dma_t;
     
-    subtype dmc_timer_t is unsigned(8 downto 0);
-    subtype dmc_idx_t is unsigned(3 downto 0);
-    subtype dmc_dac_t is unsigned(6 downto 0);
-    subtype dmc_count_t is unsigned(2 downto 0);
+    subtype dmc_timer_t is natural range 0 to 2**9-1;
+    subtype dmc_idx_t is natural range 0 to 15;
+    subtype dmc_dac_t is natural range 0 to 127;
+    subtype dmc_count_t is natural range 0 to 7;
 
     type dmc_timer_arr_t is array(0 to 16#F#) of dmc_timer_t;
 
@@ -134,37 +134,37 @@ subtype dmc_data_t is unsigned(data_t'range);
     (
         -- Rate - 1
         -- 428
-        to_unsigned(427, dmc_timer_t'length),
+        427,
         -- 380
-        to_unsigned(379, dmc_timer_t'length),
+        379,
         -- 340
-        to_unsigned(339, dmc_timer_t'length),
+        339,
         -- 320
-        to_unsigned(319, dmc_timer_t'length),
+        319,
         -- 286
-        to_unsigned(285, dmc_timer_t'length),
+        285,
         -- 254
-        to_unsigned(253, dmc_timer_t'length),
+        253,
         -- 226
-        to_unsigned(225, dmc_timer_t'length),
+        225,
         -- 214
-        to_unsigned(213, dmc_timer_t'length),
+        213,
         -- 190
-        to_unsigned(189, dmc_timer_t'length),
+        189,
         -- 160
-        to_unsigned(159, dmc_timer_t'length),
+        159,
         -- 142
-        to_unsigned(141, dmc_timer_t'length),
+        141,
         -- 128
-        to_unsigned(127, dmc_timer_t'length),
+        127,
         -- 106
-        to_unsigned(105, dmc_timer_t'length),
+        105,
         -- 84
-        to_unsigned(83, dmc_timer_t'length),
+        83,
         -- 72
-        to_unsigned(71, dmc_timer_t'length),
+        71,
         -- 54
-        to_unsigned(53, dmc_timer_t'length)
+        53
     );
     
     type dmc_output_t is record
@@ -184,11 +184,11 @@ subtype dmc_data_t is unsigned(data_t'range);
     
     constant RESET_DMC_OUTPUT : dmc_output_t :=
     (
-        timer => (others => '0'),
-        timer_idx => (others => '0'),
+        timer => 0,
+        timer_idx => 0,
         shift => (others => '0'),
-        shift_count => (others => '0'),
-        audio => (others => '0'),
+        shift_count => 0,
+        audio => 0,
         silent => true
     );
     
@@ -409,14 +409,13 @@ package body lib_apu_dmc is
     function update_shift(dmc_output : dmc_output_t) return boolean
     is
     begin
-        return is_zero(dmc_output.timer) and
-               is_zero(dmc_output.shift_count);
+        return dmc_output.timer = 0 and dmc_output.shift_count = 0;
     end;
     
     function get_dmc_period(idx : dmc_idx_t) return dmc_timer_t
     is
     begin
-        return DMC_TIMER_ARR(to_integer(idx));
+        return DMC_TIMER_ARR(idx);
     end;
     
     function next_dmc_audio
@@ -427,9 +426,9 @@ package body lib_apu_dmc is
     return dmc_dac_t
     is
         variable ret : dmc_dac_t;
-        constant ADJ_AMOUNT : dmc_dac_t := to_unsigned(2, dmc_dac_t'length);
-        constant AUDIO_DECR_MIN : dmc_dac_t := to_unsigned(1, dmc_dac_t'length);
-        constant AUDIO_INCR_MAX : dmc_dac_t := to_unsigned(126, dmc_dac_t'length);
+        constant ADJ_AMOUNT : dmc_dac_t := 2;
+        constant AUDIO_DECR_MIN : dmc_dac_t := 1;
+        constant AUDIO_INCR_MAX : dmc_dac_t := 126;
     begin
         -- If the silence flag is clear, bit 0 of the shift register is applied
         -- to the DAC counter: If bit 0 is clear and the counter is greater
@@ -469,7 +468,7 @@ package body lib_apu_dmc is
     begin
         next_val := cur_val;
         
-        if is_zero(cur_val.timer)
+        if cur_val.timer = 0
         then
             next_val.timer := get_dmc_period(cur_val.timer_idx);
             
@@ -484,7 +483,7 @@ package body lib_apu_dmc is
             -- and if the sample buffer is empty, the silence flag is set,
             -- otherwise the silence flag is cleared and the sample buffer
             -- is emptied into the shift register.
-            if is_zero(cur_val.shift_count)
+            if cur_val.shift_count = 0
             then
                 if dma_buffer.valid
                 then
@@ -495,9 +494,9 @@ package body lib_apu_dmc is
                 end if;
             end if;
             
-            next_val.shift_count := cur_val.shift_count - "1";
+            next_val.shift_count := wrap(cur_val.shift_count - 1, dmc_count_t'high);
         else
-            next_val.timer := cur_val.timer - "1";
+            next_val.timer := cur_val.timer - 1;
         end if;
         
         return next_val;
@@ -575,7 +574,7 @@ package body lib_apu_dmc is
         
         ret.dma.irq_enable := reg(7) = '1';
         ret.dma.loop_enable := reg(6) = '1';
-        ret.output.timer_idx := unsigned(reg(3 downto 0));
+        ret.output.timer_idx := to_integer(reg(3 downto 0));
 
         -- If the new interrupt enabled status is clear, the
         -- interrupt flag is cleared.
@@ -593,7 +592,7 @@ package body lib_apu_dmc is
     begin
         ret := val;
         
-        ret.output.audio := unsigned(reg(6 downto 0));
+        ret.output.audio := to_integer(reg(6 downto 0));
         
         return ret;
     end;

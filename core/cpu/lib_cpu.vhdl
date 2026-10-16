@@ -19,8 +19,11 @@ package lib_cpu is
         c_addr   : unsigned(0 downto 0);
         addr_lo  : reg_t;
         addr_hi  : reg_t;
-        nmi_req  : boolean;
-        nmi_prev : boolean;
+        nmi_req   : boolean;
+        nmi_prev  : boolean;
+        irq_prev  : boolean;
+        int_stall : boolean;
+        int       : boolean;
     end record;
 
     constant RESET_REGISTERS : registers_t :=
@@ -34,7 +37,10 @@ package lib_cpu is
         addr_lo => (others => '0'),
         addr_hi => (others => '0'),
         nmi_req => false,
-        nmi_prev => false
+        nmi_prev => false,
+        irq_prev => false,
+        int_stall => false,
+        int => false
     );
 
     type cpu_output_t is record
@@ -124,6 +130,8 @@ package body lib_cpu is
         variable v_decoded       : decode_state_t;
         variable v_arith_scratch : unsigned(8 downto 0);
         variable v_exec          : boolean;
+        variable v_irq           : boolean;
+        variable v_int           : boolean;
 
         -- Variables which affect state or outputs
         variable v_sync     : boolean;
@@ -140,6 +148,17 @@ package body lib_cpu is
         v_reg := reg;
         v_sync := false;
         v_exec := false;
+        v_int := false;
+
+        if nmi and not reg.nmi_prev
+        then
+            v_reg.nmi_req := true;
+        end if;
+
+        v_reg.nmi_prev := nmi;
+
+        v_irq := (irq and not reg.opstate.status.i) or reg.nmi_req;
+        v_reg.irq_prev := v_irq;
 
         v_decoded := get_decode_state(reg.opcode, reg.opstate, reg.addr_hi);
 
@@ -540,10 +559,21 @@ package body lib_cpu is
                                     to_reg_t(reg.opstate.status,
                                              v_decoded.incr_pc);
                                 v_reg.opstate.stack := reg.opstate.stack - "1";
-                                v_reg.opstate.status.i := true;
+
+                                if reg.opcode = OP_RESET
+                                then
+                                    v_reg.addr_lo := x"FC";
+                                elsif v_reg.nmi_req
+                                then
+                                    v_reg.addr_lo := x"FA";
+                                    v_reg.nmi_req := false;
+                                else
+                                    v_reg.addr_lo := x"FE";
+                                end if;
                             when CYC_2 =>
-                                v_data_bus := bus_read(x"FF" & v_decoded.reg);
-                                v_reg.addr_lo := v_decoded.reg + "1";
+                                v_data_bus := bus_read(x"FF" & reg.addr_lo);
+                                v_reg.addr_lo := reg.addr_lo + "1";
+                                v_reg.opstate.status.i := true;
                             when CYC_1 =>
                                 v_data_bus := bus_read(x"FF" & reg.addr_lo);
                                 v_reg.pc := unsigned(data_in) & reg.data_in;
@@ -705,26 +735,35 @@ package body lib_cpu is
         end if;
 
         if v_sync then
-            if irq and not reg.opstate.status.i
+            if v_decoded.mode = MODE_BRK
+            then
+                -- Interrupt sequences do not check on their final cycle,
+                -- so the first instruction of the handler always executes
+                v_int := false;
+            elsif reg.int_stall
+            then
+                -- This opcode fetch was stalled, so use the register value
+                v_int := reg.int;
+            elsif v_decoded.mode = MODE_BRANCH and reg.count = CYC_1
+            then
+                -- A taken branch which does not cross a page does not check
+                -- on its final cycle, so use the register value
+                v_int := reg.irq_prev;
+            else
+                v_int := v_irq;
+            end if;
+
+            v_reg.int_stall := false;
+
+            if v_int
             then
                 v_reg.opcode := OP_IRQ;
-            elsif reg.nmi_req
-            then
-                v_reg.opcode := OP_NMI;
-                v_reg.nmi_req := false;
             else 
                 v_reg.opcode := data_in;
                 v_reg.pc := reg.pc + "1";
             end if;
             v_reg.count := CYC_7;
         end if;
-
-        if nmi and not reg.nmi_prev
-        then
-            v_reg.nmi_req := true;
-        end if;
-
-        v_reg.nmi_prev := nmi;
 
         -- Store data bus input into hold register
         v_reg.data_in := unsigned(data_in);
@@ -736,6 +775,14 @@ package body lib_cpu is
             v_reg := reg;
             v_data_bus := bus_idle(v_data_bus);
             v_data_out := (others => '-');
+
+            -- Interrupts are checked when an opcode fetch is first
+            -- attempted, not when the stall ends
+            if v_sync and not reg.int_stall
+            then
+                v_reg.int_stall := true;
+                v_reg.int := v_int;
+            end if;
         end if;
 
         ret.reg := v_reg;

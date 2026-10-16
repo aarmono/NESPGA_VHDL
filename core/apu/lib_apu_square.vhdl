@@ -14,10 +14,10 @@ package lib_apu_square is
     
     subtype sweep_divider_t is unsigned(2 downto 0);
     subtype sweep_count_t is unsigned(2 downto 0);
-    subtype sweep_period_t is unsigned(10 downto 0);
-    subtype sweep_tgt_period_t is unsigned(11 downto 0);
-    subtype sweep_shift_t is unsigned(2 downto 0);
-    subtype sweep_incr_t is unsigned(0 downto 0);
+    subtype sweep_period_t is natural range 0 to 2**11-1;
+    subtype sweep_tgt_period_t is natural range 0 to 2**12-1;
+    subtype sweep_shift_t is natural range 0 to 7;
+    subtype sweep_incr_t is natural range 0 to 1;
 
     type sweep_t is record
         divider   : sweep_divider_t;
@@ -33,11 +33,11 @@ package lib_apu_square is
     (
         divider => (others => '0'),
         div_count => (others => '0'),
-        period => (others => '0'),
+        period => 0,
         enable => false,
         negate => false,
         reset => false,
-        shift => (others => '0')
+        shift => 0
     );
 
     function enable_output
@@ -81,8 +81,8 @@ package lib_apu_square is
 
     -- Sequencer
     
-    subtype square_seq_timer_t is unsigned(11 downto 0);
-    subtype square_seq_cycle_t is unsigned(2 downto 0);
+    subtype square_seq_timer_t is natural range 0 to 2**12-1;
+    subtype square_seq_cycle_t is natural range 0 to 7;
     subtype square_seq_duty_t is std_logic_vector(1 downto 0);
     
     type square_seq_t is record
@@ -93,8 +93,8 @@ package lib_apu_square is
 
     constant RESET_SQUARE_SEQ : square_seq_t :=
     (
-        timer => (others => '0'),
-        cycle => (others => '0'),
+        timer => 0,
+        cycle => 0,
         duty => (others => '0')
     );
     
@@ -190,32 +190,34 @@ package body lib_apu_square is
     )
     return sweep_tgt_period_t
     is
-        variable overflow : std_logic;
         variable shift_res : sweep_period_t;
         variable result : sweep_tgt_period_t;
     begin
         -- The channel's period is first shifted right by shift bits
-        shift_res := sweep.period srl to_integer(sweep.shift);
+        shift_res := shift_right(sweep.period, sweep.shift);
         -- If negate is set, the shifted value's bits are inverted and
         -- on the second square channel the inverted value is incremented
         -- by 1
         if sweep.negate
         then
-            shift_res := (not shift_res) + incr;
+            shift_res := wrap(invert(shift_res, sweep_period_t'high) + incr,
+                              sweep_period_t'high);
         end if;
 
-        result := resize(sweep.period, result'length) +
-                  resize(shift_res, result'length);
+        result := sweep.period + shift_res;
         -- In particular, if the negate flag is false, the shift count is
         -- zero, and the current period is at least $400, the target period
         -- will be large enough to mute the channel.
         
         -- We interpret this as the MSB being an overflow bit set if ths MSB of
         -- the target period is high and the negate bit isn't set
-        overflow := result(result'high) and not to_std_logic(sweep.negate);
+        if sweep.negate
+        then
+            result := wrap(result, sweep_period_t'high);
+        end if;
         -- The resulting value is added with the channel's current
         -- period, yielding the final result
-        return overflow & result(sweep_period_t'range);
+        return result;
     end;
 
     -- enable_output function {
@@ -266,10 +268,10 @@ package body lib_apu_square is
             next_val.reset := false;
             next_val.div_count := reset_div_count;
             if cur_val.enable and
-               not is_zero(cur_val.shift) and
+               cur_val.shift /= 0 and
                sweep_valid(cur_val.period, shift_val)
             then
-                next_val.period := shift_val(next_val.period'range);
+                next_val.period := wrap(shift_val, sweep_period_t'high);
             end if;
         elsif cur_val.reset
         then
@@ -294,8 +296,7 @@ package body lib_apu_square is
         -- When the channel's period is less than 8 or the result of the
         -- shifter is greater than $7FF, the channel's DAC receives 0 and
         -- the sweep unit doesn't change the channel's period.
-        return (cur_period >= to_unsigned(8, cur_period'length)) and
-               (target_period <= to_unsigned(16#7FF#, target_period'length));
+        return cur_period >= 8 and target_period <= 16#7FF#;
     end;
     -- }
 
@@ -308,7 +309,7 @@ package body lib_apu_square is
         ret.enable := reg(7) = '1';
         ret.divider := unsigned(reg(6 downto 4));
         ret.negate := reg(3) = '1';
-        ret.shift := unsigned(reg(2 downto 0));
+        ret.shift := to_integer(reg(2 downto 0));
 
         return ret;
     end;
@@ -319,7 +320,7 @@ package body lib_apu_square is
         variable ret : sweep_t;
     begin
         ret := val;
-        ret.period(7 downto 0) := unsigned(reg);
+        ret.period := set_bits(ret.period, 0, reg);
 
         return ret;
     end;
@@ -335,7 +336,7 @@ package body lib_apu_square is
         variable ret : sweep_t;
     begin
         ret := val;
-        ret.period(10 downto 8) := unsigned(reg);
+        ret.period := set_bits(ret.period, 8, reg);
         ret.reset := true;
 
         return ret;
@@ -345,10 +346,10 @@ package body lib_apu_square is
     is
     begin
         case seq.duty is
-            when "00" => return seq.cycle = "001";
-            when "01" => return seq.cycle >= "001" and seq.cycle <= "010";
-            when "10" => return seq.cycle >= "001" and seq.cycle <= "100";
-            when "11" => return not (seq.cycle >= "001" and seq.cycle <= "010");
+            when "00" => return seq.cycle = 1;
+            when "01" => return seq.cycle >= 1 and seq.cycle <= 2;
+            when "10" => return seq.cycle >= 1 and seq.cycle <= 4;
+            when "11" => return not (seq.cycle >= 1 and seq.cycle <= 2);
             when others => return false;
         end case;
     end;
@@ -361,7 +362,7 @@ package body lib_apu_square is
     is
     begin
         -- The divider's period is P + 1 half-frames
-        return period & '0';
+        return period * 2;
     end;
 
     function reload
@@ -375,7 +376,7 @@ package body lib_apu_square is
     begin
         ret := val;
         ret.timer := square_timer_from_period(period);
-        ret.cycle := ZERO(val.cycle);
+        ret.cycle := 0;
 
         return ret;
     end;
@@ -390,12 +391,12 @@ package body lib_apu_square is
         variable next_val : square_seq_t;
     begin
         next_val := cur_val;
-        if is_zero(cur_val.timer)
+        if cur_val.timer = 0
         then
             next_val.timer := square_timer_from_period(period);
-            next_val.cycle := cur_val.cycle + "1";
+            next_val.cycle := wrap(cur_val.cycle + 1, square_seq_cycle_t'high);
         else
-            next_val.timer := cur_val.timer - "1";
+            next_val.timer := cur_val.timer - 1;
         end if;
 
         return next_val;
@@ -430,7 +431,7 @@ package body lib_apu_square is
         then
             return get_audio(square.envelope);
         else
-            return (others => '0');
+            return 0;
         end if;
     end;
 

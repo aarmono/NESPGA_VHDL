@@ -8,9 +8,9 @@ use work.utilities.all;
 -- https://www.nesdev.org/apu_ref.txt
 package lib_apu_envelope is
 
-    subtype envelope_count_t is unsigned(3 downto 0);
-    subtype envelope_divider_t is unsigned(3 downto 0);
-    subtype envelope_period_t is unsigned(3 downto 0);
+    subtype envelope_count_t is natural range 0 to 15;
+    subtype envelope_divider_t is natural range 0 to 15;
+    subtype envelope_period_t is natural range 0 to 15;
     
     type envelope_t is record
         reset    : boolean;
@@ -26,9 +26,9 @@ package lib_apu_envelope is
         reset => false,
         loop_env => false,
         disable => false,
-        count => (others => '0'),
-        divider => (others => '0'),
-        period => (others => '0')
+        count => 0,
+        divider => 0,
+        period => 0
     );
 
     function get_audio(envelope : envelope_t) return audio_t;
@@ -78,25 +78,25 @@ package body lib_apu_envelope is
         -- the divider is reset
         if cur_val.reset
         then
-            next_val.count := x"F";
+            next_val.count := envelope_count_t'high;
             next_val.divider := reset_divider;
             next_val.reset := false;
         -- otherwise, the divider is clocked
-        elsif is_zero(cur_val.divider)
+        elsif cur_val.divider = 0
         then
             next_val.divider := reset_divider;
             -- if loop is set and counter is zero, it is
             -- set to 15
-            if cur_val.loop_env and is_zero(cur_val.count)
+            if cur_val.loop_env and cur_val.count = 0
             then
-                next_val.count := x"F";
+                next_val.count := envelope_count_t'high;
             -- otherwise if counter is non-zero, it is decremented
-            elsif not is_zero(cur_val.count)
+            elsif cur_val.count /= 0
             then
-                next_val.count := cur_val.count - "1";
+                next_val.count := cur_val.count - 1;
             end if;
         else
-            next_val.divider := cur_val.divider - "1";
+            next_val.divider := cur_val.divider - 1;
         end if;
 
         return next_val;
@@ -115,7 +115,7 @@ package body lib_apu_envelope is
         ret := val;
         ret.loop_env := reg(5) = '1';
         ret.disable := reg(4) = '1';
-        ret.period := unsigned(reg(3 downto 0));
+        ret.period := to_integer(reg(3 downto 0));
 
         return ret;
     end;

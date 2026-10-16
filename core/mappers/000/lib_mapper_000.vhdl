@@ -28,34 +28,38 @@ package lib_mapper_000 is
     )
     return cpu_mapper_000_out_t;
     
+    subtype cpu_addr_int_t is natural range 0 to 2**cpu_addr_t'length-1;
+
     function get_cpu_prg_addr
     (
-        addr_in       : cpu_addr_t;
+        addr_in       : cpu_addr_int_t;
         rom_size_16kb : rom_blocks_t
     )
-    return unsigned;
+    return cpu_addr_int_t;
 
 end package lib_mapper_000;
 
 
 package body lib_mapper_000 is
-    
+
     function get_cpu_prg_addr
     (
-        addr_in       : cpu_addr_t;
+        addr_in       : cpu_addr_int_t;
         rom_size_16kb : rom_blocks_t
     )
-    return unsigned
+    return cpu_addr_int_t
     is
-        variable ret  : unsigned(cpu_addr_t'range);
-        variable mask : unsigned(cpu_addr_t'range);
     begin
-        mask := (rom_size_16kb(1 downto 0) - "1") & b"11_1111_1111_1111";
-        ret := (unsigned(addr_in) - x"8000") and mask;
-        
-        return ret;
+        -- 32KB of PRG ROM is mapped directly to $8000-$FFFF, while 16KB
+        -- is mirrored at $8000 and $C000
+        if rom_size_16kb(1) = '1'
+        then
+            return addr_in mod 2**15;
+        else
+            return addr_in mod 2**14;
+        end if;
     end;
-    
+
     function cpu_map_using_mapper_000
     (
         map_in : cpu_mapper_000_in_t
@@ -64,12 +68,14 @@ package body lib_mapper_000 is
     is
         variable map_out : cpu_mapper_000_out_t;
         variable file_offset : file_off_t;
-        variable address : unsigned(cpu_addr_t'range);
+        variable address : cpu_addr_int_t;
+        variable prg_addr : cpu_addr_int_t;
     begin
-        
+
         map_out.bus_out := CPU_MAPPER_BUS_IDLE;
-        
-        case to_integer(map_in.bus_in.cpu_bus.address) is
+
+        address := to_integer(map_in.bus_in.cpu_bus.address);
+        case address is
             when 16#6000# to 16#7FFF# =>
                 map_out.bus_out.sram_bus.address :=
                     get_sram_addr(map_in.bus_in.cpu_bus.address);
@@ -79,11 +85,13 @@ package body lib_mapper_000 is
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_sram;
                 map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
             when 16#8000# to 16#FFFF# =>
-                address := get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
-                                            map_in.reg.prg_rom_16kb_blocks);
+                prg_addr := get_cpu_prg_addr(address,
+                                             map_in.reg.prg_rom_16kb_blocks);
                 file_offset := get_file_offset(x"00", map_in.reg.has_trainer);
-                
-                map_out.bus_out.file_bus := bus_read(address + file_offset);
+
+                map_out.bus_out.file_bus :=
+                    bus_read(to_unsigned(prg_addr + to_integer(file_offset),
+                                         file_addr_t'length));
                 map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
             when others =>
                 map_out.bus_out.data_to_cpu := (others => '0');

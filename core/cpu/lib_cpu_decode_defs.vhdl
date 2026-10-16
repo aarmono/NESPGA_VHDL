@@ -391,7 +391,7 @@ package lib_cpu_decode_defs is
 
     function decode_ind_y_w(reg : reg_t) return decode_state_t;
 
-    function decode_brk(reg : reg_t; incr_pc : boolean) return decode_state_t;
+    function decode_brk(incr_pc : boolean) return decode_state_t;
 
     function decode_push(reg : reg_t) return decode_state_t;
 
@@ -763,12 +763,11 @@ package body lib_cpu_decode_defs is
         return decode_ind_y(false, true, IN_NOP, reg);
     end;
 
-    function decode_brk(reg : reg_t; incr_pc : boolean) return decode_state_t
+    function decode_brk(incr_pc : boolean) return decode_state_t
     is
         variable ret : decode_state_t;
     begin
         ret := DECODE_BRK_INIT;
-        ret.reg := reg;
         ret.incr_pc := incr_pc;
 
         return ret;

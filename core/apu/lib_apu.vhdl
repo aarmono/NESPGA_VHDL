@@ -83,8 +83,8 @@ package body lib_apu is
     begin
         v_cpu_data_out   := (others => '-');
         v_reg            := reg;
-        v_audio.square_1 := get_audio(reg.square_1, "0");
-        v_audio.square_2 := get_audio(reg.square_2, "1");
+        v_audio.square_1 := get_audio(reg.square_1, 0);
+        v_audio.square_2 := get_audio(reg.square_2, 1);
         v_audio.triangle := get_audio(reg.triangle);
         v_audio.noise    := get_audio(reg.noise);
         v_audio.dmc      := get_audio(reg.dmc);
@@ -104,11 +104,11 @@ package body lib_apu is
         v_reg.square_1 := next_square(reg.square_1,
                                       v_update_envelope,
                                       v_update_length,
-                                      "0");
+                                      0);
         v_reg.square_2 := next_square(reg.square_2,
                                       v_update_envelope,
                                       v_update_length,
-                                      "1");
+                                      1);
         v_reg.noise := next_noise(reg.noise,
                                   v_update_envelope,
                                   v_update_length);

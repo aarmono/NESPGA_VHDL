@@ -37,7 +37,34 @@ package utilities is
     return std_logic_vector;
     
     function to_integer(val : std_logic_vector) return integer;
-    
+
+    function to_std_logic_vector
+    (
+        val  : natural;
+        size : positive
+    )
+    return std_logic_vector;
+
+    function shift_right(val : natural; shift : natural) return natural;
+
+    -- Integer equivalents of unsigned vector operations. high is the 'high
+    -- of a subtype whose range is 0 to 2**n-1, like an n bit vector
+    function wrap(val : integer; high : natural) return natural;
+    function invert(val : natural; high : natural) return natural;
+
+    -- Equivalent of val(hi downto lo)
+    function get_bits(val : natural; hi, lo : natural) return natural;
+    -- Equivalent of val(lo + field'length - 1 downto lo) := field
+    function set_bits
+    (
+        val   : natural;
+        lo    : natural;
+        field : std_logic_vector
+    )
+    return natural;
+
+    function max(a, b : integer) return integer;
+
     function zero(val : std_logic_vector) return std_logic_vector;
     function zero(val : unsigned) return unsigned;
     
@@ -138,10 +165,106 @@ package body utilities is
         return std_logic_vector(to_unsigned(character'pos(val), 8));
     end;
 
+    -- Faster in simulation than numeric_std's to_integer, which converts
+    -- the vector with to_01 first. Any bit other than '1' is treated as '0'.
     function to_integer(val : std_logic_vector) return integer is
+        variable ret : natural;
     begin
-        return to_integer(unsigned(val));
+        ret := 0;
+        for i in val'range
+        loop
+            ret := ret * 2;
+            if val(i) = '1'
+            then
+                ret := ret + 1;
+            end if;
+        end loop;
+
+        return ret;
     end function;
+
+    function shift_right(val : natural; shift : natural) return natural
+    is
+    begin
+        if shift >= 31
+        then
+            return 0;
+        end if;
+
+        return val / (2 ** shift);
+    end;
+
+    -- Faster in simulation than numeric_std's to_unsigned
+    function to_std_logic_vector
+    (
+        val  : natural;
+        size : positive
+    )
+    return std_logic_vector
+    is
+        variable ret : std_logic_vector(size-1 downto 0);
+        variable rem_val : natural;
+    begin
+        rem_val := val;
+        for i in ret'reverse_range
+        loop
+            if rem_val mod 2 = 1
+            then
+                ret(i) := '1';
+            else
+                ret(i) := '0';
+            end if;
+            rem_val := rem_val / 2;
+        end loop;
+
+        return ret;
+    end;
+
+    -- Reduce val into 0 to high, like an unsigned adder that wraps around
+    function wrap(val : integer; high : natural) return natural
+    is
+    begin
+        return val mod (high + 1);
+    end;
+
+    -- Bitwise not
+    function invert(val : natural; high : natural) return natural
+    is
+    begin
+        return high - val;
+    end;
+
+    function get_bits(val : natural; hi, lo : natural) return natural
+    is
+    begin
+        return (val / 2**lo) mod 2**(hi - lo + 1);
+    end;
+
+    function set_bits
+    (
+        val   : natural;
+        lo    : natural;
+        field : std_logic_vector
+    )
+    return natural
+    is
+        constant SCALE : positive := 2**lo;
+        constant WIDTH : positive := 2**field'length;
+    begin
+        return val - ((val / SCALE) mod WIDTH) * SCALE +
+               to_integer(field) * SCALE;
+    end;
+
+    function max(a, b : integer) return integer
+    is
+    begin
+        if a > b
+        then
+            return a;
+        else
+            return b;
+        end if;
+    end;
     
     function add_vectors
     (
@@ -164,7 +287,15 @@ package body utilities is
     function is_zero(val : std_logic_vector) return boolean
     is
     begin
-        return val = zero(val);
+        for i in val'range
+        loop
+            if val(i) /= '0'
+            then
+                return false;
+            end if;
+        end loop;
+
+        return true;
     end;
     
     function zero(val : unsigned) return unsigned
@@ -176,7 +307,7 @@ package body utilities is
     function is_zero(val : unsigned) return boolean
     is
     begin
-        return val = zero(val);
+        return is_zero(std_logic_vector(val));
     end;
     
     function max_val(val : std_logic_vector) return std_logic_vector
@@ -189,7 +320,15 @@ package body utilities is
     function is_max_val(val : std_logic_vector) return boolean
     is
     begin
-        return val = max_val(val);
+        for i in val'range
+        loop
+            if val(i) /= '1'
+            then
+                return false;
+            end if;
+        end loop;
+
+        return true;
     end;
     
     function max_val(val : unsigned) return unsigned
@@ -201,7 +340,7 @@ package body utilities is
     function is_max_val(val : unsigned) return boolean
     is
     begin
-        return val = max_val(val);
+        return is_max_val(std_logic_vector(val));
     end;
     
     function resize(val : std_logic_vector; len : natural) return std_logic_vector

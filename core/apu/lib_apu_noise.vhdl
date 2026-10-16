@@ -12,29 +12,29 @@ package lib_apu_noise is
 
     -- Random Shifter
 
-    subtype random_idx_t is unsigned(3 downto 0);
-    subtype random_count_t is unsigned(11 downto 0);
+    subtype random_idx_t is natural range 0 to 15;
+    subtype random_count_t is natural range 0 to 2**12-1;
     subtype random_shift_t is std_logic_vector(14 downto 0);
 
     type random_count_arr_t is array(0 to 16#F#) of random_count_t;
     constant RANDOM_COUNT_ARR : random_count_arr_t :=
     (
-        x"004",
-        x"008",
-        x"010",
-        x"020",
-        x"040",
-        x"060",
-        x"080",
-        x"0A0",
-        x"0C0",
-        x"0FE",
-        x"17C",
-        x"1FC",
-        x"2FA",
-        x"3F8",
-        x"7F2",
-        x"FE4"
+        16#004#,
+        16#008#,
+        16#010#,
+        16#020#,
+        16#040#,
+        16#060#,
+        16#080#,
+        16#0A0#,
+        16#0C0#,
+        16#0FE#,
+        16#17C#,
+        16#1FC#,
+        16#2FA#,
+        16#3F8#,
+        16#7F2#,
+        16#FE4#
     );
 
     type random_t is record
@@ -46,8 +46,8 @@ package lib_apu_noise is
 
     constant RESET_RANDOM : random_t :=
     (
-        period_idx => (others => '0'),
-        count => (others => '0'),
+        period_idx => 0,
+        count => 0,
         short_mode => false,
         shift => b"000_0000_0000_0001"
     );
@@ -119,7 +119,7 @@ package body lib_apu_noise is
         variable shift_in : std_logic;
     begin
         next_val := cur_val;
-        if is_zero(cur_val.count)
+        if cur_val.count = 0
         then
             next_val.count := get_random_period(cur_val.period_idx);
             if cur_val.short_mode
@@ -131,7 +131,7 @@ package body lib_apu_noise is
 
             next_val.shift := shift_in & cur_val.shift(14 downto 1);
         else
-            next_val.count := cur_val.count - "1";
+            next_val.count := cur_val.count - 1;
         end if;
 
         return next_val;
@@ -142,7 +142,7 @@ package body lib_apu_noise is
         variable ret : random_t;
     begin
         ret := val;
-        ret.period_idx := unsigned(reg(3 downto 0));
+        ret.period_idx := to_integer(reg(3 downto 0));
         ret.short_mode := reg(7) = '1';
 
         return ret;
@@ -155,7 +155,7 @@ package body lib_apu_noise is
     return random_count_t
     is
     begin
-        return RANDOM_COUNT_ARR(to_integer(idx));
+        return RANDOM_COUNT_ARR(idx);
     end;
 
     function next_noise
@@ -199,7 +199,7 @@ package body lib_apu_noise is
         then
             return get_audio(noise.envelope);
         else
-            return (others => '0');
+            return 0;
         end if;
     end;
 

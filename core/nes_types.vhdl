@@ -6,8 +6,8 @@ use work.utilities.all;
 package nes_types is
     
     subtype data_t is std_logic_vector(7 downto 0);
-    subtype audio_t is unsigned(3 downto 0);
-    subtype dmc_audio_t is unsigned(6 downto 0);
+    subtype audio_t is natural range 0 to 15;
+    subtype dmc_audio_t is natural range 0 to 127;
     
     type apu_out_t is record
         square_1 : audio_t;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 check_hash() {
-    echo "$1" | sha256sum -c --status --quiet
+    echo "$1" | sha256sum -c --status --quiet &> /dev/null
 }
 
 run_nes_test() {

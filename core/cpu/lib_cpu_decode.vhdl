@@ -12,7 +12,6 @@ package lib_cpu_decode is
     -- Pseudo-opcodes that on a real 6502
     -- halt the CPU
     constant OP_RESET : data_t := x"F2";
-    constant OP_NMI   : data_t := x"12";
     constant OP_IRQ   : data_t := x"22";
 
     function get_decode_state
@@ -42,7 +41,7 @@ package body lib_cpu_decode is
         case opcode is
             -- BRK
             when x"00" =>
-                ret := decode_brk(x"FE", true);
+                ret := decode_brk(true);
             -- ORA (d,X)
             when x"01" =>
                 ret := decode_ind_x_r(IN_ORA);
@@ -755,11 +754,9 @@ package body lib_cpu_decode is
                 ret := decode_abs_x_rw(opstate, IN_ISC);
             -- RESET
             when OP_RESET =>
-                ret := decode_brk(x"FC", false);
-            when OP_NMI =>
-                ret := decode_brk(x"FA", false);
+                ret := decode_brk(false);
             when OP_IRQ =>
-                ret := decode_brk(x"FE", false);
+                ret := decode_brk(false);
             when others =>
                 -- pragma translate_off 
                 assert false report "Invalid opcode: " & to_hstring(opcode)

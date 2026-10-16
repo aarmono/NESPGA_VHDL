@@ -11,7 +11,7 @@ package lib_apu_triangle is
 
     -- Linear Counter {
     
-    subtype linear_count_t is unsigned(6 downto 0);
+    subtype linear_count_t is natural range 0 to 2**7-1;
     
     type linear_t is record
         halt       : boolean;
@@ -24,8 +24,8 @@ package lib_apu_triangle is
     (
         halt => false,
         control => false,
-        count => (others => '0'),
-        reload_val => (others => '0')
+        count => 0,
+        reload_val => 0
     );
 
     function enable_output(linear : linear_t) return boolean;
@@ -38,7 +38,7 @@ package lib_apu_triangle is
 
     -- Triangle Sequencer
     
-    subtype triangle_seq_val_t is unsigned(3 downto 0);
+    subtype triangle_seq_val_t is natural range 0 to 15;
     
     type triangle_seq_t is record
         value      : triangle_seq_val_t;
@@ -47,13 +47,13 @@ package lib_apu_triangle is
 
     constant RESET_TRIANGLE_SEQ : triangle_seq_t :=
     (
-        value => (others => '1'),
+        value => triangle_seq_val_t'high,
         descending => true
     );
 
     function next_triangle_seq(cur_val : triangle_seq_t) return triangle_seq_t;
     
-    subtype triangle_count_t is unsigned(10 downto 0);
+    subtype triangle_count_t is natural range 0 to 2**11-1;
 
     type triangle_t is record
         count  : triangle_count_t;
@@ -65,8 +65,8 @@ package lib_apu_triangle is
 
     constant RESET_TRIANGLE : triangle_t :=
     (
-        count => (others => '0'),
-        period => (others => '0'),
+        count => 0,
+        period => 0,
         linear => RESET_LINEAR,
         length => RESET_LENGTH,
         seq => RESET_TRIANGLE_SEQ
@@ -107,7 +107,7 @@ package body lib_apu_triangle is
     is
     begin
         -- Pass through output when count is non-zero
-        return not is_zero(linear.count);
+        return linear.count /= 0;
     end;
 
     function next_linear(cur_val : linear_t) return linear_t
@@ -120,9 +120,9 @@ package body lib_apu_triangle is
         then
             next_val.count := cur_val.reload_val;
         -- Otherwise if counter is non-zero, decrement it
-        elsif not is_zero(cur_val.count)
+        elsif cur_val.count /= 0
         then
-            next_val.count := cur_val.count - "1";
+            next_val.count := cur_val.count - 1;
         end if;
 
         -- If control flag is clear, clear halt flag
@@ -139,7 +139,7 @@ package body lib_apu_triangle is
         variable ret : linear_t;
     begin
         ret := val;
-        ret.reload_val := unsigned(reg(6 downto 0));
+        ret.reload_val := to_integer(reg(6 downto 0));
         ret.control := reg(7) = '1';
 
         return ret;
@@ -155,18 +155,18 @@ package body lib_apu_triangle is
         next_val := cur_val;
         if cur_val.descending
         then
-            if cur_val.value = x"0"
+            if cur_val.value = 0
             then
                 next_val.descending := false;
             else
-                next_val.value := cur_val.value - "1";
+                next_val.value := cur_val.value - 1;
             end if;
         else
-            if cur_val.value = x"F"
+            if cur_val.value = triangle_seq_val_t'high
             then
                 next_val.descending := true;
             else
-                next_val.value := cur_val.value + "1";
+                next_val.value := cur_val.value + 1;
             end if;
         end if;
 
@@ -177,7 +177,7 @@ package body lib_apu_triangle is
     function get_audio(triangle : triangle_t) return audio_t
     is
     begin
-        return audio_t(triangle.seq.value);
+        return triangle.seq.value;
     end;
 
     -- get_status function
@@ -200,11 +200,11 @@ package body lib_apu_triangle is
         variable update_sequence : boolean;
     begin
         next_val := cur_val;
-        if is_zero(cur_val.count)
+        if cur_val.count = 0
         then
             next_val.count := cur_val.period;
         else
-            next_val.count := cur_val.count - "1";
+            next_val.count := cur_val.count - 1;
         end if;
 
         if update_linear
@@ -217,7 +217,7 @@ package body lib_apu_triangle is
             next_val.length := next_length(cur_val.length);
         end if;
 
-        update_sequence := is_zero(cur_val.count) and
+        update_sequence := cur_val.count = 0 and
                            enable_output(cur_val.linear) and
                            enable_output(cur_val.length);
         if update_sequence
@@ -246,7 +246,7 @@ package body lib_apu_triangle is
         variable ret : triangle_t;
     begin
         ret := val;
-        ret.period(7 downto 0) := unsigned(reg);
+        ret.period := set_bits(ret.period, 0, reg);
 
         return ret;
     end;
@@ -264,7 +264,7 @@ package body lib_apu_triangle is
     begin
         ret := val;
         ret.length := write_reg_1(val.length, reg(7 downto 3), update_length);
-        ret.period(10 downto 8) := unsigned(reg(2 downto 0));
+        ret.period := set_bits(ret.period, 8, reg(2 downto 0));
         -- when register $400B is written to, the halt flag is set
         ret.linear.halt := true;
 
