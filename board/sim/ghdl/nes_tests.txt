@@ -34,8 +34,8 @@ cpu_timing_test6/cpu_timing_test.nes                  | 10300ms   | a51471b3cabf
 cpu_interrupts_v2/rom_singles/1-cli_latency.nes       | 267ms     | 3063227b7e65337bb4afeca6ed1975b32d21639785ec93afcf0cad3513d8bf84 *frame_00015.bmp
 cpu_interrupts_v2/rom_singles/2-nmi_and_brk.nes       | 1984ms    | 3673e4bf1e0bbd3b1d5e20fb72cb772663cd6148d2da53ade1f6498801936f96 *frame_00118.bmp
 cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes       | 2168ms    | 37d4a5638d6edba8904e03620f514c3906c68e03b412f6382bc70b446b686126 *frame_00129.bmp
-cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes       | 1244ms  | 088747932a39bb9ea14f63de7b3fb1f3d24939834e16dc3af5e0c732be32308c *frame_00074.bmp
-cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes | 6522ms  | ee3883840fdb28b5ab0e858e558294107b939fe8eec0a166760dbbc88dfc62b8 *frame_00388.bmp
+cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes       | 1244ms    | 088747932a39bb9ea14f63de7b3fb1f3d24939834e16dc3af5e0c732be32308c *frame_00074.bmp
+cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes | 6522ms    | ee3883840fdb28b5ab0e858e558294107b939fe8eec0a166760dbbc88dfc62b8 *frame_00388.bmp
 
 # Basic APU
 dmc_tests/buffer_retained.nes                         | 300ms     | f2b698da1cd765237f5de26375559505f71fb96795f9aabee72d70a68c147ae8 *audio.au
@@ -88,7 +88,7 @@ ppu_vbl_nmi/rom_singles/06-suppression.nes            | 3686ms    | c82cd82e5303
 ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes          | 3269ms    | 592ffe68f5501d6b1f2aa7f3fefa3ce671ae72cb830f0643008988b35cd264db *frame_00195.bmp
 ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes         | 3669ms    | 5f4504936d5f881c3f1dd8ceccab1b01b782d358a2a11b8dc0d2516ea33ba1ca *frame_00219.bmp
 ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes        | 1301ms    | ed24d74b17c00bb843bf62742614b5c555d7479c7e2e8f83ae61e2c20f0a360d *frame_00077.bmp
-# ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes        |           | 
+ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes        | 2400ms    | 9f3c43d8db5ae047ab8291c94277e86545a4588604912d2094692f274a55790a *frame_00143.bmp
 
 sprite_hit_tests_2005.10.05/01.basics.nes             | 567ms     | a50cda0d5ee822a7091bad468bfd3b437750148b15165d5a343ff12cb016961d *frame_00033.bmp
 sprite_hit_tests_2005.10.05/02.alignment.nes          | 534ms     | c742a7c6dffb67f91e4bda1762bb75b54ae5a653934cc7f82318b5595549b56c *frame_00031.bmp
