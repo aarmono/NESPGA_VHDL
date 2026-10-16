@@ -302,6 +302,9 @@ package lib_ppu is
         sprite_0_buffer  : boolean;
         -- Bus address used for $2007 reads
         chr_bus          : chr_bus_t;
+        -- Register copy of rendering_enabled(mask). A $2001 write
+        -- takes an extra cycle to affect the odd frame skipped clock
+        render_enabled : boolean;
     end record;
     
     constant RESET_PPU_REG : ppu_reg_t :=
@@ -332,7 +335,8 @@ package lib_ppu is
         sec_oam_addr => (others => '0'),
         sprite_0_hit => false,
         sprite_0_buffer => false,
-        chr_bus => CHR_BUS_IDLE
+        chr_bus => CHR_BUS_IDLE,
+        render_enabled => false
     );
     
     function reload_pattern_table
@@ -909,7 +913,6 @@ package body lib_ppu is
     return ppu_time_t
     is
         variable next_time : ppu_time_t;
-        variable end_cycle : ppu_cycle_t;
         
         constant ODD_FRAME   : ppu_frame_t := 1;
 
@@ -918,8 +921,8 @@ package body lib_ppu is
         constant END_LINE    : ppu_cycle_t := 261;
 
         constant START_CYCLE : ppu_cycle_t := 0;
-        constant SHORT_CYCLE : ppu_cycle_t := 339;
-        constant REG_CYCLE   : ppu_cycle_t := 340;
+        constant SKIP_CYCLE  : ppu_cycle_t := 338;
+        constant END_CYCLE   : ppu_cycle_t := 340;
     begin
         -- With rendering disabled (background and sprites disabled in PPUMASK
         -- ($2001)), each PPU frame is 341*262=89342 PPU clocks long. There is
@@ -929,17 +932,12 @@ package body lib_ppu is
         -- first visible scanline (by jumping directly from (339,261) on the
         -- pre-render scanline to (0,0) on the first visible scanline and doing
         -- the last cycle of the last dummy nametable fetch there instead
-        if time_in.frame = ODD_FRAME and
-           time_in.scanline = VAR_LINE and
-           render_enabled
-        then
-            end_cycle := SHORT_CYCLE;
-        else
-            end_cycle := REG_CYCLE;
-        end if;
-
+        --
+        -- cycle here is one less than the hardware dot (VBL is set at
+        -- dot 1 of scanline 241, which is cycle 0 of line 0 here), so dot
+        -- 339 is cycle 338 and the skipped dot 340 is cycle 339
         next_time := time_in;
-        if time_in.cycle = end_cycle
+        if time_in.cycle = END_CYCLE
         then
             next_time.cycle := START_CYCLE;
             
@@ -950,6 +948,12 @@ package body lib_ppu is
             else
                 next_time.scanline := time_in.scanline + 1;
             end if;
+        elsif time_in.cycle = SKIP_CYCLE and
+              time_in.scanline = VAR_LINE and
+              time_in.frame = ODD_FRAME and
+              render_enabled
+        then
+            next_time.cycle := END_CYCLE;
         else
             next_time.cycle := time_in.cycle + 1;
         end if;
@@ -1136,7 +1140,8 @@ package body lib_ppu is
         v_spr_buf_addr := get_bits(render_in.reg.cur_time.cycle, 5, 3);
 
         render_out.reg.cur_time := incr_time(render_in.reg.cur_time,
-                                             rendering_enabled(render_in.reg.mask));
+                                             render_in.reg.render_enabled);
+        render_out.reg.render_enabled := rendering_enabled(render_in.reg.mask);
     
         -- Fetch the attribute value and pattern table values for the
         -- current tile.
