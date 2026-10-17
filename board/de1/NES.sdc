@@ -128,8 +128,9 @@ set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to 
 # address only has to be right at the RAM enable and at the clock before the
 # next core enable, and the read data only has to be right at the next core
 # enable, so paths into and out of the RAMs get 4 clocks as well. clk_en
-# itself updates every clock and is deliberately left out. RAM to RAM paths
-# are left at 1 clock.
+# itself updates every clock and is deliberately left out, except for
+# ppu_sync and odd_cpu_cycle, which only change on the clocks where a PPU
+# enable is consumed. RAM to RAM paths are left at 1 clock.
 set nes_soc {*|nes_soc_ocram:nes|nes_soc:soc}
 
 set nes_core_regs [get_registers [list \
@@ -141,7 +142,9 @@ set nes_core_regs [get_registers [list \
     "$nes_soc|file_bus_mux:file_mux|*" \
     "$nes_soc|reg.*" \
     "$nes_soc|cart_irq" \
-    {*|nes_de1:nes|reg_audio_cpu_clk*}]]
+    "$nes_soc|clk_en:nes_clk_en|ppu_sync" \
+    "$nes_soc|clk_en:nes_clk_en|reg_odd_cpu_cycle" \
+    {*nes_de1:nes|reg_audio_cpu_clk*}]]
 
 set nes_ram_regs [get_registers {*|nes_soc_ocram:nes|*syncram_sp:*}]
 

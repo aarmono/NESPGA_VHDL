@@ -41,6 +41,14 @@ foreach_in_collection clk [get_clocks] {
 report_timing -setup -to_clock {CLOCK_50} -npaths 500 -nworst 1 \
     -detail summary -file timing/endpoints_CLOCK_50.txt
 
+# Paths into and out of the on-chip NES RAMs, to confirm the core multicycle
+# applies to them (the relationship should be 80 ns, except RAM to RAM)
+set nes_ram_regs [get_registers {*|nes_soc_ocram:nes|*syncram_sp:*}]
+report_timing -setup -from $nes_ram_regs -npaths 20 -detail summary \
+    -file timing/nes_ram_out.txt
+report_timing -setup -to $nes_ram_regs -npaths 20 -detail summary \
+    -file timing/nes_ram_in.txt
+
 # I/O paths for the external memories
 foreach {label ports} {
     sdram {DRAM_*}
