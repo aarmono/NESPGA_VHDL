@@ -27,10 +27,10 @@ end fm2_joystick;
 architecture behavioral of fm2_joystick is
 
     signal joy_1_cur   : joy_val_t := (others => '1');
-    signal joy_1_shift : unsigned(joy_val_t'range) := (others => '0');
+    signal joy_1_shift : unsigned(joy_val_t'range) := (others => '1');
 
     signal joy_2_cur   : joy_val_t := (others => '1');
-    signal joy_2_shift : unsigned(joy_val_t'range) := (others => '0');
+    signal joy_2_shift : unsigned(joy_val_t'range) := (others => '1');
 
 begin
 

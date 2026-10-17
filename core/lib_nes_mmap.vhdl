@@ -50,13 +50,15 @@ package body lib_nes_mmap is
         variable map_out : cpu_mmap_out_t;
         variable mapper_in : cpu_mapper_in_t;
         variable mapper_out : cpu_mapper_out_t;
+        variable address : natural range 0 to 16#FFFF#;
     begin
         map_out.reg := map_in.reg;
         map_out.bus_out := CPU_MMAP_BUS_IDLE;
         
         if is_bus_active(map_in.bus_in.cpu_bus)
         then
-            case to_integer(map_in.bus_in.cpu_bus.address) is
+            address := to_integer(map_in.bus_in.cpu_bus.address);
+            case address is
                 -- RAM
                 when 16#0000# to 16#1FFF# =>
                     map_out.bus_out.ram_bus.address :=
@@ -76,27 +78,44 @@ package body lib_nes_mmap is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_ppu;
                     map_out.bus_out.data_to_ppu := map_in.bus_in.data_from_cpu;
                 -- APU
-                when 16#4000# to 16#4013# |
-                     16#4015#             |
-                     16#4018# to 16#401F# =>
+                when 16#4000# to 16#4013# =>
                     map_out.bus_out.apu_bus.address :=
                         get_apu_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.apu_bus.read := map_in.bus_in.cpu_bus.read;
                     map_out.bus_out.apu_bus.write := map_in.bus_in.cpu_bus.write;
                     
+                    -- Write-only registers
+                    map_out.bus_out.data_to_cpu := map_in.reg.open_bus;
+                    map_out.bus_out.data_to_apu := map_in.bus_in.data_from_cpu;
+                when 16#4015# =>
+                    map_out.bus_out.apu_bus.address :=
+                        get_apu_addr(map_in.bus_in.cpu_bus.address);
+                    map_out.bus_out.apu_bus.read := map_in.bus_in.cpu_bus.read;
+                    map_out.bus_out.apu_bus.write := map_in.bus_in.cpu_bus.write;
+                    
+                    -- Bit 5 is open bus
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_apu;
+                    map_out.bus_out.data_to_cpu(5) := map_in.reg.open_bus(5);
                     map_out.bus_out.data_to_apu := map_in.bus_in.data_from_cpu;
                 when 16#4014# =>
-                    map_out.bus_out.oam_dma_write := true;
-                    -- HACK since DMA and CPU data busses are shared
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_cpu;
+                    if is_bus_write(map_in.bus_in.cpu_bus)
+                    then
+                        map_out.bus_out.oam_dma_write := true;
+                        -- HACK since DMA and CPU data busses are shared
+                        map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_cpu;
+                    else
+                        -- Write-only register
+                        map_out.bus_out.data_to_cpu := map_in.reg.open_bus;
+                    end if;
                 when 16#4016# =>
                     map_out.bus_out.joy_bus.address :=
                         get_joy_addr(map_in.bus_in.cpu_bus.address);
                     map_out.bus_out.joy_bus.read := map_in.bus_in.cpu_bus.read;
                     map_out.bus_out.joy_bus.write := map_in.bus_in.cpu_bus.write;
 
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_joy;
+                    map_out.bus_out.data_to_cpu :=
+                        map_in.reg.open_bus(7 downto 5) &
+                        map_in.bus_in.data_from_joy(4 downto 0);
                     map_out.bus_out.data_to_joy := map_in.bus_in.data_from_cpu;
                 when 16#4017# =>
                     if is_bus_read(map_in.bus_in.cpu_bus)
@@ -106,7 +125,9 @@ package body lib_nes_mmap is
                         map_out.bus_out.joy_bus.read := map_in.bus_in.cpu_bus.read;
                         map_out.bus_out.joy_bus.write := map_in.bus_in.cpu_bus.write;
 
-                        map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_joy;
+                        map_out.bus_out.data_to_cpu :=
+                            map_in.reg.open_bus(7 downto 5) &
+                            map_in.bus_in.data_from_joy(4 downto 0);
                         map_out.bus_out.data_to_joy := map_in.bus_in.data_from_cpu;
                     elsif is_bus_write(map_in.bus_in.cpu_bus)
                     then
@@ -118,11 +139,15 @@ package body lib_nes_mmap is
                         map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_apu;
                         map_out.bus_out.data_to_apu := map_in.bus_in.data_from_cpu;
                     end if;
+                -- CPU test mode registers
+                when 16#4018# to 16#401F# =>
+                    map_out.bus_out.data_to_cpu := map_in.reg.open_bus;
                 when others =>
                     mapper_in.reg := map_in.reg;
                     mapper_in.bus_in :=
                         cpu_mmap_in_to_mapper_in(map_in.bus_in,
-                                                 map_in.reg.write_prev);
+                                                 map_in.reg.write_prev,
+                                                 map_in.reg.open_bus);
                     
                     mapper_out := map_cpu_using_mapper(mapper_in);
                     
@@ -135,6 +160,16 @@ package body lib_nes_mmap is
         if map_in.bus_in.clk_sync
         then
             map_out.reg.write_prev := map_in.bus_in.cpu_bus.write;
+
+            if is_bus_write(map_in.bus_in.cpu_bus)
+            then
+                map_out.reg.open_bus := map_in.bus_in.data_from_cpu;
+            -- 0x4015 is internal to the CPU
+            elsif is_bus_read(map_in.bus_in.cpu_bus) and
+                  address /= 16#4015#
+            then
+                map_out.reg.open_bus := map_out.bus_out.data_to_cpu;
+            end if;
         end if;
 
         return map_out;

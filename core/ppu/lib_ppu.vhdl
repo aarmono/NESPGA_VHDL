@@ -100,6 +100,41 @@ package lib_ppu is
     function vram_addr_to_scroll(addr : vram_addr_t) return scroll_t;
 
     function bus_read_scroll(scroll : scroll_t) return chr_bus_t;
+
+    -- Number of frames after which a bit of the I/O latch that has not been
+    -- refreshed decays to 0. Hardware takes roughly 600ms
+    constant IO_LATCH_DECAY_FRAMES : natural := 30;
+
+    subtype io_decay_t is natural range 0 to IO_LATCH_DECAY_FRAMES;
+    type io_decay_arr_t is array(data_t'range) of io_decay_t;
+
+    -- The PPU's internal data bus to the CPU ("open bus"). Reads from
+    -- write-only registers, and the undriven bits of readable ones,
+    -- return its contents
+    type io_latch_t is record
+        data  : data_t;
+        -- Frames since each bit was last refreshed
+        decay : io_decay_arr_t;
+    end record;
+
+    constant RESET_IO_LATCH : io_latch_t :=
+    (
+        data => (others => '0'),
+        decay => (others => 0)
+    );
+
+    -- Loads the bits of data selected by mask into the latch and resets
+    -- their decay
+    function refresh_io_latch
+    (
+        latch : io_latch_t;
+        mask  : data_t;
+        data  : data_t
+    )
+    return io_latch_t;
+
+    -- Called once per frame to age the latch bits
+    function decay_io_latch(latch : io_latch_t) return io_latch_t;
     
     -- Encapsulates the current time for the PPU
     type ppu_time_t is record
@@ -310,6 +345,8 @@ package lib_ppu is
         -- write also affects the pixel computed in the previous cycle
         pixel          : pixel_t;
         pixel_valid    : boolean;
+        -- CPU data bus latch
+        io_latch       : io_latch_t;
     end record;
     
     constant RESET_PPU_REG : ppu_reg_t :=
@@ -343,7 +380,8 @@ package lib_ppu is
         chr_bus => CHR_BUS_IDLE,
         render_enabled => false,
         pixel => (others => '0'),
-        pixel_valid => false
+        pixel_valid => false,
+        io_latch => RESET_IO_LATCH
     );
     
     function reload_pattern_table
@@ -1039,6 +1077,47 @@ package body lib_ppu is
         return spr_out;
     end;
     
+    function refresh_io_latch
+    (
+        latch : io_latch_t;
+        mask  : data_t;
+        data  : data_t
+    )
+    return io_latch_t
+    is
+        variable ret : io_latch_t;
+    begin
+        ret := latch;
+        for i in data_t'range
+        loop
+            if mask(i) = '1'
+            then
+                ret.data(i) := data(i);
+                ret.decay(i) := 0;
+            end if;
+        end loop;
+
+        return ret;
+    end;
+
+    function decay_io_latch(latch : io_latch_t) return io_latch_t
+    is
+        variable ret : io_latch_t;
+    begin
+        ret := latch;
+        for i in data_t'range
+        loop
+            if latch.decay(i) = IO_LATCH_DECAY_FRAMES
+            then
+                ret.data(i) := '0';
+            else
+                ret.decay(i) := latch.decay(i) + 1;
+            end if;
+        end loop;
+
+        return ret;
+    end;
+
     function to_std_logic(status : status_t) return data_t
     is
     begin
@@ -1641,6 +1720,7 @@ package body lib_ppu is
         if is_vblank_start(render_out.reg.cur_time)
         then
             render_out.reg.status.vbl := true;
+            render_out.reg.io_latch := decay_io_latch(render_out.reg.io_latch);
         elsif is_vblank_end(render_out.reg.cur_time)
         then
             render_out.reg.status.vbl := false;
@@ -1659,6 +1739,12 @@ package body lib_ppu is
         -- Writes from CPU
         if is_bus_write(render_in.cpu_bus)
         then
+            -- Writes to any register fill the latch
+            render_out.reg.io_latch :=
+                refresh_io_latch(render_out.reg.io_latch,
+                                 x"FF",
+                                 render_in.data_from_cpu);
+
             case render_in.cpu_bus.address is
                 -- Control Register
                 when "000" =>
@@ -1746,7 +1832,13 @@ package body lib_ppu is
             case render_in.cpu_bus.address is
                 -- Status
                 when "010" =>
-                    render_out.data_to_cpu := to_std_logic(render_in.reg.status);
+                    render_out.data_to_cpu :=
+                        to_std_logic(render_in.reg.status) or
+                        ("000" & render_out.reg.io_latch.data(4 downto 0));
+                    render_out.reg.io_latch :=
+                        refresh_io_latch(render_out.reg.io_latch,
+                                         x"E0",
+                                         render_out.data_to_cpu);
                     -- Reads from status register clear vbl signal
                     render_out.reg.status.vbl := false;
                     -- And reset the count register
@@ -1755,6 +1847,10 @@ package body lib_ppu is
                 when "100" =>
                     render_out.oam_bus := bus_read(render_in.reg.oam_addr);
                     render_out.data_to_cpu := render_in.data_from_oam;
+                    render_out.reg.io_latch :=
+                        refresh_io_latch(render_out.reg.io_latch,
+                                         x"FF",
+                                         render_out.data_to_cpu);
                 -- PPU Data
                 when "111" =>
                     if v_ppu_chr_addr >= PALETTE_ADDR_START
@@ -1766,9 +1862,13 @@ package body lib_ppu is
                         render_out.palette_bus :=
                             bus_read(to_palette_addr(v_ppu_chr_addr));
                         render_out.data_to_cpu :=
-                            resize(mask_pixel(render_in.reg.mask.enable_grayscale,
-                                              render_in.data_from_palette),
-                                   data_t'length);
+                            render_out.reg.io_latch.data(7 downto 6) &
+                            mask_pixel(render_in.reg.mask.enable_grayscale,
+                                       render_in.data_from_palette);
+                        render_out.reg.io_latch :=
+                            refresh_io_latch(render_out.reg.io_latch,
+                                             x"3F",
+                                             render_out.data_to_cpu);
                     else
                         -- When reading while the VRAM address is in the range
                         -- 0-$3EFF (i.e., before the palettes), the read will
@@ -1779,6 +1879,10 @@ package body lib_ppu is
                         -- will immediately update the internal buffer with the
                         -- byte at the current VRAM address.
                         render_out.data_to_cpu := render_in.reg.ppu_data;
+                        render_out.reg.io_latch :=
+                            refresh_io_latch(render_out.reg.io_latch,
+                                             x"FF",
+                                             render_out.data_to_cpu);
                     end if;
                     
                     -- Reading the palettes still updates the internal buffer
@@ -1798,7 +1902,7 @@ package body lib_ppu is
                     render_out.reg.chr_bus :=
                         bus_read_scroll(render_out.reg.ppu_addr);
                 when others =>
-                    render_out.data_to_cpu := (others => '0');
+                    render_out.data_to_cpu := render_out.reg.io_latch.data;
             end case;
         end if;
         -- }

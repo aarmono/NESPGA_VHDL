@@ -114,6 +114,9 @@ package mapper_types is
         data_from_cpu  : data_t;
         data_from_sram : data_t;
         data_from_file : data_t;
+
+        -- Last value driven on the CPU data bus
+        open_bus       : data_t;
     end record;
     
     -- The set of CPU bus outputs generated
@@ -138,7 +141,8 @@ package mapper_types is
     function cpu_mmap_in_to_mapper_in
     (
         mmap_in    : cpu_mmap_bus_in_t;
-        prev_write : boolean
+        prev_write : boolean;
+        open_bus   : data_t
     )
     return cpu_mapper_bus_in_t;
     
@@ -260,7 +264,8 @@ package body mapper_types is
     function cpu_mmap_in_to_mapper_in
     (
         mmap_in    : cpu_mmap_bus_in_t;
-        prev_write : boolean
+        prev_write : boolean;
+        open_bus   : data_t
     )
     return cpu_mapper_bus_in_t
     is
@@ -272,6 +277,7 @@ package body mapper_types is
         mapper_in.data_from_cpu := mmap_in.data_from_cpu;
         mapper_in.data_from_sram := mmap_in.data_from_sram;
         mapper_in.data_from_file := mmap_in.data_from_file;
+        mapper_in.open_bus := open_bus;
         
         return mapper_in;
     end;

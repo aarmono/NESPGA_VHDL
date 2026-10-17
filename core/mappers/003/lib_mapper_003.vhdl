@@ -109,7 +109,7 @@ package body lib_mapper_003 is
                     map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
                 end if;
             when others =>
-                map_out.bus_out.data_to_cpu := (others => '0');
+                map_out.bus_out.data_to_cpu := map_in.bus_in.open_bus;
         end case;
         
         return map_out;
