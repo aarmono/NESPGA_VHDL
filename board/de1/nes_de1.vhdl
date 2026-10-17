@@ -13,9 +13,13 @@ use work.de1_types.all;
 entity nes_de1 is
 generic
 (
-    -- Copy the ROM from flash into SDRAM at reset and run it from there,
-    -- instead of running directly from flash
+    -- Copy the ROM into SDRAM at reset and run it from there, instead of
+    -- running directly from flash
     USE_SDRAM      : boolean := true;
+    -- Copy the ROM into SDRAM from the SD card instead of flash. The ROM
+    -- file is read from the start of the card, so it must be written to
+    -- the raw card rather than to a filesystem on it
+    USE_SD_CARD    : boolean := true;
     ROM_LOAD_BYTES : positive := 2**file_addr_t'length
 );
 port
@@ -54,6 +58,12 @@ port
     DRAM_UDQM  : out std_logic;
     DRAM_RAS_N : out std_logic;
     DRAM_WE_N  : out std_logic;
+
+    -- SD card in SPI mode
+    SD_DAT  : in std_logic;
+    SD_DAT3 : out std_logic;
+    SD_CMD  : out std_logic;
+    SD_CLK  : out std_logic;
     
     SRAM_DQ   : inout std_logic_vector(15 downto 0);
     SRAM_ADDR : out std_logic_vector(17 downto 0);
@@ -108,6 +118,9 @@ architecture behavioral of nes_de1 is
     signal data_from_file : data_t;
 
     signal dram_ba : std_logic_vector(1 downto 0);
+
+    signal rom_loading : boolean;
+    signal sd_error    : boolean;
     
     signal joy_strobe : std_logic;
     
@@ -131,9 +144,11 @@ begin
     DRAM_BA_1 <= dram_ba(1);
 
     gen_sdram : if USE_SDRAM generate
-        signal loading : boolean;
+        signal load_valid : boolean;
+        signal load_data  : data_t;
+        signal load_ready : boolean;
     begin
-        nes_reset <= reset or loading;
+        nes_reset <= reset or rom_loading;
 
         -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
         -- clock output delay to the SDRAM
@@ -149,10 +164,11 @@ begin
             clk => CLOCK_50,
             reset => reset,
 
-            loading => loading,
+            loading => rom_loading,
 
-            flash_bus => flash_bus,
-            data_from_flash => FL_DQ,
+            load_valid => load_valid,
+            load_data => load_data,
+            load_ready => load_ready,
 
             ppu_clk_en => ppu_clk_en,
             file_bus => file_bus,
@@ -169,12 +185,64 @@ begin
             dram_udqm => DRAM_UDQM,
             dram_dq => DRAM_DQ
         );
+
+        gen_sd_card : if USE_SD_CARD generate
+        begin
+            flash_bus <= FILE_BUS_IDLE;
+
+            sd : entity work.sd_reader(behavioral)
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset,
+
+                failed => sd_error,
+
+                stop => not rom_loading,
+                data => load_data,
+                valid => load_valid,
+                ready => load_ready,
+
+                sd_clk => SD_CLK,
+                sd_cs_n => SD_DAT3,
+                sd_mosi => SD_CMD,
+                sd_miso => SD_DAT
+            );
+        else generate
+        begin
+            sd_error <= false;
+
+            SD_CLK <= '0';
+            SD_DAT3 <= '1';
+            SD_CMD <= '1';
+
+            flash : entity work.flash_stream(behavioral)
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset,
+
+                flash_bus => flash_bus,
+                data_from_flash => FL_DQ,
+
+                stop => not rom_loading,
+                data => load_data,
+                valid => load_valid,
+                ready => load_ready
+            );
+        end generate;
     else generate
     begin
         nes_reset <= reset;
+        rom_loading <= false;
+        sd_error <= false;
 
         flash_bus <= file_bus;
         data_from_file <= FL_DQ;
+
+        SD_CLK <= '0';
+        SD_DAT3 <= '1';
+        SD_CMD <= '1';
 
         DRAM_CLK <= '0';
         DRAM_ADDR <= (others => '0');
@@ -200,7 +268,9 @@ begin
     AUD_XCK <= CLOCK_AUD;
     
     LEDR(9) <= SW(9);
-    LEDR(8 downto 0) <= (others => '0');
+    LEDR(8 downto 2) <= (others => '0');
+    LEDR(1) <= to_std_logic(rom_loading);
+    LEDR(0) <= to_std_logic(sd_error);
     
     LEDG <= not joy_1_reg;
     

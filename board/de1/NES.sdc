@@ -129,6 +129,13 @@ set_false_path -to [get_ports {VGA_R[*] VGA_G[*] VGA_B[*] VGA_HS VGA_VS}]
 set_false_path -to [get_ports {FL_ADDR[*] FL_OE_N FL_WE_N FL_RST_N}]
 set_false_path -from [get_ports {FL_DQ[*]}]
 
+# sd_reader generates SD_CLK from a register and runs it at no more than a
+# quarter of CLOCK_50. SD_CMD and SD_DAT3 change with the falling edge of
+# SD_CLK, at least a clock before the rising edge that the card samples them
+# on, and SD_DAT is sampled at least a clock after the card changes it
+set_false_path -to [get_ports {SD_CLK SD_CMD SD_DAT3}]
+set_false_path -from [get_ports {SD_DAT}]
+
 
 #**************************************************************
 # Multicycle Paths

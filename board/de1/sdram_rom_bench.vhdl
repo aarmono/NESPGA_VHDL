@@ -6,15 +6,20 @@ use work.nes_types.all;
 use work.file_bus_types.all;
 use work.simulation.all;
 
--- Copies a file from a flash model into the SDRAM model through sdram_rom,
--- then performs random reads paced by the real NES clock enables and checks
--- the data against the file.
+-- Copies a file from an SD card model, or a flash model, into the SDRAM
+-- model through sdram_rom, then performs random reads paced by the real NES
+-- clock enables and checks the data against the file.
 entity sdram_rom_bench is
 generic
 (
     NES_FILEPATH   : string;
     NES_FILE_BYTES : positive;
-    NUM_WINDOWS    : positive := 100_000
+    NUM_WINDOWS    : positive := 100_000;
+
+    USE_SD_CARD      : boolean := true;
+    SD_HIGH_CAPACITY : boolean := true;
+    SD_VERSION_1     : boolean := false;
+    SD_START_BLOCK   : natural := 0
 );
 end sdram_rom_bench;
 
@@ -25,8 +30,9 @@ architecture behavioral of sdram_rom_bench is
 
     signal loading : boolean;
 
-    signal flash_bus  : file_bus_t;
-    signal flash_data : data_t;
+    signal load_valid : boolean;
+    signal load_data  : data_t;
+    signal load_ready : boolean;
 
     signal ppu_en : boolean;
 
@@ -59,8 +65,9 @@ begin
 
         loading => loading,
 
-        flash_bus => flash_bus,
-        data_from_flash => flash_data,
+        load_valid => load_valid,
+        load_data => load_data,
+        load_ready => load_ready,
 
         ppu_clk_en => ppu_en,
         file_bus => file_bus,
@@ -94,18 +101,98 @@ begin
         dq => dram_dq
     );
 
-    flash : file_memory
-    generic map
-    (
-        FILEPATH => NES_FILEPATH,
-        MEM_BYTES => NES_FILE_BYTES,
-        READ_DELAY => 110 ns
-    )
-    port map
-    (
-        file_bus_1 => flash_bus,
-        data_from_file_1 => flash_data
-    );
+    gen_sd_card : if USE_SD_CARD generate
+        signal sd_error : boolean;
+        signal sd_clk   : std_logic;
+        signal sd_cs_n  : std_logic;
+        signal sd_mosi  : std_logic;
+        signal sd_miso  : std_logic;
+    begin
+        reader : entity work.sd_reader(behavioral)
+        generic map
+        (
+            START_BLOCK => SD_START_BLOCK
+        )
+        port map
+        (
+            clk => clk_50,
+            reset => false,
+
+            failed => sd_error,
+
+            stop => not loading,
+            data => load_data,
+            valid => load_valid,
+            ready => load_ready,
+
+            sd_clk => sd_clk,
+            sd_cs_n => sd_cs_n,
+            sd_mosi => sd_mosi,
+            sd_miso => sd_miso
+        );
+
+        card : entity work.sd_card(behavioral)
+        generic map
+        (
+            FILEPATH => NES_FILEPATH,
+            FILE_BYTES => NES_FILE_BYTES,
+            START_BLOCK => SD_START_BLOCK,
+            HIGH_CAPACITY => SD_HIGH_CAPACITY,
+            VERSION_1 => SD_VERSION_1
+        )
+        port map
+        (
+            sck => sd_clk,
+            cs_n => sd_cs_n,
+            mosi => sd_mosi,
+            miso => sd_miso
+        );
+
+        -- Pull up on the board
+        sd_miso <= 'H';
+
+        assert not sd_error
+            report "SD card error"
+            severity failure;
+    else generate
+        signal flash_bus  : file_bus_t;
+        signal flash_data : data_t;
+    begin
+        reader : entity work.flash_stream(behavioral)
+        port map
+        (
+            clk => clk_50,
+            reset => false,
+
+            flash_bus => flash_bus,
+            data_from_flash => flash_data,
+
+            stop => not loading,
+            data => load_data,
+            valid => load_valid,
+            ready => load_ready
+        );
+
+        flash : file_memory
+        generic map
+        (
+            FILEPATH => NES_FILEPATH,
+            MEM_BYTES => NES_FILE_BYTES,
+            READ_DELAY => 110 ns
+        )
+        port map
+        (
+            file_bus_1 => flash_bus,
+            data_from_file_1 => flash_data
+        );
+    end generate;
+
+    process
+    begin
+        wait until not loading;
+        report "Loaded in " & time'image(now);
+        wait;
+    end process;
 
     reference : file_memory
     generic map

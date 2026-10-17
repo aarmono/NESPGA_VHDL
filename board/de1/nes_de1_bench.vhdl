@@ -15,7 +15,8 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     NES_FILE_BYTES  : integer := 196608;
-    USE_SDRAM       : boolean := true
+    USE_SDRAM       : boolean := true;
+    USE_SD_CARD     : boolean := true
 );
 end nes_de1_bench;
 
@@ -47,6 +48,11 @@ architecture behavioral of nes_de1_bench is
     signal dram_ras_n : std_logic;
     signal dram_we_n  : std_logic;
 
+    signal sd_dat  : std_logic;
+    signal sd_dat3 : std_logic;
+    signal sd_cmd  : std_logic;
+    signal sd_clk  : std_logic;
+
     signal sram_dq   : std_logic_vector(15 downto 0);
     signal sram_addr : std_logic_vector(17 downto 0);
     signal sram_oe_n : std_logic;
@@ -77,6 +83,7 @@ begin
     generic map
     (
         USE_SDRAM => USE_SDRAM,
+        USE_SD_CARD => USE_SD_CARD,
         ROM_LOAD_BYTES => NES_FILE_BYTES
     )
     port map
@@ -108,6 +115,11 @@ begin
         DRAM_UDQM => dram_udqm,
         DRAM_RAS_N => dram_ras_n,
         DRAM_WE_N => dram_we_n,
+
+        SD_DAT => sd_dat,
+        SD_DAT3 => sd_dat3,
+        SD_CMD => sd_cmd,
+        SD_CLK => sd_clk,
 
         SRAM_DQ => sram_dq,
         SRAM_ADDR => sram_addr,
@@ -200,6 +212,23 @@ begin
         udqm => dram_udqm,
         dq => dram_dq
     );
+
+    sd : entity work.sd_card(behavioral)
+    generic map
+    (
+        FILEPATH => NES_FILEPATH,
+        FILE_BYTES => NES_FILE_BYTES
+    )
+    port map
+    (
+        sck => sd_clk,
+        cs_n => sd_dat3,
+        mosi => sd_cmd,
+        miso => sd_dat
+    );
+
+    -- Pull up on the board
+    sd_dat <= 'H';
 
     flash_bus.read <= fl_oe_n = '0';
     flash_bus.write <= false;

@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: sdram_rom_bench
 
 # Elaboration target
-sdram_rom_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o utilities.o nes_types.o file_bus_types.o apu_bus_types.o nes_audio_mixer.o simulation.o sdram_ctrl.o sdram_rom.o sdram.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o sdram_rom_bench.o /opt/ghdl/lib/ghdl/std/v08/env-body.o binary_io.o file_memory.o clock.o
+sdram_rom_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o utilities.o nes_types.o file_bus_types.o apu_bus_types.o nes_audio_mixer.o simulation.o sdram_ctrl.o sdram_rom.o sdram.o sd_reader.o binary_io.o sd_card.o flash_stream.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o sdram_rom_bench.o /opt/ghdl/lib/ghdl/std/v08/env-body.o file_memory.o clock.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -60,6 +60,14 @@ sdram_rom.o: ../../../board/de1/sdram_rom.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sdram.o: ../../../simulation/sdram/sdram.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+sd_reader.o: ../../../perhiperals/sd_card/sd_reader.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+binary_io.o: ../../../simulation/binary_io.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+sd_card.o: ../../../simulation/sd_card/sd_card.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+flash_stream.o: ../../../board/de1/flash_stream.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 clk_en.o: ../../../core/clk_en/clk_en.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 /opt/ghdl/lib/ghdl/std/v08/env.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/env.vhdl
@@ -70,8 +78,6 @@ sdram_rom_bench.o: ../../../board/de1/sdram_rom_bench.vhdl
 /opt/ghdl/lib/ghdl/std/v08/env-body.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/env-body.vhdl
 	@echo "This file was not locally built ($<)"
 	exit 1
-binary_io.o: ../../../simulation/binary_io.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
 file_memory.o: ../../../simulation/file_memory/file_memory.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 clock.o: ../../../simulation/clock/clock.vhdl
@@ -95,10 +101,13 @@ simulation.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/i
 sdram_ctrl.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 sdram_rom.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o file_bus_types.o sdram_ctrl.o
 sdram.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
+sd_reader.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
+binary_io.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
+sd_card.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o binary_io.o
+flash_stream.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o file_bus_types.o
 clk_en.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 /opt/ghdl/lib/ghdl/std/v08/env.o: 
-sdram_rom_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o nes_types.o file_bus_types.o simulation.o sdram_rom.o sdram.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o
+sdram_rom_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o nes_types.o file_bus_types.o simulation.o sdram_rom.o sdram.o sd_reader.o sd_card.o flash_stream.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o
 /opt/ghdl/lib/ghdl/std/v08/env-body.o:  /opt/ghdl/lib/ghdl/std/v08/env.o
-binary_io.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 file_memory.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o nes_types.o file_bus_types.o
 clock.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o

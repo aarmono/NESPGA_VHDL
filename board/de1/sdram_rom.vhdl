@@ -5,21 +5,22 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.file_bus_types.all;
 
--- Serves the NES file bus out of SDRAM instead of flash.
+-- Serves the NES file bus out of SDRAM.
 --
--- After reset the first LOAD_BYTES of flash are copied into SDRAM while
--- loading is true, during which the NES must be held in reset. Once loading
--- is complete each PPU cycle gets one SDRAM slot, started START_DELAY clocks
--- after ppu_clk_en. The file bus address is sampled when the slot starts, so
--- it must be stable from then until the next ppu_clk_en, and the read data is
--- ready well before that.
+-- After reset the ROM file is copied into SDRAM from a byte stream, during
+-- which loading is true and the NES must be held in reset. A byte is taken
+-- from the stream on each clock where load_valid and load_ready are both
+-- true. If the file starts with an iNES header, only as many bytes as the
+-- header says the file holds are copied, otherwise LOAD_BYTES are. Once
+-- loading is complete each PPU cycle gets one SDRAM slot, started
+-- START_DELAY clocks after ppu_clk_en. The file bus address is sampled when
+-- the slot starts, so it must be stable from then until the next
+-- ppu_clk_en, and the read data is ready well before that.
 entity sdram_rom is
 generic
 (
     CLK_FREQ   : positive := 50_000_000;
     LOAD_BYTES : positive := 2**file_addr_t'length;
-    -- Clocks to wait after changing the flash address before sampling data
-    FLASH_READ_CLKS : positive := 8;
     -- Clocks after ppu_clk_en until the file bus address is sampled
     START_DELAY : positive := 2
 );
@@ -30,8 +31,9 @@ port
 
     loading : out boolean;
 
-    flash_bus       : out file_bus_t;
-    data_from_flash : in data_t;
+    load_valid : in boolean;
+    load_data  : in data_t;
+    load_ready : out boolean;
 
     ppu_clk_en     : in boolean;
     file_bus       : in file_bus_t;
@@ -54,7 +56,32 @@ architecture behavioral of sdram_rom is
 
     subtype sdram_addr_t is std_logic_vector(22 downto 0);
     subtype load_addr_t is natural range 0 to LOAD_BYTES - 1;
-    subtype flash_wait_t is natural range 0 to FLASH_READ_CLKS;
+    subtype banks_t is natural range 0 to 255;
+
+    -- Bytes in an iNES file, limited to LOAD_BYTES
+    function ines_bytes
+    (
+        prg_banks : banks_t;
+        chr_banks : banks_t;
+        trainer   : boolean
+    )
+    return positive
+    is
+        variable ret : positive;
+    begin
+        ret := 16 + prg_banks * 16384 + chr_banks * 8192;
+        if trainer
+        then
+            ret := ret + 512;
+        end if;
+
+        if ret > LOAD_BYTES
+        then
+            return LOAD_BYTES;
+        else
+            return ret;
+        end if;
+    end;
 
     type state_t is
     (
@@ -66,16 +93,29 @@ architecture behavioral of sdram_rom is
     type reg_t is record
         state      : state_t;
         load_addr  : load_addr_t;
-        flash_wait : flash_wait_t;
+        load_last  : load_addr_t;
         ppu_delay  : boolean_array(START_DELAY - 1 downto 0);
+
+        -- iNES header fields
+        ines      : boolean;
+        nes2      : boolean;
+        trainer   : boolean;
+        prg_banks : banks_t;
+        chr_banks : banks_t;
     end record;
 
     constant RESET_REG : reg_t :=
     (
         state => STATE_INIT,
         load_addr => 0,
-        flash_wait => FLASH_READ_CLKS,
-        ppu_delay => (others => false)
+        load_last => load_addr_t'high,
+        ppu_delay => (others => false),
+
+        ines => false,
+        nes2 => false,
+        trainer => false,
+        prg_banks => 0,
+        chr_banks => 0
     );
 
     signal reg    : reg_t := RESET_REG;
@@ -109,7 +149,7 @@ begin
         read => read,
         write => write,
         address => address,
-        data_in => data_from_flash,
+        data_in => load_data,
         data_out => data_from_file,
 
         dram_addr => dram_addr,
@@ -131,7 +171,7 @@ begin
 
         v_reg.ppu_delay := shift_left(reg.ppu_delay, ppu_clk_en);
 
-        flash_bus <= FILE_BUS_IDLE;
+        load_ready <= false;
         start <= false;
         read <= false;
         write <= false;
@@ -144,21 +184,50 @@ begin
                     v_reg.state := STATE_COPY;
                 end if;
             when STATE_COPY =>
-                flash_bus <= bus_read(to_unsigned(reg.load_addr,
-                                                  file_addr_t'length));
                 address <= std_logic_vector(
                     to_unsigned(reg.load_addr, sdram_addr_t'length));
 
-                if reg.flash_wait /= 0
-                then
-                    v_reg.flash_wait := reg.flash_wait - 1;
-                elsif sdram_idle
-                then
-                    start <= true;
-                    write <= true;
+                -- Keep starting slots while waiting for data so that the
+                -- SDRAM is refreshed
+                load_ready <= sdram_idle;
+                start <= sdram_idle;
+                write <= load_valid;
 
-                    v_reg.flash_wait := FLASH_READ_CLKS;
-                    if reg.load_addr = load_addr_t'high
+                if load_valid and sdram_idle
+                then
+                    case reg.load_addr is
+                        when 0 =>
+                            v_reg.ines := load_data = x"4E";
+                        when 1 =>
+                            v_reg.ines := reg.ines and load_data = x"45";
+                        when 2 =>
+                            v_reg.ines := reg.ines and load_data = x"53";
+                        when 3 =>
+                            v_reg.ines := reg.ines and load_data = x"1A";
+                        when 4 =>
+                            v_reg.prg_banks := to_integer(unsigned(load_data));
+                        when 5 =>
+                            v_reg.chr_banks := to_integer(unsigned(load_data));
+                        when 6 =>
+                            v_reg.trainer := load_data(2) = '1';
+                        when 7 =>
+                            v_reg.nes2 := load_data(3 downto 2) = "10";
+                        when 9 =>
+                            -- NES 2.0 keeps the high bits of the bank counts
+                            -- here. Files that use them are larger than
+                            -- LOAD_BYTES anyway
+                            if reg.ines and
+                               not (reg.nes2 and load_data /= x"00")
+                            then
+                                v_reg.load_last := ines_bytes(reg.prg_banks,
+                                                              reg.chr_banks,
+                                                              reg.trainer) - 1;
+                            end if;
+                        when others =>
+                            null;
+                    end case;
+
+                    if reg.load_addr = reg.load_last
                     then
                         v_reg.state := STATE_RUN;
                     else

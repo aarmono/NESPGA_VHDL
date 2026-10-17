@@ -44,6 +44,11 @@ port
     DRAM_UDQM  : out std_logic;
     DRAM_RAS_N : out std_logic;
     DRAM_WE_N  : out std_logic;
+
+    SD_DAT  : in std_logic;
+    SD_DAT3 : out std_logic;
+    SD_CMD  : out std_logic;
+    SD_CLK  : out std_logic;
     
     SRAM_DQ   : inout std_logic_vector(15 downto 0);
     SRAM_ADDR : out std_logic_vector(17 downto 0);
@@ -155,6 +160,11 @@ begin
         DRAM_UDQM  => DRAM_UDQM,
         DRAM_RAS_N => DRAM_RAS_N,
         DRAM_WE_N  => DRAM_WE_N,
+
+        SD_DAT  => SD_DAT,
+        SD_DAT3 => SD_DAT3,
+        SD_CMD  => SD_CMD,
+        SD_CLK  => SD_CLK,
         
         SRAM_DQ   => SRAM_DQ,
         SRAM_ADDR => SRAM_ADDR,
