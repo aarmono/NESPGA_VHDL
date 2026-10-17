@@ -37,6 +37,9 @@ cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes       | 2168ms    | 37d4a5638d6e
 cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes       | 1244ms    | 088747932a39bb9ea14f63de7b3fb1f3d24939834e16dc3af5e0c732be32308c *frame_00074.bmp
 cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes | 6522ms    | ee3883840fdb28b5ab0e858e558294107b939fe8eec0a166760dbbc88dfc62b8 *frame_00388.bmp
 
+cpu_exec_space/test_cpu_exec_space_ppuio.nes          | 718ms     | d8c2e62fa3ca86331a1a57d8a16bc182bc8f7a8abb14644653b720813e278e2d *frame_00042.bmp
+cpu_exec_space/test_cpu_exec_space_apu.nes            | 5037ms    | dbb09aaf1f00ef8f45c196fe36421b74f466b9a33feec5b4e9624573fef25428 *frame_00301.bmp
+
 # Basic APU
 dmc_tests/buffer_retained.nes                         | 300ms     | f2b698da1cd765237f5de26375559505f71fb96795f9aabee72d70a68c147ae8 *audio.au
 dmc_tests/latency.nes                                 | 300ms     | d3b67b3c3cda34f2b8c9f06e9ff4907a79304ca453193e5586c3114f9ffea99c *audio.au

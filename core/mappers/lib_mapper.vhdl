@@ -23,6 +23,8 @@ package lib_mapper is
         common        : mapper_common_reg_t;
 
         write_prev    : boolean;
+        -- Last value driven on the CPU data bus
+        open_bus      : data_t;
         
         mapper_001_reg : mapper_001_reg_t;
         mapper_002_reg : mapper_002_reg_t;
@@ -37,6 +39,7 @@ package lib_mapper is
         common => RESET_MAPPER_COMMON_REG,
 
         write_prev => false,
+        open_bus => (others => '0'),
         
         mapper_001_reg => RESET_MAPPER_001_REG,
         mapper_002_reg => RESET_MAPPER_002_REG,
