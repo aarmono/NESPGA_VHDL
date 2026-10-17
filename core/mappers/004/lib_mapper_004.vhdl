@@ -18,13 +18,15 @@ package lib_mapper_004 is
     subtype bank_t is unsigned(7 downto 0);
     type bank_arr_t is array(0 to 7) of bank_t;
 
-    subtype irq_count_t is unsigned(7 downto 0);
+    subtype irq_count_t is natural range 0 to 2**8-1;
 
     subtype prg_rom_addr_t is unsigned(18 downto 0);
     subtype chr_rom_addr_t is unsigned(17 downto 0);
 
-    subtype a12_count_t is unsigned(2 downto 0);
-    constant A12_MAX : a12_count_t := to_unsigned(6, a12_count_t'length);
+    subtype irq_delay_t is boolean_array(1 downto 0);
+
+    constant A12_MAX : natural := 10;
+    subtype a12_count_t is natural range 0 to A12_MAX;
 
     type mapper_004_reg_t is record
         bank_idx : bank_idx_t;
@@ -40,6 +42,7 @@ package lib_mapper_004 is
         irq_reload : irq_count_t;
         irq_enable : boolean;
         irq        : boolean;
+        irq_delay  : irq_delay_t;
 
         a12_count : a12_count_t;
     end record;
@@ -55,12 +58,13 @@ package lib_mapper_004 is
 
         mirroring => '0',
 
-        irq_count => (others => '0'),
-        irq_reload => (others => '0'),
+        irq_count => 0,
+        irq_reload => 0,
         irq_enable => false,
         irq => false,
+        irq_delay => (others => false),
 
-        a12_count => (others => '0')
+        a12_count => 0
     );
 
     type cpu_mapper_004_in_t is record
@@ -264,9 +268,9 @@ package body lib_mapper_004 is
                     if map_in.bus_in.cpu_bus.address(0) = '0'
                     then
                         map_out.reg.irq_reload :=
-                            unsigned(map_in.bus_in.data_from_cpu);
+                            to_integer(unsigned(map_in.bus_in.data_from_cpu));
                     else
-                        map_out.reg.irq_count := (others => '0');
+                        map_out.reg.irq_count := 0;
                     end if;
                 elsif is_bus_read(map_in.bus_in.cpu_bus)
                 then
@@ -340,27 +344,36 @@ package body lib_mapper_004 is
         then
             if map_in.reg.a12_count < A12_MAX
             then
-                map_out.reg.a12_count := map_in.reg.a12_count + "1";
+                map_out.reg.a12_count := map_in.reg.a12_count + 1;
             end if;
         else
-            map_out.reg.a12_count := (others => '0');
+            map_out.reg.a12_count := 0;
             if map_in.reg.a12_count = A12_MAX
             then
-                if is_zero(map_in.reg.irq_count)
+                if map_in.reg.irq_count = 0
                 then
                     map_out.reg.irq_count := map_in.reg.irq_reload;
                 else
-                    map_out.reg.irq_count := map_in.reg.irq_count - "1";
+                    map_out.reg.irq_count := map_in.reg.irq_count - 1;
                 end if;
 
-                if is_zero(map_out.reg.irq_count)
+                if map_out.reg.irq_count = 0
                 then
                     map_out.reg.irq := map_in.reg.irq_enable;
                 end if;
             end if;
         end if;
 
-        map_out.irq := map_out.reg.irq;
+        -- IRQ needs to be delayed, but acknowledging it clears it immediately
+        if map_out.reg.irq
+        then
+            map_out.reg.irq_delay := shift_left(map_in.reg.irq_delay, true);
+        else
+            map_out.reg.irq_delay := (others => false);
+        end if;
+
+        map_out.irq := map_out.reg.irq and
+                       map_in.reg.irq_delay(map_in.reg.irq_delay'high);
 
         file_offset := get_file_offset(map_in.common.prg_rom_16kb_blocks,
                                        map_in.common.has_trainer);

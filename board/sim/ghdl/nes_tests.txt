@@ -123,16 +123,10 @@ mmc3_irq_tests/3.A12_clocking.nes                     | 317ms     | 0b8c4420b91a
 mmc3_irq_tests/4.Scanline_timing.nes                  | 1351ms    | 44a02a0d005edb679956214684e7c8f1cd783f28c3fcad95965829fbfe80ab53 *frame_00080.bmp
 mmc3_irq_tests/6.MMC3_rev_B.nes                       | 300ms     | a35f0a9a7699589f6aa090780a5c8acd976f37e646fd12f0f013a632990daeb8 *frame_00017.bmp
 
-mmc3_test/1-clocking.nes                              | 417ms     | 7c92bb9b311ba8606067da217a7c14d78abac49e51248b82f876559dcf8981b4 *frame_00024.bmp
-mmc3_test/2-details.nes                               | 450ms     | 911958c9323566d4c860878135bb449556a84d07097686437e29bfa00602eb53 *frame_00026.bmp
-mmc3_test/3-A12_clocking.nes                          | 417ms     | 08159de55af55b414199755c3b723e04e1007b35e3a7f232b9ae8d353480c5bd *frame_00024.bmp
-# mmc3_test/4-scanline_timing.nes Fails
-mmc3_test/5-MMC3.nes                                  | 417ms     | 0271ba3e5515837c7eb972cab807c40877793361bf71ba465012dad55db443e2 *frame_00024.bmp
-
 mmc3_test_2/rom_singles/1-clocking.nes                | 433ms     | 7c92bb9b311ba8606067da217a7c14d78abac49e51248b82f876559dcf8981b4 *frame_00025.bmp
 mmc3_test_2/rom_singles/2-details.nes                 | 484ms     | 911958c9323566d4c860878135bb449556a84d07097686437e29bfa00602eb53 *frame_00028.bmp
 mmc3_test_2/rom_singles/3-A12_clocking.nes            | 434ms     | 08159de55af55b414199755c3b723e04e1007b35e3a7f232b9ae8d353480c5bd *frame_00025.bmp
-# mmc3_test_2/rom_singles/4-scanline_timing.nes Fails
+mmc3_test_2/rom_singles/4-scanline_timing.nes         | 5300ms    | 169ef9bd055742335d415ccd88c83e451e58c109ea55a7d239804ba1131dee36 *frame_00316.bmp
 mmc3_test_2/rom_singles/5-MMC3.nes                    | 434ms     | 0271ba3e5515837c7eb972cab807c40877793361bf71ba465012dad55db443e2 *frame_00025.bmp
 
 # Miscellaneous
