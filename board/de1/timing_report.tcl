@@ -65,4 +65,28 @@ foreach {label ports} {
 }
 
 delete_timing_netlist
+
+# Hold is usually worst in the fast model, which the reports above do not
+# cover
+create_timing_netlist -fast_model
+read_sdc
+update_timing_netlist
+
+create_timing_summary -setup -file timing/fast_summary_setup.txt
+create_timing_summary -hold -file timing/fast_summary_hold.txt
+
+report_timing -hold -npaths 20 -nworst 1 -detail summary \
+    -file timing/fast_hold_worst.txt
+
+foreach {label ports} {
+    sdram {DRAM_*}
+    sram  {SRAM_*}
+} {
+    report_timing -hold -to [get_ports $ports] -npaths 20 -detail full_path \
+        -file timing/fast_${label}_out_hold.txt
+    report_timing -hold -from [get_ports $ports] -npaths 20 -detail full_path \
+        -file timing/fast_${label}_in_hold.txt
+}
+
+delete_timing_netlist
 project_close
