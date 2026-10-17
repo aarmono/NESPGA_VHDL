@@ -98,9 +98,14 @@ set_input_delay -clock [get_clocks $clk_vga] -min  3.000 [get_ports {SRAM_DQ[*]}
 # the write strobe falls and rises within the following clock. Values are
 # for the 10 ns IS61LV25616AL:
 #   tSA 0 (address setup to write start), tHA 0 (address hold from write end)
+#   tAW 8 (address setup to write end)
 #   tSD 6 (data setup to write end), tHD 0 (data hold from write end)
-# CE_N is gated the same way as WE_N, so only WE_N is used as the reference
+# CE_N is gated the same way as WE_N, so only WE_N is used as the reference.
+# The address must also not change before the write starts, which is never
+# close since it only changes on the CLOCK_50 edge
 set_output_delay -clock {sram_we_clk} -clock_fall -max 0.000 -add_delay [get_ports {SRAM_ADDR[*]}]
+set_output_delay -clock {sram_we_clk} -clock_fall -min 0.000 -add_delay [get_ports {SRAM_ADDR[*]}]
+set_output_delay -clock {sram_we_clk} -max 8.000 -add_delay [get_ports {SRAM_ADDR[*]}]
 set_output_delay -clock {sram_we_clk} -min 0.000 -add_delay [get_ports {SRAM_ADDR[*]}]
 
 set_output_delay -clock {sram_we_clk} -max 6.000 [get_ports {SRAM_DQ[*]}]
