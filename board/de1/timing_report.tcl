@@ -36,6 +36,11 @@ foreach_in_collection clk [get_clocks] {
         -file timing/hold_$file_name.txt
 }
 
+# Worst path to each of the worst CLOCK_50 endpoints, to see which parts of
+# the design are failing rather than many variations of the same path
+report_timing -setup -to_clock {CLOCK_50} -npaths 500 -nworst 1 \
+    -detail summary -file timing/endpoints_CLOCK_50.txt
+
 # I/O paths for the external memories
 foreach {label ports} {
     sdram {DRAM_*}

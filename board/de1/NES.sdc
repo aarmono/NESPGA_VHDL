@@ -13,10 +13,11 @@ create_clock -name {CLOCK_50} -period 20.000 [get_ports {CLOCK_50}]
 create_clock -name {CLOCK_27} -period 37.037 [get_ports {CLOCK_27[0]}]
 
 # Let Quartus derive the PLL outputs from the PLL settings so that they do
-# not go stale when a PLL is regenerated:
-#   aud_clock_gen c0: 18.432 MHz audio clock (CLOCK_AUD)
+# not go stale when a PLL is regenerated. The fitter picks the closest
+# ratios the PLLs can produce:
+#   aud_clock_gen c0: 50 * 7/19 = 18.42 MHz audio clock (CLOCK_AUD)
 #   aud_clock_gen c1: 50 MHz, shifted -2.143 ns (CLOCK_WE)
-#   vga_clock_gen c0: 25.175 MHz VGA pixel clock (CLOCK_VGA)
+#   vga_clock_gen c0: 27 * 14/15 = 25.2 MHz VGA pixel clock (CLOCK_VGA)
 derive_pll_clocks
 
 set clk_aud {aud_clock_gen|altpll_component|pll|clk[0]}
@@ -67,6 +68,7 @@ set_input_delay -clock {sdram_clk} -min 2.5 [get_ports {DRAM_DQ[*]}]
 # sdram_ctrl). The default hold check, against the earlier CLOCK_50 edge,
 # is already the correct one.
 set_multicycle_path -setup -end 2 -from [get_clocks {sdram_clk}] -to [get_clocks {CLOCK_50}]
+set_multicycle_path -hold -end 0 -from [get_clocks {sdram_clk}] -to [get_clocks {CLOCK_50}]
 
 
 #**************************************************************
@@ -74,14 +76,14 @@ set_multicycle_path -setup -end 2 -from [get_clocks {sdram_clk}] -to [get_clocks
 #**************************************************************
 
 # vga_gen presents an SRAM address and captures the pixel data on the next
-# VGA clock (39.722 ns), so the round trip through the 10 ns SRAM is split
+# VGA clock (39.682 ns), so the round trip through the 10 ns SRAM is split
 # into a budget of 15 ns from the VGA clock to the address pins, 1 ns of
 # board delay and 10 ns of SRAM access time, leaving the rest of the period
 # from the data pins to the capturing register. Writes from the CLOCK_50
 # side are timed by CLOCK_WE and are not constrained here.
 set sram_read_outputs [get_ports {SRAM_ADDR[*] SRAM_OE_N SRAM_CE_N}]
 
-set_output_delay -clock [get_clocks $clk_vga] -max 24.722 $sram_read_outputs
+set_output_delay -clock [get_clocks $clk_vga] -max 24.682 $sram_read_outputs
 set_output_delay -clock [get_clocks $clk_vga] -min  0.000 $sram_read_outputs
 
 set_input_delay -clock [get_clocks $clk_vga] -max 26.000 [get_ports {SRAM_DQ[*]}]
@@ -118,3 +120,34 @@ set_multicycle_path -setup -end 2 -from [get_registers {*nes_soc_ocram:nes|*}] -
 set_multicycle_path -hold -end 1 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
 set_multicycle_path -setup -end 2 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]
 set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]
+
+# The NES core registers only update on cpu_en or ppu_en, which are at least
+# 9 clocks apart (clk_en). The on-chip RAMs only write on cpu_ram_en or
+# ppu_ram_en, which come 4 or 5 clocks after a PPU enable and 4 or 5 clocks
+# before the next one. Their address registers load every clock, but the
+# address only has to be right at the RAM enable and at the clock before the
+# next core enable, and the read data only has to be right at the next core
+# enable, so paths into and out of the RAMs get 4 clocks as well. clk_en
+# itself updates every clock and is deliberately left out. RAM to RAM paths
+# are left at 1 clock.
+set nes_soc {*|nes_soc_ocram:nes|nes_soc:soc}
+
+set nes_core_regs [get_registers [list \
+    "$nes_soc|cpu:nes_cpu|*" \
+    "$nes_soc|apu:nes_apu|*" \
+    "$nes_soc|ppu:nes_ppu|*" \
+    "$nes_soc|oam_dma:nes_oam_dma|*" \
+    "$nes_soc|joystick_io:nes_joystick_io|*" \
+    "$nes_soc|file_bus_mux:file_mux|*" \
+    "$nes_soc|reg.*" \
+    "$nes_soc|cart_irq" \
+    {*|nes_de1:nes|reg_audio_cpu_clk*}]]
+
+set nes_ram_regs [get_registers {*|nes_soc_ocram:nes|*syncram_sp:*}]
+
+set_multicycle_path -setup -end 4 -from $nes_core_regs -to $nes_core_regs
+set_multicycle_path -hold -end 3 -from $nes_core_regs -to $nes_core_regs
+set_multicycle_path -setup -end 4 -from $nes_core_regs -to $nes_ram_regs
+set_multicycle_path -hold -end 3 -from $nes_core_regs -to $nes_ram_regs
+set_multicycle_path -setup -end 4 -from $nes_ram_regs -to $nes_core_regs
+set_multicycle_path -hold -end 3 -from $nes_ram_regs -to $nes_core_regs
