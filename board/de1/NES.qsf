@@ -362,6 +362,7 @@ set_global_assignment -name VHDL_FILE nes_de1.vhdl
 set_global_assignment -name VHDL_FILE vga_pll.vhd
 set_global_assignment -name VHDL_FILE aud_pll.vhd
 set_global_assignment -name VHDL_FILE ppu_video_ram_mux.vhdl
+set_global_assignment -name VHDL_FILE sdram_rom.vhdl
 set_global_assignment -name VHDL_FILE ps2_joystick.vhdl
 set_global_assignment -name VHDL_FILE vga_out.vhdl
 set_global_assignment -name VHDL_FILE de1_types.vhdl
@@ -376,6 +377,7 @@ set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/edge_detector.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/counter.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/syncram_sp/syncram_sp.vhdl
+set_global_assignment -name VHDL_FILE ../../perhiperals/sdram/sdram_ctrl.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/wm8731/wm8731.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/wm8731/lib_wm8731.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/perhipherals.vhdl
@@ -426,4 +428,16 @@ set_global_assignment -name VHDL_FILE ../../bus/cpu_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/chr_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/apu_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../common/utilities.vhdl
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_ADDR[*]
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_BA_0
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_BA_1
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_CS_N
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_RAS_N
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_CAS_N
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_WE_N
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_LDQM
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_UDQM
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to DRAM_DQ[*]
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to DRAM_DQ[*]
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to DRAM_DQ[*]
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

@@ -14,7 +14,8 @@ generic
     AU_FILEPATH     : string;
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
-    NES_FILE_BYTES  : integer := 196608
+    NES_FILE_BYTES  : integer := 196608;
+    USE_SDRAM       : boolean := true
 );
 end nes_de1_bench;
 
@@ -32,6 +33,19 @@ architecture behavioral of nes_de1_bench is
     signal fl_oe_n : std_logic;
 
     signal flash_bus : file_bus_t;
+
+    signal dram_addr  : std_logic_vector(11 downto 0);
+    signal dram_ba_0  : std_logic;
+    signal dram_ba_1  : std_logic;
+    signal dram_cas_n : std_logic;
+    signal dram_cke   : std_logic;
+    signal dram_clk   : std_logic;
+    signal dram_cs_n  : std_logic;
+    signal dram_dq    : std_logic_vector(15 downto 0);
+    signal dram_ldqm  : std_logic;
+    signal dram_udqm  : std_logic;
+    signal dram_ras_n : std_logic;
+    signal dram_we_n  : std_logic;
 
     signal sram_dq   : std_logic_vector(15 downto 0);
     signal sram_addr : std_logic_vector(17 downto 0);
@@ -60,6 +74,11 @@ architecture behavioral of nes_de1_bench is
 begin
 
     nes : entity work.nes_de1(behavioral)
+    generic map
+    (
+        USE_SDRAM => USE_SDRAM,
+        ROM_LOAD_BYTES => NES_FILE_BYTES
+    )
     port map
     (
         CLOCK_50 => clk_50,
@@ -76,6 +95,19 @@ begin
         FL_DQ => fl_dq,
         FL_ADDR => fl_addr,
         FL_OE_N => fl_oe_n,
+
+        DRAM_ADDR => dram_addr,
+        DRAM_BA_0 => dram_ba_0,
+        DRAM_BA_1 => dram_ba_1,
+        DRAM_CAS_N => dram_cas_n,
+        DRAM_CKE => dram_cke,
+        DRAM_CLK => dram_clk,
+        DRAM_CS_N => dram_cs_n,
+        DRAM_DQ => dram_dq,
+        DRAM_LDQM => dram_ldqm,
+        DRAM_UDQM => dram_udqm,
+        DRAM_RAS_N => dram_ras_n,
+        DRAM_WE_N => dram_we_n,
 
         SRAM_DQ => sram_dq,
         SRAM_ADDR => sram_addr,
@@ -151,6 +183,23 @@ begin
         D => sram_dq
     );
     
+
+    rom_ram : entity work.sdram(behavioral)
+    port map
+    (
+        clk => dram_clk,
+        cke => dram_cke,
+        cs_n => dram_cs_n,
+        ras_n => dram_ras_n,
+        cas_n => dram_cas_n,
+        we_n => dram_we_n,
+        ba(0) => dram_ba_0,
+        ba(1) => dram_ba_1,
+        addr => dram_addr,
+        ldqm => dram_ldqm,
+        udqm => dram_udqm,
+        dq => dram_dq
+    );
 
     flash_bus.read <= fl_oe_n = '0';
     flash_bus.write <= false;

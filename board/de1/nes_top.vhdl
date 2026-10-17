@@ -31,6 +31,19 @@ port
     FL_WE_N  : out std_logic;
     FL_OE_N  : out std_logic;
     FL_RST_N : out std_logic;
+
+    DRAM_ADDR  : out std_logic_vector(11 downto 0);
+    DRAM_BA_0  : out std_logic;
+    DRAM_BA_1  : out std_logic;
+    DRAM_CAS_N : out std_logic;
+    DRAM_CKE   : out std_logic;
+    DRAM_CLK   : out std_logic;
+    DRAM_CS_N  : out std_logic;
+    DRAM_DQ    : inout std_logic_vector(15 downto 0);
+    DRAM_LDQM  : out std_logic;
+    DRAM_UDQM  : out std_logic;
+    DRAM_RAS_N : out std_logic;
+    DRAM_WE_N  : out std_logic;
     
     SRAM_DQ   : inout std_logic_vector(15 downto 0);
     SRAM_ADDR : out std_logic_vector(17 downto 0);
@@ -129,6 +142,19 @@ begin
         FL_WE_N  => FL_WE_N,
         FL_OE_N  => FL_OE_N,
         FL_RST_N => FL_RST_N,
+
+        DRAM_ADDR  => DRAM_ADDR,
+        DRAM_BA_0  => DRAM_BA_0,
+        DRAM_BA_1  => DRAM_BA_1,
+        DRAM_CAS_N => DRAM_CAS_N,
+        DRAM_CKE   => DRAM_CKE,
+        DRAM_CLK   => DRAM_CLK,
+        DRAM_CS_N  => DRAM_CS_N,
+        DRAM_DQ    => DRAM_DQ,
+        DRAM_LDQM  => DRAM_LDQM,
+        DRAM_UDQM  => DRAM_UDQM,
+        DRAM_RAS_N => DRAM_RAS_N,
+        DRAM_WE_N  => DRAM_WE_N,
         
         SRAM_DQ   => SRAM_DQ,
         SRAM_ADDR => SRAM_ADDR,

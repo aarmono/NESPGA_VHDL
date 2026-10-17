@@ -24,6 +24,8 @@
 
 ../../../perhiperals/syncram_sp/syncram_sp.vhdl
 
+../../../perhiperals/sdram/sdram_ctrl.vhdl
+
 ../../../perhiperals/ps2_keyboard/counter.vhdl
 ../../../perhiperals/ps2_keyboard/edge_detector.vhdl
 ../../../perhiperals/ps2_keyboard/ps2_bus.vhdl
@@ -43,6 +45,7 @@
 ../../../simulation/clock/clock.vhdl
 ../../../simulation/apu_audio_record/apu_audio_record.vhdl
 ../../../simulation/sram/sram.vhdl
+../../../simulation/sdram/sdram.vhdl
 
 ../../../simulation/fm2_joystick/fm2_joystick.vhdl
 ../../../simulation/fm2_joystick/fm2_file_bench.vhdl
@@ -99,6 +102,8 @@
 
 ../../../board/de1/de1_types.vhdl
 ../../../board/de1/ppu_video_ram_mux.vhdl
+../../../board/de1/sdram_rom.vhdl
+../../../board/de1/sdram_rom_bench.vhdl
 ../../../board/de1/vga_out.vhdl
 ../../../board/de1/nes_de1.vhdl
 ../../../board/de1/ps2_joystick.vhdl

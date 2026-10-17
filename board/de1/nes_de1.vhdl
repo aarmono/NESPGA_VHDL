@@ -11,6 +11,13 @@ use work.soc.all;
 use work.de1_types.all;
 
 entity nes_de1 is
+generic
+(
+    -- Copy the ROM from flash into SDRAM at reset and run it from there,
+    -- instead of running directly from flash
+    USE_SDRAM      : boolean := true;
+    ROM_LOAD_BYTES : positive := 2**file_addr_t'length
+);
 port
 (
     CLOCK_50  : in std_logic;
@@ -34,6 +41,19 @@ port
     FL_WE_N  : out std_logic;
     FL_OE_N  : out std_logic;
     FL_RST_N : out std_logic;
+
+    DRAM_ADDR  : out std_logic_vector(11 downto 0);
+    DRAM_BA_0  : out std_logic;
+    DRAM_BA_1  : out std_logic;
+    DRAM_CAS_N : out std_logic;
+    DRAM_CKE   : out std_logic;
+    DRAM_CLK   : out std_logic;
+    DRAM_CS_N  : out std_logic;
+    DRAM_DQ    : inout std_logic_vector(15 downto 0);
+    DRAM_LDQM  : out std_logic;
+    DRAM_UDQM  : out std_logic;
+    DRAM_RAS_N : out std_logic;
+    DRAM_WE_N  : out std_logic;
     
     SRAM_DQ   : inout std_logic_vector(15 downto 0);
     SRAM_ADDR : out std_logic_vector(17 downto 0);
@@ -81,8 +101,13 @@ architecture behavioral of nes_de1 is
     signal nes_running : boolean;
 
     signal reset : boolean;
+    signal nes_reset : boolean;
     
     signal flash_bus : file_bus_t;
+    signal file_bus  : file_bus_t;
+    signal data_from_file : data_t;
+
+    signal dram_ba : std_logic_vector(1 downto 0);
     
     signal joy_strobe : std_logic;
     
@@ -101,6 +126,68 @@ begin
     FL_WE_N <= '1';
     FL_OE_N <= not to_std_logic(is_bus_read(flash_bus));
     FL_RST_N <= '1';
+
+    DRAM_BA_0 <= dram_ba(0);
+    DRAM_BA_1 <= dram_ba(1);
+
+    gen_sdram : if USE_SDRAM generate
+        signal loading : boolean;
+    begin
+        nes_reset <= reset or loading;
+
+        -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
+        -- clock output delay to the SDRAM
+        DRAM_CLK <= CLOCK_WE;
+
+        rom : entity work.sdram_rom(behavioral)
+        generic map
+        (
+            LOAD_BYTES => ROM_LOAD_BYTES
+        )
+        port map
+        (
+            clk => CLOCK_50,
+            reset => reset,
+
+            loading => loading,
+
+            flash_bus => flash_bus,
+            data_from_flash => FL_DQ,
+
+            ppu_clk_en => ppu_clk_en,
+            file_bus => file_bus,
+            data_from_file => data_from_file,
+
+            dram_addr => DRAM_ADDR,
+            dram_ba => dram_ba,
+            dram_cs_n => DRAM_CS_N,
+            dram_ras_n => DRAM_RAS_N,
+            dram_cas_n => DRAM_CAS_N,
+            dram_we_n => DRAM_WE_N,
+            dram_cke => DRAM_CKE,
+            dram_ldqm => DRAM_LDQM,
+            dram_udqm => DRAM_UDQM,
+            dram_dq => DRAM_DQ
+        );
+    else generate
+    begin
+        nes_reset <= reset;
+
+        flash_bus <= file_bus;
+        data_from_file <= FL_DQ;
+
+        DRAM_CLK <= '0';
+        DRAM_ADDR <= (others => '0');
+        dram_ba <= (others => '0');
+        DRAM_CS_N <= '1';
+        DRAM_RAS_N <= '1';
+        DRAM_CAS_N <= '1';
+        DRAM_WE_N <= '1';
+        DRAM_CKE <= '0';
+        DRAM_LDQM <= '1';
+        DRAM_UDQM <= '1';
+        DRAM_DQ <= (others => 'Z');
+    end generate;
 
     VGA_R <= vga_out.color.red;
     VGA_G <= vga_out.color.green;
@@ -183,15 +270,15 @@ begin
     port map
     (
         clk => CLOCK_50,
-        reset => reset,
+        reset => nes_reset,
 
         nes_running => nes_running,
 
         cpu_clk_en => cpu_clk_en,
         ppu_clk_en => ppu_clk_en,
 
-        file_bus => flash_bus,
-        data_from_file => FL_DQ,
+        file_bus => file_bus,
+        data_from_file => data_from_file,
 
         pixel_bus => pixel_bus,
         audio => audio_out,
