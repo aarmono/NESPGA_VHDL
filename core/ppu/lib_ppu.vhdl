@@ -305,6 +305,11 @@ package lib_ppu is
         -- Register copy of rendering_enabled(mask). A $2001 write
         -- takes an extra cycle to affect the odd frame skipped clock
         render_enabled : boolean;
+        -- Register copy of palette output, before grayscale is applied.
+        -- Grayscale is applied as the pixel leaves the PPU, so a $2001
+        -- write also affects the pixel computed in the previous cycle
+        pixel          : pixel_t;
+        pixel_valid    : boolean;
     end record;
     
     constant RESET_PPU_REG : ppu_reg_t :=
@@ -336,7 +341,9 @@ package lib_ppu is
         sprite_0_hit => false,
         sprite_0_buffer => false,
         chr_bus => CHR_BUS_IDLE,
-        render_enabled => false
+        render_enabled => false,
+        pixel => (others => '0'),
+        pixel_valid => false
     );
     
     function reload_pattern_table
@@ -1885,12 +1892,16 @@ package body lib_ppu is
                     bus_read(to_palette_addr(v_rnd_is_sprite,
                                              v_rnd_pattern_color));
             end if;
-            render_out.pixel_bus.pixel :=
-                mask_pixel(v_rnd_mask.enable_grayscale, render_in.data_from_palette);
-            render_out.pixel_bus.line_valid := true;
+            render_out.reg.pixel := render_in.data_from_palette;
+            render_out.reg.pixel_valid := true;
         else
-            render_out.pixel_bus.line_valid := false;
+            render_out.reg.pixel_valid := false;
         end if;
+
+        render_out.pixel_bus.pixel :=
+            mask_pixel(render_out.reg.mask.enable_grayscale,
+                       render_in.reg.pixel);
+        render_out.pixel_bus.line_valid := render_in.reg.pixel_valid;
         
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);
 
