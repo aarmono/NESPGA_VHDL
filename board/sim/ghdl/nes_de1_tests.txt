@@ -1,0 +1,25 @@
+# Smoke tests for nes_de1_bench (run_nes_tests.sh -b nes_de1_bench). These
+# cover the board interop (SD card ROM load, SDRAM, SRAM frame buffer, VGA and
+# WM8731 audio) rather than the NES core, which nes_tests.txt covers.
+#
+# Frames are captured from the VGA output, which isn't synchronized to the
+# NES, so frame numbers and hashes don't match nes_tests.txt. The hashed
+# frame is one after the screen settles, and the run time is one VGA frame
+# (16.6669ms) after it: ceil((N+1) * 16.6669) ms for frame N.
+#
+# NES file path                                       | run time  | Hash
+# NROM, CHR ROM
+other/BLOCKS.NES                                      | 184ms     | 2fbcd4913eb07e0e83a222a5bd2226dd33b9045f9b94c53d2475572c736d9578 *frame_00010.bmp
+instr_test-v5/rom_singles/01-basics.nes               | 367ms     | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00021.bmp
+
+# NROM, CHR RAM
+sprite_hit_tests_2005.10.05/01.basics.nes             | 601ms     | 0e684fbde0c1f98ade5fb0c0c9e823b2165303bde442be50cb8c17dba6436453 *frame_00035.bmp
+
+# MMC1, 128KB PRG ROM
+MMC1_A12/mmc1_a12.nes                                 | 617ms     | 9b6ad5d8d076acc500c6089710e01671e1c3a8fb101658af3dce0322052e6943 *frame_00036.bmp
+
+# MMC3
+mmc3_test_2/rom_singles/1-clocking.nes                | 501ms     | a252d147dcf09a1deb356097d46300310738df3d9a18a4a3aac126c68b2cdcb3 *frame_00029.bmp
+
+# Audio (DMC DMA reads from SDRAM)
+dmc_tests/latency.nes                                 | 350ms     | bfe0e4c54697d353efa13a67a68c2489a518fa95870ed5bf730dacbbed1350d8 *audio.au

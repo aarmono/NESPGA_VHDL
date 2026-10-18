@@ -53,6 +53,9 @@ architecture behavioral of nes_de1_bench is
     signal sd_cmd  : std_logic;
     signal sd_clk  : std_logic;
 
+    signal ps2_clk : std_logic;
+    signal ps2_dat : std_logic;
+
     signal sram_dq   : std_logic_vector(15 downto 0);
     signal sram_addr : std_logic_vector(17 downto 0);
     signal sram_oe_n : std_logic;
@@ -96,6 +99,9 @@ begin
         
         I2C_SDAT => i2c_sdat,
         I2C_SCLK => i2c_sclk,
+
+        PS2_CLK => ps2_clk,
+        PS2_DAT => ps2_dat,
 
         SW => (others => '0'),
         
@@ -227,8 +233,10 @@ begin
         miso => sd_dat
     );
 
-    -- Pull up on the board
+    -- Pull ups on the board
     sd_dat <= 'H';
+    ps2_clk <= 'H';
+    ps2_dat <= 'H';
 
     flash_bus.read <= fl_oe_n = '0';
     flash_bus.write <= false;
@@ -274,7 +282,7 @@ begin
     clk_vga_gen : clock
     generic map
     (
-        PERIOD => 39722 ps
+        PERIOD => 39683 ps
     )
     port map
     (
@@ -285,7 +293,7 @@ begin
     clk_aud_gen : clock
     generic map
     (
-        PERIOD => 54 ns
+        PERIOD => 54286 ps
     )
     port map
     (
@@ -297,7 +305,7 @@ begin
     generic map
     (
         PERIOD => 20 ns,
-        OFFSET => 18 ns
+        OFFSET => 17857 ps
     )
     port map
     (

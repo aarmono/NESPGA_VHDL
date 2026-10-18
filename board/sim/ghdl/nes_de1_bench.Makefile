@@ -4,7 +4,7 @@
 # ghdl gen-makefile --std=08 -fsynopsys nes_de1_bench
 
 GHDL=ghdl
-GHDLFLAGS= --std=08 -fsynopsys
+GHDLFLAGS= --std=08 -fsynopsys -O3
 
 # Default target
 all: nes_de1_bench

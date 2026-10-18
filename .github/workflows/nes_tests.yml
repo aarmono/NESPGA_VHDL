@@ -46,3 +46,33 @@ jobs:
           name: nes-test-failures-shard-${{ matrix.shard }}
           path: board/sim/ghdl/output/failures/
           if-no-files-found: ignore
+
+  # Smoke tests of the DE1 board interop (SD card, SDRAM, SRAM, VGA, audio)
+  # from nes_de1_tests.txt. nes_de1_bench is ~8x slower than nes_bench, so
+  # only a few short tests are run
+  nes-de1-tests:
+    name: NES DE1 smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Build GHDL image
+        run: board/sim/ghdl/build_ghdl_image.sh
+
+      - name: List tests
+        working-directory: board/sim/ghdl
+        run: ./run_nes_tests.sh -l -b nes_de1_bench
+
+      - name: Run tests
+        working-directory: board/sim/ghdl
+        run: ./run_ghdl.sh ./run_nes_tests.sh -b nes_de1_bench
+
+      - name: Upload failed test output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nes-de1-test-failures
+          path: board/sim/ghdl/de1_output/failures/
+          if-no-files-found: ignore

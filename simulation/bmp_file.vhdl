@@ -145,7 +145,8 @@ package body bmp_file is
         signed_height :=
             (not resize(unsigned(height), signed_height'length)) + "1";
 
-        image_size := (to_integer(width) * to_integer(height)) + START_OF_IMAGE;
+        -- 3 bytes per pixel
+        image_size := (to_integer(width) * to_integer(height) * 3) + START_OF_IMAGE;
 
         -- File Header
         -- Magic Number

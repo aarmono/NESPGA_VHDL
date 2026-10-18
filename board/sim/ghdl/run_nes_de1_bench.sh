@@ -53,4 +53,4 @@ exec ./nes_de1_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                      -gNES_FILEPATH="$NES_FILEPATH"  \
                      -gNES_FILE_BYTES="$NES_SIZE"    \
                      $TIME_PARM                      \
-                     --unbuffered
+                     --ieee-asserts=disable
