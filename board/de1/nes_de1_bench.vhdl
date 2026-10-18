@@ -79,7 +79,7 @@ architecture behavioral of nes_de1_bench is
     file audio_file : byte_file_t;
     signal aud_initialized : boolean := false;
     signal aud_shift : std_logic_vector(15 downto 0) := x"0000";
-    signal aud_count : unsigned(3 downto 0) := x"F";
+    signal aud_count : natural range 0 to 2**4-1 := 2**4-1;
 begin
 
     nes : entity work.nes_de1(behavioral)
@@ -167,15 +167,15 @@ begin
         aud_out := aud_shift;
         if daclrck = '1'
         then
-            aud_out(to_integer(aud_count)) := dacdat;
-            if aud_count = x"0"
+            aud_out(aud_count) := dacdat;
+            if aud_count = 0
             then
                 au_fwrite_16(audio_file, aud_out);
                 --flush(audio_file);
             end if;
             
             aud_shift <= aud_out;
-            aud_count <= aud_count - "1";
+            aud_count <= wrap(aud_count - 1, 2**4-1);
         end if;
     end if;
     end process;

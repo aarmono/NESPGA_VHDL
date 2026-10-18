@@ -22,66 +22,66 @@ end vga_gen;
 
 architecture behavioral of vga_gen
 is
-    subtype time_t is unsigned(9 downto 0);
-    
+    subtype time_t is natural range 0 to 2**10-1;
+    subtype pixel_coord_t is natural range 0 to 2**8-1;
+
     type video_time_t is record
         row : time_t;
         col : time_t;
     end record;
-    
+
     constant TIME_ZERO : video_time_t :=
     (
-        row => (others => '0'),
-        col => (others => '0')
+        row => 0,
+        col => 0
     );
 
     type reg_t is record
-        cur_time   : video_time_t;
-        pixel_addr : pixel_addr_t;
-        vga_out    : vga_out_t;
+        cur_time  : video_time_t;
+        pixel_row : pixel_coord_t;
+        pixel_col : pixel_coord_t;
+        vga_out   : vga_out_t;
     end record;
-    
+
     constant RESET_REG : reg_t :=
     (
         cur_time => TIME_ZERO,
-        pixel_addr => (others => '0'),
+        pixel_row => 0,
+        pixel_col => 0,
         vga_out => VGA_RESET
     );
-    
+
     -- The sum of all these values should equal 800
-    constant LINE_SYNC_TIME         : time_t := to_unsigned(96, time_t'LENGTH);
+    constant LINE_SYNC_TIME         : time_t := 96;
     -- Normally 48 for 640 pixels, but 112 for 512
-    constant LINE_BACK_PORCH_TIME   : time_t := to_unsigned(96, time_t'LENGTH);
+    constant LINE_BACK_PORCH_TIME   : time_t := 96;
     -- Time before the active period where the sram bus is taken
-    constant LINE_LEFT_MARGIN_TIME  : time_t := to_unsigned(16, time_t'length);
+    constant LINE_LEFT_MARGIN_TIME  : time_t := 16;
     -- Normally 640, but NES is 512
-    constant LINE_ACTIVE_TIME       : time_t := to_unsigned(512, time_t'LENGTH);
+    constant LINE_ACTIVE_TIME       : time_t := 512;
     -- Time after the active period where the SRAM bus is taken
-    constant LINE_RIGHT_MARGIN_TIME : time_t := to_unsigned(16, time_t'LENGTH);
+    constant LINE_RIGHT_MARGIN_TIME : time_t := 16;
     -- Normally 16 for 640 pixels, but 80 for 512
-    constant LINE_FRONT_PORCH_TIME  : time_t := to_unsigned(64, time_t'LENGTH);
-    
-    constant FRAME_SYNC_TIME         : time_t := to_unsigned(2, time_t'LENGTH);
-    constant FRAME_BACK_PORCH_TIME   : time_t := to_unsigned(32, time_t'LENGTH);
-    constant FRAME_ACTIVE_TIME       : time_t := to_unsigned(480, time_t'LENGTH);
-    constant FRAME_FRONT_PORCH_TIME  : time_t := to_unsigned(11, time_t'LENGTH);
-    
-    constant V_ACTIVE_START          : time_t := FRAME_SYNC_TIME +
-                                                 FRAME_BACK_PORCH_TIME;
-    
+    constant LINE_FRONT_PORCH_TIME  : time_t := 64;
+
+    constant FRAME_SYNC_TIME         : time_t := 2;
+    constant FRAME_BACK_PORCH_TIME   : time_t := 32;
+    constant FRAME_ACTIVE_TIME       : time_t := 480;
+    constant FRAME_FRONT_PORCH_TIME  : time_t := 11;
+
     constant LINE_END : time_t := LINE_SYNC_TIME +
                                   LINE_BACK_PORCH_TIME +
                                   LINE_LEFT_MARGIN_TIME +
                                   LINE_ACTIVE_TIME +
                                   LINE_RIGHT_MARGIN_TIME +
                                   LINE_FRONT_PORCH_TIME -
-                                  "1";
+                                  1;
     constant FRAME_END : time_t := FRAME_SYNC_TIME +
                                    FRAME_BACK_PORCH_TIME +
                                    FRAME_ACTIVE_TIME +
                                    FRAME_FRONT_PORCH_TIME -
-                                   "1";
-    
+                                   1;
+
     type vert_state_t is
     (
         V_FRONT,
@@ -89,7 +89,7 @@ is
         V_ACTIVE,
         V_BACK
     );
-    
+
     type horz_state_t is
     (
         H_FRONT,
@@ -99,7 +99,7 @@ is
         H_LEFT_MARGIN,
         H_BACK
     );
-    
+
     function get_v_sync(state : vert_state_t) return std_logic
     is
     begin
@@ -110,7 +110,7 @@ is
             when V_BACK => return '1';
         end case;
     end;
-    
+
     function get_h_sync(state : horz_state_t) return std_logic
     is
     begin
@@ -123,158 +123,124 @@ is
             when H_LEFT_MARGIN => return '1';
         end case;
     end;
-    
+
+    constant V_BACK_PORCH_START   : time_t := FRAME_SYNC_TIME;
+    constant V_ACTIVE_START       : time_t := V_BACK_PORCH_START +
+                                              FRAME_BACK_PORCH_TIME;
+    constant V_FRONT_PORCH_START  : time_t := V_ACTIVE_START +
+                                              FRAME_ACTIVE_TIME;
+
     function get_vert_state(cur_time : video_time_t) return vert_state_t
     is
-        constant SYNC_TIME         : time_t := FRAME_SYNC_TIME;
-        constant BACK_PORCH_TIME   : time_t := FRAME_BACK_PORCH_TIME;
-        constant ACTIVE_TIME       : time_t := FRAME_ACTIVE_TIME;
-        constant FRONT_PORCH_TIME  : time_t := FRAME_FRONT_PORCH_TIME;
-        
-        constant SYNC_START        : time_t := to_unsigned(0, time_t'LENGTH);
-        constant SYNC_END          : time_t := SYNC_TIME - "1";
-        constant BACK_PORCH_START  : time_t := SYNC_END + "1";
-        constant BACK_PORCH_END    : time_t := BACK_PORCH_START + BACK_PORCH_TIME - "1";
-        constant ACTIVE_START      : time_t := BACK_PORCH_END + "1";
-        constant ACTIVE_END        : time_t := ACTIVE_START + ACTIVE_TIME - "1";
-        constant FRONT_PORCH_START : time_t := ACTIVE_END + "1";
-        constant FRONT_PORCH_END   : time_t := FRONT_PORCH_START + FRONT_PORCH_TIME - "1";
     begin
-        if cur_time.row >= FRONT_PORCH_START and
-           cur_time.row <= FRONT_PORCH_END
-        then
-            return V_FRONT;
-        elsif cur_time.row >= SYNC_START and
-              cur_time.row <= SYNC_END
+        if cur_time.row < V_BACK_PORCH_START
         then
             return V_SYNC;
-        elsif cur_time.row >= BACK_PORCH_START and
-              cur_time.row <= BACK_PORCH_END
+        elsif cur_time.row < V_ACTIVE_START
         then
             return V_BACK;
-        elsif cur_time.row >= ACTIVE_START and
-              cur_time.row <= ACTIVE_END
+        elsif cur_time.row < V_FRONT_PORCH_START
         then
             return V_ACTIVE;
         else
             return V_FRONT;
         end if;
     end;
-    
+
+    constant H_BACK_PORCH_START   : time_t := LINE_SYNC_TIME;
+    constant H_LEFT_MARGIN_START  : time_t := H_BACK_PORCH_START +
+                                              LINE_BACK_PORCH_TIME;
+    constant H_ACTIVE_START       : time_t := H_LEFT_MARGIN_START +
+                                              LINE_LEFT_MARGIN_TIME;
+    constant H_RIGHT_MARGIN_START : time_t := H_ACTIVE_START +
+                                              LINE_ACTIVE_TIME;
+    constant H_FRONT_PORCH_START  : time_t := H_RIGHT_MARGIN_START +
+                                              LINE_RIGHT_MARGIN_TIME;
+
     function get_horz_state(cur_time : video_time_t) return horz_state_t
     is
-        constant SYNC_TIME          : time_t := LINE_SYNC_TIME;
-        constant BACK_PORCH_TIME    : time_t := LINE_BACK_PORCH_TIME;
-        constant LEFT_MARGIN_TIME   : time_t := LINE_LEFT_MARGIN_TIME;
-        constant ACTIVE_TIME        : time_t := LINE_ACTIVE_TIME;
-        constant RIGHT_MARGIN_TIME  : time_t := LINE_RIGHT_MARGIN_TIME;
-        constant FRONT_PORCH_TIME   : time_t := LINE_FRONT_PORCH_TIME;
-        
-        constant SYNC_START         : time_t := to_unsigned(0, time_t'LENGTH);
-        constant SYNC_END           : time_t := SYNC_TIME - "1";
-        constant BACK_PORCH_START   : time_t := SYNC_END + "1";
-        constant BACK_PORCH_END     : time_t := BACK_PORCH_START + BACK_PORCH_TIME - "1";
-        constant LEFT_MARGIN_START  : time_t := BACK_PORCH_END + "1";
-        constant LEFT_MARGIN_END    : time_t := LEFT_MARGIN_START + LEFT_MARGIN_TIME - "1";
-        constant ACTIVE_START       : time_t := LEFT_MARGIN_END + "1";
-        constant ACTIVE_END         : time_t := ACTIVE_START + ACTIVE_TIME - "1";
-        constant RIGHT_MARGIN_START : time_t := ACTIVE_END + "1";
-        constant RIGHT_MARGIN_END   : time_t := RIGHT_MARGIN_START + RIGHT_MARGIN_TIME - "1";
-        constant FRONT_PORCH_START  : time_t := RIGHT_MARGIN_END + "1";
-        constant FRONT_PORCH_END    : time_t := FRONT_PORCH_START + FRONT_PORCH_TIME - "1";
     begin
-        if cur_time.col >= FRONT_PORCH_START and
-           cur_time.col <= FRONT_PORCH_END
-        then
-            return H_FRONT;
-        elsif cur_time.col >= SYNC_START and
-              cur_time.col <= SYNC_END
+        if cur_time.col < H_BACK_PORCH_START
         then
             return H_SYNC;
-        elsif cur_time.col >= BACK_PORCH_START and
-              cur_time.col <= BACK_PORCH_END
+        elsif cur_time.col < H_LEFT_MARGIN_START
         then
             return H_BACK;
-        elsif cur_time.col >= LEFT_MARGIN_START and
-              cur_time.col <= LEFT_MARGIN_END
+        elsif cur_time.col < H_ACTIVE_START
         then
             return H_LEFT_MARGIN;
-        elsif cur_time.col >= ACTIVE_START and
-              cur_time.col <= ACTIVE_END
+        elsif cur_time.col < H_RIGHT_MARGIN_START
         then
             return H_ACTIVE;
-        elsif cur_time.col >= RIGHT_MARGIN_START and
-              cur_time.col <= RIGHT_MARGIN_END
+        elsif cur_time.col < H_FRONT_PORCH_START
         then
             return H_RIGHT_MARGIN;
         else
             return H_FRONT;
         end if;
     end;
-        
+
     function incr_time(cur_time : video_time_t) return video_time_t
     is
         variable ret : video_time_t := cur_time;
     begin
         if cur_time.col = LINE_END
         then
-            ret.col := ZERO(cur_time.col);
+            ret.col := 0;
             if cur_time.row = FRAME_END
             then
-                ret.row := ZERO(cur_time.row);
+                ret.row := 0;
             else
-                ret.row := cur_time.row + "1";
+                ret.row := cur_time.row + 1;
             end if;
         else
-            ret.col := cur_time.col + "1";
+            ret.col := cur_time.col + 1;
         end if;
-        
+
         return ret;
     end;
-    
+
     signal reg : reg_t := RESET_REG;
     signal reg_next : reg_t;
-    
+
 begin
 
     vga_out <= reg.vga_out;
-    
+
+    sram_addr <= "00" &
+                 to_std_logic_vector(reg.pixel_row, 8) &
+                 to_std_logic_vector(reg.pixel_col, 8);
+
     process(all)
-        variable v_vert_state : vert_state_t := V_FRONT;
-        variable v_horz_state : horz_state_t := H_FRONT;
-
-        constant MAX_ROW : unsigned(7 downto 0) := to_unsigned(239, 8);
-
-        alias ppu_pixel_row : unsigned(7 downto 0) is reg.pixel_addr(15 downto 8);
-        alias ppu_pixel_col : unsigned(7 downto 0) is reg.pixel_addr(7 downto 0);
-
-        alias next_ppu_pixel_row : unsigned(7 downto 0) is reg_next.pixel_addr(15 downto 8);
-        alias next_ppu_pixel_col : unsigned(7 downto 0) is reg_next.pixel_addr(7 downto 0);
+        variable v_vert_state : vert_state_t;
+        variable v_horz_state : horz_state_t;
+        variable v_reg : reg_t;
     begin
         v_vert_state := get_vert_state(reg.cur_time);
         v_horz_state := get_horz_state(reg.cur_time);
-        
-        reg_next <= reg;
-        reg_next.vga_out.v_sync <= get_v_sync(v_vert_state);
-        reg_next.vga_out.h_sync <= get_h_sync(v_horz_state);
-        reg_next.vga_out.lval <= false;
-        reg_next.vga_out.fval <= false;
+
+        v_reg := reg;
+        v_reg.vga_out.v_sync := get_v_sync(v_vert_state);
+        v_reg.vga_out.h_sync := get_h_sync(v_horz_state);
+        v_reg.vga_out.lval := false;
+        v_reg.vga_out.fval := false;
 
         sram_oe_n <= '1';
         sram_ce_n <= '1';
-        sram_addr <= std_logic_vector(resize(reg.pixel_addr, sram_addr'length));
-        
+
         case v_vert_state is
             when V_FRONT =>
-                reg_next.pixel_addr <= (others => '0');
-                reg_next.vga_out.color <= COLOR_BLACK;
-                reg_next.vga_out.fval <= false;
+                v_reg.pixel_row := 0;
+                v_reg.pixel_col := 0;
+                v_reg.vga_out.color := COLOR_BLACK;
+                v_reg.vga_out.fval := false;
             when V_SYNC =>
-                reg_next.pixel_addr <= (others => '0');
-                reg_next.vga_out.color <= COLOR_BLACK;
-                reg_next.vga_out.fval <= false;
+                v_reg.pixel_row := 0;
+                v_reg.pixel_col := 0;
+                v_reg.vga_out.color := COLOR_BLACK;
+                v_reg.vga_out.fval := false;
             when V_ACTIVE =>
-                reg_next.vga_out.fval <= true;
+                v_reg.vga_out.fval := true;
                 case v_horz_state is
                     when H_FRONT |
                          H_RIGHT_MARGIN =>
@@ -282,26 +248,27 @@ begin
                         then
                             sram_ce_n <= '0';
                         end if;
-                        
-                        next_ppu_pixel_col <= (others => '0');
-                        reg_next.vga_out.color <= COLOR_BLACK;
-                        reg_next.vga_out.lval <= false;
+
+                        v_reg.pixel_col := 0;
+                        v_reg.vga_out.color := COLOR_BLACK;
+                        v_reg.vga_out.lval := false;
                     when H_SYNC =>
-                        next_ppu_pixel_col <= (others => '0');
-                        reg_next.vga_out.color <= COLOR_BLACK;
-                        reg_next.vga_out.lval <= false;
+                        v_reg.pixel_col := 0;
+                        v_reg.vga_out.color := COLOR_BLACK;
+                        v_reg.vga_out.lval := false;
                     when H_ACTIVE =>
                         sram_oe_n <= '0';
                         sram_ce_n <= '0';
 
-                        reg_next.vga_out.color.red <= sram_dq(11 downto 8);
-                        reg_next.vga_out.color.green <= sram_dq(7 downto 4);
-                        reg_next.vga_out.color.blue <= sram_dq(3 downto 0);
-                        reg_next.vga_out.lval <= true;
+                        v_reg.vga_out.color.red := sram_dq(11 downto 8);
+                        v_reg.vga_out.color.green := sram_dq(7 downto 4);
+                        v_reg.vga_out.color.blue := sram_dq(3 downto 0);
+                        v_reg.vga_out.lval := true;
 
-                        if reg.cur_time.col(0) = '1'
+                        if reg.cur_time.col mod 2 = 1
                         then
-                            next_ppu_pixel_col <= ppu_pixel_col + "1";
+                            v_reg.pixel_col := wrap(reg.pixel_col + 1,
+                                                    pixel_coord_t'high);
                         end if;
                     when H_BACK |
                          H_LEFT_MARGIN =>
@@ -309,24 +276,28 @@ begin
                         then
                             sram_ce_n <= '0';
                         end if;
-                        
-                        next_ppu_pixel_col <= (others => '0');
-                        reg_next.vga_out.color <= COLOR_BLACK;
-                        reg_next.vga_out.lval <= false;
+
+                        v_reg.pixel_col := 0;
+                        v_reg.vga_out.color := COLOR_BLACK;
+                        v_reg.vga_out.lval := false;
                 end case;
 
-                if reg.cur_time.col = LINE_END and reg.cur_time.row(0) = '1'
+                if reg.cur_time.col = LINE_END and reg.cur_time.row mod 2 = 1
                 then
-                    next_ppu_pixel_row <= ppu_pixel_row + "1";
+                    v_reg.pixel_row := wrap(reg.pixel_row + 1,
+                                            pixel_coord_t'high);
                 end if;
-                
+
             when V_BACK =>
-                reg_next.pixel_addr <= (others => '0');
-                reg_next.vga_out.fval <= false;
-                reg_next.vga_out.color <= COLOR_BLACK;
+                v_reg.pixel_row := 0;
+                v_reg.pixel_col := 0;
+                v_reg.vga_out.fval := false;
+                v_reg.vga_out.color := COLOR_BLACK;
         end case;
-        
-        reg_next.cur_time <= incr_time(reg.cur_time);
+
+        v_reg.cur_time := incr_time(reg.cur_time);
+
+        reg_next <= v_reg;
     end process;
 
     process(clk)
@@ -341,5 +312,5 @@ begin
         end if;
     end if;
     end process;
-    
+
 end behavioral;

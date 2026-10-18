@@ -14,7 +14,7 @@ package lib_wm8731 is
         sclk : std_logic;
     end record;
     
-    subtype wm_dat_count_t is unsigned(6 downto 0);
+    subtype wm_dat_count_t is natural range 0 to 2**7-1;
 
     type wm8731_dat_t is record
         fifo  : std_logic_vector(23 downto 0);
@@ -24,7 +24,7 @@ package lib_wm8731 is
     constant RESET_DAT : wm8731_dat_t :=
     (
         fifo => (others => '0'),
-        count => (others => '0')
+        count => 0
     );
     
     function sdat_out(val : wm8731_dat_t) return std_logic;
@@ -40,15 +40,17 @@ package lib_wm8731 is
         dacdat  : std_logic;
     end record;
     
+    subtype wm_aud_count_t is natural range 0 to 2**6-1;
+
     type wm8731_aud_t is record
         fifo  : wm_audio_t;
-        count : unsigned(5 downto 0);
+        count : wm_aud_count_t;
     end record;
     
     constant RESET_AUD : wm8731_aud_t :=
     (
         fifo => (others => '0'),
-        count => (others => '0')
+        count => 0
     );
     
     function bus_out(val : wm8731_aud_t) return audio_bus_t;
@@ -62,28 +64,28 @@ end lib_wm8731;
 package body lib_wm8731 is
     
     -- wm8731_dat_t {
-    constant START_HIGH   : wm_dat_count_t := to_unsigned(111, wm_dat_count_t'length);
-    constant START_LOW    : wm_dat_count_t := to_unsigned(110, wm_dat_count_t'length);
-    constant END_LOW      : wm_dat_count_t := to_unsigned(1, wm_dat_count_t'length);
-    constant END_HIGH     : wm_dat_count_t := to_unsigned(0, wm_dat_count_t'length);
-    constant ACK_ADDR_S   : wm_dat_count_t := to_unsigned(76, wm_dat_count_t'length);
-    constant ACK_ADDR_H   : wm_dat_count_t := to_unsigned(75, wm_dat_count_t'length);
-    constant ACK_DATA_L_S : wm_dat_count_t := to_unsigned(40, wm_dat_count_t'length);
-    constant ACK_DATA_L_H : wm_dat_count_t := to_unsigned(39, wm_dat_count_t'length);
-    constant ACK_DATA_H_S : wm_dat_count_t := to_unsigned(4, wm_dat_count_t'length);
-    constant ACK_DATA_H_H : wm_dat_count_t := to_unsigned(3, wm_dat_count_t'length);
+    constant START_HIGH   : wm_dat_count_t := 111;
+    constant START_LOW    : wm_dat_count_t := 110;
+    constant END_LOW      : wm_dat_count_t := 1;
+    constant END_HIGH     : wm_dat_count_t := 0;
+    constant ACK_ADDR_S   : wm_dat_count_t := 76;
+    constant ACK_ADDR_H   : wm_dat_count_t := 75;
+    constant ACK_DATA_L_S : wm_dat_count_t := 40;
+    constant ACK_DATA_L_H : wm_dat_count_t := 39;
+    constant ACK_DATA_H_S : wm_dat_count_t := 4;
+    constant ACK_DATA_H_H : wm_dat_count_t := 3;
     
     function is_idle(val : wm8731_dat_t) return boolean
     is
     begin
-        return val.count = ZERO(val.count);
+        return val.count = 0;
     end;
     
     function reset_val(val : wm8731_dat_t) return wm8731_dat_t
     is
         variable ret : wm8731_dat_t;
     begin
-        ret.count := ZERO(val.count);
+        ret.count := 0;
         ret.fifo := (others => '-');
         
         return ret;
@@ -109,7 +111,7 @@ package body lib_wm8731 is
         then
             ret := '1';
         else
-            ret := val.count(1);
+            ret := to_std_logic(get_bits(val.count, 1, 1) = 1);
         end if;
         
         return ret;
@@ -145,29 +147,24 @@ package body lib_wm8731 is
     is
         variable next_val : wm8731_dat_t;
 
-        constant COUNT_LEN : positive := wm_dat_count_t'length;
-        constant COUNT_HIGH : integer := wm_dat_count_t'high;
-
-        constant CYCLE_LEN : positive := COUNT_LEN - 2;
-        constant CYCLE_HIGH : integer := CYCLE_LEN - 1;
-        
-        variable cur_cycle : unsigned(CYCLE_HIGH downto 0);
+        -- Each bit takes 4 counts
+        variable cur_cycle : natural;
     begin
         next_val := cur_val;
-        cur_cycle := cur_val.count(COUNT_HIGH downto 2);
+        cur_cycle := cur_val.count / 4;
 
-        if cur_val.count(1 downto 0) = "01" and
-           cur_cycle /= START_HIGH(COUNT_HIGH downto 2) and
-           cur_cycle /= ACK_ADDR_S(COUNT_HIGH downto 2) and
-           cur_cycle /= ACK_DATA_L_S(COUNT_HIGH downto 2) and
-           cur_cycle /= ACK_DATA_H_S(COUNT_HIGH downto 2)
+        if cur_val.count mod 4 = 1 and
+           cur_cycle /= START_HIGH / 4 and
+           cur_cycle /= ACK_ADDR_S / 4 and
+           cur_cycle /= ACK_DATA_L_S / 4 and
+           cur_cycle /= ACK_DATA_H_S / 4
         then
             next_val.fifo := cur_val.fifo(cur_val.fifo'high-1 downto 0) & '0';
         end if;
         
-        if cur_val.count > ZERO(cur_val.count)
+        if cur_val.count > 0
         then
-            next_val.count := cur_val.count - "1";
+            next_val.count := cur_val.count - 1;
         end if;
         
         return next_val;
@@ -179,10 +176,10 @@ package body lib_wm8731 is
         variable ret : audio_bus_t;
         variable idx : natural;
     begin
-        idx := natural(to_integer(val.count(4 downto 1)));
+        idx := get_bits(val.count, 4, 1);
         
-        ret.daclrck := val.count(5);
-        ret.bclk := not val.count(0);
+        ret.daclrck := to_std_logic(get_bits(val.count, 5, 5) = 1);
+        ret.bclk := to_std_logic(get_bits(val.count, 0, 0) = 0);
         ret.dacdat := val.fifo(idx);
         
         return ret;
@@ -193,7 +190,7 @@ package body lib_wm8731 is
         variable ret : wm8731_aud_t;
     begin
         ret.fifo := audio;
-        ret.count := (others => '1');
+        ret.count := wm_aud_count_t'high;
         
         return ret;
     end;
@@ -201,14 +198,14 @@ package body lib_wm8731 is
     function is_idle(val : wm8731_aud_t) return boolean
     is
     begin
-        return val.count = ZERO(val.count);
+        return val.count = 0;
     end;
     
     function reset_val(val : wm8731_aud_t) return wm8731_aud_t
     is
         variable ret : wm8731_aud_t;
     begin
-        ret.count := ZERO(ret.count);
+        ret.count := 0;
         ret.fifo := (others => '-');
         
         return ret;
@@ -219,9 +216,9 @@ package body lib_wm8731 is
         variable next_val : wm8731_aud_t;
     begin
         next_val := cur_val;
-        if cur_val.count > ZERO(cur_val.count)
+        if cur_val.count > 0
         then
-            next_val.count := cur_val.count - "1";
+            next_val.count := cur_val.count - 1;
         end if;
         
         return next_val;
