@@ -7,16 +7,20 @@ use IEEE.numeric_std.all;
 -- modeled: burst length 1 and no auto precharge. The initialization
 -- sequence, command timing and refresh interval are checked against the
 -- generics and violations are reported with severity error.
+--
+-- The defaults are the worst case of the -7 and -8 speed grades of the
+-- IS42S16400 at CAS latency 2. Its datasheet has no separate tRFC, an auto
+-- refresh takes tRC. tOH is derated from 3.0 ns to 2.5 ns to match NES.sdc
 entity sdram is
 generic
 (
     T_INIT : time := 200 us;
     T_RCD  : time := 20 ns;
-    T_RAS  : time := 42 ns;
+    T_RAS  : time := 50 ns;
     T_RP   : time := 20 ns;
-    T_RC   : time := 63 ns;
-    T_RFC  : time := 63 ns;
-    T_WR   : time := 14 ns;
+    T_RC   : time := 70 ns;
+    T_RFC  : time := 70 ns;
+    T_WR   : time := 20 ns;
     T_MRD_CLKS : positive := 2;
     -- Clock to data out, and data out hold after the following clock
     T_AC   : time := 6 ns;
@@ -24,7 +28,7 @@ generic
     -- Longest allowed gap between refreshes: up to 8 refreshes may be
     -- postponed past the 64 ms / 4096 row average interval
     T_REF_MAX : time := 9 * 15625 ns;
-    INIT_REFRESHES : positive := 2
+    INIT_REFRESHES : positive := 8
 );
 port
 (
