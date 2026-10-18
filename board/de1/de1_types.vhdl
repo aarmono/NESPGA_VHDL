@@ -98,7 +98,9 @@ package de1_types is
     (
         clk_key : in std_logic;
         clk_cpu : in std_logic;
-        reset   : in boolean;
+        -- Resets synchronized to clk_key and clk_cpu
+        reset_key : in boolean;
+        reset_cpu : in boolean;
         
         filter_invalid : in boolean;
         

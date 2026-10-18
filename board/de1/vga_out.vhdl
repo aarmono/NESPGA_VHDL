@@ -36,21 +36,6 @@ is
         col => 0
     );
 
-    type reg_t is record
-        cur_time  : video_time_t;
-        pixel_row : pixel_coord_t;
-        pixel_col : pixel_coord_t;
-        vga_out   : vga_out_t;
-    end record;
-
-    constant RESET_REG : reg_t :=
-    (
-        cur_time => TIME_ZERO,
-        pixel_row => 0,
-        pixel_col => 0,
-        vga_out => VGA_RESET
-    );
-
     -- The sum of all these values should equal 800
     constant LINE_SYNC_TIME         : time_t := 96;
     -- Normally 48 for 640 pixels, but 112 for 512
@@ -200,12 +185,72 @@ is
         return ret;
     end;
 
+    -- The SRAM bus is taken from the left margin to the right margin of
+    -- active lines, and read during the active period
+    function get_sram_ce_n(vert_state : vert_state_t;
+                           horz_state : horz_state_t) return std_logic
+    is
+    begin
+        if vert_state = V_ACTIVE and
+           (horz_state = H_LEFT_MARGIN or
+            horz_state = H_ACTIVE or
+            horz_state = H_RIGHT_MARGIN)
+        then
+            return '0';
+        else
+            return '1';
+        end if;
+    end;
+
+    function get_sram_oe_n(vert_state : vert_state_t;
+                           horz_state : horz_state_t) return std_logic
+    is
+    begin
+        if vert_state = V_ACTIVE and horz_state = H_ACTIVE
+        then
+            return '0';
+        else
+            return '1';
+        end if;
+    end;
+
+    -- The state and SRAM enables are registered for the time in cur_time,
+    -- rather than decoded from it, so that the SRAM enables are glitch free.
+    -- ppu_video_ram_mux synchronizes sram_ce_n into its clock domain, where
+    -- a glitch would let it take the SRAM bus during the active period
+    type reg_t is record
+        cur_time   : video_time_t;
+        vert_state : vert_state_t;
+        horz_state : horz_state_t;
+        sram_oe_n  : std_logic;
+        sram_ce_n  : std_logic;
+        pixel_row  : pixel_coord_t;
+        pixel_col  : pixel_coord_t;
+        vga_out    : vga_out_t;
+    end record;
+
+    -- The states and SRAM enables are those of TIME_ZERO
+    constant RESET_REG : reg_t :=
+    (
+        cur_time => TIME_ZERO,
+        vert_state => V_SYNC,
+        horz_state => H_SYNC,
+        sram_oe_n => '1',
+        sram_ce_n => '1',
+        pixel_row => 0,
+        pixel_col => 0,
+        vga_out => VGA_RESET
+    );
+
     signal reg : reg_t := RESET_REG;
     signal reg_next : reg_t;
 
 begin
 
     vga_out <= reg.vga_out;
+
+    sram_oe_n <= reg.sram_oe_n;
+    sram_ce_n <= reg.sram_ce_n;
 
     sram_addr <= "00" &
                  to_std_logic_vector(reg.pixel_row, 8) &
@@ -216,17 +261,14 @@ begin
         variable v_horz_state : horz_state_t;
         variable v_reg : reg_t;
     begin
-        v_vert_state := get_vert_state(reg.cur_time);
-        v_horz_state := get_horz_state(reg.cur_time);
+        v_vert_state := reg.vert_state;
+        v_horz_state := reg.horz_state;
 
         v_reg := reg;
         v_reg.vga_out.v_sync := get_v_sync(v_vert_state);
         v_reg.vga_out.h_sync := get_h_sync(v_horz_state);
         v_reg.vga_out.lval := false;
         v_reg.vga_out.fval := false;
-
-        sram_oe_n <= '1';
-        sram_ce_n <= '1';
 
         case v_vert_state is
             when V_FRONT =>
@@ -244,11 +286,6 @@ begin
                 case v_horz_state is
                     when H_FRONT |
                          H_RIGHT_MARGIN =>
-                        if v_horz_state = H_RIGHT_MARGIN
-                        then
-                            sram_ce_n <= '0';
-                        end if;
-
                         v_reg.pixel_col := 0;
                         v_reg.vga_out.color := COLOR_BLACK;
                         v_reg.vga_out.lval := false;
@@ -257,9 +294,6 @@ begin
                         v_reg.vga_out.color := COLOR_BLACK;
                         v_reg.vga_out.lval := false;
                     when H_ACTIVE =>
-                        sram_oe_n <= '0';
-                        sram_ce_n <= '0';
-
                         v_reg.vga_out.color.red := sram_dq(11 downto 8);
                         v_reg.vga_out.color.green := sram_dq(7 downto 4);
                         v_reg.vga_out.color.blue := sram_dq(3 downto 0);
@@ -272,11 +306,6 @@ begin
                         end if;
                     when H_BACK |
                          H_LEFT_MARGIN =>
-                        if v_horz_state = H_LEFT_MARGIN
-                        then
-                            sram_ce_n <= '0';
-                        end if;
-
                         v_reg.pixel_col := 0;
                         v_reg.vga_out.color := COLOR_BLACK;
                         v_reg.vga_out.lval := false;
@@ -296,6 +325,10 @@ begin
         end case;
 
         v_reg.cur_time := incr_time(reg.cur_time);
+        v_reg.vert_state := get_vert_state(v_reg.cur_time);
+        v_reg.horz_state := get_horz_state(v_reg.cur_time);
+        v_reg.sram_oe_n := get_sram_oe_n(v_reg.vert_state, v_reg.horz_state);
+        v_reg.sram_ce_n := get_sram_ce_n(v_reg.vert_state, v_reg.horz_state);
 
         reg_next <= v_reg;
     end process;

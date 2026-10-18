@@ -104,12 +104,26 @@ architecture behavioral of nes_de1 is
     signal reg_audio_cpu_clk : mixed_audio_t := (others => '0');
     signal reg_audio_aud_clk : mixed_audio_t := (others => '0');
 
+    -- Flips when reg_audio_cpu_clk is updated
+    signal audio_toggle     : std_logic := '0';
+    signal audio_toggle_aud : std_logic_vector(2 downto 0) := (others => '0');
+
     signal cpu_clk_en  : boolean;
     signal ppu_clk_en  : boolean;
 
     signal nes_running : boolean;
 
-    signal reset : boolean;
+    -- RESET_N synchronized to each clock domain. Reset is asserted
+    -- asynchronously and released synchronously, so that every register in
+    -- a domain leaves reset on the same clock
+    signal reset_50_sync  : std_logic_vector(1 downto 0) := (others => '0');
+    signal reset_aud_sync : std_logic_vector(1 downto 0) := (others => '0');
+    signal reset_vga_sync : std_logic_vector(1 downto 0) := (others => '0');
+
+    signal reset_50  : boolean;
+    signal reset_aud : boolean;
+    signal reset_vga : boolean;
+
     signal nes_reset : boolean;
     
     signal flash_bus : file_bus_t;
@@ -132,7 +146,42 @@ architecture behavioral of nes_de1 is
     
 begin
     
-    reset <= RESET_N = '0';
+    process(CLOCK_50, RESET_N)
+    begin
+    if RESET_N = '0'
+    then
+        reset_50_sync <= (others => '1');
+    elsif rising_edge(CLOCK_50)
+    then
+        reset_50_sync <= reset_50_sync(0) & '0';
+    end if;
+    end process;
+
+    process(CLOCK_AUD, RESET_N)
+    begin
+    if RESET_N = '0'
+    then
+        reset_aud_sync <= (others => '1');
+    elsif rising_edge(CLOCK_AUD)
+    then
+        reset_aud_sync <= reset_aud_sync(0) & '0';
+    end if;
+    end process;
+
+    process(CLOCK_VGA, RESET_N)
+    begin
+    if RESET_N = '0'
+    then
+        reset_vga_sync <= (others => '1');
+    elsif rising_edge(CLOCK_VGA)
+    then
+        reset_vga_sync <= reset_vga_sync(0) & '0';
+    end if;
+    end process;
+
+    reset_50  <= reset_50_sync(1) = '1';
+    reset_aud <= reset_aud_sync(1) = '1';
+    reset_vga <= reset_vga_sync(1) = '1';
 
     FL_ADDR <= resize(flash_bus.address, fl_addr'length);
     FL_WE_N <= '1';
@@ -147,7 +196,7 @@ begin
         signal load_data  : data_t;
         signal load_ready : boolean;
     begin
-        nes_reset <= reset or rom_loading;
+        nes_reset <= reset_50 or rom_loading;
 
         -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
         -- clock output delay to the SDRAM
@@ -157,7 +206,7 @@ begin
         port map
         (
             clk => CLOCK_50,
-            reset => reset,
+            reset => reset_50,
 
             loading => rom_loading,
 
@@ -189,7 +238,7 @@ begin
             port map
             (
                 clk => CLOCK_50,
-                reset => reset,
+                reset => reset_50,
 
                 failed => sd_error,
 
@@ -215,7 +264,7 @@ begin
             port map
             (
                 clk => CLOCK_50,
-                reset => reset,
+                reset => reset_50,
 
                 flash_bus => flash_bus,
                 data_from_flash => FL_DQ,
@@ -228,7 +277,7 @@ begin
         end generate;
     else generate
     begin
-        nes_reset <= reset;
+        nes_reset <= reset_50;
         rom_loading <= false;
         sd_error <= false;
 
@@ -274,7 +323,7 @@ begin
     port map
     (
         clk => CLOCK_AUD,
-        reset => reset,
+        reset => reset_aud,
         
         audio => audio,
         
@@ -294,7 +343,7 @@ begin
     (
         clk_50mhz => CLOCK_50,
         clk_we => CLOCK_WE,
-        reset => reset,
+        reset => reset_50,
 
         sram_dq => SRAM_DQ,
         sram_addr => SRAM_ADDR,
@@ -317,7 +366,7 @@ begin
     port map
     (
         clk => CLOCK_VGA,
-        reset => reset,
+        reset => reset_vga,
 
         sram_dq => vga_sram_dq,
         sram_addr => vga_sram_addr,
@@ -362,7 +411,8 @@ begin
     (
         clk_key => CLOCK_AUD,
         clk_cpu => CLOCK_50,
-        reset => reset,
+        reset_key => reset_aud,
+        reset_cpu => reset_50,
         
         filter_invalid => SW(9) = '1',
         
@@ -379,6 +429,10 @@ begin
         joy_2_val => joy_2_val
     );
 
+    -- The audio crosses to CLOCK_AUD with a toggle handshake: the toggle is
+    -- synchronized and reg_audio_cpu_clk is copied when it flips, which
+    -- is 2-3 CLOCK_AUD clocks after the update. reg_audio_cpu_clk only
+    -- updates on cpu_clk_en, so it is stable for much longer than that
     process(CLOCK_50)
     begin
     if rising_edge(CLOCK_50) then
@@ -386,6 +440,7 @@ begin
         if nes_running
         then
             reg_audio_cpu_clk <= audio_out;
+            audio_toggle <= not audio_toggle;
         end if;
     end if;
     end if;
@@ -395,7 +450,12 @@ begin
     begin
     if rising_edge(CLOCK_AUD)
     then
-        reg_audio_aud_clk <= reg_audio_cpu_clk;
+        if audio_toggle_aud(2) /= audio_toggle_aud(1)
+        then
+            reg_audio_aud_clk <= reg_audio_cpu_clk;
+        end if;
+
+        audio_toggle_aud <= audio_toggle_aud(1 downto 0) & audio_toggle;
     end if;
     end process;
     
