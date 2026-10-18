@@ -6,3 +6,4 @@
 *.fm2
 *.txt
 *.sig
+!test_inputs/**/*.fm2

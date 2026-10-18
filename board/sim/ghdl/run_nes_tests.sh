@@ -6,6 +6,11 @@ usage() {
     echo "  -s  Only run shard SHARD (1-based) of SHARD_COUNT. Tests are"
     echo "      distributed so each shard has about the same total run time"
     echo "  -l  List the selected tests and their run times, then exit"
+    echo
+    echo "Each line of the test list has the format:"
+    echo "  NES file path | run time | hash [ | FM2 input path ]"
+    echo "NES file paths are relative to the root of the repository. FM2 input"
+    echo "paths are relative to this script's directory"
 }
 
 exit_abnormal() {
@@ -56,15 +61,33 @@ check_hash() {
     echo "$1" | sha256sum -c --status --quiet &> /dev/null
 }
 
+# Prints the name of the test on line $1 of the test list: the NES file path,
+# followed by the name of the FM2 input file (if any) so that multiple tests
+# can run the same NES file with different inputs
+test_name() {
+    TEST_PATH=`echo "$1" | cut -f 1 -d '|' | xargs`
+    FM2_PATH=`echo "$1" | cut -f 4 -d '|' | xargs`
+
+    if [ "$FM2_PATH" != "" ]
+    then
+        echo "$TEST_PATH"/`basename "$FM2_PATH" .fm2`
+    else
+        echo "$TEST_PATH"
+    fi
+}
+
 run_nes_test() {
     TEST_PATH=`echo "$1" | cut -f 1 -d '|' | xargs`
     NES_FILEPATH="$BASEDIR"/"$TEST_PATH"
     RUN_TIME=`echo "$1" | cut -f 2 -d '|' | xargs`
     HASH=`echo "$1" | cut -f 3 -d '|' | xargs`
-    OUTPUT_DIR=output/"$TEST_PATH"
+    FM2_PATH=`echo "$1" | cut -f 4 -d '|' | xargs`
+    TEST_NAME=`test_name "$1"`
+    OUTPUT_DIR=output/"$TEST_NAME"
 
-    echo "Test start: $TEST_PATH"
-    ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" 1> /dev/null
+    echo "Test start: $TEST_NAME"
+    ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" \
+                       -i "$FM2_PATH" 1> /dev/null
 
     if [ "$HASH" != "" ]
     then
@@ -81,17 +104,17 @@ run_nes_test() {
         then
             # Keep the file the hash was computed over so it can be inspected
             HASH_FILE=`echo "$HASH" | sed -E 's/^[0-9a-fA-F]+ [ *]//'`
-            mkdir -p "$FAILURES_DIR"/"$TEST_PATH"
-            cp -f "$OUTPUT_DIR"/"$HASH_FILE" "$FAILURES_DIR"/"$TEST_PATH"/ 2> /dev/null
+            mkdir -p "$FAILURES_DIR"/"$TEST_NAME"
+            cp -f "$OUTPUT_DIR"/"$HASH_FILE" "$FAILURES_DIR"/"$TEST_NAME"/ 2> /dev/null
         fi
 
-        echo "Test  $STATUS: $TEST_PATH"
+        echo "Test  $STATUS: $TEST_NAME"
     else
         STATUS=DONE
-        echo "Test complete: $TEST_PATH"
+        echo "Test complete: $TEST_NAME"
     fi
 
-    echo "$STATUS $TEST_PATH" >> "$RESULTS_FILE"
+    echo "$STATUS $TEST_NAME" >> "$RESULTS_FILE"
 }
 
 TESTS_FILE=nes_tests.txt
@@ -129,7 +152,7 @@ TESTS=`select_tests "$TESTS_FILE" "$SHARD" "$SHARD_COUNT"`
 
 if [ $LIST_ONLY -eq 1 ]
 then
-    echo "$TESTS" | cut -f 1,2 -d '|'
+    echo "$TESTS" | cut -f 1,2,4 -d '|' | sed -E 's/[ \t]*\|[ \t]*$//'
     exit 0
 fi
 
@@ -142,7 +165,8 @@ fi
 IFS='
 '
 
-BASEDIR=../../../nes-test-roms
+# NES file paths in the test list are relative to the root of the repository
+BASEDIR=../../..
 RESULTS_FILE=output/results.txt
 FAILURES_DIR=output/failures
 
