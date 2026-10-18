@@ -15,12 +15,11 @@ generic
 (
     -- Copy the ROM into SDRAM at reset and run it from there, instead of
     -- running directly from flash
-    USE_SDRAM      : boolean := true;
+    USE_SDRAM   : boolean := true;
     -- Copy the ROM into SDRAM from the SD card instead of flash. The ROM
     -- file is read from the start of the card, so it must be written to
     -- the raw card rather than to a filesystem on it
-    USE_SD_CARD    : boolean := true;
-    ROM_LOAD_BYTES : positive := 2**file_addr_t'length
+    USE_SD_CARD : boolean := true
 );
 port
 (
@@ -155,10 +154,6 @@ begin
         DRAM_CLK <= CLOCK_WE;
 
         rom : entity work.sdram_rom(behavioral)
-        generic map
-        (
-            LOAD_BYTES => ROM_LOAD_BYTES
-        )
         port map
         (
             clk => CLOCK_50,

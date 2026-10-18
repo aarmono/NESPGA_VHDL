@@ -54,10 +54,6 @@ architecture behavioral of sdram_rom_bench is
 begin
 
     dut : entity work.sdram_rom(behavioral)
-    generic map
-    (
-        LOAD_BYTES => NES_FILE_BYTES
-    )
     port map
     (
         clk => clk_50,

@@ -11,7 +11,7 @@ use work.file_bus_types.all;
 -- which loading is true and the NES must be held in reset. A byte is taken
 -- from the stream on each clock where load_valid and load_ready are both
 -- true. If the file starts with an iNES header, only as many bytes as the
--- header says the file holds are copied, otherwise LOAD_BYTES are. Once
+-- header says the file holds are copied, otherwise MAX_BYTES are. Once
 -- loading is complete each PPU cycle gets one SDRAM slot, started
 -- START_DELAY clocks after ppu_clk_en. The file bus address is sampled when
 -- the slot starts, so it must be stable from then until the next
@@ -19,8 +19,7 @@ use work.file_bus_types.all;
 entity sdram_rom is
 generic
 (
-    CLK_FREQ   : positive := 50_000_000;
-    LOAD_BYTES : positive := 2**file_addr_t'length;
+    CLK_FREQ    : positive := 50_000_000;
     -- Clocks after ppu_clk_en until the file bus address is sampled
     START_DELAY : positive := 2
 );
@@ -54,11 +53,14 @@ end sdram_rom;
 
 architecture behavioral of sdram_rom is
 
+    -- Bytes addressable by the file bus
+    constant MAX_BYTES : positive := 2**file_addr_t'length;
+
     subtype sdram_addr_t is std_logic_vector(22 downto 0);
-    subtype load_addr_t is natural range 0 to LOAD_BYTES - 1;
+    subtype load_addr_t is natural range 0 to MAX_BYTES - 1;
     subtype banks_t is natural range 0 to 255;
 
-    -- Bytes in an iNES file, limited to LOAD_BYTES
+    -- Bytes in an iNES file, limited to MAX_BYTES
     function ines_bytes
     (
         prg_banks : banks_t;
@@ -75,9 +77,9 @@ architecture behavioral of sdram_rom is
             ret := ret + 512;
         end if;
 
-        if ret > LOAD_BYTES
+        if ret > MAX_BYTES
         then
-            return LOAD_BYTES;
+            return MAX_BYTES;
         else
             return ret;
         end if;
@@ -215,7 +217,7 @@ begin
                         when 9 =>
                             -- NES 2.0 keeps the high bits of the bank counts
                             -- here. Files that use them are larger than
-                            -- LOAD_BYTES anyway
+                            -- MAX_BYTES anyway
                             if reg.ines and
                                not (reg.nes2 and load_data /= x"00")
                             then

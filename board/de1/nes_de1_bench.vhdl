@@ -86,8 +86,7 @@ begin
     generic map
     (
         USE_SDRAM => USE_SDRAM,
-        USE_SD_CARD => USE_SD_CARD,
-        ROM_LOAD_BYTES => NES_FILE_BYTES
+        USE_SD_CARD => USE_SD_CARD
     )
     port map
     (
