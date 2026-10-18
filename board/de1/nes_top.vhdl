@@ -123,7 +123,7 @@ begin
         locked => vga_locked
     );
     
-    nes : entity work.nes_de1(behavioral)
+    nes : nes_de1
     port map
     (
         CLOCK_50 => CLOCK_50,

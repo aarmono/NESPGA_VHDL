@@ -15,8 +15,7 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     NES_FILE_BYTES  : integer := 196608;
-    USE_SDRAM       : boolean := true;
-    USE_SD_CARD     : boolean := true
+    ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM
 );
 end nes_de1_bench;
 
@@ -82,11 +81,10 @@ architecture behavioral of nes_de1_bench is
     signal aud_count : natural range 0 to 2**4-1 := 2**4-1;
 begin
 
-    nes : entity work.nes_de1(behavioral)
+    nes : nes_de1
     generic map
     (
-        USE_SDRAM => USE_SDRAM,
-        USE_SD_CARD => USE_SD_CARD
+        ROM_CONFIG => ROM_CONFIG
     )
     port map
     (

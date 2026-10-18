@@ -13,13 +13,7 @@ use work.de1_types.all;
 entity nes_de1 is
 generic
 (
-    -- Copy the ROM into SDRAM at reset and run it from there, instead of
-    -- running directly from flash
-    USE_SDRAM   : boolean := true;
-    -- Copy the ROM into SDRAM from the SD card instead of flash. The ROM
-    -- file is read from the start of the card, so it must be written to
-    -- the raw card rather than to a filesystem on it
-    USE_SD_CARD : boolean := true
+    ROM_CONFIG : rom_config_t := ROM_SD_TO_SDRAM
 );
 port
 (
@@ -191,7 +185,7 @@ begin
     DRAM_BA_0 <= dram_ba(0);
     DRAM_BA_1 <= dram_ba(1);
 
-    gen_sdram : if USE_SDRAM generate
+    gen_sdram : if ROM_CONFIG /= ROM_FLASH_DIRECT generate
         signal load_valid : boolean;
         signal load_data  : data_t;
         signal load_ready : boolean;
@@ -230,7 +224,7 @@ begin
             dram_dq => DRAM_DQ
         );
 
-        gen_sd_card : if USE_SD_CARD generate
+        gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
         begin
             flash_bus <= FILE_BUS_IDLE;
 
