@@ -59,6 +59,7 @@ set_global_assignment -name PARALLEL_SYNTHESIS OFF
 set_global_assignment -name REMOVE_REDUNDANT_LOGIC_CELLS ON
 set_global_assignment -name AUTO_RESOURCE_SHARING ON
 set_global_assignment -name MUX_RESTRUCTURE ON
+set_global_assignment -name SYNCHRONIZER_IDENTIFICATION AUTO
 set_global_assignment -name EDA_TEST_BENCH_ENABLE_STATUS NOT_USED -section_id eda_simulation
 set_global_assignment -name EDA_NATIVELINK_SIMULATION_TEST_BENCH nsf_bench -section_id eda_simulation
 set_global_assignment -name EDA_VHDL_ARCH_NAME behavioral -section_id eda_simulation
