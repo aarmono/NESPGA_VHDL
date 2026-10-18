@@ -209,8 +209,169 @@ architecture behavioral of sdram_ctrl is
         data_out => (others => '0')
     );
 
-    signal reg    : reg_t := RESET_REG;
-    signal reg_in : reg_t;
+    type ctrl_in_t is record
+        start   : boolean;
+        read    : boolean;
+        write   : boolean;
+        address : std_logic_vector(22 downto 0);
+        data_in : std_logic_vector(7 downto 0);
+        dq      : std_logic_vector(15 downto 0);
+    end record;
+
+    function cycle_sdram(reg : reg_t; ctrl_in : ctrl_in_t) return reg_t
+    is
+        variable ret : reg_t;
+        variable refreshed : boolean;
+    begin
+        ret := reg;
+        refreshed := false;
+
+        ret.cmd := CMD_NOP;
+        ret.dqm := "00";
+        ret.dq_oe := false;
+        ret.dq_in := ctrl_in.dq;
+
+        case reg.init_state is
+            when INIT_POWER_UP =>
+                ret.dqm := "11";
+                if reg.init_wait = 0
+                then
+                    ret.cmd := CMD_PRECHARGE;
+                    ret.addr(10) := '1';
+                    ret.init_wait := RP_CLKS - 1;
+                    ret.init_state := INIT_PRECHARGE;
+                else
+                    ret.init_wait := reg.init_wait - 1;
+                end if;
+            when INIT_PRECHARGE | INIT_REFRESH =>
+                ret.dqm := "11";
+                if reg.init_wait /= 0
+                then
+                    ret.init_wait := reg.init_wait - 1;
+                elsif reg.init_refs = INIT_REFRESHES
+                then
+                    ret.cmd := CMD_MODE;
+                    ret.ba := "00";
+                    ret.addr := MODE_REG;
+                    ret.init_wait := T_MRD_CLKS - 1;
+                    ret.init_state := INIT_MODE;
+                else
+                    ret.cmd := CMD_REFRESH;
+                    ret.init_refs := reg.init_refs + 1;
+                    ret.init_wait := RFC_CLKS - 1;
+                    ret.init_state := INIT_REFRESH;
+                end if;
+            when INIT_MODE =>
+                ret.dqm := "11";
+                if reg.init_wait = 0
+                then
+                    ret.init_state := INIT_DONE;
+                else
+                    ret.init_wait := reg.init_wait - 1;
+                end if;
+            when INIT_DONE =>
+                if reg.active
+                then
+                    if reg.slot_count = RW_AT and (reg.do_read or reg.do_write)
+                    then
+                        if reg.do_write
+                        then
+                            ret.cmd := CMD_WRITE;
+                            ret.dq := reg.wr_data & reg.wr_data;
+                            ret.dq_oe := true;
+                            -- DQM high masks the byte which is not written
+                            if reg.high_byte
+                            then
+                                ret.dqm := "01";
+                            else
+                                ret.dqm := "10";
+                            end if;
+                        else
+                            ret.cmd := CMD_READ;
+                        end if;
+                        ret.ba := reg.bank;
+                        -- A10 low disables auto precharge
+                        ret.addr := "0000" & reg.col;
+                    end if;
+
+                    if reg.slot_count = PRE_AT and (reg.do_read or reg.do_write)
+                    then
+                        ret.cmd := CMD_PRECHARGE;
+                        ret.addr(10) := '1';
+                    end if;
+
+                    if reg.slot_count = OUT_AT and reg.do_read
+                    then
+                        if reg.high_byte
+                        then
+                            ret.data_out := reg.dq_in(15 downto 8);
+                        else
+                            ret.data_out := reg.dq_in(7 downto 0);
+                        end if;
+                    end if;
+
+                    if reg.slot_count = REF_AT and reg.do_refresh
+                    then
+                        ret.cmd := CMD_REFRESH;
+                        refreshed := true;
+                    end if;
+
+                    if reg.slot_count = SLOT_CLKS - 1
+                    then
+                        ret.active := false;
+                    end if;
+                    ret.slot_count := reg.slot_count + 1;
+                elsif ctrl_in.start
+                then
+                    assert not (ctrl_in.read and ctrl_in.write)
+                        report "sdram_ctrl: read and write both requested"
+                        severity failure;
+
+                    ret.active := true;
+                    ret.slot_count := ACT_AT + 1;
+                    ret.do_read := ctrl_in.read;
+                    ret.do_write := ctrl_in.write;
+                    ret.do_refresh := reg.refs_due /= 0;
+                    ret.bank := ctrl_in.address(22 downto 21);
+                    ret.row := ctrl_in.address(20 downto 9);
+                    ret.col := ctrl_in.address(8 downto 1);
+                    ret.high_byte := ctrl_in.address(0) = '1';
+                    ret.wr_data := ctrl_in.data_in;
+
+                    if ctrl_in.read or ctrl_in.write
+                    then
+                        ret.cmd := CMD_ACTIVE;
+                        ret.ba := ctrl_in.address(22 downto 21);
+                        ret.addr := ctrl_in.address(20 downto 9);
+                    end if;
+                end if;
+
+                -- Count up the refreshes owed. They are paid back one per
+                -- slot, so there is plenty of headroom as long as slots are
+                -- started much more often than T_REFI
+                if reg.refi_count = 0
+                then
+                    ret.refi_count := REFI_CLKS - 1;
+                    if not refreshed
+                    then
+                        assert reg.refs_due /= refresh_count_t'high
+                            report "sdram_ctrl: refresh overflow"
+                            severity failure;
+                        ret.refs_due := reg.refs_due + 1;
+                    end if;
+                else
+                    ret.refi_count := reg.refi_count - 1;
+                    if refreshed
+                    then
+                        ret.refs_due := reg.refs_due - 1;
+                    end if;
+                end if;
+        end case;
+
+        return ret;
+    end;
+
+    signal reg : reg_t := RESET_REG;
 
 begin
 
@@ -229,158 +390,6 @@ begin
     idle     <= reg.init_state = INIT_DONE and not reg.active;
     data_out <= reg.data_out;
 
-    process(all)
-        variable v_reg : reg_t;
-        variable v_refreshed : boolean;
-    begin
-        v_reg := reg;
-        v_refreshed := false;
-
-        v_reg.cmd := CMD_NOP;
-        v_reg.dqm := "00";
-        v_reg.dq_oe := false;
-        v_reg.dq_in := dram_dq;
-
-        case reg.init_state is
-            when INIT_POWER_UP =>
-                v_reg.dqm := "11";
-                if reg.init_wait = 0
-                then
-                    v_reg.cmd := CMD_PRECHARGE;
-                    v_reg.addr(10) := '1';
-                    v_reg.init_wait := RP_CLKS - 1;
-                    v_reg.init_state := INIT_PRECHARGE;
-                else
-                    v_reg.init_wait := reg.init_wait - 1;
-                end if;
-            when INIT_PRECHARGE | INIT_REFRESH =>
-                v_reg.dqm := "11";
-                if reg.init_wait /= 0
-                then
-                    v_reg.init_wait := reg.init_wait - 1;
-                elsif reg.init_refs = INIT_REFRESHES
-                then
-                    v_reg.cmd := CMD_MODE;
-                    v_reg.ba := "00";
-                    v_reg.addr := MODE_REG;
-                    v_reg.init_wait := T_MRD_CLKS - 1;
-                    v_reg.init_state := INIT_MODE;
-                else
-                    v_reg.cmd := CMD_REFRESH;
-                    v_reg.init_refs := reg.init_refs + 1;
-                    v_reg.init_wait := RFC_CLKS - 1;
-                    v_reg.init_state := INIT_REFRESH;
-                end if;
-            when INIT_MODE =>
-                v_reg.dqm := "11";
-                if reg.init_wait = 0
-                then
-                    v_reg.init_state := INIT_DONE;
-                else
-                    v_reg.init_wait := reg.init_wait - 1;
-                end if;
-            when INIT_DONE =>
-                if reg.active
-                then
-                    if reg.slot_count = RW_AT and (reg.do_read or reg.do_write)
-                    then
-                        if reg.do_write
-                        then
-                            v_reg.cmd := CMD_WRITE;
-                            v_reg.dq := reg.wr_data & reg.wr_data;
-                            v_reg.dq_oe := true;
-                            -- DQM high masks the byte which is not written
-                            if reg.high_byte
-                            then
-                                v_reg.dqm := "01";
-                            else
-                                v_reg.dqm := "10";
-                            end if;
-                        else
-                            v_reg.cmd := CMD_READ;
-                        end if;
-                        v_reg.ba := reg.bank;
-                        -- A10 low disables auto precharge
-                        v_reg.addr := "0000" & reg.col;
-                    end if;
-
-                    if reg.slot_count = PRE_AT and (reg.do_read or reg.do_write)
-                    then
-                        v_reg.cmd := CMD_PRECHARGE;
-                        v_reg.addr(10) := '1';
-                    end if;
-
-                    if reg.slot_count = OUT_AT and reg.do_read
-                    then
-                        if reg.high_byte
-                        then
-                            v_reg.data_out := reg.dq_in(15 downto 8);
-                        else
-                            v_reg.data_out := reg.dq_in(7 downto 0);
-                        end if;
-                    end if;
-
-                    if reg.slot_count = REF_AT and reg.do_refresh
-                    then
-                        v_reg.cmd := CMD_REFRESH;
-                        v_refreshed := true;
-                    end if;
-
-                    if reg.slot_count = SLOT_CLKS - 1
-                    then
-                        v_reg.active := false;
-                    end if;
-                    v_reg.slot_count := reg.slot_count + 1;
-                elsif start
-                then
-                    assert not (read and write)
-                        report "sdram_ctrl: read and write both requested"
-                        severity failure;
-
-                    v_reg.active := true;
-                    v_reg.slot_count := ACT_AT + 1;
-                    v_reg.do_read := read;
-                    v_reg.do_write := write;
-                    v_reg.do_refresh := reg.refs_due /= 0;
-                    v_reg.bank := address(22 downto 21);
-                    v_reg.row := address(20 downto 9);
-                    v_reg.col := address(8 downto 1);
-                    v_reg.high_byte := address(0) = '1';
-                    v_reg.wr_data := data_in;
-
-                    if read or write
-                    then
-                        v_reg.cmd := CMD_ACTIVE;
-                        v_reg.ba := address(22 downto 21);
-                        v_reg.addr := address(20 downto 9);
-                    end if;
-                end if;
-
-                -- Count up the refreshes owed. They are paid back one per
-                -- slot, so there is plenty of headroom as long as slots are
-                -- started much more often than T_REFI
-                if reg.refi_count = 0
-                then
-                    v_reg.refi_count := REFI_CLKS - 1;
-                    if not v_refreshed
-                    then
-                        assert reg.refs_due /= refresh_count_t'high
-                            report "sdram_ctrl: refresh overflow"
-                            severity failure;
-                        v_reg.refs_due := reg.refs_due + 1;
-                    end if;
-                else
-                    v_reg.refi_count := reg.refi_count - 1;
-                    if v_refreshed
-                    then
-                        v_reg.refs_due := reg.refs_due - 1;
-                    end if;
-                end if;
-        end case;
-
-        reg_in <= v_reg;
-    end process;
-
     process(clk)
     begin
     if rising_edge(clk)
@@ -389,7 +398,12 @@ begin
         then
             reg <= RESET_REG;
         else
-            reg <= reg_in;
+            reg <= cycle_sdram(reg, (start => start,
+                                     read => read,
+                                     write => write,
+                                     address => address,
+                                     data_in => data_in,
+                                     dq => dram_dq));
         end if;
     end if;
     end process;
