@@ -22,7 +22,7 @@ jobs:
         # Add or remove entries to change the number of shards. Tests in
         # nes_tests.txt are distributed between shards automatically by
         # run time (see run_nes_tests.sh -s)
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
         with:
