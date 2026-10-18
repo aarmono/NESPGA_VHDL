@@ -34,9 +34,11 @@ generic
     -- Power up delay before the initialization sequence
     T_INIT_US : natural := 200;
 
-    -- Timing parameters in ns
+    -- Timing parameters in ns. The defaults are the worst case of the -7
+    -- and -8 speed grades of the IS42S16400 on the DE1. Its datasheet has
+    -- no separate tRFC, an auto refresh takes tRC
     T_RCD  : natural := 20;
-    T_RAS  : natural := 45;
+    T_RAS  : natural := 50;
     T_RP   : natural := 20;
     T_RC   : natural := 70;
     T_RFC  : natural := 70;

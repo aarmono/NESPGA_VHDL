@@ -55,9 +55,12 @@ set_clock_groups -asynchronous \
 #**************************************************************
 
 # Board traces are assumed matched, so only the SDRAM's own timing is
-# accounted for. Values are for a -7 speed grade part at CAS latency 2:
+# accounted for. Values are the worst case of the -7 and -8 speed grades of
+# the IS42S16400 at CAS latency 2:
 #   tAC 6.0 (access from clock), tOH 2.5 (output hold)
 #   tSU 2.0 (input setup), tH 1.0 (input hold)
+# The datasheet gives tOH as 3.0 for both grades, it is derated to 2.5 for
+# margin
 set sdram_outputs [get_ports {DRAM_ADDR[*] DRAM_BA_0 DRAM_BA_1 DRAM_CS_N \
                               DRAM_RAS_N DRAM_CAS_N DRAM_WE_N DRAM_CKE \
                               DRAM_LDQM DRAM_UDQM DRAM_DQ[*]}]
