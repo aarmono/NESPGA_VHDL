@@ -242,8 +242,81 @@ is
         vga_out => VGA_RESET
     );
 
+    function cycle_vga(reg : reg_t; dq : std_logic_vector(15 downto 0))
+        return reg_t
+    is
+        variable ret : reg_t;
+    begin
+        ret := reg;
+        ret.vga_out.v_sync := get_v_sync(reg.vert_state);
+        ret.vga_out.h_sync := get_h_sync(reg.horz_state);
+        ret.vga_out.lval := false;
+        ret.vga_out.fval := false;
+
+        case reg.vert_state is
+            when V_FRONT =>
+                ret.pixel_row := 0;
+                ret.pixel_col := 0;
+                ret.vga_out.color := COLOR_BLACK;
+                ret.vga_out.fval := false;
+            when V_SYNC =>
+                ret.pixel_row := 0;
+                ret.pixel_col := 0;
+                ret.vga_out.color := COLOR_BLACK;
+                ret.vga_out.fval := false;
+            when V_ACTIVE =>
+                ret.vga_out.fval := true;
+                case reg.horz_state is
+                    when H_FRONT |
+                         H_RIGHT_MARGIN =>
+                        ret.pixel_col := 0;
+                        ret.vga_out.color := COLOR_BLACK;
+                        ret.vga_out.lval := false;
+                    when H_SYNC =>
+                        ret.pixel_col := 0;
+                        ret.vga_out.color := COLOR_BLACK;
+                        ret.vga_out.lval := false;
+                    when H_ACTIVE =>
+                        ret.vga_out.color.red := dq(11 downto 8);
+                        ret.vga_out.color.green := dq(7 downto 4);
+                        ret.vga_out.color.blue := dq(3 downto 0);
+                        ret.vga_out.lval := true;
+
+                        if reg.cur_time.col mod 2 = 1
+                        then
+                            ret.pixel_col := wrap(reg.pixel_col + 1,
+                                                  pixel_coord_t'high);
+                        end if;
+                    when H_BACK |
+                         H_LEFT_MARGIN =>
+                        ret.pixel_col := 0;
+                        ret.vga_out.color := COLOR_BLACK;
+                        ret.vga_out.lval := false;
+                end case;
+
+                if reg.cur_time.col = LINE_END and reg.cur_time.row mod 2 = 1
+                then
+                    ret.pixel_row := wrap(reg.pixel_row + 1,
+                                          pixel_coord_t'high);
+                end if;
+
+            when V_BACK =>
+                ret.pixel_row := 0;
+                ret.pixel_col := 0;
+                ret.vga_out.fval := false;
+                ret.vga_out.color := COLOR_BLACK;
+        end case;
+
+        ret.cur_time := incr_time(reg.cur_time);
+        ret.vert_state := get_vert_state(ret.cur_time);
+        ret.horz_state := get_horz_state(ret.cur_time);
+        ret.sram_oe_n := get_sram_oe_n(ret.vert_state, ret.horz_state);
+        ret.sram_ce_n := get_sram_ce_n(ret.vert_state, ret.horz_state);
+
+        return ret;
+    end;
+
     signal reg : reg_t := RESET_REG;
-    signal reg_next : reg_t;
 
 begin
 
@@ -256,83 +329,6 @@ begin
                  to_std_logic_vector(reg.pixel_row, 8) &
                  to_std_logic_vector(reg.pixel_col, 8);
 
-    process(all)
-        variable v_vert_state : vert_state_t;
-        variable v_horz_state : horz_state_t;
-        variable v_reg : reg_t;
-    begin
-        v_vert_state := reg.vert_state;
-        v_horz_state := reg.horz_state;
-
-        v_reg := reg;
-        v_reg.vga_out.v_sync := get_v_sync(v_vert_state);
-        v_reg.vga_out.h_sync := get_h_sync(v_horz_state);
-        v_reg.vga_out.lval := false;
-        v_reg.vga_out.fval := false;
-
-        case v_vert_state is
-            when V_FRONT =>
-                v_reg.pixel_row := 0;
-                v_reg.pixel_col := 0;
-                v_reg.vga_out.color := COLOR_BLACK;
-                v_reg.vga_out.fval := false;
-            when V_SYNC =>
-                v_reg.pixel_row := 0;
-                v_reg.pixel_col := 0;
-                v_reg.vga_out.color := COLOR_BLACK;
-                v_reg.vga_out.fval := false;
-            when V_ACTIVE =>
-                v_reg.vga_out.fval := true;
-                case v_horz_state is
-                    when H_FRONT |
-                         H_RIGHT_MARGIN =>
-                        v_reg.pixel_col := 0;
-                        v_reg.vga_out.color := COLOR_BLACK;
-                        v_reg.vga_out.lval := false;
-                    when H_SYNC =>
-                        v_reg.pixel_col := 0;
-                        v_reg.vga_out.color := COLOR_BLACK;
-                        v_reg.vga_out.lval := false;
-                    when H_ACTIVE =>
-                        v_reg.vga_out.color.red := sram_dq(11 downto 8);
-                        v_reg.vga_out.color.green := sram_dq(7 downto 4);
-                        v_reg.vga_out.color.blue := sram_dq(3 downto 0);
-                        v_reg.vga_out.lval := true;
-
-                        if reg.cur_time.col mod 2 = 1
-                        then
-                            v_reg.pixel_col := wrap(reg.pixel_col + 1,
-                                                    pixel_coord_t'high);
-                        end if;
-                    when H_BACK |
-                         H_LEFT_MARGIN =>
-                        v_reg.pixel_col := 0;
-                        v_reg.vga_out.color := COLOR_BLACK;
-                        v_reg.vga_out.lval := false;
-                end case;
-
-                if reg.cur_time.col = LINE_END and reg.cur_time.row mod 2 = 1
-                then
-                    v_reg.pixel_row := wrap(reg.pixel_row + 1,
-                                            pixel_coord_t'high);
-                end if;
-
-            when V_BACK =>
-                v_reg.pixel_row := 0;
-                v_reg.pixel_col := 0;
-                v_reg.vga_out.fval := false;
-                v_reg.vga_out.color := COLOR_BLACK;
-        end case;
-
-        v_reg.cur_time := incr_time(reg.cur_time);
-        v_reg.vert_state := get_vert_state(v_reg.cur_time);
-        v_reg.horz_state := get_horz_state(v_reg.cur_time);
-        v_reg.sram_oe_n := get_sram_oe_n(v_reg.vert_state, v_reg.horz_state);
-        v_reg.sram_ce_n := get_sram_ce_n(v_reg.vert_state, v_reg.horz_state);
-
-        reg_next <= v_reg;
-    end process;
-
     process(clk)
     begin
     if rising_edge(clk)
@@ -341,7 +337,7 @@ begin
         then
             reg <= RESET_REG;
         else
-            reg <= reg_next;
+            reg <= cycle_vga(reg, sram_dq);
         end if;
     end if;
     end process;
