@@ -152,7 +152,7 @@ AccuracyCoin/AccuracyCoin.nes                                       | 1668ms    
 AccuracyCoin/AccuracyCoin.nes                                       | 1835ms    | da8e76bbcfd2ab729e457d80d7661fe83a87e5f538e7012014f531cd96804a1c *frame_00109.bmp | test_inputs/AccuracyCoin/page_07.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1835ms    | 046f40bdd218e4ce1cd1cdb40083e820eb75db8daab2447c477323f888b6c8d7 *frame_00109.bmp | test_inputs/AccuracyCoin/page_08.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1918ms    | 27cc918352d565057732e9155ec4ef00c9fe60e084b18f618eff43a897143029 *frame_00114.bmp | test_inputs/AccuracyCoin/page_09.fm2
-#AccuracyCoin/AccuracyCoin.nes                                      | 2035ms    |                                                                                   | test_inputs/AccuracyCoin/page_10.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 2002ms    | 448f6fe71be1bc19deaac342112f9210a39ae0c9c4fc1f6cc18090b012280c3a *frame_00119.bmp | test_inputs/AccuracyCoin/page_10.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 2135ms    | 1a41d23324305af9b361c3ab6e899dcc2cf15282ea696b817e9a3c086fc00cf0 *frame_00127.bmp | test_inputs/AccuracyCoin/page_11.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 4287ms    |                                                                                   | test_inputs/AccuracyCoin/page_12.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 2652ms    |                                                                                   | test_inputs/AccuracyCoin/page_13.fm2
