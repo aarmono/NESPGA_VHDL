@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mesen Agent"
+  short_description: "Headless emulator debugging and capture"
+  default_prompt: "Use $mesen-agent to investigate this ROM entirely from the terminal."
