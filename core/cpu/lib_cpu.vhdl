@@ -766,6 +766,9 @@ package body lib_cpu is
                                 else
                                     v_reg.pc(15 downto 8) :=
                                         v_arith_scratch(7 downto 0);
+                                    -- Hold the result of the first interrupt
+                                    -- check for the opcode fetch
+                                    v_reg.int := reg.irq_prev;
                                 end if;
                             when others =>
                                 assert false report "Invalid cycle count"
@@ -798,6 +801,12 @@ package body lib_cpu is
                 -- A taken branch which does not cross a page does not check
                 -- on its final cycle, so use the register value
                 v_int := reg.irq_prev;
+            elsif v_decoded.mode = MODE_BRANCH and reg.count = CYC_FETCH
+            then
+                -- A taken branch which crosses a page checks twice, and an
+                -- interrupt seen by the first check still occurs even if the
+                -- IRQ line is released before the second
+                v_int := v_irq or reg.int;
             else
                 v_int := v_irq;
             end if;
