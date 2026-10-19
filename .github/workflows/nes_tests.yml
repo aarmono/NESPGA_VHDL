@@ -98,6 +98,13 @@ jobs:
         working-directory: board/sim/ghdl
         run: ./run_ghdl.sh ./run_nes_tests.sh -b nes_de1_bench
 
+      - name: Write job summary
+        if: ${{ !cancelled() }}
+        working-directory: board/sim/ghdl
+        run: |
+          ./run_nes_tests.sh -b nes_de1_bench -r de1_output/results.txt \
+            >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload failed test output
         if: failure()
         uses: actions/upload-artifact@v7
