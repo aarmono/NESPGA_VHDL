@@ -2,10 +2,17 @@
 
 usage() {
     echo "Usage: $0 [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
+    echo "       $0 [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] -r RESULTS_FILE..."
     echo "  -f  Test list to run (default: nes_tests.txt)"
     echo "  -s  Only run shard SHARD (1-based) of SHARD_COUNT. Tests are"
     echo "      distributed so each shard has about the same total run time"
     echo "  -l  List the selected tests and their run times, then exit"
+    echo "  -r  Don't run tests. Print a report of the selected tests from the"
+    echo "      given results files (output/results.txt of earlier runs, such"
+    echo "      as one from each shard), then exit"
+    echo
+    echo "When all tests finish, a Markdown table of the results is printed."
+    echo "The exit status is nonzero if any selected test failed or has no result"
     echo
     echo "Each line of the test list has the format:"
     echo "  NES file path | run time | hash [ | FM2 input path ]"
@@ -86,6 +93,7 @@ run_nes_test() {
     OUTPUT_DIR=output/"$TEST_NAME"
 
     echo "Test start: $TEST_NAME"
+    START=$SECONDS
     ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" \
                        -i "$FM2_PATH" 1> /dev/null
 
@@ -114,26 +122,88 @@ run_nes_test() {
         echo "Test complete: $TEST_NAME"
     fi
 
-    echo "$STATUS $TEST_NAME" >> "$RESULTS_FILE"
+    printf '%s\t%s\t%s\n' "$STATUS" $((SECONDS - START)) "$TEST_NAME" \
+        >> "$RESULTS_FILE"
+}
+
+# Prints a Markdown table of the results in the results files given as
+# arguments (lines of STATUS<tab>SECONDS<tab>NAME) for the test names given on
+# stdin, sorted by name. Tests without a result are listed as NOT RUN
+results_table() {
+    # Tag each line with where it came from: R for a result, T for a test name
+    {
+        cat "$@" 2> /dev/null | sed -e 's/^/R\t/'
+        LC_ALL=C sort | sed -e 's/^/T\t/'
+    } | awk -F '\t' '
+        function duration(t) {
+            if (t >= 3600)
+                return sprintf("%d:%02d:%02d", t / 3600, t % 3600 / 60, t % 60)
+            return sprintf("%d:%02d", t / 60, t % 60)
+        }
+        BEGIN {
+            print "| Test | Status | Wall time |"
+            print "| :--- | :----: | --------: |"
+        }
+        $1 == "R" && NF == 4 {
+            status[$4] = $2
+            secs[$4] = $3
+        }
+        $1 == "T" {
+            if ($2 in status)
+                print "| " $2 " | " status[$2] " | " duration(secs[$2]) " |"
+            else
+                print "| " $2 " | NOT RUN | - |"
+        }
+    '
+}
+
+# Prints a Markdown report of $TESTS from the results files given as arguments:
+# a table of the results, the pass/fail counts and a list of the tests that
+# failed or have no result. Returns nonzero if there are any of the latter
+report() {
+    TABLE=`for line in $TESTS; do test_name "$line"; done | results_table "$@"`
+
+    # Count from the table so the summary always matches it
+    PASSED=`echo "$TABLE" | grep -c '| PASS |'`
+    FAILED=`echo "$TABLE" | grep -c '| FAIL |'`
+    NOT_RUN=`echo "$TABLE" | grep -c '| NOT RUN |'`
+    TOTAL=`echo "$TESTS" | grep -c .`
+
+    echo "$TABLE"
+    echo
+    echo "Passed: $PASSED  Failed: $FAILED  Not run: $NOT_RUN  Total: $TOTAL"
+    echo "$TABLE" | grep -E '\| (FAIL|NOT RUN) \|' |
+        sed -E 's/^\| (.*) \| (FAIL|NOT RUN) \|.*$/- \2: \1/'
+
+    [ $FAILED -eq 0 ] && [ $NOT_RUN -eq 0 ]
 }
 
 TESTS_FILE=nes_tests.txt
 SHARD=1
 SHARD_COUNT=1
 LIST_ONLY=0
+REPORT_ONLY=0
 
-while getopts f:s:lh flag
+while getopts f:s:lrh flag
 do
     case "${flag}" in
         f) TESTS_FILE="${OPTARG}";;
         s) SHARD="${OPTARG%/*}"
            SHARD_COUNT="${OPTARG#*/}";;
         l) LIST_ONLY=1;;
+        r) REPORT_ONLY=1;;
         h) usage
            exit 0;;
         *) exit_abnormal;;
     esac
 done
+shift $((OPTIND - 1))
+
+if [ $REPORT_ONLY -eq 1 ] && [ $# -eq 0 ]
+then
+    echo "Error: -r requires at least one results file"
+    exit_abnormal
+fi
 
 if ! [[ "$SHARD" =~ ^[0-9]+$ && "$SHARD_COUNT" =~ ^[0-9]+$ ]] ||
    [ "$SHARD" -lt 1 ] || [ "$SHARD" -gt "$SHARD_COUNT" ]
@@ -156,14 +226,20 @@ then
     exit 0
 fi
 
+IFS='
+'
+
+if [ $REPORT_ONLY -eq 1 ]
+then
+    report "$@"
+    exit
+fi
+
 if ! make -s -f nes_bench.Makefile
 then
     echo "nes_bench make failed"
     exit 1
 fi
-
-IFS='
-'
 
 # NES file paths in the test list are relative to the root of the repository
 BASEDIR=../../..
@@ -186,16 +262,9 @@ done
 wait
 
 touch "$RESULTS_FILE"
-PASSED=`grep -c '^PASS ' "$RESULTS_FILE"`
-FAILED=`grep -c '^FAIL ' "$RESULTS_FILE"`
-TOTAL=`echo "$TESTS" | grep -c .`
-FINISHED=`grep -c . "$RESULTS_FILE"`
 
 echo
-echo "Passed: $PASSED  Failed: $FAILED  Total: $TOTAL"
-grep '^FAIL ' "$RESULTS_FILE" | sed -e 's/^FAIL /  FAIL: /'
-
-if [ $FAILED -ne 0 ] || [ $FINISHED -ne $TOTAL ]
-then
-    exit 1
-fi
+report "$RESULTS_FILE"
+STATUS=$?
+echo "Wall time: `date -u -d @$SECONDS +%T`"
+exit $STATUS

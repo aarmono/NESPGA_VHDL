@@ -39,6 +39,14 @@ jobs:
         working-directory: board/sim/ghdl
         run: ./run_ghdl.sh ./run_nes_tests.sh -s ${{ matrix.shard }}/${{ strategy.job-total }}
 
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: nes-test-results-shard-${{ matrix.shard }}
+          path: board/sim/ghdl/output/results.txt
+          if-no-files-found: ignore
+
       - name: Upload failed test output
         if: failure()
         uses: actions/upload-artifact@v7
@@ -46,3 +54,24 @@ jobs:
           name: nes-test-failures-shard-${{ matrix.shard }}
           path: board/sim/ghdl/output/failures/
           if-no-files-found: ignore
+
+  # Combines the results of all shards into a single table in the job summary
+  summary:
+    name: NES test summary
+    needs: nes-tests
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download test results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: nes-test-results-shard-*
+          path: results
+
+      - name: Write job summary
+        working-directory: board/sim/ghdl
+        run: |
+          ./run_nes_tests.sh -r "$GITHUB_WORKSPACE"/results/*/results.txt \
+            >> "$GITHUB_STEP_SUMMARY"
