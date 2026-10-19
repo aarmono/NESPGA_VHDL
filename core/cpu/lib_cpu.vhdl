@@ -202,9 +202,9 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to the bus
+                                -- Write unmodified value to the bus
                                 v_data_bus := bus_write(zero_addr(reg.addr_lo));
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to the bus
@@ -246,10 +246,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to the bus
+                                -- Write unmodified value to the bus
                                 v_data_bus := bus_write(reg.addr_hi &
                                                         reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -300,10 +300,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to ADH,ADL
+                                -- Write unmodified value to ADH,ADL
                                 v_data_bus :=
                                     bus_write(reg.addr_hi & reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -365,10 +365,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to BAH + c,BAL + IDX
+                                -- Write unmodified value to BAH + c,BAL + IDX
                                 v_data_bus := bus_write(reg.addr_hi &
                                                         reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -407,9 +407,9 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to 00,BAL + IDX
+                                -- Write unmodified value to 00,BAL + IDX
                                 v_data_bus := bus_write(zero_addr(reg.addr_lo));
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -466,10 +466,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to BAH + c,BAL + Y
+                                -- Write unmodified value to BAH + c,BAL + Y
                                 v_data_bus := bus_write(reg.addr_hi &
                                                         reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus

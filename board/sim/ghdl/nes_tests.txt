@@ -26,6 +26,9 @@ nes-test-roms/instr_misc/rom_singles/02-branch_wrap.nes             | 200ms     
 nes-test-roms/instr_misc/rom_singles/03-dummy_reads.nes             | 967ms     | 1a127606cf2be5e51b69b9da9ac5331c5be164b5adcfb6ce41f9a73b88713c9a *frame_00057.bmp
 nes-test-roms/instr_misc/rom_singles/04-dummy_reads_apu.nes         | 2351ms    | 59c138e08d59ce15ec7d48ae2136170236ad68fdc842f531f9835f702a74e6c2 *frame_00140.bmp
 
+nes-test-roms/cpu_dummy_writes/cpu_dummy_writes_ppumem.nes          | 3920ms    | 512b26311d26c70c643551877bfb765aef412b5728779e4327025cbf101ba8f1 *frame_00234.bmp
+nes-test-roms/cpu_dummy_writes/cpu_dummy_writes_oam.nes             | 5487ms    | 7f1448896e8d5e7fe53b2dee0f502c325fe15e77b9d9eec634f9f4c4d6eebf6c *frame_00328.bmp
+
 nes-test-roms/instr_timing/rom_singles/1-instr_timing.nes           | 16911ms   | 62c57a27b42ad6a5e2af606418f7c073261bc1356f91729c36b67bad88347bbb *frame_01013.bmp
 nes-test-roms/instr_timing/rom_singles/2-branch_timing.nes          | 2351ms    | 8f2e44f970ec93e754fa12b5ec64bd239a31e34dc2ae104839ca577175926d14 *frame_00140.bmp
 
@@ -140,7 +143,7 @@ nes-test-roms/mmc3_test_2/rom_singles/5-MMC3.nes                    | 434ms     
 # Their run times are estimates: the longer of the nes_bench run and Mesen's
 # (plus 30 frames, since the menu loads later in nes_bench). Pages 12, 13 and
 # 19 currently crash or hang in nes_bench, so only Mesen's time is used
-#AccuracyCoin/AccuracyCoin.nes                                      | 1918ms    |                                                                                   | test_inputs/AccuracyCoin/page_01.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 1868ms    | 93ff16df74c6f1ddf74308908c4a79b9642fd1e45fa8ddacb75d97a827439886 *frame_00111.bmp | test_inputs/AccuracyCoin/page_01.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1301ms    | 32455cb2e08f757c14c67d32ffb208191fccb8bb5909710b24715530535bdf8d *frame_00077.bmp | test_inputs/AccuracyCoin/page_02.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1418ms    | 4e35c46ea0866c6008768175d472c543e513b15fdbc0e6019b7f9f1bb02076c9 *frame_00084.bmp | test_inputs/AccuracyCoin/page_03.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1485ms    | a88409357ae66915b0bf0e4e97240fe94de5db47aa1608a9e881c1883b781771 *frame_00088.bmp | test_inputs/AccuracyCoin/page_04.fm2
