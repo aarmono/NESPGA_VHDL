@@ -10,7 +10,9 @@ port
 (
     clk_key : in std_logic;
     clk_cpu : in std_logic;
-    reset   : in boolean;
+    -- Resets synchronized to clk_key and clk_cpu
+    reset_key : in boolean;
+    reset_cpu : in boolean;
     
     filter_invalid : in boolean;
     
@@ -67,7 +69,8 @@ architecture behavioral of ps2_joystick is
     signal key_pressed : boolean;
     
     -- CPU clock domain
-    signal joy_1_vals_cpu : joy_vals_t := (others => '1');
+    signal joy_1_vals_sync : joy_vals_t := (others => '1');
+    signal joy_1_vals_cpu  : joy_vals_t := (others => '1');
     signal joy_1_shift : unsigned(joy_vals_t'range) := (others => '1');
     
     signal shift_joy_1_prev : std_logic;
@@ -86,7 +89,7 @@ begin
     port map
     (
         clk => clk_key,
-        reset => reset,
+        reset => reset_key,
         
         ps2_clk => ps2_clk,
         ps2_data => ps2_dat,
@@ -103,7 +106,7 @@ begin
     begin
     if rising_edge(clk_key)
     then
-        if reset
+        if reset_key
         then
             joy_1_vals_ps2 <= (others => '1');
         elsif key_stb = '1'
@@ -169,16 +172,19 @@ begin
     process(clk_cpu)
     begin
     if rising_edge(clk_cpu) then
-        if reset
+        if reset_cpu
         then
+            joy_1_vals_sync  <= (others => '1');
             joy_1_vals_cpu   <= (others => '1');
             shift_joy_1_prev <= '0';
             joy_1_shift      <= (others => '1');
         else
             shift_joy_1_prev <= shift_joy_1;
             
-            -- Clock domain crossing
-            joy_1_vals_cpu <= joy_1_vals_ps2;
+            -- Clock domain crossing. The keys change independently, so
+            -- each bit is synchronized on its own
+            joy_1_vals_cpu  <= joy_1_vals_sync;
+            joy_1_vals_sync <= joy_1_vals_ps2;
             
             if joy_strobe = '1'
             then

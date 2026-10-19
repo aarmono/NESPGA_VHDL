@@ -6,6 +6,13 @@ use work.perhipheral_types.all;
 
 package de1_types is
     
+    type rom_config_t is
+    (
+        ROM_FLASH_DIRECT,
+        ROM_FLASH_TO_SDRAM,
+        ROM_SD_TO_SDRAM
+    );
+
     subtype vga_channel_t is std_logic_vector(3 downto 0);
 
     type vga_color_t is record
@@ -98,7 +105,9 @@ package de1_types is
     (
         clk_key : in std_logic;
         clk_cpu : in std_logic;
-        reset   : in boolean;
+        -- Resets synchronized to clk_key and clk_cpu
+        reset_key : in boolean;
+        reset_cpu : in boolean;
         
         filter_invalid : in boolean;
         
@@ -116,6 +125,77 @@ package de1_types is
         joy_2_reg   : out std_logic_vector(7 downto 0)
     );
     end component ps2_joystick;
+
+    component nes_de1 is
+    generic
+    (
+        ROM_CONFIG : rom_config_t := ROM_SD_TO_SDRAM
+    );
+    port
+    (
+        CLOCK_50  : in std_logic;
+        CLOCK_VGA : in std_logic;
+        CLOCK_AUD : in std_logic;
+        CLOCK_WE  : in std_logic;
+        RESET_N   : in std_logic;
+
+        I2C_SDAT : out std_logic;
+        I2C_SCLK : out std_logic;
+
+        PS2_CLK : inout std_logic;
+        PS2_DAT : inout std_logic;
+
+        SW   : in std_logic_vector(9 downto 0);
+        LEDR : out std_logic_vector(9 downto 0);
+        LEDG : out std_logic_vector(7 downto 0);
+
+        FL_DQ    : in std_logic_vector(7 downto 0);
+        FL_ADDR  : out std_logic_vector(21 downto 0);
+        FL_WE_N  : out std_logic;
+        FL_OE_N  : out std_logic;
+        FL_RST_N : out std_logic;
+
+        DRAM_ADDR  : out std_logic_vector(11 downto 0);
+        DRAM_BA_0  : out std_logic;
+        DRAM_BA_1  : out std_logic;
+        DRAM_CAS_N : out std_logic;
+        DRAM_CKE   : out std_logic;
+        DRAM_CLK   : out std_logic;
+        DRAM_CS_N  : out std_logic;
+        DRAM_DQ    : inout std_logic_vector(15 downto 0);
+        DRAM_LDQM  : out std_logic;
+        DRAM_UDQM  : out std_logic;
+        DRAM_RAS_N : out std_logic;
+        DRAM_WE_N  : out std_logic;
+
+        -- SD card in SPI mode
+        SD_DAT  : in std_logic;
+        SD_DAT3 : out std_logic;
+        SD_CMD  : out std_logic;
+        SD_CLK  : out std_logic;
+
+        SRAM_DQ   : inout std_logic_vector(15 downto 0);
+        SRAM_ADDR : out std_logic_vector(17 downto 0);
+        SRAM_LB_N : out std_logic;
+        SRAM_UB_N : out std_logic;
+        SRAM_CE_N : out std_logic;
+        SRAM_OE_N : out std_logic;
+        SRAM_WE_N : out std_logic;
+
+        VGA_R    : out std_logic_vector(3 downto 0);
+        VGA_G    : out std_logic_vector(3 downto 0);
+        VGA_B    : out std_logic_vector(3 downto 0);
+        VGA_HS   : out std_logic;
+        VGA_VS   : out std_logic;
+        VGA_LVAL : out std_logic;
+        VGA_FVAL : out std_logic;
+
+        AUD_BCLK    : out std_logic;
+        AUD_DACDAT  : out std_logic;
+        AUD_DACLRCK : out std_logic;
+        AUD_XCK     : out std_logic
+    );
+    end component nes_de1;
     
 end de1_types;
 

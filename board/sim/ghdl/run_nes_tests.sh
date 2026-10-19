@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 
 usage() {
-    echo "Usage: $0 [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
-    echo "       $0 [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] -r RESULTS_FILE..."
-    echo "  -f  Test list to run (default: nes_tests.txt)"
+    echo "Usage: $0 [ -b BENCH ] [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
+    echo "       $0 [ -b BENCH ] [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] -r RESULTS_FILE..."
+    echo "  -b  Test bench to run the tests on: nes_bench (default) or"
+    echo "      nes_de1_bench"
+    echo "  -f  Test list to run (default: nes_tests.txt for nes_bench,"
+    echo "      nes_de1_tests.txt for nes_de1_bench)"
     echo "  -s  Only run shard SHARD (1-based) of SHARD_COUNT. Tests are"
     echo "      distributed so each shard has about the same total run time"
     echo "  -l  List the selected tests and their run times, then exit"
     echo "  -r  Don't run tests. Print a report of the selected tests from the"
-    echo "      given results files (output/results.txt of earlier runs, such"
-    echo "      as one from each shard), then exit"
+    echo "      given results files (results.txt in the output directory of"
+    echo "      earlier runs, such as one from each shard), then exit"
     echo
     echo "When all tests finish, a Markdown table of the results is printed."
     echo "The exit status is nonzero if any selected test failed or has no result"
@@ -90,12 +93,20 @@ run_nes_test() {
     HASH=`echo "$1" | cut -f 3 -d '|' | xargs`
     FM2_PATH=`echo "$1" | cut -f 4 -d '|' | xargs`
     TEST_NAME=`test_name "$1"`
-    OUTPUT_DIR=output/"$TEST_NAME"
+    OUTPUT_DIR="$OUTPUT_ROOT"/"$TEST_NAME"
+
+    # Only pass -i when there is an FM2 input, since nes_de1_bench doesn't
+    # support one
+    FM2_ARGS=()
+    if [ "$FM2_PATH" != "" ]
+    then
+        FM2_ARGS=(-i "$FM2_PATH")
+    fi
 
     echo "Test start: $TEST_NAME"
     START=$SECONDS
-    ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" \
-                       -i "$FM2_PATH" 1> /dev/null
+    ./run_"$BENCH".sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" \
+                      "${FM2_ARGS[@]}" 1> /dev/null
 
     if [ "$HASH" != "" ]
     then
@@ -178,15 +189,17 @@ report() {
     [ $FAILED -eq 0 ] && [ $NOT_RUN -eq 0 ]
 }
 
-TESTS_FILE=nes_tests.txt
+BENCH=nes_bench
+TESTS_FILE=
 SHARD=1
 SHARD_COUNT=1
 LIST_ONLY=0
 REPORT_ONLY=0
 
-while getopts f:s:lrh flag
+while getopts b:f:s:lrh flag
 do
     case "${flag}" in
+        b) BENCH="${OPTARG}";;
         f) TESTS_FILE="${OPTARG}";;
         s) SHARD="${OPTARG%/*}"
            SHARD_COUNT="${OPTARG#*/}";;
@@ -203,6 +216,23 @@ if [ $REPORT_ONLY -eq 1 ] && [ $# -eq 0 ]
 then
     echo "Error: -r requires at least one results file"
     exit_abnormal
+fi
+
+case "$BENCH" in
+    nes_bench)
+        DEFAULT_TESTS_FILE=nes_tests.txt
+        OUTPUT_ROOT=output;;
+    nes_de1_bench)
+        DEFAULT_TESTS_FILE=nes_de1_tests.txt
+        OUTPUT_ROOT=de1_output;;
+    *)
+        echo "Error: unknown bench '$BENCH'"
+        exit_abnormal;;
+esac
+
+if [ "$TESTS_FILE" == "" ]
+then
+    TESTS_FILE=$DEFAULT_TESTS_FILE
 fi
 
 if ! [[ "$SHARD" =~ ^[0-9]+$ && "$SHARD_COUNT" =~ ^[0-9]+$ ]] ||
@@ -235,19 +265,19 @@ then
     exit
 fi
 
-if ! make -s -f nes_bench.Makefile
+if ! make -s -f "$BENCH".Makefile
 then
-    echo "nes_bench make failed"
+    echo "$BENCH make failed"
     exit 1
 fi
 
 # NES file paths in the test list are relative to the root of the repository
 BASEDIR=../../..
-RESULTS_FILE=output/results.txt
-FAILURES_DIR=output/failures
+RESULTS_FILE="$OUTPUT_ROOT"/results.txt
+FAILURES_DIR="$OUTPUT_ROOT"/failures
 
-rm -rf output/*
-mkdir -p output
+rm -rf "$OUTPUT_ROOT"/*
+mkdir -p "$OUTPUT_ROOT"
 
 N=`nproc`
 for line in $TESTS

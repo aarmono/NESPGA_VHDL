@@ -14,7 +14,8 @@ generic
     AU_FILEPATH     : string;
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
-    NES_FILE_BYTES  : integer := 196608
+    NES_FILE_BYTES  : integer := 196608;
+    ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM
 );
 end nes_de1_bench;
 
@@ -32,6 +33,27 @@ architecture behavioral of nes_de1_bench is
     signal fl_oe_n : std_logic;
 
     signal flash_bus : file_bus_t;
+
+    signal dram_addr  : std_logic_vector(11 downto 0);
+    signal dram_ba_0  : std_logic;
+    signal dram_ba_1  : std_logic;
+    signal dram_cas_n : std_logic;
+    signal dram_cke   : std_logic;
+    signal dram_clk   : std_logic;
+    signal dram_cs_n  : std_logic;
+    signal dram_dq    : std_logic_vector(15 downto 0);
+    signal dram_ldqm  : std_logic;
+    signal dram_udqm  : std_logic;
+    signal dram_ras_n : std_logic;
+    signal dram_we_n  : std_logic;
+
+    signal sd_dat  : std_logic;
+    signal sd_dat3 : std_logic;
+    signal sd_cmd  : std_logic;
+    signal sd_clk  : std_logic;
+
+    signal ps2_clk : std_logic;
+    signal ps2_dat : std_logic;
 
     signal sram_dq   : std_logic_vector(15 downto 0);
     signal sram_addr : std_logic_vector(17 downto 0);
@@ -56,10 +78,14 @@ architecture behavioral of nes_de1_bench is
     file audio_file : byte_file_t;
     signal aud_initialized : boolean := false;
     signal aud_shift : std_logic_vector(15 downto 0) := x"0000";
-    signal aud_count : unsigned(3 downto 0) := x"F";
+    signal aud_count : natural range 0 to 2**4-1 := 2**4-1;
 begin
 
-    nes : entity work.nes_de1(behavioral)
+    nes : nes_de1
+    generic map
+    (
+        ROM_CONFIG => ROM_CONFIG
+    )
     port map
     (
         CLOCK_50 => clk_50,
@@ -71,11 +97,32 @@ begin
         I2C_SDAT => i2c_sdat,
         I2C_SCLK => i2c_sclk,
 
+        PS2_CLK => ps2_clk,
+        PS2_DAT => ps2_dat,
+
         SW => (others => '0'),
         
         FL_DQ => fl_dq,
         FL_ADDR => fl_addr,
         FL_OE_N => fl_oe_n,
+
+        DRAM_ADDR => dram_addr,
+        DRAM_BA_0 => dram_ba_0,
+        DRAM_BA_1 => dram_ba_1,
+        DRAM_CAS_N => dram_cas_n,
+        DRAM_CKE => dram_cke,
+        DRAM_CLK => dram_clk,
+        DRAM_CS_N => dram_cs_n,
+        DRAM_DQ => dram_dq,
+        DRAM_LDQM => dram_ldqm,
+        DRAM_UDQM => dram_udqm,
+        DRAM_RAS_N => dram_ras_n,
+        DRAM_WE_N => dram_we_n,
+
+        SD_DAT => sd_dat,
+        SD_DAT3 => sd_dat3,
+        SD_CMD => sd_cmd,
+        SD_CLK => sd_clk,
 
         SRAM_DQ => sram_dq,
         SRAM_ADDR => sram_addr,
@@ -117,15 +164,15 @@ begin
         aud_out := aud_shift;
         if daclrck = '1'
         then
-            aud_out(to_integer(aud_count)) := dacdat;
-            if aud_count = x"0"
+            aud_out(aud_count) := dacdat;
+            if aud_count = 0
             then
                 au_fwrite_16(audio_file, aud_out);
                 --flush(audio_file);
             end if;
             
             aud_shift <= aud_out;
-            aud_count <= aud_count - "1";
+            aud_count <= wrap(aud_count - 1, 2**4-1);
         end if;
     end if;
     end process;
@@ -151,6 +198,42 @@ begin
         D => sram_dq
     );
     
+
+    rom_ram : entity work.sdram(behavioral)
+    port map
+    (
+        clk => dram_clk,
+        cke => dram_cke,
+        cs_n => dram_cs_n,
+        ras_n => dram_ras_n,
+        cas_n => dram_cas_n,
+        we_n => dram_we_n,
+        ba(0) => dram_ba_0,
+        ba(1) => dram_ba_1,
+        addr => dram_addr,
+        ldqm => dram_ldqm,
+        udqm => dram_udqm,
+        dq => dram_dq
+    );
+
+    sd : entity work.sd_card(behavioral)
+    generic map
+    (
+        FILEPATH => NES_FILEPATH,
+        FILE_BYTES => NES_FILE_BYTES
+    )
+    port map
+    (
+        sck => sd_clk,
+        cs_n => sd_dat3,
+        mosi => sd_cmd,
+        miso => sd_dat
+    );
+
+    -- Pull ups on the board
+    sd_dat <= 'H';
+    ps2_clk <= 'H';
+    ps2_dat <= 'H';
 
     flash_bus.read <= fl_oe_n = '0';
     flash_bus.write <= false;
@@ -196,7 +279,7 @@ begin
     clk_vga_gen : clock
     generic map
     (
-        PERIOD => 39722 ps
+        PERIOD => 39683 ps
     )
     port map
     (
@@ -207,7 +290,7 @@ begin
     clk_aud_gen : clock
     generic map
     (
-        PERIOD => 54 ns
+        PERIOD => 54286 ps
     )
     port map
     (
@@ -219,7 +302,7 @@ begin
     generic map
     (
         PERIOD => 20 ns,
-        OFFSET => 18 ns
+        OFFSET => 17857 ps
     )
     port map
     (
