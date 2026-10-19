@@ -11,6 +11,10 @@ use work.soc.all;
 use work.de1_types.all;
 
 entity nes_de1 is
+generic
+(
+    ROM_CONFIG : rom_config_t := ROM_SD_TO_SDRAM
+);
 port
 (
     CLOCK_50  : in std_logic;
@@ -34,6 +38,25 @@ port
     FL_WE_N  : out std_logic;
     FL_OE_N  : out std_logic;
     FL_RST_N : out std_logic;
+
+    DRAM_ADDR  : out std_logic_vector(11 downto 0);
+    DRAM_BA_0  : out std_logic;
+    DRAM_BA_1  : out std_logic;
+    DRAM_CAS_N : out std_logic;
+    DRAM_CKE   : out std_logic;
+    DRAM_CLK   : out std_logic;
+    DRAM_CS_N  : out std_logic;
+    DRAM_DQ    : inout std_logic_vector(15 downto 0);
+    DRAM_LDQM  : out std_logic;
+    DRAM_UDQM  : out std_logic;
+    DRAM_RAS_N : out std_logic;
+    DRAM_WE_N  : out std_logic;
+
+    -- SD card in SPI mode
+    SD_DAT  : in std_logic;
+    SD_DAT3 : out std_logic;
+    SD_CMD  : out std_logic;
+    SD_CLK  : out std_logic;
     
     SRAM_DQ   : inout std_logic_vector(15 downto 0);
     SRAM_ADDR : out std_logic_vector(17 downto 0);
@@ -75,14 +98,36 @@ architecture behavioral of nes_de1 is
     signal reg_audio_cpu_clk : mixed_audio_t := (others => '0');
     signal reg_audio_aud_clk : mixed_audio_t := (others => '0');
 
+    -- Flips when reg_audio_cpu_clk is updated
+    signal audio_toggle     : std_logic := '0';
+    signal audio_toggle_aud : std_logic_vector(2 downto 0) := (others => '0');
+
     signal cpu_clk_en  : boolean;
     signal ppu_clk_en  : boolean;
 
     signal nes_running : boolean;
 
-    signal reset : boolean;
+    -- RESET_N synchronized to each clock domain. Reset is asserted
+    -- asynchronously and released synchronously, so that every register in
+    -- a domain leaves reset on the same clock
+    signal reset_50_sync  : std_logic_vector(1 downto 0) := (others => '0');
+    signal reset_aud_sync : std_logic_vector(1 downto 0) := (others => '0');
+    signal reset_vga_sync : std_logic_vector(1 downto 0) := (others => '0');
+
+    signal reset_50  : boolean;
+    signal reset_aud : boolean;
+    signal reset_vga : boolean;
+
+    signal nes_reset : boolean;
     
     signal flash_bus : file_bus_t;
+    signal file_bus  : file_bus_t;
+    signal data_from_file : data_t;
+
+    signal dram_ba : std_logic_vector(1 downto 0);
+
+    signal rom_loading : boolean;
+    signal sd_error    : boolean;
     
     signal joy_strobe : std_logic;
     
@@ -95,12 +140,160 @@ architecture behavioral of nes_de1 is
     
 begin
     
-    reset <= RESET_N = '0';
+    process(CLOCK_50, RESET_N)
+    begin
+    if RESET_N = '0'
+    then
+        reset_50_sync <= (others => '1');
+    elsif rising_edge(CLOCK_50)
+    then
+        reset_50_sync <= reset_50_sync(0) & '0';
+    end if;
+    end process;
+
+    process(CLOCK_AUD, RESET_N)
+    begin
+    if RESET_N = '0'
+    then
+        reset_aud_sync <= (others => '1');
+    elsif rising_edge(CLOCK_AUD)
+    then
+        reset_aud_sync <= reset_aud_sync(0) & '0';
+    end if;
+    end process;
+
+    process(CLOCK_VGA, RESET_N)
+    begin
+    if RESET_N = '0'
+    then
+        reset_vga_sync <= (others => '1');
+    elsif rising_edge(CLOCK_VGA)
+    then
+        reset_vga_sync <= reset_vga_sync(0) & '0';
+    end if;
+    end process;
+
+    reset_50  <= reset_50_sync(1) = '1';
+    reset_aud <= reset_aud_sync(1) = '1';
+    reset_vga <= reset_vga_sync(1) = '1';
 
     FL_ADDR <= resize(flash_bus.address, fl_addr'length);
     FL_WE_N <= '1';
     FL_OE_N <= not to_std_logic(is_bus_read(flash_bus));
     FL_RST_N <= '1';
+
+    DRAM_BA_0 <= dram_ba(0);
+    DRAM_BA_1 <= dram_ba(1);
+
+    gen_sdram : if ROM_CONFIG /= ROM_FLASH_DIRECT generate
+        signal load_valid : boolean;
+        signal load_data  : data_t;
+        signal load_ready : boolean;
+    begin
+        nes_reset <= reset_50 or rom_loading;
+
+        -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
+        -- clock output delay to the SDRAM
+        DRAM_CLK <= CLOCK_WE;
+
+        rom : entity work.sdram_rom(behavioral)
+        port map
+        (
+            clk => CLOCK_50,
+            reset => reset_50,
+
+            loading => rom_loading,
+
+            load_valid => load_valid,
+            load_data => load_data,
+            load_ready => load_ready,
+
+            ppu_clk_en => ppu_clk_en,
+            file_bus => file_bus,
+            data_from_file => data_from_file,
+
+            dram_addr => DRAM_ADDR,
+            dram_ba => dram_ba,
+            dram_cs_n => DRAM_CS_N,
+            dram_ras_n => DRAM_RAS_N,
+            dram_cas_n => DRAM_CAS_N,
+            dram_we_n => DRAM_WE_N,
+            dram_cke => DRAM_CKE,
+            dram_ldqm => DRAM_LDQM,
+            dram_udqm => DRAM_UDQM,
+            dram_dq => DRAM_DQ
+        );
+
+        gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
+        begin
+            flash_bus <= FILE_BUS_IDLE;
+
+            sd : entity work.sd_reader(behavioral)
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset_50,
+
+                failed => sd_error,
+
+                stop => not rom_loading,
+                data => load_data,
+                valid => load_valid,
+                ready => load_ready,
+
+                sd_clk => SD_CLK,
+                sd_cs_n => SD_DAT3,
+                sd_mosi => SD_CMD,
+                sd_miso => SD_DAT
+            );
+        else generate
+        begin
+            sd_error <= false;
+
+            SD_CLK <= '0';
+            SD_DAT3 <= '1';
+            SD_CMD <= '1';
+
+            flash : entity work.flash_stream(behavioral)
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset_50,
+
+                flash_bus => flash_bus,
+                data_from_flash => FL_DQ,
+
+                stop => not rom_loading,
+                data => load_data,
+                valid => load_valid,
+                ready => load_ready
+            );
+        end generate;
+    else generate
+    begin
+        nes_reset <= reset_50;
+        rom_loading <= false;
+        sd_error <= false;
+
+        flash_bus <= file_bus;
+        data_from_file <= FL_DQ;
+
+        SD_CLK <= '0';
+        SD_DAT3 <= '1';
+        SD_CMD <= '1';
+
+        DRAM_CLK <= '0';
+        DRAM_ADDR <= (others => '0');
+        dram_ba <= (others => '0');
+        DRAM_CS_N <= '1';
+        DRAM_RAS_N <= '1';
+        DRAM_CAS_N <= '1';
+        DRAM_WE_N <= '1';
+        DRAM_CKE <= '0';
+        DRAM_LDQM <= '1';
+        DRAM_UDQM <= '1';
+        DRAM_DQ <= (others => 'Z');
+    end generate;
 
     VGA_R <= vga_out.color.red;
     VGA_G <= vga_out.color.green;
@@ -113,7 +306,9 @@ begin
     AUD_XCK <= CLOCK_AUD;
     
     LEDR(9) <= SW(9);
-    LEDR(8 downto 0) <= (others => '0');
+    LEDR(8 downto 2) <= (others => '0');
+    LEDR(1) <= to_std_logic(rom_loading);
+    LEDR(0) <= to_std_logic(sd_error);
     
     LEDG <= not joy_1_reg;
     
@@ -122,7 +317,7 @@ begin
     port map
     (
         clk => CLOCK_AUD,
-        reset => reset,
+        reset => reset_aud,
         
         audio => audio,
         
@@ -142,7 +337,7 @@ begin
     (
         clk_50mhz => CLOCK_50,
         clk_we => CLOCK_WE,
-        reset => reset,
+        reset => reset_50,
 
         sram_dq => SRAM_DQ,
         sram_addr => SRAM_ADDR,
@@ -165,7 +360,7 @@ begin
     port map
     (
         clk => CLOCK_VGA,
-        reset => reset,
+        reset => reset_vga,
 
         sram_dq => vga_sram_dq,
         sram_addr => vga_sram_addr,
@@ -183,15 +378,15 @@ begin
     port map
     (
         clk => CLOCK_50,
-        reset => reset,
+        reset => nes_reset,
 
         nes_running => nes_running,
 
         cpu_clk_en => cpu_clk_en,
         ppu_clk_en => ppu_clk_en,
 
-        file_bus => flash_bus,
-        data_from_file => FL_DQ,
+        file_bus => file_bus,
+        data_from_file => data_from_file,
 
         pixel_bus => pixel_bus,
         audio => audio_out,
@@ -210,7 +405,8 @@ begin
     (
         clk_key => CLOCK_AUD,
         clk_cpu => CLOCK_50,
-        reset => reset,
+        reset_key => reset_aud,
+        reset_cpu => reset_50,
         
         filter_invalid => SW(9) = '1',
         
@@ -227,6 +423,10 @@ begin
         joy_2_val => joy_2_val
     );
 
+    -- The audio crosses to CLOCK_AUD with a toggle handshake: the toggle is
+    -- synchronized and reg_audio_cpu_clk is copied when it flips, which
+    -- is 2-3 CLOCK_AUD clocks after the update. reg_audio_cpu_clk only
+    -- updates on cpu_clk_en, so it is stable for much longer than that
     process(CLOCK_50)
     begin
     if rising_edge(CLOCK_50) then
@@ -234,6 +434,7 @@ begin
         if nes_running
         then
             reg_audio_cpu_clk <= audio_out;
+            audio_toggle <= not audio_toggle;
         end if;
     end if;
     end if;
@@ -243,7 +444,12 @@ begin
     begin
     if rising_edge(CLOCK_AUD)
     then
-        reg_audio_aud_clk <= reg_audio_cpu_clk;
+        if audio_toggle_aud(2) /= audio_toggle_aud(1)
+        then
+            reg_audio_aud_clk <= reg_audio_cpu_clk;
+        end if;
+
+        audio_toggle_aud <= audio_toggle_aud(1 downto 0) & audio_toggle;
     end if;
     end process;
     

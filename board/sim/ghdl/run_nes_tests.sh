@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
 usage() {
-    echo "Usage: $0 [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
-    echo "  -f  Test list to run (default: nes_tests.txt)"
+    echo "Usage: $0 [ -b BENCH ] [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
+    echo "  -b  Test bench to run the tests on: nes_bench (default) or"
+    echo "      nes_de1_bench"
+    echo "  -f  Test list to run (default: nes_tests.txt for nes_bench,"
+    echo "      nes_de1_tests.txt for nes_de1_bench)"
     echo "  -s  Only run shard SHARD (1-based) of SHARD_COUNT. Tests are"
     echo "      distributed so each shard has about the same total run time"
     echo "  -l  List the selected tests and their run times, then exit"
@@ -61,10 +64,10 @@ run_nes_test() {
     NES_FILEPATH="$BASEDIR"/"$TEST_PATH"
     RUN_TIME=`echo "$1" | cut -f 2 -d '|' | xargs`
     HASH=`echo "$1" | cut -f 3 -d '|' | xargs`
-    OUTPUT_DIR=output/"$TEST_PATH"
+    OUTPUT_DIR="$OUTPUT_ROOT"/"$TEST_PATH"
 
     echo "Test start: $TEST_PATH"
-    ./run_nes_bench.sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" 1> /dev/null
+    ./run_"$BENCH".sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" 1> /dev/null
 
     if [ "$HASH" != "" ]
     then
@@ -94,14 +97,16 @@ run_nes_test() {
     echo "$STATUS $TEST_PATH" >> "$RESULTS_FILE"
 }
 
-TESTS_FILE=nes_tests.txt
+BENCH=nes_bench
+TESTS_FILE=
 SHARD=1
 SHARD_COUNT=1
 LIST_ONLY=0
 
-while getopts f:s:lh flag
+while getopts b:f:s:lh flag
 do
     case "${flag}" in
+        b) BENCH="${OPTARG}";;
         f) TESTS_FILE="${OPTARG}";;
         s) SHARD="${OPTARG%/*}"
            SHARD_COUNT="${OPTARG#*/}";;
@@ -111,6 +116,23 @@ do
         *) exit_abnormal;;
     esac
 done
+
+case "$BENCH" in
+    nes_bench)
+        DEFAULT_TESTS_FILE=nes_tests.txt
+        OUTPUT_ROOT=output;;
+    nes_de1_bench)
+        DEFAULT_TESTS_FILE=nes_de1_tests.txt
+        OUTPUT_ROOT=de1_output;;
+    *)
+        echo "Error: unknown bench '$BENCH'"
+        exit_abnormal;;
+esac
+
+if [ "$TESTS_FILE" == "" ]
+then
+    TESTS_FILE=$DEFAULT_TESTS_FILE
+fi
 
 if ! [[ "$SHARD" =~ ^[0-9]+$ && "$SHARD_COUNT" =~ ^[0-9]+$ ]] ||
    [ "$SHARD" -lt 1 ] || [ "$SHARD" -gt "$SHARD_COUNT" ]
@@ -133,9 +155,9 @@ then
     exit 0
 fi
 
-if ! make -s -f nes_bench.Makefile
+if ! make -s -f "$BENCH".Makefile
 then
-    echo "nes_bench make failed"
+    echo "$BENCH make failed"
     exit 1
 fi
 
@@ -143,11 +165,11 @@ IFS='
 '
 
 BASEDIR=../../../nes-test-roms
-RESULTS_FILE=output/results.txt
-FAILURES_DIR=output/failures
+RESULTS_FILE="$OUTPUT_ROOT"/results.txt
+FAILURES_DIR="$OUTPUT_ROOT"/failures
 
-rm -rf output/*
-mkdir -p output
+rm -rf "$OUTPUT_ROOT"/*
+mkdir -p "$OUTPUT_ROOT"
 
 N=`nproc`
 for line in $TESTS
