@@ -15,6 +15,7 @@ port
     clk_odd       : in  boolean;
     reset         : in  boolean;
     
+    cpu_write     : in  boolean;
     oam_dma       : in  oam_dma_status_t;
 
     cpu_bus       : in  apu_bus_t;
@@ -45,7 +46,8 @@ begin
         variable v_output : apu_output_t;
     begin
 
-        v_output := cycle_apu(reg, cpu_bus, data_to_apu, clk_odd, oam_dma);
+        v_output := cycle_apu(reg, cpu_bus, data_to_apu, clk_odd, cpu_write,
+                              oam_dma);
 
         reg_in <= v_output.reg;
         audio <= v_output.audio;

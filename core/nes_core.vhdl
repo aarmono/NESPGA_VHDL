@@ -44,6 +44,7 @@ package nes_core is
         clk_odd       : in  boolean;
         reset         : in  boolean;
 
+        cpu_write     : in  boolean;
         oam_dma       : in  oam_dma_status_t;
 
         cpu_bus       : in  apu_bus_t;
@@ -118,6 +119,7 @@ package nes_core is
     (
         clk    : in std_logic;
         clk_en : in boolean := true;
+        clk_odd : in boolean;
         reset  : in boolean;
 
         cpu_bus       : in  joy_bus_t;

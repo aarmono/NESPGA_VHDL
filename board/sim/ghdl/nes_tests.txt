@@ -45,9 +45,9 @@ nes-test-roms/cpu_exec_space/test_cpu_exec_space_apu.nes            | 5037ms    
 
 # Basic APU
 nes-test-roms/dmc_tests/buffer_retained.nes                         | 300ms     | f2b698da1cd765237f5de26375559505f71fb96795f9aabee72d70a68c147ae8 *audio.au
-nes-test-roms/dmc_tests/latency.nes                                 | 300ms     | d3b67b3c3cda34f2b8c9f06e9ff4907a79304ca453193e5586c3114f9ffea99c *audio.au
-nes-test-roms/dmc_tests/status.nes                                  | 300ms     | 14b4bd1fafc2a8b23cc6374efff9328d6aba3abc1a0e2da2392ba5fec6f79376 *audio.au
-nes-test-roms/dmc_tests/status_irq.nes                              | 300ms     | 7b6145dad36c3774a4061cc98da41d022d5940a6b658a3e780cd35e822504f25 *audio.au
+nes-test-roms/dmc_tests/latency.nes                                 | 300ms     | de686ff6ec524563207ac4fab0f50f7fc36895d84eb3f230f99aa5cb7f368177 *audio.au
+nes-test-roms/dmc_tests/status.nes                                  | 300ms     | 7aa99b6adee4c5fe48a6c7d3d4b8f4e4dd55ef79508cf0d8903cfd866f5c5b10 *audio.au
+nes-test-roms/dmc_tests/status_irq.nes                              | 300ms     | 836321f74360968c29416ab6e7f186e0e08417458125c4f9c684bd552a76385b *audio.au
 
 nes-test-roms/apu_test/rom_singles/1-len_ctr.nes                    | 334ms     | f89d0540946059fe833bfc061db296f478fee5833ed97180bf38c4cd069c9105 *frame_00019.bmp
 nes-test-roms/apu_test/rom_singles/2-len_table.nes                  | 250ms     | c8b767953575b78737c61e58223c722dd6c71e652cd0b193821420361aeec7d3 *frame_00014.bmp
@@ -56,7 +56,7 @@ nes-test-roms/apu_test/rom_singles/4-jitter.nes                     | 317ms     
 nes-test-roms/apu_test/rom_singles/5-len_timing.nes                 | 1884ms    | f9cd1485c50a39ec85e032a7c444f0a7e945f72cbd4df84ecc9060153f46f4cb *frame_00112.bmp
 nes-test-roms/apu_test/rom_singles/6-irq_flag_timing.nes            | 384ms     | 9c4d0520066ec00196b656c1d5c7a67ac1f218345ed9f5cb7545dde7a12b61d2 *frame_00022.bmp
 nes-test-roms/apu_test/rom_singles/7-dmc_basics.nes                 | 417ms     | 4256f16e75b8ce7fdbe5e0777015e8f4b081c416bb0afa68b08932fd605400f1 *frame_00024.bmp
-nes-test-roms/apu_test/rom_singles/8-dmc_rates.nes                  | 467ms     | 66c4635f0b921f66c4a002b5e1998ba461b379f5cef4949fd3bd6b381f56f357 *frame_00027.bmp
+nes-test-roms/apu_test/rom_singles/8-dmc_rates.nes                  | 484ms     | 66c4635f0b921f66c4a002b5e1998ba461b379f5cef4949fd3bd6b381f56f357 *frame_00028.bmp
 
 nes-test-roms/blargg_apu_2005.07.30/01.len_ctr.nes                  | 417ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00024.bmp
 nes-test-roms/blargg_apu_2005.07.30/02.len_table.nes                | 184ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00010.bmp
@@ -155,9 +155,9 @@ AccuracyCoin/AccuracyCoin.nes                                       | 1918ms    
 AccuracyCoin/AccuracyCoin.nes                                       | 2002ms    | 448f6fe71be1bc19deaac342112f9210a39ae0c9c4fc1f6cc18090b012280c3a *frame_00119.bmp | test_inputs/AccuracyCoin/page_10.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 2135ms    | 1a41d23324305af9b361c3ab6e899dcc2cf15282ea696b817e9a3c086fc00cf0 *frame_00127.bmp | test_inputs/AccuracyCoin/page_11.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 4287ms    |                                                                                   | test_inputs/AccuracyCoin/page_12.fm2
-#AccuracyCoin/AccuracyCoin.nes                                      | 2652ms    |                                                                                   | test_inputs/AccuracyCoin/page_13.fm2
-#AccuracyCoin/AccuracyCoin.nes                                      | 3853ms    |                                                                                   | test_inputs/AccuracyCoin/page_14.fm2
-#AccuracyCoin/AccuracyCoin.nes                                      | 3820ms    |                                                                                   | test_inputs/AccuracyCoin/page_15.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 2619ms    | 276e80f458fbd7fd72eb7f0209499c369841a0926db15f059c269a63f2ae5910 *frame_00156.bmp | test_inputs/AccuracyCoin/page_13.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 3803ms    | 271d87cc1c780ab65695b6433f796930f7d8aff50c721d1ae6138b052842aaa6 *frame_00227.bmp | test_inputs/AccuracyCoin/page_14.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 3803ms    | 4c3bedc651d68017253e2e3b481a451a15a704544860f2b904f08f8d187a5fca *frame_00227.bmp | test_inputs/AccuracyCoin/page_15.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1852ms    | 45a7791b3bf73d1ddad450f813788f281124d5f477f6fbfe1100fee2f872554e *frame_00110.bmp | test_inputs/AccuracyCoin/page_16.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 4103ms    | a53009d017e1bd65abbca73ca708a06c92b17a2995b0531890e3decb763d60b7 *frame_00245.bmp | test_inputs/AccuracyCoin/page_17.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 25083ms   | c4f78a3cd3307c663c89f2465010a567e5acc8257bbb164a6f6c07a2172618d0 *frame_01503.bmp | test_inputs/AccuracyCoin/page_18.fm2

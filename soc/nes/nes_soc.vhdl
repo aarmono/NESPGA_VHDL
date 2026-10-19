@@ -243,6 +243,7 @@ begin
         clk_odd => cpu_odd,
         reset => int_reset,
 
+        cpu_write => is_bus_write(cpu_bus),
         oam_dma => oam_dma_status,
         
         cpu_bus => apu_bus,
@@ -261,6 +262,7 @@ begin
     (
         clk => clk,
         clk_en => cpu_en,
+        clk_odd => cpu_odd,
         reset => int_reset,
 
         cpu_bus => joy_bus,
@@ -351,6 +353,11 @@ begin
         end if;
 
         nes_in.cpu_bus.clk_sync := ppu_sync;
+        nes_in.cpu_bus.dma_cycle := is_bus_active(apu_dma_bus) or
+                                    is_bus_active(oam_dma_bus);
+        nes_in.cpu_bus.apu_regs_active :=
+            is_bus_active(cpu_bus) and
+            cpu_bus.address(15 downto 5) = "01000000000";
         
         nes_in.cpu_bus.data_from_apu := data_from_apu;
         nes_in.cpu_bus.data_from_joy := data_from_joy;

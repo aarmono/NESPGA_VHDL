@@ -63,10 +63,15 @@ subtype dmc_data_t is unsigned(data_t'range);
     type dma_state_t is
     (
         DMA_IDLE,
-        DMA_READ_REQ
+        DMA_READ_REQ,
+        -- A reload DMA scheduled just after playback stopped. It halts
+        -- the CPU for one cycle and is then aborted
+        DMA_ABORT
     );
     
     subtype dma_delay_t is unsigned(1 downto 0);
+    -- Halt and dummy cycles completed before the DMA read can happen
+    subtype dma_halt_t is natural range 0 to 2;
     
     type dma_t is record
         -- Current state (whether idle or reading data)
@@ -85,6 +90,10 @@ subtype dmc_data_t is unsigned(data_t'range);
         irq_active     : boolean;
         -- Cycles remaining before a DMA can be started
         start_delay    : dma_delay_t;
+        -- Halt/dummy cycles the CPU has been halted for
+        halt_count     : dma_halt_t;
+        -- Bytes were remaining at the start of the previous APU cycle
+        playing_prev   : boolean;
     end record;
     
     constant RESET_DMA : dma_t :=
@@ -96,19 +105,23 @@ subtype dmc_data_t is unsigned(data_t'range);
         irq_enable => false,
         loop_enable => false,
         irq_active => false,
-        start_delay => (others => '0')
+        start_delay => (others => '0'),
+        halt_count => 0,
+        playing_prev => false
     );
     
     function init_dma_address(start_address : dma_start_t) return dma_addr_t;
     function init_dma_remaining(dma_length : dma_length_t) return dma_remainder_t;
     
-    -- True on the cycle the DMC DMA read is performed. While OAM DMA is
+    -- True on the cycle the DMC DMA read is performed: the first even
+    -- (read) cycle after the halt and dummy cycles. While OAM DMA is
     -- running the CPU is already halted, so the DMC DMA halt/dummy cycles
     -- overlap it and the read can only take the place of an OAM read cycle,
     -- never an OAM write cycle.
     function dma_read_now
     (
         dma     : dma_t;
+        clk_odd : boolean;
         oam_dma : oam_dma_status_t
     )
     return boolean;
@@ -119,11 +132,12 @@ subtype dmc_data_t is unsigned(data_t'range);
         shift_reloaded : boolean;
         cpu_data_in    : data_t;
         clk_odd        : boolean;
+        cpu_write      : boolean;
         oam_dma        : oam_dma_status_t
     )
     return dma_t;
     
-    subtype dmc_timer_t is natural range 0 to 2**9-1;
+    subtype dmc_timer_t is natural range 0 to 2**8-1;
     subtype dmc_idx_t is natural range 0 to 15;
     subtype dmc_dac_t is natural range 0 to 127;
     subtype dmc_count_t is natural range 0 to 7;
@@ -132,39 +146,39 @@ subtype dmc_data_t is unsigned(data_t'range);
 
     constant DMC_TIMER_ARR : dmc_timer_arr_t :=
     (
-        -- Rate - 1
+        -- Rate in APU cycles - 1 (CPU cycle rate in comments)
         -- 428
-        427,
-        -- 380
-        379,
-        -- 340
-        339,
-        -- 320
-        319,
-        -- 286
-        285,
-        -- 254
-        253,
-        -- 226
-        225,
-        -- 214
         213,
-        -- 190
+        -- 380
         189,
-        -- 160
+        -- 340
+        169,
+        -- 320
         159,
+        -- 286
+        142,
+        -- 254
+        126,
+        -- 226
+        112,
+        -- 214
+        106,
+        -- 190
+        94,
+        -- 160
+        79,
         -- 142
-        141,
+        70,
         -- 128
-        127,
+        63,
         -- 106
-        105,
+        52,
         -- 84
-        83,
+        41,
         -- 72
-        71,
+        35,
         -- 54
-        53
+        26
     );
     
     type dmc_output_t is record
@@ -184,7 +198,9 @@ subtype dmc_data_t is unsigned(data_t'range);
     
     constant RESET_DMC_OUTPUT : dmc_output_t :=
     (
-        timer => 0,
+        -- The first CPU cycle after reset is odd, so this makes the
+        -- timer expire on the first even cycle
+        timer => 1,
         timer_idx => 0,
         shift => (others => '0'),
         shift_count => 0,
@@ -204,11 +220,17 @@ subtype dmc_data_t is unsigned(data_t'range);
     function next_dmc_output
     (
         cur_val    : dmc_output_t;
-        dma_buffer : dma_buffer_t
+        dma_buffer : dma_buffer_t;
+        clk_odd    : boolean
     )
     return dmc_output_t;
     
-    function update_shift(dmc_output : dmc_output_t) return boolean;
+    function update_shift
+    (
+        dmc_output : dmc_output_t;
+        clk_odd    : boolean
+    )
+    return boolean;
     
     function enable_output(val : dmc_output_t) return boolean;
     
@@ -226,6 +248,7 @@ subtype dmc_data_t is unsigned(data_t'range);
     function get_dma_bus
     (
         dmc     : dmc_t;
+        clk_odd : boolean;
         oam_dma : oam_dma_status_t
     )
     return cpu_bus_t;
@@ -237,6 +260,7 @@ subtype dmc_data_t is unsigned(data_t'range);
         cur_val     : dmc_t;
         cpu_data_in : data_t;
         clk_odd     : boolean;
+        cpu_write   : boolean;
         oam_dma     : oam_dma_status_t
     )
     return dmc_t;
@@ -317,19 +341,22 @@ package body lib_apu_dmc is
     function dma_read_now
     (
         dma     : dma_t;
+        clk_odd : boolean;
         oam_dma : oam_dma_status_t
     )
     return boolean
     is
     begin
-        if dma.state /= DMA_READ_REQ
+        if dma.state /= DMA_READ_REQ or
+           dma.halt_count /= dma_halt_t'high or
+           clk_odd
         then
             return false;
         elsif oam_dma.active
         then
-            return oam_dma.read_cycle and is_zero(dma.dma_buffer.data);
+            return oam_dma.read_cycle;
         else
-            return is_zero(dma.dma_buffer.data);
+            return true;
         end if;
     end;
 
@@ -339,6 +366,7 @@ package body lib_apu_dmc is
         shift_reloaded : boolean;
         cpu_data_in    : data_t;
         clk_odd        : boolean;
+        cpu_write      : boolean;
         oam_dma        : oam_dma_status_t
     )
     return dma_t
@@ -354,21 +382,26 @@ package body lib_apu_dmc is
 
         case cur_val.state is
             when DMA_IDLE =>
-                -- The DMA read always happens on an even cycle. The CPU is
-                -- halted on the next cycle, so a request made on an odd cycle
-                -- takes 3 cycles (halt, dummy, read) and one made on
-                -- an even cycle takes 4 (halt, dummy, alignment, read)
-                if not cur_val.dma_buffer.valid and
+                -- The CPU is halted on its next read cycle, followed by a
+                -- dummy cycle. The DMA read always happens on an even cycle,
+                -- so it takes 3 cycles (halt, dummy, read) if the halt occurs
+                -- on an even cycle and 4 (halt, dummy, alignment, read)
+                -- if it occurs on an odd cycle
+                -- The DMA is requested on the same cycle the shift
+                -- register empties the sample buffer
+                if (not cur_val.dma_buffer.valid or shift_reloaded) and
                    is_zero(cur_val.start_delay) and
                    not is_zero(cur_val.dma_xfer_vals.bytes_remaining)
                 then
-                    if clk_odd
-                    then
-                        next_val.dma_buffer.data := x"02";
-                    else
-                        next_val.dma_buffer.data := x"03";
-                    end if;
+                    next_val.halt_count := 0;
                     next_val.state := DMA_READ_REQ;
+                -- If playback stopped (explicitly via 0x4015 or by a load
+                -- DMA reading the last byte) during the APU cycle before
+                -- a reload DMA would be requested, the DMA still starts
+                -- but is aborted after one cycle
+                elsif shift_reloaded and cur_val.playing_prev
+                then
+                    next_val.state := DMA_ABORT;
                 end if;
                 
                 if shift_reloaded
@@ -376,26 +409,42 @@ package body lib_apu_dmc is
                     next_val.dma_buffer.valid := false;
                 end if;
             when DMA_READ_REQ =>
-                if dma_read_now(cur_val, oam_dma)
+                if dma_read_now(cur_val, clk_odd, oam_dma)
                 then
                     next_val.state := DMA_IDLE;
                     
                     next_val.dma_buffer.data := unsigned(cpu_data_in);
                     next_val.dma_buffer.valid := true;
                     
-                    next_val.dma_xfer_vals :=
-                        update_dma_xfer_vals(cur_val.dma_xfer_vals,
-                                             cur_val.dma_xfer_parms,
-                                             cur_val.loop_enable);
-                    next_val.irq_active :=
-                        cur_val.irq_enable and
-                        is_zero(next_val.dma_xfer_vals.bytes_remaining);
-                elsif not is_zero(cur_val.dma_buffer.data)
+                    -- Playback may have been stopped after the DMA was
+                    -- requested
+                    if not is_zero(cur_val.dma_xfer_vals.bytes_remaining)
+                    then
+                        next_val.dma_xfer_vals :=
+                            update_dma_xfer_vals(cur_val.dma_xfer_vals,
+                                                 cur_val.dma_xfer_parms,
+                                                 cur_val.loop_enable);
+                        next_val.irq_active :=
+                            cur_val.irq_enable and
+                            is_zero(next_val.dma_xfer_vals.bytes_remaining);
+                    end if;
+                -- The CPU cannot be halted on a write cycle
+                elsif not cpu_write and
+                      cur_val.halt_count /= dma_halt_t'high
                 then
-                    next_val.dma_buffer.data := cur_val.dma_buffer.data - "1";
+                    next_val.halt_count := cur_val.halt_count + 1;
                 end if;
-            when others =>
+            when DMA_ABORT =>
+                -- The CPU was halted for this cycle unless it was a write
+                -- cycle, in which case the DMA does not happen at all
+                next_val.state := DMA_IDLE;
         end case;
+
+        if not clk_odd
+        then
+            next_val.playing_prev :=
+                not is_zero(cur_val.dma_xfer_vals.bytes_remaining);
+        end if;
         
         return next_val;
     end;
@@ -406,10 +455,17 @@ package body lib_apu_dmc is
         return not val.silent;
     end;
     
-    function update_shift(dmc_output : dmc_output_t) return boolean
+    function update_shift
+    (
+        dmc_output : dmc_output_t;
+        clk_odd    : boolean
+    )
+    return boolean
     is
     begin
-        return dmc_output.timer = 0 and dmc_output.shift_count = 0;
+        return dmc_output.timer = 0 and
+               dmc_output.shift_count = 0 and
+               not clk_odd;
     end;
     
     function get_dmc_period(idx : dmc_idx_t) return dmc_timer_t
@@ -460,7 +516,8 @@ package body lib_apu_dmc is
     function next_dmc_output
     (
         cur_val    : dmc_output_t;
-        dma_buffer : dma_buffer_t
+        dma_buffer : dma_buffer_t;
+        clk_odd    : boolean
     )
     return dmc_output_t
     is
@@ -468,10 +525,21 @@ package body lib_apu_dmc is
     begin
         next_val := cur_val;
         
-        if cur_val.timer = 0
+        -- The timer is clocked once per APU cycle, on odd cycles. When it
+        -- expires the output unit is clocked on the following even cycle,
+        -- and the timer is reloaded on the odd cycle after that, so a
+        -- write to 0x4010 on the same cycle as the output unit is clocked
+        -- still sets the period of the reload
+        if clk_odd
         then
-            next_val.timer := get_dmc_period(cur_val.timer_idx);
-            
+            if cur_val.timer = 0
+            then
+                next_val.timer := get_dmc_period(cur_val.timer_idx);
+            else
+                next_val.timer := cur_val.timer - 1;
+            end if;
+        elsif cur_val.timer = 0
+        then
             if not cur_val.silent
             then
                 next_val.audio := next_dmc_audio(cur_val.audio,
@@ -495,8 +563,6 @@ package body lib_apu_dmc is
             end if;
             
             next_val.shift_count := wrap(cur_val.shift_count - 1, dmc_count_t'high);
-        else
-            next_val.timer := cur_val.timer - 1;
         end if;
         
         return next_val;
@@ -505,12 +571,13 @@ package body lib_apu_dmc is
     function get_dma_bus
     (
         dmc     : dmc_t;
+        clk_odd : boolean;
         oam_dma : oam_dma_status_t
     )
     return cpu_bus_t
     is
     begin
-        if dma_read_now(dmc.dma, oam_dma)
+        if dma_read_now(dmc.dma, clk_odd, oam_dma)
         then
             return bus_read(dmc.dma.dma_xfer_vals.address);
         else
@@ -547,6 +614,7 @@ package body lib_apu_dmc is
         cur_val     : dmc_t;
         cpu_data_in : data_t;
         clk_odd     : boolean;
+        cpu_write   : boolean;
         oam_dma     : oam_dma_status_t
     )
     return dmc_t
@@ -556,12 +624,13 @@ package body lib_apu_dmc is
     begin
         next_val := cur_val;
         
-        v_update_shift := update_shift(cur_val.output);
+        v_update_shift := update_shift(cur_val.output, clk_odd);
         
         next_val.output := next_dmc_output(cur_val.output,
-                                           cur_val.dma.dma_buffer);
+                                           cur_val.dma.dma_buffer,
+                                           clk_odd);
         next_val.dma := next_dma(cur_val.dma, v_update_shift, cpu_data_in, clk_odd,
-                                 oam_dma);
+                                 cpu_write, oam_dma);
         
         return next_val;
     end;
@@ -633,9 +702,9 @@ package body lib_apu_dmc is
     begin
         ret := val;
         
+        -- A DMA that has already been requested is not cancelled
         if reg = '0'
         then
-            ret.dma.state := DMA_IDLE;
             ret.dma.dma_xfer_vals.bytes_remaining := (others => '0');
         elsif reg = '1' and is_zero(val.dma.dma_xfer_vals.bytes_remaining)
         then

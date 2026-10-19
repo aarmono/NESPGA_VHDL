@@ -10,6 +10,7 @@ port
 (
     clk    : in std_logic;
     clk_en : in boolean := true;
+    clk_odd : in boolean;
     reset  : in boolean;
 
     cpu_bus       : in  joy_bus_t;
@@ -33,6 +34,8 @@ is
         joy_1_val   : std_logic;
         joy_2_val   : std_logic;
         joy_strobe  : std_logic;
+        -- Last value written to the strobe bit
+        strobe_val  : std_logic;
         shift_joy_1 : std_logic;
         shift_joy_2 : std_logic;
     end record;
@@ -42,6 +45,7 @@ is
         joy_1_val => '0',
         joy_2_val => '0',
         joy_strobe => '0',
+        strobe_val => '0',
         shift_joy_1 => '0',
         shift_joy_2 => '0'
     );
@@ -56,6 +60,7 @@ is
     
     type joy_in_t is record
         reg            : reg_t;
+        clk_odd        : boolean;
         cpu_bus        : joy_bus_t;
         data_to_joy    : data_t;
         joy_1_val      : std_logic;
@@ -99,7 +104,7 @@ is
             end case;
         elsif is_bus_write(joy_in.cpu_bus) and joy_in.cpu_bus.address = "0"
         then
-            joy_out.reg.joy_strobe := joy_in.data_to_joy(0);
+            joy_out.reg.strobe_val := joy_in.data_to_joy(0);
         else
             joy_out.reg.shift_joy_1 := '0';
             joy_out.reg.shift_joy_2 := '0';
@@ -115,6 +120,13 @@ is
             then
                 joy_out.reg.joy_2_val := not joy_in.joy_2_val;
             end if;
+        end if;
+
+        -- The strobe output only changes on the transition from a read
+        -- (even) cycle to a write (odd) cycle
+        if not joy_in.clk_odd
+        then
+            joy_out.reg.joy_strobe := joy_out.reg.strobe_val;
         end if;
 
         joy_out.joy_strobe := joy_in.reg.joy_strobe;
@@ -136,6 +148,7 @@ begin
         variable joy_out : joy_out_t;
     begin
         joy_in.reg := reg;
+        joy_in.clk_odd := clk_odd;
 
         joy_in.cpu_bus := cpu_bus;
         joy_in.data_to_joy := data_to_joy;

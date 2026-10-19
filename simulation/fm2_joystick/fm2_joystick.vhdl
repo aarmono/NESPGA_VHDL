@@ -46,7 +46,7 @@ begin
             joy_1_shift <= unsigned(joy_1_cur);
         elsif rising_edge(shift_joy_1)
         then
-            joy_1_shift <= shift_right(joy_1_shift, 1) or x"80";
+            joy_1_shift <= shift_right(joy_1_shift, 1);
         end if;
 
         if joy_strobe = '1'
@@ -54,7 +54,7 @@ begin
             joy_2_shift <= unsigned(joy_2_cur);
         elsif rising_edge(shift_joy_2)
         then
-            joy_2_shift <= shift_right(joy_2_shift, 1) or x"80";
+            joy_2_shift <= shift_right(joy_2_shift, 1);
         end if;
 
     end process;

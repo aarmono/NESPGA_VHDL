@@ -818,11 +818,11 @@ package body lib_cpu is
         v_reg.data_in := unsigned(data_in);
 
         -- If the ready signal is not asserted and the current
-        -- cycle is not a write cycle, revert values and idle the bus
+        -- cycle is not a write cycle, revert values. The read is still
+        -- performed, so it is repeated on every cycle the CPU is halted
         if is_bus_read(v_data_bus) and not ready
         then
             v_reg := reg;
-            v_data_bus := bus_idle(v_data_bus);
             v_data_out := (others => '-');
 
             -- Remember a halt on the read before an SHA, SHS, SHX or SHY

@@ -56,6 +56,12 @@ package mapper_types is
         cpu_bus : cpu_bus_t;
 
         clk_sync : boolean;
+        -- A DMA unit, not the CPU, is driving the bus
+        dma_cycle : boolean;
+        -- The CPU's own address bus is in 0x4000-0x401F. The APU and joypad
+        -- registers are selected by the low 5 bits of the bus address only
+        -- when this is true, even during a DMA
+        apu_regs_active : boolean;
         
         data_from_cpu  : data_t;
         data_from_apu  : data_t;
