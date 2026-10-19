@@ -122,7 +122,7 @@ nes-test-roms/blargg_ppu_tests_2005.09.15b/vram_access.nes          | 317ms     
 
 nes-test-roms/ppu_open_bus/ppu_open_bus.nes                         | 4186ms    | eef615551e10705e77d814bf65629ccf7f389721dc9b1a0abcf43b23961aa46e *frame_00250.bmp
 
-nes-test-roms/nmi_sync/demo_ntsc.nes                                | 400ms     | 69431eaaf3cd33006d0a7e43db5aae9ee7d39857c953ad2dde0492c02fdf4831 *frame_00023.bmp
+nes-test-roms/nmi_sync/demo_ntsc.nes                                | 400ms     | cbd1f4256c482ca547f5ef30bda183159731fc2fb863a04f8f9810bd540f2548 *frame_00023.bmp
 
 # Mappers
 nes-test-roms/mmc3_irq_tests/1.Clocking.nes                         | 333ms     | 3b44ce552796e9bf83f8de13b8682ac303f366363e44e1dbafd531ea02a20250 *frame_00019.bmp
@@ -164,7 +164,7 @@ AccuracyCoin/AccuracyCoin.nes                                       | 25083ms   
 #AccuracyCoin/AccuracyCoin.nes                                      | 11124ms   |                                                                                   | test_inputs/AccuracyCoin/page_19.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 13175ms   |                                                                                   | test_inputs/AccuracyCoin/page_20.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 5321ms    |                                                                                   | test_inputs/AccuracyCoin/page_21.fm2
-#AccuracyCoin/AccuracyCoin.nes                                      | 3669ms    |                                                                                   | test_inputs/AccuracyCoin/page_22.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 5721ms    | 74c476e93bcf89a0796b88dbf2d32969247d562438872f4b42bd536151c81a37 *frame_00342.bmp | test_inputs/AccuracyCoin/page_22.fm2
 
 # Miscellaneous
 nes-test-roms/other/BLOCKS.NES                                      | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp
