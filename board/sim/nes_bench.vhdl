@@ -28,9 +28,11 @@ end nes_bench;
 
 architecture behavioral of nes_bench is
 
-    -- The simulated clock runs at 50MHz * (6 / 28) so that a CPU cycle has
-    -- the same duration as with a 50MHz clock, but with fewer clock events
-    -- to simulate
+    -- The simulated clock runs at 50MHz * (6 / 28) and the CPU runs at
+    -- exactly a sixth of it, so a CPU cycle is as long as 28 clocks of a
+    -- 50MHz clock. That is the rate the core ran at before clk_en supported
+    -- the exact NTSC rate. Keeping it keeps the run times in nes_tests.txt,
+    -- and there are fewer clock events to simulate than at 50MHz
     constant CLK_FREQ : positive := 50_000_000 * 6 / 28;
     constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
 
@@ -62,7 +64,9 @@ begin
     soc : nes_soc_ocram
     generic map
     (
-        CLK_FREQ => CLK_FREQ
+        CLK_FREQ => CLK_FREQ,
+        CPU_FREQ_NUM => CLK_FREQ,
+        CPU_FREQ_DEN => 6
     )
     port map
     (
