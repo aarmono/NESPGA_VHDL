@@ -95,8 +95,15 @@ is
                 end if;
             when WAITING =>
                 dma_out.ready := false;
-                
-                if not dma_in.reg.delay
+
+                if dma_in.write_from_cpu
+                then
+                    -- The CPU only halts on a read cycle, so a second write
+                    -- (eg. INC $4014) still lands here. The DMA halts on the
+                    -- read after it and uses its value as the page
+                    dma_out.reg.delay := dma_in.clk_odd;
+                    dma_out.reg.address := unsigned(dma_in.data_to_dma) & x"00";
+                elsif not dma_in.reg.delay
                 then
                     dma_out.reg.state := READING;
                 else
