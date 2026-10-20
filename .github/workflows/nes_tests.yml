@@ -77,7 +77,7 @@ jobs:
             >> "$GITHUB_STEP_SUMMARY"
 
   # Smoke tests of the DE1 board interop (SD card, SDRAM, SRAM, VGA, audio)
-  # from nes_de1_tests.txt. nes_de1_bench is ~8x slower than nes_bench, so
+  # from nes_de1_tests.txt. nes_de1_bench is ~5.5x slower than nes_bench, so
   # only a few short tests are run
   nes-de1-tests:
     name: NES DE1 smoke tests

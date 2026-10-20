@@ -351,7 +351,7 @@ package lib_ppu is
         -- Index of the next byte of the sprite being copied during sprite
         -- evaluation. This follows the secondary OAM address until it is
         -- full, after which the address is frozen
-        eval_byte        : unsigned(1 downto 0);
+        eval_byte        : natural range 0 to 3;
         -- True once sprite evaluation has found the sprite that overflows
         -- secondary OAM on this line. After its bytes are read, only the
         -- sprite index (n) of the OAM address is incremented
@@ -432,7 +432,7 @@ package lib_ppu is
         oam_data => (others => '0'),
         oam_overflow => false,
         sec_oam_overflow => false,
-        eval_byte => (others => '0'),
+        eval_byte => 0,
         eval_overflowed => false,
         sprite_y_coord => 0,
         sprite_tile_idx => (others => '0'),
@@ -1422,25 +1422,25 @@ package body lib_ppu is
         -- vblank interval the PPU will be making continual use to the PPU
         -- address and data bus to fetch tiles to render, as well as internally
         -- fetching sprite data from the OAM.
-        if render_in.reg.render_fetch and
-           background_active(render_in.reg.cur_time)
+        if v_rendering
         then
             case render_in.reg.cur_time.cycle is
                 when   0 to 255 |
                      320 to 335 =>
+                    -- Shift the pattern and attribute tables. The last dot
+                    -- of each fetch reloads them instead
+                    render_out.reg.pattern_table_1 :=
+                        shift_pattern_table(render_in.reg.pattern_table_1, '0');
+                    render_out.reg.pattern_table_2 :=
+                        shift_pattern_table(render_in.reg.pattern_table_2, '1');
+                    render_out.reg.attr_val :=
+                        shift_attr_table(render_in.reg.attr_val);
+
                     case render_in.reg.cur_time.cycle mod 8 is
                         when 0 =>
                             -- Name table fetch.
                             render_out.chr_bus :=
                                 bus_read(v_bg_tile_idx_addr.name_table_addr);
-                            -- Shift the pattern table
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 1 =>
                             -- Name table fetch.
                             render_out.chr_bus :=
@@ -1448,26 +1448,10 @@ package body lib_ppu is
                             -- Update tile index register with the returned
                             -- data.
                             render_out.reg.tile_idx := render_in.data_from_chr;
-                            -- Shift the pattern table
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 2 =>
                             -- Attribute table fetch.
                             render_out.chr_bus :=
                                 bus_read(v_bg_tile_idx_addr.attr_table_addr);
-                            -- Shift the pattern table
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 3 =>
                             -- Attribute table fetch.
                             render_out.chr_bus :=
@@ -1479,14 +1463,6 @@ package body lib_ppu is
                             render_out.reg.attr_tmp :=
                                 attr_shift(render_in.data_from_chr,
                                            v_bg_tile_idx_addr.attr_idx);
-                            -- Shift the pattern table
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 4 =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1498,14 +1474,6 @@ package body lib_ppu is
                                     false
                                 );
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
-                            -- Shift the pattern table
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 5 =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1521,14 +1489,6 @@ package body lib_ppu is
                             -- temporary register as the previous value is
                             -- still being used for rendering
                             render_out.reg.pattern_tmp := render_in.data_from_chr;
-                            -- Shift the pattern tables
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 6 =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1540,14 +1500,6 @@ package body lib_ppu is
                                     false
                                 );
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
-                            -- Shift the pattern table
-                            render_out.reg.pattern_table_1 :=
-                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
-                            render_out.reg.pattern_table_2 :=
-                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
-                            -- Shift the attribute table
-                            render_out.reg.attr_val :=
-                                shift_attr_table(render_in.reg.attr_val);
                         when 7 =>
                             v_pattern_table_addr :=
                                 get_pattern_table
@@ -1632,8 +1584,7 @@ package body lib_ppu is
         -- vblank interval the PPU will be making continual use to the PPU
         -- address and data bus to fetch tiles to render, as well as internally
         -- fetching sprite data from the OAM.
-        if render_in.reg.render_fetch and
-           background_active(render_in.reg.cur_time)
+        if v_rendering
         then
             case render_in.reg.cur_time.cycle is
                 when 0 to SPRITE_EVAL_START - 1 =>
@@ -1671,7 +1622,7 @@ package body lib_ppu is
                     end if;
 
                     render_out.reg.oam_overflow := false;
-                    render_out.reg.eval_byte := (others => '0');
+                    render_out.reg.eval_byte := 0;
                     render_out.reg.eval_overflowed := false;
                     render_out.reg.sprite_0_hit := false;
                 when SPRITE_EVAL_START to FRONT_BG_END =>
@@ -1717,7 +1668,7 @@ package body lib_ppu is
                         -- the overflowing sprite has been found, no more
                         -- sprites are copied on this line
                         if not render_in.reg.oam_overflow and
-                           (not is_zero(render_in.reg.eval_byte) or
+                           (render_in.reg.eval_byte /= 0 or
                             (v_spr_copy_sprite and
                              not render_in.reg.eval_overflowed))
                         then
@@ -1747,7 +1698,7 @@ package body lib_ppu is
                             end if;
 
                             render_out.reg.eval_byte :=
-                                render_in.reg.eval_byte + "1";
+                                (render_in.reg.eval_byte + 1) mod 4;
                             
                             render_out.reg.oam_addr :=
                                 render_in.reg.oam_addr + "1";
@@ -1756,7 +1707,7 @@ package body lib_ppu is
                             -- check as the Y position. If it is out of range
                             -- the OAM address is realigned to a multiple of 4,
                             -- which is only visible when $2003 misaligned it
-                            if render_in.reg.eval_byte = "11" and
+                            if render_in.reg.eval_byte = 3 and
                                not v_spr_copy_sprite
                             then
                                 render_out.reg.oam_addr(1 downto 0) := "00";
@@ -1849,6 +1800,11 @@ package body lib_ppu is
                         sprite_in_range(v_spr_line,
                                         render_in.reg.control.sprite_hgt_16,
                                         render_in.reg.sprite_y_coord);
+                    v_spr_tile_y_offset :=
+                        get_y_offset(v_spr_line,
+                                     render_in.reg.sprite_y_coord,
+                                     render_in.reg.control.sprite_hgt_16,
+                                     render_in.reg.sprite_attr.flip_vert);
 
                     case render_in.reg.cur_time.cycle mod 8 is
                         -- First 4 CHR memory accesses are garbage name table
@@ -1885,11 +1841,6 @@ package body lib_ppu is
                             render_out.reg.sprite_buffer(v_spr_buf_addr).x_coord :=
                                 to_integer(render_in.data_from_sec_oam);
                         when 4 =>
-                            v_spr_tile_y_offset :=
-                                get_y_offset(v_spr_line,
-                                             render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16,
-                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -1901,11 +1852,6 @@ package body lib_ppu is
                                 );
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
                         when 5 =>
-                            v_spr_tile_y_offset :=
-                                get_y_offset(v_spr_line,
-                                             render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16,
-                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -1929,11 +1875,6 @@ package body lib_ppu is
                                     unsigned(render_in.data_from_chr);
                             end if;
                         when 6 =>
-                            v_spr_tile_y_offset :=
-                                get_y_offset(v_spr_line,
-                                             render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16,
-                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -1945,11 +1886,6 @@ package body lib_ppu is
                                 );
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
                         when 7 =>
-                            v_spr_tile_y_offset :=
-                                get_y_offset(v_spr_line,
-                                             render_in.reg.sprite_y_coord,
-                                             render_in.reg.control.sprite_hgt_16,
-                                             render_in.reg.sprite_attr.flip_vert);
                             v_pattern_table_addr :=
                                 get_pattern_table
                                 (
@@ -2046,8 +1982,7 @@ package body lib_ppu is
 
         -- The sprite counters run during every visible dot, even during
         -- forced blanking. The shifters only shift while rendering
-        if scanline_valid(render_in.reg.cur_time) and
-           render_in.reg.cur_time.cycle <= FRONT_BG_END
+        if is_rendering(render_in.reg.cur_time)
         then
             render_out.reg.sprite_buffer :=
                 clock_sprite_buffers(render_in.reg.sprite_buffer,
@@ -2212,9 +2147,10 @@ package body lib_ppu is
                     render_out.data_to_cpu :=
                         to_std_logic(render_in.reg.status) or
                         ("000" & render_out.reg.io_latch.data(4 downto 0));
+                    -- The sprite flags are latched at the end of the read
                     render_out.reg.io_latch :=
                         refresh_io_latch(render_out.reg.io_latch,
-                                         x"E0",
+                                         x"80",
                                          render_out.data_to_cpu);
                     -- Reads from status register clear vbl signal
                     render_out.reg.status.vbl := false;

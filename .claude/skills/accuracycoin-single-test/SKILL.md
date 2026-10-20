@@ -67,8 +67,8 @@ sub-test and set `ErrorCode` before it.
 
 ## 4. Afterwards
 
-- If the fix makes the whole page pass, uncomment the page's line in
-  `nes_tests.txt` and set its hash and run time from a full-page run
+- If the fix changes the page's results screen, update the page's hash and
+  run time in `nes_tests.txt` from a full-page run
   (`test_inputs/AccuracyCoin/page_NN.fm2`), using run time =
   ceil((N + 1) * 16.6772) ms for final frame N.
 - To see what correct behavior looks like, run the test in Mesen with the

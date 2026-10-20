@@ -96,6 +96,7 @@ package body lib_nes_mmap is
         variable mapper_out : cpu_mapper_out_t;
         variable address : natural range 0 to 16#FFFF#;
         variable v_regs_enabled : boolean;
+        variable v_reg_range    : boolean;
         variable v_reg_conflict : boolean;
         -- Value on the external data bus
         variable v_ext_data     : data_t;
@@ -114,8 +115,8 @@ package body lib_nes_mmap is
         if is_bus_active(map_in.bus_in.cpu_bus)
         then
             address := to_integer(map_in.bus_in.cpu_bus.address);
-            if address >= 16#4000# and address <= 16#401F# and
-               not v_regs_enabled
+            v_reg_range := address >= 16#4000# and address <= 16#401F#;
+            if v_reg_range and not v_regs_enabled
             then
                 -- Nothing else responds to these addresses, so they read
                 -- open bus like the unused registers at 0x4018-0x401F
@@ -228,7 +229,7 @@ package body lib_nes_mmap is
             v_reg_conflict := map_in.bus_in.dma_cycle and
                               map_in.bus_in.apu_regs_active and
                               is_bus_read(map_in.bus_in.cpu_bus) and
-                              (address < 16#4000# or address > 16#401F#);
+                              not v_reg_range;
             if v_reg_conflict
             then
                 map_out.bus_out := cycle_dma_reg_conflict(map_in, map_out.bus_out);

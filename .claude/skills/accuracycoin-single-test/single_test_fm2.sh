@@ -4,9 +4,10 @@
 # of them. The page and test tables are read from AccuracyCoin.asm so they
 # stay in sync with the ROM.
 #
-# The input matches board/sim/ghdl/test_inputs/AccuracyCoin/generate_fm2.sh:
-# wait for the main menu, press Left/Right to reach the page, then press Down
-# to move the cursor onto the test and press A to run only that test.
+# The input is built like the ones from
+# board/sim/ghdl/test_inputs/AccuracyCoin/generate_fm2.sh (sharing its
+# fm2_lib.sh): wait for the main menu, press Left/Right to reach the page, then
+# press Down to move the cursor onto the test and press A to run only that test.
 
 usage() {
     echo "Usage: $0 -l [ PAGE ]"
@@ -20,21 +21,8 @@ usage() {
     echo "The FM2 is printed to stdout"
 }
 
-# Frames to wait for the main menu to load, and to hold/release each button.
-# Same values as generate_fm2.sh
-START_FRAMES=60
-PRESS_FRAMES=1
-RELEASE_FRAMES=4
-
 REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
-ASM="$REPO_ROOT"/AccuracyCoin/AccuracyCoin.asm
-
-# FM2 stores buttons in the order RLDUTSBA
-NONE='........'
-RIGHT='R.......'
-LEFT='.L......'
-DOWN='..D.....'
-A='.......A'
+. "$REPO_ROOT"/board/sim/ghdl/test_inputs/AccuracyCoin/fm2_lib.sh
 
 # Prints every test as PAGE<tab>TEST<tab>PAGE TITLE<tab>TEST NAME
 all_tests() {
@@ -84,66 +72,15 @@ all_tests() {
     ' "$ASM" | sort -t "$(printf '\t')" -k 1,1n -k 2,2n
 }
 
-# Prints $2 input lines with controller 1 set to $1
-frames() {
-    for (( i = 0; i < $2; i++ ))
-    do
-        echo "|0|$1|||"
-    done
-}
-
-# Prints $2 presses of button $1
-presses() {
-    for (( p = 0; p < $2; p++ ))
-    do
-        frames $1 $PRESS_FRAMES
-        frames $NONE $RELEASE_FRAMES
-    done
-}
-
 # Prints the FM2 that runs test $2 on page $1, named $3
 test_fm2() {
-    PAGE=$1
-    TEST=$2
-    PAGE_COUNT=`all_tests | cut -f 1 | sort -n | tail -1`
-
-    # The menu wraps around when pressing Left on the first page
-    RIGHT_PRESSES=$(( PAGE - 1 ))
-    LEFT_PRESSES=$(( PAGE_COUNT - RIGHT_PRESSES ))
-    if [ $RIGHT_PRESSES -le $LEFT_PRESSES ]
-    then
-        PAGE_PRESSES=$RIGHT_PRESSES
-        PAGE_BUTTON=$RIGHT
-        PAGE_BUTTON_NAME=Right
-    else
-        PAGE_PRESSES=$LEFT_PRESSES
-        PAGE_BUTTON=$LEFT
-        PAGE_BUTTON_NAME=Left
-    fi
-
-    echo "version 3"
-    echo "emuVersion 0"
-    echo "rerecordCount 0"
-    echo "palFlag 0"
-    echo "romFilename AccuracyCoin"
-    echo "port0 1"
-    echo "port1 0"
-    echo "port2 0"
-    echo "comment AccuracyCoin page $PAGE test $TEST ($3):" \
-         "press $PAGE_BUTTON_NAME $PAGE_PRESSES time(s), Down $TEST time(s)," \
-         "then A to run the test"
-
-    frames $NONE $START_FRAMES
-    presses $PAGE_BUTTON $PAGE_PRESSES
-    presses $DOWN $TEST
+    page_nav $1
+    select_page_fm2 "AccuracyCoin page $1 test $2 ($3):" \
+                    "press $PAGE_BUTTON_NAME $PAGE_PRESSES time(s)," \
+                    "Down $2 time(s), then A to run the test"
+    presses $DOWN $2
     presses $A 1
 }
-
-if [ ! -f "$ASM" ]
-then
-    echo "Error: '$ASM' not found (is the AccuracyCoin submodule checked out?)" >&2
-    exit 1
-fi
 
 if [ "$1" == "-h" ] || [ $# -eq 0 ] || [ $# -gt 2 ]
 then

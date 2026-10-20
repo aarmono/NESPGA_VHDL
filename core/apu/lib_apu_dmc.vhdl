@@ -347,17 +347,10 @@ package body lib_apu_dmc is
     return boolean
     is
     begin
-        if dma.state /= DMA_READ_REQ or
-           dma.halt_count /= dma_halt_t'high or
-           clk_odd
-        then
-            return false;
-        elsif oam_dma.active
-        then
-            return oam_dma.read_cycle;
-        else
-            return true;
-        end if;
+        return dma.state = DMA_READ_REQ and
+               dma.halt_count = dma_halt_t'high and
+               not clk_odd and
+               (not oam_dma.active or oam_dma.read_cycle);
     end;
 
     function next_dma
@@ -372,8 +365,10 @@ package body lib_apu_dmc is
     return dma_t
     is
         variable next_val : dma_t;
+        variable v_playing : boolean;
     begin
         next_val := cur_val;
+        v_playing := not is_zero(cur_val.dma_xfer_vals.bytes_remaining);
 
         if not is_zero(cur_val.start_delay)
         then
@@ -391,7 +386,7 @@ package body lib_apu_dmc is
                 -- register empties the sample buffer
                 if (not cur_val.dma_buffer.valid or shift_reloaded) and
                    is_zero(cur_val.start_delay) and
-                   not is_zero(cur_val.dma_xfer_vals.bytes_remaining)
+                   v_playing
                 then
                     next_val.halt_count := 0;
                     next_val.state := DMA_READ_REQ;
@@ -418,7 +413,7 @@ package body lib_apu_dmc is
                     
                     -- Playback may have been stopped after the DMA was
                     -- requested
-                    if not is_zero(cur_val.dma_xfer_vals.bytes_remaining)
+                    if v_playing
                     then
                         next_val.dma_xfer_vals :=
                             update_dma_xfer_vals(cur_val.dma_xfer_vals,
@@ -442,8 +437,7 @@ package body lib_apu_dmc is
 
         if not clk_odd
         then
-            next_val.playing_prev :=
-                not is_zero(cur_val.dma_xfer_vals.bytes_remaining);
+            next_val.playing_prev := v_playing;
         end if;
         
         return next_val;

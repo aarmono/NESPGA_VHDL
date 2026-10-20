@@ -348,18 +348,19 @@ begin
             nes_in.cpu_bus.cpu_bus := apu_dma_bus;
             -- APU DMA is read-only, so this is a don't care
             nes_in.cpu_bus.data_from_cpu := data_from_cpu;
+            nes_in.cpu_bus.dma_cycle := true;
         elsif is_bus_active(oam_dma_bus)
         then
             nes_in.cpu_bus.cpu_bus := oam_dma_bus;
             nes_in.cpu_bus.data_from_cpu := data_from_oam_dma;
+            nes_in.cpu_bus.dma_cycle := true;
         else
             nes_in.cpu_bus.cpu_bus := cpu_bus;
             nes_in.cpu_bus.data_from_cpu := data_from_cpu;
+            nes_in.cpu_bus.dma_cycle := false;
         end if;
 
         nes_in.cpu_bus.clk_sync := ppu_sync;
-        nes_in.cpu_bus.dma_cycle := is_bus_active(apu_dma_bus) or
-                                    is_bus_active(oam_dma_bus);
         nes_in.cpu_bus.apu_regs_active :=
             is_bus_active(cpu_bus) and
             cpu_bus.address(15 downto 5) = "01000000000";

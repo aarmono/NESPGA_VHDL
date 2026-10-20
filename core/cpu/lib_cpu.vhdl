@@ -131,6 +131,47 @@ package body lib_cpu is
         end if;
     end;
 
+    -- On the BAH + c fetch of an indexed write, SHA, SHS, SHX and SHY compute
+    -- the value to write, which also replaces BAH + c on a page cross
+    function sh_page_cross
+    (
+        reg      : registers_t;
+        next_reg : registers_t;
+        sh_reg   : reg_t
+    )
+    return registers_t
+    is
+        variable ret : registers_t;
+    begin
+        ret := next_reg;
+        ret.opstate.data_out := sh_data(sh_reg, reg.data_in, reg.sh_halted);
+        ret.sh_halted := false;
+
+        if reg.c_addr = "1"
+        then
+            ret.addr_hi := ret.opstate.data_out;
+        end if;
+
+        return ret;
+    end;
+
+    -- The value written by an indexed write
+    function indexed_write_data
+    (
+        reg     : registers_t;
+        decoded : decode_state_t
+    )
+    return reg_t
+    is
+    begin
+        if decoded.special
+        then
+            return reg.opstate.data_out;
+        else
+            return decoded.reg;
+        end if;
+    end;
+
     function cycle_cpu
     (
         reg     : registers_t;
@@ -349,18 +390,8 @@ package body lib_cpu is
 
                                 if v_decoded.special
                                 then
-                                    -- The value written replaces BAH + c on
-                                    -- a page cross
-                                    v_reg.opstate.data_out :=
-                                        sh_data(v_decoded.reg,
-                                                reg.data_in,
-                                                reg.sh_halted);
-                                    v_reg.sh_halted := false;
-
-                                    if reg.c_addr = "1"
-                                    then
-                                        v_reg.addr_hi := v_reg.opstate.data_out;
-                                    end if;
+                                    v_reg := sh_page_cross(reg, v_reg,
+                                                           v_decoded.reg);
                                 end if;
 
                                 -- If no carry in previous cycle and this is
@@ -374,12 +405,8 @@ package body lib_cpu is
                                 then
                                     v_data_bus := bus_write(reg.addr_hi &
                                                             reg.addr_lo);
-                                    if v_decoded.special
-                                    then
-                                        v_data_out := reg.opstate.data_out;
-                                    else
-                                        v_data_out := v_decoded.reg;
-                                    end if;
+                                    v_data_out :=
+                                        indexed_write_data(reg, v_decoded);
                                 else
                                     -- Fetch BAH + c,BAL + IDX
                                     v_data_bus := bus_read(reg.addr_hi &
@@ -470,18 +497,8 @@ package body lib_cpu is
 
                                 if v_decoded.special
                                 then
-                                    -- The value written replaces BAH + c on
-                                    -- a page cross
-                                    v_reg.opstate.data_out :=
-                                        sh_data(v_decoded.reg,
-                                                reg.data_in,
-                                                reg.sh_halted);
-                                    v_reg.sh_halted := false;
-
-                                    if reg.c_addr = "1"
-                                    then
-                                        v_reg.addr_hi := v_reg.opstate.data_out;
-                                    end if;
+                                    v_reg := sh_page_cross(reg, v_reg,
+                                                           v_decoded.reg);
                                 end if;
 
                                 -- If this is a read and no page boundary cross,
@@ -496,12 +513,8 @@ package body lib_cpu is
                                     -- Write BAH + c,BAL + Y
                                     v_data_bus := bus_write(reg.addr_hi &
                                                             reg.addr_lo);
-                                    if v_decoded.special
-                                    then
-                                        v_data_out := reg.opstate.data_out;
-                                    else
-                                        v_data_out := v_decoded.reg;
-                                    end if;
+                                    v_data_out :=
+                                        indexed_write_data(reg, v_decoded);
                                 else
                                     -- Fetch BAH + c,BAL + Y
                                     v_data_bus := bus_read(reg.addr_hi &
