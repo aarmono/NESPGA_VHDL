@@ -307,17 +307,17 @@ package lib_cpu_decode_defs is
 
     function decode_abs_y_w(opstate : opstate_t; reg : reg_t) return decode_state_t;
 
-    function decode_abs_y_w
+    -- SHA, SHS, SHX and SHY: write reg AND (BAH + 1), which also replaces
+    -- the high byte of the address on a page cross
+    function decode_abs_x_sh(opstate : opstate_t; reg : reg_t) return decode_state_t;
+
+    function decode_abs_y_sh
     (
         opstate     : opstate_t;
         reg         : reg_t;
         instruction : instruction_t
     )
     return decode_state_t;
-
-    function decode_sya_w(opstate : opstate_t) return decode_state_t;
-
-    function decode_sxa_w(opstate : opstate_t) return decode_state_t;
 
     function decode_zero_idx
     (
@@ -390,6 +390,8 @@ package lib_cpu_decode_defs is
     function decode_ind_y_rw(instruction : instruction_t) return decode_state_t;
 
     function decode_ind_y_w(reg : reg_t) return decode_state_t;
+
+    function decode_ind_y_sh(reg : reg_t) return decode_state_t;
 
     function decode_brk(incr_pc : boolean) return decode_state_t;
 
@@ -574,10 +576,20 @@ package body lib_cpu_decode_defs is
     function decode_abs_y_w(opstate : opstate_t; reg : reg_t) return decode_state_t
     is
     begin
-        return decode_abs_y_w(opstate, reg, IN_NOP);
+        return decode_abs_idx(false, true, IN_NOP, reg, opstate.y);
     end;
 
-    function decode_abs_y_w
+    function decode_abs_x_sh(opstate : opstate_t; reg : reg_t) return decode_state_t
+    is
+        variable ret : decode_state_t;
+    begin
+        ret := decode_abs_x_w(opstate, reg);
+        ret.special := true;
+
+        return ret;
+    end;
+
+    function decode_abs_y_sh
     (
         opstate     : opstate_t;
         reg         : reg_t;
@@ -585,25 +597,9 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-    begin
-        return decode_abs_idx(false, true, instruction, reg, opstate.y);
-    end;
-
-    function decode_sya_w(opstate : opstate_t) return decode_state_t
-    is
         variable ret : decode_state_t;
     begin
-        ret := decode_abs_idx(false, true, IN_NOP, opstate.y, opstate.x);
-        ret.special := true;
-
-        return ret;
-    end;
-
-    function decode_sxa_w(opstate : opstate_t) return decode_state_t
-    is
-        variable ret : decode_state_t;
-    begin
-        ret := decode_abs_idx(false, true, IN_NOP, opstate.x, opstate.y);
+        ret := decode_abs_idx(false, true, instruction, reg, opstate.y);
         ret.special := true;
 
         return ret;
@@ -761,6 +757,16 @@ package body lib_cpu_decode_defs is
     is
     begin
         return decode_ind_y(false, true, IN_NOP, reg);
+    end;
+
+    function decode_ind_y_sh(reg : reg_t) return decode_state_t
+    is
+        variable ret : decode_state_t;
+    begin
+        ret := decode_ind_y_w(reg);
+        ret.special := true;
+
+        return ret;
     end;
 
     function decode_brk(incr_pc : boolean) return decode_state_t

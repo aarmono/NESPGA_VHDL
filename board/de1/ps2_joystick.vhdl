@@ -191,7 +191,7 @@ begin
                 joy_1_shift <= unsigned(sig_joy_1_reg);
             elsif shift_joy_1 = '1' and shift_joy_1_prev = '0'
             then
-                joy_1_shift <= shift_right(joy_1_shift, 1) or x"80";
+                joy_1_shift <= shift_right(joy_1_shift, 1);
             end if;
         end if;
     end if;

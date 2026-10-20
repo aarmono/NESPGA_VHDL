@@ -24,6 +24,7 @@ package lib_cpu is
         irq_prev  : boolean;
         int_stall : boolean;
         int       : boolean;
+        sh_halted : boolean;
     end record;
 
     constant RESET_REGISTERS : registers_t :=
@@ -40,7 +41,8 @@ package lib_cpu is
         nmi_prev => false,
         irq_prev => false,
         int_stall => false,
-        int => false
+        int => false,
+        sh_halted => false
     );
 
     type cpu_output_t is record
@@ -116,6 +118,60 @@ package body lib_cpu is
         return zero_addr(std_logic_vector(data));
     end;
 
+    -- SHA, SHS, SHX and SHY write reg AND (BAH + 1), but a DMA halting the
+    -- read before the write drops the BAH + 1 term
+    function sh_data(reg : reg_t; bah : reg_t; halted : boolean) return reg_t
+    is
+    begin
+        if halted
+        then
+            return reg;
+        else
+            return reg and (bah + "1");
+        end if;
+    end;
+
+    -- On the BAH + c fetch of an indexed write, SHA, SHS, SHX and SHY compute
+    -- the value to write, which also replaces BAH + c on a page cross
+    function sh_page_cross
+    (
+        reg      : registers_t;
+        next_reg : registers_t;
+        sh_reg   : reg_t
+    )
+    return registers_t
+    is
+        variable ret : registers_t;
+    begin
+        ret := next_reg;
+        ret.opstate.data_out := sh_data(sh_reg, reg.data_in, reg.sh_halted);
+        ret.sh_halted := false;
+
+        if reg.c_addr = "1"
+        then
+            ret.addr_hi := ret.opstate.data_out;
+        end if;
+
+        return ret;
+    end;
+
+    -- The value written by an indexed write
+    function indexed_write_data
+    (
+        reg     : registers_t;
+        decoded : decode_state_t
+    )
+    return reg_t
+    is
+    begin
+        if decoded.special
+        then
+            return reg.opstate.data_out;
+        else
+            return decoded.reg;
+        end if;
+    end;
+
     function cycle_cpu
     (
         reg     : registers_t;
@@ -160,7 +216,7 @@ package body lib_cpu is
         v_irq := (irq and not reg.opstate.status.i) or reg.nmi_req;
         v_reg.irq_prev := v_irq;
 
-        v_decoded := get_decode_state(reg.opcode, reg.opstate, reg.addr_hi);
+        v_decoded := get_decode_state(reg.opcode, reg.opstate);
 
         case reg.count is
             when CYC_FETCH =>
@@ -202,9 +258,9 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to the bus
+                                -- Write unmodified value to the bus
                                 v_data_bus := bus_write(zero_addr(reg.addr_lo));
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to the bus
@@ -246,10 +302,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to the bus
+                                -- Write unmodified value to the bus
                                 v_data_bus := bus_write(reg.addr_hi &
                                                         reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -300,10 +356,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to ADH,ADL
+                                -- Write unmodified value to ADH,ADL
                                 v_data_bus :=
                                     bus_write(reg.addr_hi & reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -329,15 +385,13 @@ package body lib_cpu is
                             when CYC_4 =>
                                 -- Fetch BAH,BAL + IDX
                                 v_data_bus := bus_read(reg.data_in & reg.addr_lo);
+                                -- Calculate BAH + c
+                                v_reg.addr_hi := reg.data_in + reg.c_addr;
+
                                 if v_decoded.special
                                 then
-                                    -- Calculate "special" BAH for SYA and SXA
-                                    -- opcodes
-                                    v_reg.addr_hi := v_decoded.reg and
-                                                     (reg.data_in + "1");
-                                else
-                                    -- Calculate BAH + c
-                                    v_reg.addr_hi := reg.data_in + reg.c_addr;
+                                    v_reg := sh_page_cross(reg, v_reg,
+                                                           v_decoded.reg);
                                 end if;
 
                                 -- If no carry in previous cycle and this is
@@ -351,7 +405,8 @@ package body lib_cpu is
                                 then
                                     v_data_bus := bus_write(reg.addr_hi &
                                                             reg.addr_lo);
-                                    v_data_out := v_decoded.reg;
+                                    v_data_out :=
+                                        indexed_write_data(reg, v_decoded);
                                 else
                                     -- Fetch BAH + c,BAL + IDX
                                     v_data_bus := bus_read(reg.addr_hi &
@@ -365,10 +420,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to BAH + c,BAL + IDX
+                                -- Write unmodified value to BAH + c,BAL + IDX
                                 v_data_bus := bus_write(reg.addr_hi &
                                                         reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -407,9 +462,9 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to 00,BAL + IDX
+                                -- Write unmodified value to 00,BAL + IDX
                                 v_data_bus := bus_write(zero_addr(reg.addr_lo));
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -440,6 +495,12 @@ package body lib_cpu is
                                 -- Calculate BAH + c_addr
                                 v_reg.addr_hi := reg.data_in + reg.c_addr;
 
+                                if v_decoded.special
+                                then
+                                    v_reg := sh_page_cross(reg, v_reg,
+                                                           v_decoded.reg);
+                                end if;
+
                                 -- If this is a read and no page boundary cross,
                                 -- short-circuit the rest of the cycle
                                 if not v_decoded.write and reg.c_addr = "0"
@@ -452,7 +513,8 @@ package body lib_cpu is
                                     -- Write BAH + c,BAL + Y
                                     v_data_bus := bus_write(reg.addr_hi &
                                                             reg.addr_lo);
-                                    v_data_out := v_decoded.reg;
+                                    v_data_out :=
+                                        indexed_write_data(reg, v_decoded);
                                 else
                                     -- Fetch BAH + c,BAL + Y
                                     v_data_bus := bus_read(reg.addr_hi &
@@ -466,10 +528,10 @@ package body lib_cpu is
                                     v_reg.count := CYC_FETCH;
                                 end if;
                             when CYC_2 =>
-                                -- Write garbage to BAH + c,BAL + Y
+                                -- Write unmodified value to BAH + c,BAL + Y
                                 v_data_bus := bus_write(reg.addr_hi &
                                                         reg.addr_lo);
-                                v_data_out := reg.opstate.data_out;
+                                v_data_out := reg.data_in;
                                 v_exec := true;
                             when CYC_1 =>
                                 -- Write value to bus
@@ -717,6 +779,9 @@ package body lib_cpu is
                                 else
                                     v_reg.pc(15 downto 8) :=
                                         v_arith_scratch(7 downto 0);
+                                    -- Hold the result of the first interrupt
+                                    -- check for the opcode fetch
+                                    v_reg.int := reg.irq_prev;
                                 end if;
                             when others =>
                                 assert false report "Invalid cycle count"
@@ -749,6 +814,12 @@ package body lib_cpu is
                 -- A taken branch which does not cross a page does not check
                 -- on its final cycle, so use the register value
                 v_int := reg.irq_prev;
+            elsif v_decoded.mode = MODE_BRANCH and reg.count = CYC_FETCH
+            then
+                -- A taken branch which crosses a page checks twice, and an
+                -- interrupt seen by the first check still occurs even if the
+                -- IRQ line is released before the second
+                v_int := v_irq or reg.int;
             else
                 v_int := v_irq;
             end if;
@@ -769,12 +840,19 @@ package body lib_cpu is
         v_reg.data_in := unsigned(data_in);
 
         -- If the ready signal is not asserted and the current
-        -- cycle is not a write cycle, revert values and idle the bus
+        -- cycle is not a write cycle, revert values. The read is still
+        -- performed, so it is repeated on every cycle the CPU is halted
         if is_bus_read(v_data_bus) and not ready
         then
             v_reg := reg;
-            v_data_bus := bus_idle(v_data_bus);
             v_data_out := (others => '-');
+
+            -- Remember a halt on the read before an SHA, SHS, SHX or SHY
+            -- write since it changes the value written
+            if v_decoded.special and reg.count = CYC_4
+            then
+                v_reg.sh_halted := true;
+            end if;
 
             -- Interrupts are checked when an opcode fetch is first
             -- attempted, not when the stall ends

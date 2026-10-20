@@ -22,7 +22,7 @@ jobs:
         # Add or remove entries to change the number of shards. Tests in
         # nes_tests.txt are distributed between shards automatically by
         # run time (see run_nes_tests.sh -s)
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,6 +39,14 @@ jobs:
         working-directory: board/sim/ghdl
         run: ./run_ghdl.sh ./run_nes_tests.sh -s ${{ matrix.shard }}/${{ strategy.job-total }}
 
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: nes-test-results-shard-${{ matrix.shard }}
+          path: board/sim/ghdl/output/results.txt
+          if-no-files-found: ignore
+
       - name: Upload failed test output
         if: failure()
         uses: actions/upload-artifact@v7
@@ -47,8 +55,29 @@ jobs:
           path: board/sim/ghdl/output/failures/
           if-no-files-found: ignore
 
+  # Combines the results of all shards into a single table in the job summary
+  summary:
+    name: NES test summary
+    needs: nes-tests
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download test results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: nes-test-results-shard-*
+          path: results
+
+      - name: Write job summary
+        working-directory: board/sim/ghdl
+        run: |
+          ./run_nes_tests.sh -r "$GITHUB_WORKSPACE"/results/*/results.txt \
+            >> "$GITHUB_STEP_SUMMARY"
+
   # Smoke tests of the DE1 board interop (SD card, SDRAM, SRAM, VGA, audio)
-  # from nes_de1_tests.txt. nes_de1_bench is ~8x slower than nes_bench, so
+  # from nes_de1_tests.txt. nes_de1_bench is ~5.5x slower than nes_bench, so
   # only a few short tests are run
   nes-de1-tests:
     name: NES DE1 smoke tests
@@ -68,6 +97,13 @@ jobs:
       - name: Run tests
         working-directory: board/sim/ghdl
         run: ./run_ghdl.sh ./run_nes_tests.sh -b nes_de1_bench
+
+      - name: Write job summary
+        if: ${{ !cancelled() }}
+        working-directory: board/sim/ghdl
+        run: |
+          ./run_nes_tests.sh -b nes_de1_bench -r de1_output/results.txt \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload failed test output
         if: failure()

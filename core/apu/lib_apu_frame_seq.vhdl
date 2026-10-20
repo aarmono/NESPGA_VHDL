@@ -134,6 +134,9 @@ package lib_apu_frame_seq is
         mode        : frame_seq_mode_t;
         irq_disable : boolean;
         irq_active  : boolean;
+        -- 0x4015 was read, so the IRQ flag is cleared on the next
+        -- transition from an odd (put) cycle to an even (get) cycle
+        irq_clear   : boolean;
     end record;
 
     constant RESET_FRAME_SEQ : frame_seq_t :=
@@ -141,7 +144,8 @@ package lib_apu_frame_seq is
       count => 0,
       mode => 0,
       irq_disable => false,
-      irq_active => false
+      irq_active => false,
+      irq_clear => false
     );
 
     function update_envelope(seq : frame_seq_t) return boolean;
@@ -152,9 +156,19 @@ package lib_apu_frame_seq is
 
     function update_frame_irq(seq : frame_seq_t) return frame_seq_t;
 
-    function clear_frame_irq(seq : frame_seq_t) return frame_seq_t;
+    function request_frame_irq_clear(seq : frame_seq_t) return frame_seq_t;
+
+    function next_frame_irq_clear
+    (
+        seq       : frame_seq_t;
+        odd_cycle : boolean
+    )
+    return frame_seq_t;
 
     function frame_irq_active(seq : frame_seq_t) return boolean;
+
+    -- The IRQ line is only asserted if interrupts are not inhibited
+    function frame_irq_asserted(seq : frame_seq_t) return boolean;
 
     function next_sequence(cur_val : frame_seq_t) return frame_seq_t;
 
@@ -214,6 +228,12 @@ package body lib_apu_frame_seq is
         return seq.irq_active;
     end;
 
+    function frame_irq_asserted(seq : frame_seq_t) return boolean
+    is
+    begin
+        return seq.irq_active and not seq.irq_disable;
+    end;
+
     function assert_frame_irq(seq : frame_seq_t) return boolean
     is
         variable irq : boolean;
@@ -230,7 +250,7 @@ package body lib_apu_frame_seq is
             end if;
         end loop;
 
-        return irq and not seq.irq_disable;
+        return irq;
     end;
 
     function update_frame_irq(seq : frame_seq_t) return frame_seq_t
@@ -238,20 +258,47 @@ package body lib_apu_frame_seq is
         variable ret : frame_seq_t;
     begin
         ret := seq;
+        -- The flag is set on the first 2 cycles of the IRQ window even if
+        -- interrupts are inhibited. On the last cycle it is set according
+        -- to whether interrupts are inhibited
         if assert_frame_irq(seq)
         then
-            ret.irq_active := true;
+            if seq.count = FRAME_SEQ_COUNTS(seq.mode)(5).count
+            then
+                ret.irq_active := not seq.irq_disable;
+            else
+                ret.irq_active := true;
+            end if;
         end if;
 
         return ret;
     end;
 
-    function clear_frame_irq(seq : frame_seq_t) return frame_seq_t
+    function request_frame_irq_clear(seq : frame_seq_t) return frame_seq_t
     is
         variable ret : frame_seq_t;
     begin
         ret := seq;
-        ret.irq_active := false;
+        ret.irq_clear := true;
+
+        return ret;
+    end;
+
+    function next_frame_irq_clear
+    (
+        seq       : frame_seq_t;
+        odd_cycle : boolean
+    )
+    return frame_seq_t
+    is
+        variable ret : frame_seq_t;
+    begin
+        ret := seq;
+        if seq.irq_clear and odd_cycle
+        then
+            ret.irq_active := false;
+            ret.irq_clear := false;
+        end if;
 
         return ret;
     end;

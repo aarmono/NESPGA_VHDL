@@ -17,8 +17,7 @@ package lib_cpu_decode is
     function get_decode_state
     (
         opcode  : data_t;
-        opstate : opstate_t;
-        addr_hi : reg_t
+        opstate : opstate_t
     )
     return decode_state_t;
 
@@ -29,8 +28,7 @@ package body lib_cpu_decode is
     function get_decode_state
     (
         opcode  : data_t;
-        opstate : opstate_t;
-        addr_hi : reg_t
+        opstate : opstate_t
     )
     return decode_state_t
     is
@@ -440,9 +438,7 @@ package body lib_cpu_decode is
                 ret := decode_ind_y_w(opstate.a);
             -- AHX (d),Y
             when x"93" =>
-                ret := decode_ind_y_w(opstate.x and
-                                      opstate.a and
-                                      (addr_hi + "1"));
+                ret := decode_ind_y_sh(opstate.x and opstate.a);
             -- STY d,X
             when x"94" =>
                 ret := decode_zero_x_w(opstate, opstate.y);
@@ -466,24 +462,19 @@ package body lib_cpu_decode is
                 ret := decode_sbi(IN_TXS);
             -- TAS a,Y
             when x"9B" =>
-                ret :=
-                    decode_abs_y_w(opstate,
-                                   opstate.x and opstate.a and (addr_hi + "1"),
-                                   IN_TAS);
+                ret := decode_abs_y_sh(opstate, opstate.x and opstate.a, IN_TAS);
             -- SYA a,X
             when x"9C" =>
-                ret := decode_sya_w(opstate);
+                ret := decode_abs_x_sh(opstate, opstate.y);
             -- STA a,X
             when x"9D" =>
                 ret := decode_abs_x_w(opstate, opstate.a);
             -- SXA a,Y
             when x"9E" =>
-                ret := decode_sxa_w(opstate);
+                ret := decode_abs_y_sh(opstate, opstate.x, IN_NOP);
             -- AHX a,Y
             when x"9F" =>
-                ret :=
-                    decode_abs_y_w(opstate,
-                                   opstate.x and opstate.a and (addr_hi + "1"));
+                ret := decode_abs_y_sh(opstate, opstate.x and opstate.a, IN_NOP);
 
             -- LDY #
             when x"A0" =>

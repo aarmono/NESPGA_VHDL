@@ -49,6 +49,7 @@ package lib_apu is
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
         odd_cycle   : boolean;
+        cpu_write   : boolean;
         oam_dma     : oam_dma_status_t
     )
     return apu_output_t;
@@ -63,6 +64,7 @@ package body lib_apu is
         cpu_bus     : apu_bus_t;
         cpu_data_in : data_t;
         odd_cycle   : boolean;
+        cpu_write   : boolean;
         oam_dma     : oam_dma_status_t
     )
     return apu_output_t
@@ -91,7 +93,7 @@ package body lib_apu is
         
         v_ready := assert_ready(reg.dmc);
         
-        v_dma_bus := get_dma_bus(reg.dmc, oam_dma);
+        v_dma_bus := get_dma_bus(reg.dmc, odd_cycle, oam_dma);
         
         v_reg.frame_seq := next_sequence(reg.frame_seq);
 
@@ -112,7 +114,8 @@ package body lib_apu is
         v_reg.noise := next_noise(reg.noise,
                                   v_update_envelope,
                                   v_update_length);
-        v_reg.dmc := next_dmc(reg.dmc, cpu_data_in, odd_cycle, oam_dma);
+        v_reg.dmc := next_dmc(reg.dmc, cpu_data_in, odd_cycle, cpu_write,
+                              oam_dma);
 
         v_dmc_irq := dmc_irq_active(reg.dmc);
         v_frame_irq := frame_irq_active(reg.frame_seq);
@@ -229,9 +232,10 @@ package body lib_apu is
                         others => '0'
                     );
                     -- The frame interrupt flag... can be cleared either by
-                    -- reading $4015 (which also returns its old status) or by
-                    -- setting the interrupt inhibit flag.
-                    v_reg.frame_seq := clear_frame_irq(v_reg.frame_seq);
+                    -- reading 0x4015 (which also returns its old status) or by
+                    -- setting the interrupt inhibit flag. A read only clears
+                    -- it on the next transition from a put to a get cycle
+                    v_reg.frame_seq := request_frame_irq_clear(v_reg.frame_seq);
                 when others =>
                     v_cpu_data_out := (others => '0');
             end case;
@@ -239,13 +243,14 @@ package body lib_apu is
         -- }
 
         -- Update the frame interrupt at the end
+        v_reg.frame_seq := next_frame_irq_clear(v_reg.frame_seq, odd_cycle);
         v_reg.frame_seq := update_frame_irq(v_reg.frame_seq);
         
         ret.reg := v_reg;
         ret.audio := v_audio;
         ret.cpu_data_out := v_cpu_data_out;
         ret.ready := v_ready;
-        ret.irq := v_frame_irq or v_dmc_irq;
+        ret.irq := frame_irq_asserted(reg.frame_seq) or v_dmc_irq;
         ret.dma_bus := v_dma_bus;
 
         return ret;

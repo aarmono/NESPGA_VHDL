@@ -25,6 +25,9 @@ package lib_mapper is
         write_prev    : boolean;
         -- Last value driven on the CPU data bus
         open_bus      : data_t;
+        -- Last value on the data bus internal to the CPU. It is not
+        -- updated by DMA reads
+        internal_bus  : data_t;
         
         mapper_001_reg : mapper_001_reg_t;
         mapper_002_reg : mapper_002_reg_t;
@@ -40,6 +43,7 @@ package lib_mapper is
 
         write_prev => false,
         open_bus => (others => '0'),
+        internal_bus => (others => '0'),
         
         mapper_001_reg => RESET_MAPPER_001_REG,
         mapper_002_reg => RESET_MAPPER_002_REG,
