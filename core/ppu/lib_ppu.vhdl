@@ -14,13 +14,14 @@ package lib_ppu is
     subtype ppu_cycle_t is natural range 0 to 2**9-1;
     subtype ppu_frame_t is natural range 0 to 1;
 
-    constant FRONT_BG_END  : ppu_cycle_t := 255;
-    constant FRAME_START   : ppu_cycle_t := 21;
-    constant FRAME_END     : ppu_cycle_t := 260;
-    constant VINT_START    : ppu_cycle_t := 0;
-    constant VINT_END      : ppu_cycle_t := 20;
-    constant BACK_BG_START : ppu_cycle_t := 320;
-    constant BACK_BG_END   : ppu_cycle_t := 335;
+    constant SPRITE_EVAL_START : ppu_cycle_t := 64;
+    constant FRONT_BG_END      : ppu_cycle_t := 255;
+    constant FRAME_START       : ppu_cycle_t := 21;
+    constant FRAME_END         : ppu_cycle_t := 260;
+    constant VINT_START        : ppu_cycle_t := 0;
+    constant VINT_END          : ppu_cycle_t := 20;
+    constant BACK_BG_START     : ppu_cycle_t := 320;
+    constant BACK_BG_END       : ppu_cycle_t := 335;
 
     subtype vram_addr_t     is unsigned(14 downto 0);
     subtype palette_idx_t   is std_logic_vector(3 downto 0);
@@ -341,6 +342,14 @@ package lib_ppu is
         count            : natural range 0 to 1;
         -- Address for secondary OAM memory access
         sec_oam_addr     : unsigned(sec_oam_addr_t'range);
+        -- OAM corruption. Disabling rendering mid-frame latches the
+        -- secondary OAM address as the 8 byte OAM row to corrupt. Once
+        -- rendering resumes the row is replaced with a copy of row 0, one
+        -- read or write per cycle. oam_corrupt_count is the number of
+        -- reads and writes remaining
+        oam_corrupt_row   : unsigned(sec_oam_addr_t'range);
+        oam_corrupt_count : natural range 0 to 16;
+        oam_corrupt_data  : data_t;
         -- True if Sprite 0 was fetched from OAM to be potentially rendered
         -- next scanline
         sprite_0_hit     : boolean;
@@ -394,6 +403,9 @@ package lib_ppu is
         cur_time => TIME_ZERO,
         count => 0,
         sec_oam_addr => (others => '0'),
+        oam_corrupt_row => (others => '0'),
+        oam_corrupt_count => 0,
+        oam_corrupt_data => (others => '0'),
         sprite_0_hit => false,
         sprite_0_buffer => false,
         sprite_start => false,
@@ -1291,6 +1303,7 @@ package body lib_ppu is
         variable v_spr_in_range          : boolean;
         variable v_spr_tile_y_offset     : y_offset_t;
         variable v_spr_buf_addr          : integer range 0 to 7;
+        variable v_oam_corrupt_byte      : unsigned(2 downto 0);
         variable v_rnd_is_sprite         : boolean;
         variable v_rnd_spr_pattern_color : palette_idx_t;
         
@@ -1543,7 +1556,7 @@ package body lib_ppu is
            background_active(render_in.reg.cur_time)
         then
             case render_in.reg.cur_time.cycle is
-                when 0 to 63 =>
+                when 0 to SPRITE_EVAL_START - 1 =>
                     -- For the first 64 clock cycles, initialize secondary
                     -- OAM memory to 0xFF. Each memory access takes 2
                     -- clock cycles (one to write to the data register, one
@@ -1571,7 +1584,7 @@ package body lib_ppu is
                         end if;
                     end if;
 
-                    if render_in.reg.cur_time.cycle = 63
+                    if render_in.reg.cur_time.cycle = SPRITE_EVAL_START - 1
                     then
                         render_out.reg.sec_oam_addr := (others => '0');
                         render_out.reg.sec_oam_overflow := false;
@@ -1579,7 +1592,7 @@ package body lib_ppu is
 
                     render_out.reg.oam_overflow := false;
                     render_out.reg.sprite_0_hit := false;
-                when 64 to 255 =>
+                when SPRITE_EVAL_START to FRONT_BG_END =>
                     -- Even-numbered memory accesses are reads from OAM
                     -- memory. And during the pre-render scanline disable
                     -- sprite hit detection
@@ -1617,8 +1630,12 @@ package body lib_ppu is
                             v_spr_copy_sprite)
                         then
 
-                            -- Set a flag if this is sprite 0
-                            if is_zero(render_in.reg.oam_addr)
+                            -- The first sprite evaluated (dot 66) is treated
+                            -- as sprite 0, even if a write to $2003 made
+                            -- evaluation start somewhere other than OAM
+                            -- entry 0
+                            if render_in.reg.cur_time.cycle =
+                               SPRITE_EVAL_START + 1
                             then
                                 render_out.reg.sprite_0_hit := true;
                             end if;
@@ -1638,13 +1655,26 @@ package body lib_ppu is
                             
                             render_out.reg.oam_addr :=
                                 render_in.reg.oam_addr + "1";
+
+                            -- The X position goes through the same range
+                            -- check as the Y position. If it is out of range
+                            -- the OAM address is realigned to a multiple of 4,
+                            -- which is only visible when $2003 misaligned it
+                            if render_in.reg.sec_oam_addr(1 downto 0) = "11" and
+                               not v_spr_copy_sprite
+                            then
+                                render_out.reg.oam_addr(1 downto 0) := "00";
+                            end if;
                         else
                             render_out.reg.oam_addr(oam_addr_t'high downto 2) :=
                                 render_in.reg.oam_addr(oam_addr_t'high downto 2) +
                                 "1";
 
-                            -- This reproduces a hardware bug in the original
-                            -- NES PPU
+                            -- If secondary OAM isn't full, the OAM address is
+                            -- realigned to a multiple of 4.
+                            --
+                            -- Otherwise this reproduces a hardware bug in the
+                            -- original NES PPU
                             --
                             -- If the value is not in range, increment n and m
                             -- (without carry).
@@ -1653,9 +1683,13 @@ package body lib_ppu is
                             -- incremented, the overflow flag would be set
                             -- whenever more than 8 sprites were present on the
                             -- same scanline, as expected.
-                            render_out.reg.oam_addr(1 downto 0) :=
-                                render_in.reg.oam_addr(1 downto 0) +
-                                to_unsigned(render_in.reg.sec_oam_overflow, 1);
+                            if render_in.reg.sec_oam_overflow
+                            then
+                                render_out.reg.oam_addr(1 downto 0) :=
+                                    render_in.reg.oam_addr(1 downto 0) + "1";
+                            else
+                                render_out.reg.oam_addr(1 downto 0) := "00";
+                            end if;
                         end if;
 
                         -- If exactly 8 sprites have been found, disable
@@ -1855,6 +1889,43 @@ package body lib_ppu is
                 when others =>
                     null;
             end case;
+
+            -- Disabling rendering mid-frame corrupts OAM once rendering
+            -- is enabled again. During sprite evaluation the row is
+            -- rounded up to a multiple of 4
+            if not render_in.reg.render_enabled
+            then
+                render_out.reg.oam_corrupt_row := render_out.reg.sec_oam_addr;
+                if render_in.reg.cur_time.cycle >= SPRITE_EVAL_START and
+                   render_in.reg.cur_time.cycle <= FRONT_BG_END and
+                   not is_zero(render_out.reg.sec_oam_addr(1 downto 0))
+                then
+                    render_out.reg.oam_corrupt_row :=
+                        (render_out.reg.sec_oam_addr(4 downto 2) + "1") & "00";
+                end if;
+                render_out.reg.oam_corrupt_count := 16;
+            -- The corruption happens in a single cycle on the console. Here
+            -- each byte is read then written on the next cycle, while
+            -- sprite evaluation isn't using OAM
+            elsif render_in.reg.oam_corrupt_count > 0 and
+                  (render_in.reg.cur_time.cycle < SPRITE_EVAL_START or
+                   render_in.reg.cur_time.cycle > FRONT_BG_END)
+            then
+                v_oam_corrupt_byte :=
+                    to_unsigned((16 - render_in.reg.oam_corrupt_count) / 2, 3);
+                if render_in.reg.oam_corrupt_count mod 2 = 0
+                then
+                    render_out.oam_bus := bus_read("00000" & v_oam_corrupt_byte);
+                    render_out.reg.oam_corrupt_data := render_in.data_from_oam;
+                else
+                    render_out.oam_bus :=
+                        bus_write(render_in.reg.oam_corrupt_row &
+                                  v_oam_corrupt_byte);
+                    render_out.data_to_oam := render_in.reg.oam_corrupt_data;
+                end if;
+                render_out.reg.oam_corrupt_count :=
+                    render_in.reg.oam_corrupt_count - 1;
+            end if;
         end if;
 
         -- The sprite counters run during every visible dot, even during
@@ -2172,6 +2243,22 @@ package body lib_ppu is
             render_out.reg.pixel_valid := true;
         else
             render_out.reg.pixel_valid := false;
+        end if;
+
+        -- $2002 reads latch the vblank flag at the start of the read, but
+        -- the sprite flags at the end of it, about 2 dots later. So the
+        -- sprite flags are returned as they are after this dot
+        if is_bus_read(render_in.cpu_bus) and
+           render_in.cpu_bus.address = "010"
+        then
+            render_out.data_to_cpu(6) :=
+                to_std_logic(render_out.reg.status.spr_0_hit);
+            render_out.data_to_cpu(5) :=
+                to_std_logic(render_out.reg.status.spr_overflow);
+            render_out.reg.io_latch :=
+                refresh_io_latch(render_out.reg.io_latch,
+                                 x"60",
+                                 render_out.data_to_cpu);
         end if;
 
         render_out.pixel_bus.pixel :=

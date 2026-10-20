@@ -141,8 +141,7 @@ nes-test-roms/mmc3_test_2/rom_singles/5-MMC3.nes                    | 434ms     
 # FM2 input to select the page and start the tests, and hashes the final
 # results screen. Pages with failing tests are commented out until they pass.
 # Their run times are estimates: the longer of the nes_bench run and Mesen's
-# (plus 30 frames, since the menu loads later in nes_bench). Page 19 currently
-# hangs in nes_bench, so only Mesen's time is used
+# (plus 30 frames, since the menu loads later in nes_bench)
 AccuracyCoin/AccuracyCoin.nes                                       | 1868ms    | 93ff16df74c6f1ddf74308908c4a79b9642fd1e45fa8ddacb75d97a827439886 *frame_00111.bmp | test_inputs/AccuracyCoin/page_01.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1301ms    | 32455cb2e08f757c14c67d32ffb208191fccb8bb5909710b24715530535bdf8d *frame_00077.bmp | test_inputs/AccuracyCoin/page_02.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1418ms    | 4e35c46ea0866c6008768175d472c543e513b15fdbc0e6019b7f9f1bb02076c9 *frame_00084.bmp | test_inputs/AccuracyCoin/page_03.fm2
@@ -161,7 +160,7 @@ AccuracyCoin/AccuracyCoin.nes                                       | 3803ms    
 AccuracyCoin/AccuracyCoin.nes                                       | 1852ms    | 45a7791b3bf73d1ddad450f813788f281124d5f477f6fbfe1100fee2f872554e *frame_00110.bmp | test_inputs/AccuracyCoin/page_16.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 4103ms    | a53009d017e1bd65abbca73ca708a06c92b17a2995b0531890e3decb763d60b7 *frame_00245.bmp | test_inputs/AccuracyCoin/page_17.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 25083ms   | c4f78a3cd3307c663c89f2465010a567e5acc8257bbb164a6f6c07a2172618d0 *frame_01503.bmp | test_inputs/AccuracyCoin/page_18.fm2
-#AccuracyCoin/AccuracyCoin.nes                                      | 11124ms   |                                                                                   | test_inputs/AccuracyCoin/page_19.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 12108ms   | bbb0dc53c6ce9cdebae6428bb32e9075bd637c9915d92936f1150d87205f35f3 *frame_00725.bmp | test_inputs/AccuracyCoin/page_19.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 13175ms   |                                                                                   | test_inputs/AccuracyCoin/page_20.fm2
 #AccuracyCoin/AccuracyCoin.nes                                      | 5321ms    |                                                                                   | test_inputs/AccuracyCoin/page_21.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 5721ms    | 74c476e93bcf89a0796b88dbf2d32969247d562438872f4b42bd536151c81a37 *frame_00342.bmp | test_inputs/AccuracyCoin/page_22.fm2
