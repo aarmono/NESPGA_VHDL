@@ -16,7 +16,9 @@ package soc is
     component nes_soc is
     generic
     (
-        CLK_FREQ : positive := 50_000_000
+        CLK_FREQ     : positive := 50_000_000;
+        CPU_FREQ_NUM : positive := 39_375_000;
+        CPU_FREQ_DEN : positive := 22
     );
     port
     (
@@ -76,7 +78,9 @@ package soc is
     generic
     (
         USE_EXT_SRAM : boolean := false;
-        CLK_FREQ     : positive := 50_000_000
+        CLK_FREQ     : positive := 50_000_000;
+        CPU_FREQ_NUM : positive := 39_375_000;
+        CPU_FREQ_DEN : positive := 22
     );
     port
     (

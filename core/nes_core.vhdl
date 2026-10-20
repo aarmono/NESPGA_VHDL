@@ -139,7 +139,9 @@ package nes_core is
     component clk_en is
     generic
     (
-        CLK_FREQ : positive := 50_000_000
+        CLK_FREQ     : positive := 50_000_000;
+        CPU_FREQ_NUM : positive := 39_375_000;
+        CPU_FREQ_DEN : positive := 22
     );
     port
     (

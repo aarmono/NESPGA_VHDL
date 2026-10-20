@@ -21,7 +21,10 @@ use work.lib_nes.all;
 entity nes_soc is
 generic
 (
-    CLK_FREQ : positive := 50_000_000
+    -- See clk_en
+    CLK_FREQ     : positive := 50_000_000;
+    CPU_FREQ_NUM : positive := 39_375_000;
+    CPU_FREQ_DEN : positive := 22
 );
 port
 (
@@ -202,7 +205,9 @@ begin
     nes_clk_en : clk_en
     generic map
     (
-        CLK_FREQ => CLK_FREQ
+        CLK_FREQ => CLK_FREQ,
+        CPU_FREQ_NUM => CPU_FREQ_NUM,
+        CPU_FREQ_DEN => CPU_FREQ_DEN
     )
     port map
     (
