@@ -64,6 +64,8 @@ package utilities is
     return natural;
 
     function max(a, b : integer) return integer;
+    -- Greatest common divisor
+    function gcd(a, b : positive) return positive;
 
     function zero(val : std_logic_vector) return std_logic_vector;
     function zero(val : unsigned) return unsigned;
@@ -264,6 +266,22 @@ package body utilities is
         else
             return b;
         end if;
+    end;
+
+    function gcd(a, b : positive) return positive
+    is
+        variable x : natural := a;
+        variable y : natural := b;
+        variable r : natural;
+    begin
+        while y /= 0
+        loop
+            r := x mod y;
+            x := y;
+            y := r;
+        end loop;
+
+        return x;
     end;
     
     function add_vectors

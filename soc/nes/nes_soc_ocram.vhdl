@@ -18,7 +18,10 @@ entity nes_soc_ocram is
 generic
 (
     USE_EXT_SRAM : boolean := false;
-    CLK_FREQ     : positive := 50_000_000
+    -- See clk_en
+    CLK_FREQ     : positive := 50_000_000;
+    CPU_FREQ_NUM : positive := 39_375_000;
+    CPU_FREQ_DEN : positive := 22
 );
 port
 (
@@ -86,7 +89,9 @@ begin
     soc : entity work.nes_soc(behavioral)
     generic map
     (
-        CLK_FREQ => CLK_FREQ
+        CLK_FREQ => CLK_FREQ,
+        CPU_FREQ_NUM => CPU_FREQ_NUM,
+        CPU_FREQ_DEN => CPU_FREQ_DEN
     )
     port map
     (
