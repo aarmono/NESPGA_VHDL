@@ -24,6 +24,8 @@ package lib_ppu is
     constant BACK_BG_END       : ppu_cycle_t := 335;
     -- Dots from a $2007 read to the PPUDATA state machine reading memory
     constant PPU_DATA_READ_DELAY : positive := 5;
+    -- Dots from the second $2006 write to v being loaded from t
+    constant PPU_ADDR_WRITE_DELAY : positive := 3;
 
     subtype vram_addr_t     is unsigned(14 downto 0);
     subtype palette_idx_t   is std_logic_vector(3 downto 0);
@@ -298,6 +300,17 @@ package lib_ppu is
         -- Dots until the PPUDATA read state machine reads memory for a $2007
         -- read made while rendering, or 0 if there is none pending
         ppu_data_delay   : natural range 0 to PPU_DATA_READ_DELAY;
+        -- Dots until v is loaded from t after the second $2006 write, or 0
+        -- if there is none pending
+        ppu_addr_delay   : natural range 0 to PPU_ADDR_WRITE_DELAY;
+        -- The low 8 address lines share pins with the data bus. ALE is set
+        -- on the first dot of each 2 dot rendering read, latching them in
+        -- the octal latch, so the second dot only drives the high 6 lines.
+        -- addr_latched is true if the previous dot latched addr_latch
+        addr_latch       : data_t;
+        addr_latched     : boolean;
+        -- Value left on the data bus by the previous dot's read
+        chr_data         : data_t;
         -- Address of the first garbage name table fetch of a sprite. The
         -- address is latched on the first cycle of the 2 cycle read, so the
         -- fetch at dot 257 uses v from before the horizontal reset
@@ -403,6 +416,10 @@ package lib_ppu is
         ppu_addr => RESET_SCROLL,
         ppu_data => (others => '0'),
         ppu_data_delay => 0,
+        ppu_addr_delay => 0,
+        addr_latch => (others => '0'),
+        addr_latched => false,
+        chr_data => (others => '0'),
         garbage_nt_addr => (others => '0'),
         pattern_table_1 => (others => '0'),
         pattern_table_2 => (others => '0'),
@@ -438,6 +455,15 @@ package lib_ppu is
         io_latch => RESET_IO_LATCH
     );
     
+    -- Shifts a background pattern shift register one pixel, shifting
+    -- serial_in into the low bit
+    function shift_pattern_table
+    (
+        pattern_table : pattern_shift_t;
+        serial_in     : std_logic
+    )
+    return pattern_shift_t;
+
     function reload_pattern_table
     (
         pattern_table : pattern_shift_t;
@@ -1262,6 +1288,21 @@ package body lib_ppu is
                "00000";
     end;
     
+    function shift_pattern_table
+    (
+        pattern_table : pattern_shift_t;
+        serial_in     : std_logic
+    )
+    return pattern_shift_t
+    is
+        variable shifted : pattern_shift_t;
+    begin
+        shifted := shift_left(pattern_table, 1);
+        shifted(0) := serial_in;
+
+        return shifted;
+    end;
+
     function reload_pattern_table
     (
         pattern_table : pattern_shift_t;
@@ -1371,6 +1412,8 @@ package body lib_ppu is
         render_out.reg.cur_time := incr_time(render_in.reg.cur_time,
                                              render_in.reg.render_enabled);
         render_out.reg.render_enabled := rendering_enabled(render_in.reg.mask);
+        render_out.reg.addr_latched := false;
+        render_out.reg.chr_data := render_in.data_from_chr;
         render_out.reg.render_fetch := render_in.reg.render_enabled;
     
         -- Fetch the attribute value and pattern table values for the
@@ -1392,9 +1435,9 @@ package body lib_ppu is
                                 bus_read(v_bg_tile_idx_addr.name_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1407,9 +1450,9 @@ package body lib_ppu is
                             render_out.reg.tile_idx := render_in.data_from_chr;
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1419,9 +1462,9 @@ package body lib_ppu is
                                 bus_read(v_bg_tile_idx_addr.attr_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1438,9 +1481,9 @@ package body lib_ppu is
                                            v_bg_tile_idx_addr.attr_idx);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1457,9 +1500,9 @@ package body lib_ppu is
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1480,9 +1523,9 @@ package body lib_ppu is
                             render_out.reg.pattern_tmp := render_in.data_from_chr;
                             -- Shift the pattern tables
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1499,9 +1542,9 @@ package body lib_ppu is
                             render_out.chr_bus := bus_read(v_pattern_table_addr);
                             -- Shift the pattern table
                             render_out.reg.pattern_table_1 :=
-                                shift_left(render_in.reg.pattern_table_1, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_1, '0');
                             render_out.reg.pattern_table_2 :=
-                                shift_left(render_in.reg.pattern_table_2, 1);
+                                shift_pattern_table(render_in.reg.pattern_table_2, '1');
                             -- Shift the attribute table
                             render_out.reg.attr_val :=
                                 shift_attr_table(render_in.reg.attr_val);
@@ -1949,6 +1992,20 @@ package body lib_ppu is
                     null;
             end case;
 
+            -- The second dot of each read takes the low 8 address lines
+            -- from the octal latch. They normally match, but if v changes
+            -- between the 2 dots the read is from a hybrid address
+            if render_in.reg.cur_time.cycle mod 2 = 0
+            then
+                render_out.reg.addr_latch :=
+                    render_out.chr_bus.address(data_t'range);
+                render_out.reg.addr_latched := is_bus_read(render_out.chr_bus);
+            elsif render_in.reg.addr_latched
+            then
+                render_out.chr_bus.address(data_t'range) :=
+                    render_in.reg.addr_latch;
+            end if;
+
             -- Disabling rendering mid-frame corrupts OAM once rendering
             -- is enabled again. During sprite evaluation the row is
             -- rounded up to a multiple of 4
@@ -2020,6 +2077,22 @@ package body lib_ppu is
             render_out.reg.status.vbl := false;
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
+        end if;
+
+        -- The second $2006 write loads v from t a few dots after the write.
+        -- When not rendering, v drives the address bus
+        if render_in.reg.ppu_addr_delay /= 0
+        then
+            render_out.reg.ppu_addr_delay := render_in.reg.ppu_addr_delay - 1;
+            if render_in.reg.ppu_addr_delay = 1
+            then
+                render_out.reg.ppu_addr := render_in.reg.scroll;
+                if not v_rendering
+                then
+                    render_out.chr_bus :=
+                        bus_read_scroll(render_out.reg.ppu_addr);
+                end if;
+            end if;
         end if;
 
         -- External memory access from CPU. {
@@ -2102,10 +2175,7 @@ package body lib_ppu is
                             unsigned(render_in.data_from_cpu(4 downto 0));
                         render_out.reg.scroll.coarse_y_scroll(2 downto 0) :=
                             unsigned(render_in.data_from_cpu(7 downto 5));
-                        -- Update using OUTPUT value
-                        render_out.reg.ppu_addr := render_out.reg.scroll;
-                        render_out.chr_bus :=
-                            bus_read_scroll(render_out.reg.ppu_addr);
+                        render_out.reg.ppu_addr_delay := PPU_ADDR_WRITE_DELAY;
                     end if;
                     render_out.reg.count := (render_in.reg.count + 1) mod 2;
                 -- PPU Data
@@ -2228,6 +2298,17 @@ package body lib_ppu is
             then
                 -- While rendering, the read doesn't get the bus
                 render_out.reg.ppu_data := render_in.data_from_chr;
+
+                -- If the read lands on the ALE dot of a rendering read, the
+                -- octal latch takes the value the previous read left on the
+                -- data bus instead of the low byte of the fetch address. So
+                -- both reads use that as the low byte
+                if render_out.reg.addr_latched
+                then
+                    render_out.chr_bus.address(data_t'range) :=
+                        render_in.reg.chr_data;
+                    render_out.reg.addr_latch := render_in.reg.chr_data;
+                end if;
             else
                 -- Reading the palettes still updates the internal buffer
                 -- though, but the data placed in it is the mirrored
