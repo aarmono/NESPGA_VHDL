@@ -1,0 +1,72 @@
+name: Quartus build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Quartus build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compile
+        working-directory: board/de1
+        run: ./build_quartus.sh
+
+      - name: Write job summary
+        if: ${{ !cancelled() }}
+        working-directory: board/de1
+        run: ./build_quartus.sh -r >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload programming files
+        uses: actions/upload-artifact@v7
+        with:
+          name: NES
+          path: |
+            board/de1/NES.sof
+            board/de1/NES.pof
+
+      - name: Upload reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: quartus-reports
+          path: |
+            board/de1/*.rpt
+            board/de1/*.summary
+            board/de1/timing/
+          if-no-files-found: ignore
+
+  # Attaches the programming files to the release, replacing any uploaded
+  # by hand
+  release:
+    name: Attach to release
+    needs: build
+    if: ${{ github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download programming files
+        uses: actions/download-artifact@v8
+        with:
+          name: NES
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            NES.sof NES.pof --clobber -R "${{ github.repository }}"
