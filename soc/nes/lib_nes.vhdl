@@ -80,25 +80,25 @@ package lib_nes is
     );
     
     type nes_out_t is record
-        reg              : reg_t;
-        cpu_bus          : cpu_mmap_bus_out_t;
-        ppu_bus          : ppu_mmap_bus_out_t;
-        -- Memories on the cartridge. PRG ROM and CHR ROM are in the ROM file
-        prg_cart_mem_bus : cart_mem_bus_t;
-        chr_cart_mem_bus : cart_mem_bus_t;
-        sram_bus         : sram_bus_t;
-        data_to_sram     : data_t;
-        chr_ram_bus      : sram_bus_t;
-        data_to_chr_ram  : data_t;
-        oam_bus          : oam_bus_t;
-        data_to_oam      : data_t;
-        sec_oam_bus      : sec_oam_bus_t;
-        data_to_sec_oam  : data_t;
-        palette_bus      : palette_bus_t;
-        data_to_palette  : pixel_t;
-        audio            : mixed_audio_t;
-        reset            : boolean;
-        irq              : boolean;
+        reg                  : reg_t;
+        cpu_bus              : cpu_mmap_bus_out_t;
+        ppu_bus              : ppu_mmap_bus_out_t;
+        -- Memories on the cartridge. PRG ROM and CHR ROM are in the ROM file,
+        -- and PRG RAM shares the PRG channel with PRG ROM
+        prg_cart_mem_bus     : cart_mem_bus_t;
+        data_to_prg_cart_mem : data_t;
+        chr_cart_mem_bus     : cart_mem_bus_t;
+        chr_ram_bus          : sram_bus_t;
+        data_to_chr_ram      : data_t;
+        oam_bus              : oam_bus_t;
+        data_to_oam          : data_t;
+        sec_oam_bus          : sec_oam_bus_t;
+        data_to_sec_oam      : data_t;
+        palette_bus          : palette_bus_t;
+        data_to_palette      : pixel_t;
+        audio                : mixed_audio_t;
+        reset                : boolean;
+        irq                  : boolean;
     end record;
     
     type nes_in_t is record
@@ -135,6 +135,21 @@ package lib_nes is
         rom_bus     : cart_mem_bus_t;
         file_offset : unsigned
     )
+    return cart_mem_bus_t;
+
+    -- The ROM file is in the lower half of the cartridge memory bus, from
+    -- address 0. The cartridge RAMs are in the upper half, each in its own
+    -- fixed 64 KB window: PRG RAM, then CHR RAM
+    constant PRG_RAM_WINDOW : cart_mem_addr_t :=
+        std_logic_vector(to_unsigned(16#100000#, cart_mem_addr_t'length));
+
+    -- Offset into the cartridge RAM windows
+    subtype cart_ram_addr_t is std_logic_vector(16 downto 0);
+
+    function is_cart_ram(cart_mem_bus : cart_mem_bus_t) return boolean;
+
+    -- The cartridge memory bus access for an access to PRG RAM
+    function get_prg_ram_cart_mem_bus(ram_bus : sram_bus_t)
     return cart_mem_bus_t;
 
 end lib_nes;
@@ -194,6 +209,25 @@ package body lib_nes is
         end if;
     end;
 
+    function is_cart_ram(cart_mem_bus : cart_mem_bus_t) return boolean
+    is
+    begin
+        return cart_mem_bus.address(cart_mem_addr_t'high) = '1';
+    end;
+
+    function get_prg_ram_cart_mem_bus(ram_bus : sram_bus_t)
+    return cart_mem_bus_t
+    is
+        variable ret : cart_mem_bus_t;
+    begin
+        ret.address := PRG_RAM_WINDOW;
+        ret.address(sram_addr_t'range) := ram_bus.address;
+        ret.read := ram_bus.read;
+        ret.write := ram_bus.write;
+
+        return ret;
+    end;
+
     function cycle_nes(nes_in : nes_in_t) return nes_out_t
     is
         variable ret : nes_out_t;
@@ -209,9 +243,8 @@ package body lib_nes is
         ret.ppu_bus := PPU_MMAP_BUS_IDLE;
 
         ret.prg_cart_mem_bus := CART_MEM_BUS_IDLE;
+        ret.data_to_prg_cart_mem := (others => '-');
         ret.chr_cart_mem_bus := CART_MEM_BUS_IDLE;
-        ret.sram_bus := SRAM_BUS_IDLE;
-        ret.data_to_sram := (others => '-');
         ret.chr_ram_bus := SRAM_BUS_IDLE;
         ret.data_to_chr_ram := (others => '-');
         
@@ -232,8 +265,9 @@ package body lib_nes is
                 
                 ret.cpu_bus.ram_bus :=
                     bus_write(nes_in.reg.cur_cycle(ram_addr_t'range));
-                ret.sram_bus :=
-                    bus_write(nes_in.reg.cur_cycle(sram_addr_t'range));
+                ret.prg_cart_mem_bus :=
+                    get_prg_ram_cart_mem_bus(
+                        bus_write(nes_in.reg.cur_cycle(sram_addr_t'range)));
                 
                 ret.oam_bus :=
                     bus_write(nes_in.reg.cur_cycle(oam_addr_t'range));
@@ -248,7 +282,7 @@ package body lib_nes is
                     bus_write(nes_in.reg.cur_cycle(ciram_addr_t'range));
                 
                 ret.cpu_bus.data_to_ram := x"00";
-                ret.data_to_sram := x"00";
+                ret.data_to_prg_cart_mem := x"00";
                 
                 ret.data_to_oam := x"00";
                 ret.data_to_sec_oam := x"00";
@@ -341,11 +375,27 @@ package body lib_nes is
                 ret.cpu_bus := cpu_map_out.bus_out;
                 ret.ppu_bus := mmap_ppu_memory(nes_in.ppu_bus, nes_in.cart.ppu);
 
-                ret.prg_cart_mem_bus :=
-                    get_cart_mem_bus(
-                        nes_in.cart.mem.prg_rom_bus,
-                        get_file_offset(x"00",
-                                        nes_in.reg.cart_config.has_trainer));
+                -- PRG ROM and PRG RAM share the PRG channel of the cartridge
+                -- memory bus, since the CPU only accesses one at a time
+                assert not (is_bus_active(nes_in.cart.mem.prg_rom_bus) and
+                            is_bus_active(nes_in.cart.mem.prg_ram_bus))
+                    report "PRG ROM and PRG RAM accessed together"
+                    severity failure;
+
+                if is_bus_active(nes_in.cart.mem.prg_ram_bus)
+                then
+                    ret.prg_cart_mem_bus :=
+                        get_prg_ram_cart_mem_bus(nes_in.cart.mem.prg_ram_bus);
+                    ret.data_to_prg_cart_mem :=
+                        nes_in.cart.mem.data_to_prg_ram;
+                else
+                    ret.prg_cart_mem_bus :=
+                        get_cart_mem_bus(
+                            nes_in.cart.mem.prg_rom_bus,
+                            get_file_offset(
+                                x"00",
+                                nes_in.reg.cart_config.has_trainer));
+                end if;
                 ret.chr_cart_mem_bus :=
                     get_cart_mem_bus(
                         nes_in.cart.mem.chr_rom_bus,
@@ -353,8 +403,6 @@ package body lib_nes is
                             nes_in.reg.cart_config.prg_rom_16kb_blocks,
                             nes_in.reg.cart_config.has_trainer));
 
-                ret.sram_bus := nes_in.cart.mem.prg_ram_bus;
-                ret.data_to_sram := nes_in.cart.mem.data_to_prg_ram;
                 ret.chr_ram_bus := nes_in.cart.mem.chr_ram_bus;
                 ret.data_to_chr_ram := nes_in.cart.mem.data_to_chr_ram;
 

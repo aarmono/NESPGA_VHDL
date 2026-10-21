@@ -349,7 +349,7 @@ begin
     nes : nes_soc_ocram
     generic map
     (
-        USE_EXT_SRAM => false
+        USE_EXT_CART_RAM => true
     )
     port map
     (

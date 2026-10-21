@@ -78,10 +78,10 @@ package soc is
     component nes_soc_ocram is
     generic
     (
-        USE_EXT_SRAM : boolean := false;
-        CLK_FREQ     : positive := 50_000_000;
-        CPU_FREQ_NUM : positive := 39_375_000;
-        CPU_FREQ_DEN : positive := 22
+        USE_EXT_CART_RAM : boolean := false;
+        CLK_FREQ         : positive := 50_000_000;
+        CPU_FREQ_NUM     : positive := 39_375_000;
+        CPU_FREQ_DEN     : positive := 22
     );
     port
     (
@@ -93,15 +93,9 @@ package soc is
         cpu_clk_en : out boolean;
         ppu_clk_en : out boolean;
 
-        cpu_ram_en : out boolean;
-
         cart_mem_bus       : out cart_mem_bus_t;
         data_to_cart_mem   : out data_t;
         data_from_cart_mem : in data_t;
-        
-        sram_bus       : out sram_bus_t;
-        data_to_sram   : out data_t;
-        data_from_sram : in data_t := (others => '-');
 
         pixel_bus : out pixel_bus_t;
         audio     : out mixed_audio_t;

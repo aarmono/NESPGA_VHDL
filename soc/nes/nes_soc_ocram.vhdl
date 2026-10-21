@@ -13,15 +13,18 @@ use work.palette_bus_types.all;
 use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
+use work.lib_nes.all;
 
 entity nes_soc_ocram is
 generic
 (
-    USE_EXT_SRAM : boolean := false;
+    -- Leave the cartridge RAMs on the cartridge memory bus. Otherwise they
+    -- are on chip, and only reads of the ROM file are on the bus
+    USE_EXT_CART_RAM : boolean := false;
     -- See clk_en
-    CLK_FREQ     : positive := 50_000_000;
-    CPU_FREQ_NUM : positive := 39_375_000;
-    CPU_FREQ_DEN : positive := 22
+    CLK_FREQ         : positive := 50_000_000;
+    CPU_FREQ_NUM     : positive := 39_375_000;
+    CPU_FREQ_DEN     : positive := 22
 );
 port
 (
@@ -32,16 +35,10 @@ port
 
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
-
-    cpu_ram_en : out boolean;
     
     cart_mem_bus       : out cart_mem_bus_t;
     data_to_cart_mem   : out data_t;
     data_from_cart_mem : in data_t;
-
-    sram_bus       : out sram_bus_t;
-    data_to_sram   : out data_t;
-    data_from_sram : in data_t := (others => '-');
 
     pixel_bus : out pixel_bus_t;
     audio     : out mixed_audio_t;
@@ -61,9 +58,9 @@ architecture behavioral of nes_soc_ocram is
     signal sig_cpu_ram_en : boolean;
     signal sig_ppu_ram_en : boolean;
     
-    signal sig_sram_bus       : sram_bus_t;
-    signal sig_data_to_sram   : data_t;
-    signal sig_data_from_sram : data_t;
+    signal soc_cart_mem_bus       : cart_mem_bus_t;
+    signal soc_data_to_cart_mem   : data_t;
+    signal soc_data_from_cart_mem : data_t;
 
     signal prg_ram_bus  : ram_bus_t;
     signal oam_bus      : oam_bus_t;
@@ -107,13 +104,9 @@ begin
         cpu_ram_en => sig_cpu_ram_en,
         ppu_ram_en => sig_ppu_ram_en,
         
-        cart_mem_bus => cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
-        data_from_cart_mem => data_from_cart_mem,
-        
-        sram_bus => sig_sram_bus,
-        data_to_sram => sig_data_to_sram,
-        data_from_sram => sig_data_from_sram,
+        cart_mem_bus => soc_cart_mem_bus,
+        data_to_cart_mem => soc_data_to_cart_mem,
+        data_from_cart_mem => soc_data_from_cart_mem,
         
         prg_ram_bus => prg_ram_bus,
         data_to_prg_ram => data_to_prg_ram,
@@ -170,36 +163,49 @@ begin
         data_out => data_from_prg_ram
     );
 
-    gen_sram : if not USE_EXT_SRAM generate
+    gen_cart_ram : if USE_EXT_CART_RAM generate
     begin
-        sram_bus <= SRAM_BUS_IDLE;
-        data_to_sram <= (others => '-');
-        cpu_ram_en <= false;
+        cart_mem_bus <= soc_cart_mem_bus;
+        data_to_cart_mem <= soc_data_to_cart_mem;
+        soc_data_from_cart_mem <= data_from_cart_mem;
+    else generate
+        signal ram_read      : boolean;
+        signal ram_write     : boolean;
+        signal data_from_ram : data_t;
+    begin
+        -- The cartridge memory bus has at most one access per PPU cycle, so
+        -- one RAM holds all of the cartridge RAMs. Like the SDRAM, the access
+        -- is complete by the next PPU clock enable
+        ram_read <= is_cart_ram(soc_cart_mem_bus) and
+                    is_bus_read(soc_cart_mem_bus);
+        ram_write <= is_cart_ram(soc_cart_mem_bus) and
+                     is_bus_write(soc_cart_mem_bus);
 
-        sram : syncram_sp
+        cart_mem_bus <= CART_MEM_BUS_IDLE when is_cart_ram(soc_cart_mem_bus)
+                        else soc_cart_mem_bus;
+        data_to_cart_mem <= (others => '-');
+        soc_data_from_cart_mem <= data_from_ram
+                                  when is_cart_ram(soc_cart_mem_bus)
+                                  else data_from_cart_mem;
+
+        cart_ram : syncram_sp
         generic map
         (
-            ADDR_BITS => sram_addr_t'length,
+            ADDR_BITS => cart_ram_addr_t'length,
             DATA_BITS => data_t'length
         )
         port map
         (
             clk => clk,
-            clk_en => sig_cpu_ram_en,
+            clk_en => sig_ppu_ram_en,
 
-            address => sig_sram_bus.address,
-            read => sig_sram_bus.read,
-            write => sig_sram_bus.write,
+            address => soc_cart_mem_bus.address(cart_ram_addr_t'range),
+            read => ram_read,
+            write => ram_write,
 
-            data_in => sig_data_to_sram,
-            data_out => sig_data_from_sram
+            data_in => soc_data_to_cart_mem,
+            data_out => data_from_ram
         );
-    else generate
-    begin
-        sram_bus <= sig_sram_bus;
-        data_to_sram <= sig_data_to_sram;
-        sig_data_from_sram <= data_from_sram;
-        cpu_ram_en <= sig_cpu_ram_en;
     end generate;
 
     chr_ram : syncram_sp
