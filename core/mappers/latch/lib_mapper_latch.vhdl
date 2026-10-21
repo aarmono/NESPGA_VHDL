@@ -276,6 +276,7 @@ package body lib_mapper_latch is
         end case;
 
         chr_window := get_chr_window(cart_in.ppu);
+        banks.chr_ram := has_chr_ram(config);
         case board.chr_mode is
             when CHR_8KB =>
                 banks.chr := resize(ret.reg(LATCH_CHR_0) & chr_window,

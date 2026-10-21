@@ -1,10 +1,10 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use work.cart_types.all;
-use work.lib_mapper_004.all;
+use work.lib_mapper_mmc3.all;
 
--- MMC3
-entity mapper_004 is
+-- MMC3 boards: TxROM, NES-QJ, TxSROM and TQROM
+entity mapper_mmc3 is
 port
 (
     clk      : in std_logic;
@@ -17,14 +17,18 @@ port
     cart_in  : in cart_in_t;
     cart_out : out cart_out_t
 );
-end mapper_004;
+end mapper_mmc3;
 
-architecture behavioral of mapper_004 is
+architecture behavioral of mapper_mmc3 is
 
-    signal reg      : mapper_004_reg_t := RESET_MAPPER_004_REG;
-    signal reg_next : mapper_004_reg_t;
+    signal board : mmc3_board_t;
+
+    signal reg      : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
+    signal reg_next : mapper_mmc3_reg_t;
 
 begin
+
+    board <= get_mmc3_board(config);
 
     process(clk)
     begin
@@ -33,7 +37,7 @@ begin
     if clk_en then
         if reset
         then
-            reg <= RESET_MAPPER_004_REG;
+            reg <= RESET_MAPPER_MMC3_REG;
         else
             reg <= reg_next;
         end if;
@@ -42,9 +46,9 @@ begin
     end process;
 
     process(all)
-        variable v_out : mapper_004_out_t;
+        variable v_out : mapper_mmc3_out_t;
     begin
-        v_out := cycle_mapper_004(reg, config, clk_sync, cart_in);
+        v_out := cycle_mapper_mmc3(reg, board, config, clk_sync, cart_in);
 
         reg_next <= v_out.reg;
         cart_out <= v_out.cart;

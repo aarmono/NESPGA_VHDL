@@ -41,7 +41,7 @@ architecture behavioral of cartridge is
             when x"000" | x"002" | x"003" | x"007" | x"00B" | x"022" | x"042" =>
                 return BOARD_LATCH;
             when x"001" => return BOARD_MMC1;
-            when x"004" => return BOARD_MMC3;
+            when x"004" | x"02F" | x"076" | x"077" => return BOARD_MMC3;
             when others => return BOARD_NONE;
         end case;
     end;
@@ -76,7 +76,7 @@ architecture behavioral of cartridge is
     );
     end component;
 
-    component mapper_004 is
+    component mapper_mmc3 is
     port
     (
         clk      : in std_logic;
@@ -149,7 +149,7 @@ begin
         cart_out => mmc1_out
     );
 
-    mmc3 : mapper_004
+    mmc3 : mapper_mmc3
     port map
     (
         clk => clk,

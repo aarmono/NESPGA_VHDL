@@ -1,13 +1,34 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
 
-package lib_mapper_004 is
-    
+-- Boards built around the MMC3. They differ in how the outputs of the MMC3
+-- are wired, so the board is chosen by the mapper number at run time.
+--
+-- To add a board, add it to mmc3_board_t and get_mmc3_board and its mapper
+-- number to get_board in the cartridge
+package lib_mapper_mmc3 is
+
+    type mmc3_board_t is
+    (
+        -- TxROM (4)
+        MMC3_TXROM,
+        -- NES-QJ (47): two 128KB PRG ROM and CHR ROM sets, selected by a
+        -- latch at 0x6000-0x7FFF in place of PRG RAM
+        MMC3_QJ,
+        -- TxSROM (118): bit 7 of the CHR bank drives CIRAM A10
+        MMC3_TXSROM,
+        -- TQROM (119): bit 6 of the CHR bank selects CHR RAM
+        MMC3_TQROM
+    );
+
+    function get_mmc3_board(config : cart_config_t) return mmc3_board_t;
+
     subtype bank_idx_t is unsigned(2 downto 0);
 
     subtype bank_t is unsigned(7 downto 0);
@@ -20,7 +41,7 @@ package lib_mapper_004 is
     constant A12_MAX : natural := 10;
     subtype a12_count_t is natural range 0 to A12_MAX;
 
-    type mapper_004_reg_t is record
+    type mapper_mmc3_reg_t is record
         bank_idx : bank_idx_t;
 
         banks : bank_arr_t;
@@ -30,6 +51,9 @@ package lib_mapper_004 is
 
         mirroring : std_logic;
 
+        prg_ram_enable  : boolean;
+        prg_ram_protect : boolean;
+
         irq_count  : irq_count_t;
         irq_reload : irq_count_t;
         irq_enable : boolean;
@@ -37,9 +61,12 @@ package lib_mapper_004 is
         irq_delay  : irq_delay_t;
 
         a12_count : a12_count_t;
+
+        -- The 128KB set of NES-QJ
+        outer : std_logic;
     end record;
 
-    constant RESET_MAPPER_004_REG : mapper_004_reg_t :=
+    constant RESET_MAPPER_MMC3_REG : mapper_mmc3_reg_t :=
     (
         bank_idx => (others => '0'),
 
@@ -50,38 +77,55 @@ package lib_mapper_004 is
 
         mirroring => '0',
 
+        prg_ram_enable => false,
+        prg_ram_protect => false,
+
         irq_count => 0,
         irq_reload => 0,
         irq_enable => false,
         irq => false,
         irq_delay => (others => false),
 
-        a12_count => 0
+        a12_count => 0,
+
+        outer => '0'
     );
 
-    type mapper_004_out_t is record
-        reg  : mapper_004_reg_t;
+    type mapper_mmc3_out_t is record
+        reg  : mapper_mmc3_reg_t;
         cart : cart_out_t;
     end record;
 
-    function cycle_mapper_004
+    function cycle_mapper_mmc3
     (
-        reg      : mapper_004_reg_t;
+        reg      : mapper_mmc3_reg_t;
+        board    : mmc3_board_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
-    return mapper_004_out_t;
+    return mapper_mmc3_out_t;
 
-end package lib_mapper_004;
+end package lib_mapper_mmc3;
 
 
-package body lib_mapper_004 is
+package body lib_mapper_mmc3 is
+
+    function get_mmc3_board(config : cart_config_t) return mmc3_board_t
+    is
+    begin
+        case config.mapper_num is
+            when x"02F" => return MMC3_QJ;
+            when x"076" => return MMC3_TXSROM;
+            when x"077" => return MMC3_TQROM;
+            when others => return MMC3_TXROM;
+        end case;
+    end;
 
     -- The 8KB PRG ROM bank in the window of the CPU address
     function get_prg_bank
     (
-        reg    : mapper_004_reg_t;
+        reg    : mapper_mmc3_reg_t;
         window : prg_window_t
     )
     return bank_t
@@ -119,7 +163,7 @@ package body lib_mapper_004 is
     -- The 1KB CHR bank in the window of the PPU address
     function get_chr_bank
     (
-        reg    : mapper_004_reg_t;
+        reg    : mapper_mmc3_reg_t;
         window : chr_window_t
     )
     return bank_t
@@ -153,13 +197,14 @@ package body lib_mapper_004 is
 
     function cycle_write
     (
-        reg      : mapper_004_reg_t;
+        reg      : mapper_mmc3_reg_t;
+        board    : mmc3_board_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
-    return mapper_004_reg_t
+    return mapper_mmc3_reg_t
     is
-        variable ret : mapper_004_reg_t;
+        variable ret : mapper_mmc3_reg_t;
     begin
         ret := reg;
 
@@ -182,6 +227,9 @@ package body lib_mapper_004 is
                     if cart_in.cpu.prg_bus.address(0) = '0'
                     then
                         ret.mirroring := cart_in.cpu.data(0);
+                    else
+                        ret.prg_ram_enable := cart_in.cpu.data(7) = '1';
+                        ret.prg_ram_protect := cart_in.cpu.data(6) = '1';
                     end if;
                 -- 0xC000-0xDFFF
                 when "10" =>
@@ -202,6 +250,19 @@ package body lib_mapper_004 is
             end case;
         end if;
 
+        -- The NES-QJ latch is written through the PRG RAM enables of the
+        -- MMC3
+        if board = MMC3_QJ and
+           not cart_in.cpu.romsel and
+           is_bus_write(cart_in.cpu.prg_bus) and
+           clk_sync and
+           cart_in.cpu.prg_bus.address(14 downto 13) = "11" and
+           reg.prg_ram_enable and
+           not reg.prg_ram_protect
+        then
+            ret.outer := cart_in.cpu.data(0);
+        end if;
+
         return ret;
     end;
 
@@ -209,12 +270,12 @@ package body lib_mapper_004 is
     -- A12_MAX PPU clocks
     function cycle_irq
     (
-        reg     : mapper_004_reg_t;
+        reg     : mapper_mmc3_reg_t;
         cart_in : cart_in_t
     )
-    return mapper_004_reg_t
+    return mapper_mmc3_reg_t
     is
-        variable ret : mapper_004_reg_t;
+        variable ret : mapper_mmc3_reg_t;
     begin
         ret := reg;
 
@@ -256,13 +317,25 @@ package body lib_mapper_004 is
 
     function get_mirror
     (
-        reg    : mapper_004_reg_t;
-        config : cart_config_t
+        reg      : mapper_mmc3_reg_t;
+        board    : mmc3_board_t;
+        config   : cart_config_t;
+        chr_bank : bank_t
     )
     return mirror_t
     is
     begin
-        if config.mirror = MIRROR_FOUR
+        if board = MMC3_TXSROM
+        then
+            -- The CHR bank is computed for nametable addresses as well, so
+            -- each 1KB nametable window has its own CIRAM A10
+            if chr_bank(7) = '0'
+            then
+                return MIRROR_A;
+            else
+                return MIRROR_B;
+            end if;
+        elsif config.mirror = MIRROR_FOUR
         then
             return config.mirror;
         elsif reg.mirroring = '1'
@@ -273,28 +346,45 @@ package body lib_mapper_004 is
         end if;
     end;
 
-    function cycle_mapper_004
+    function cycle_mapper_mmc3
     (
-        reg      : mapper_004_reg_t;
+        reg      : mapper_mmc3_reg_t;
+        board    : mmc3_board_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
-    return mapper_004_out_t
+    return mapper_mmc3_out_t
     is
-        variable ret : mapper_004_out_t;
-        variable written : mapper_004_reg_t;
+        variable ret : mapper_mmc3_out_t;
+        variable written : mapper_mmc3_reg_t;
         variable banks : cart_banks_t;
+        variable prg_bank : bank_t;
+        variable chr_bank : bank_t;
     begin
         -- The PPU sees the registers written by the CPU this cycle
-        written := cycle_write(reg, clk_sync, cart_in);
+        written := cycle_write(reg, board, clk_sync, cart_in);
         ret.reg := cycle_irq(written, cart_in);
 
+        prg_bank := get_prg_bank(written, get_prg_window(cart_in.cpu));
+        chr_bank := get_chr_bank(written, get_chr_window(cart_in.ppu));
+
         banks.prg_ram := true;
-        banks.prg := get_prg_bank(written, get_prg_window(cart_in.cpu));
-        banks.chr := resize(get_chr_bank(written, get_chr_window(cart_in.ppu)),
-                            chr_bank_1kb_t'length);
-        banks.mirror := get_mirror(written, config);
+        banks.chr_ram := has_chr_ram(config);
+        banks.mirror := get_mirror(written, board, config, chr_bank);
+
+        case board is
+            when MMC3_TXROM | MMC3_TXSROM =>
+            when MMC3_QJ =>
+                prg_bank := "000" & written.outer & prg_bank(3 downto 0);
+                chr_bank := written.outer & chr_bank(6 downto 0);
+                banks.prg_ram := false;
+            when MMC3_TQROM =>
+                banks.chr_ram := chr_bank(6) = '1';
+        end case;
+
+        banks.prg := prg_bank;
+        banks.chr := resize(chr_bank, chr_bank_1kb_t'length);
 
         ret.cart := map_cart(config, cart_in, banks);
         ret.cart.cpu.irq := ret.reg.irq and

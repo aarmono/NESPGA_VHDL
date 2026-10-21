@@ -89,8 +89,8 @@
 ../../../core/mappers/latch/mapper_latch.vhdl
 ../../../core/mappers/001/lib_mapper_001.vhdl
 ../../../core/mappers/001/mapper_001.vhdl
-../../../core/mappers/004/lib_mapper_004.vhdl
-../../../core/mappers/004/mapper_004.vhdl
+../../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
+../../../core/mappers/mmc3/mapper_mmc3.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
 

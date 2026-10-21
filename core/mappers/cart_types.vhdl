@@ -218,12 +218,18 @@ package cart_types is
         -- The board has PRG RAM at 0x6000-0x7FFF
         prg_ram : boolean;
         prg     : prg_bank_8kb_t;
+        -- The PPU accesses CHR RAM rather than CHR ROM. CHR RAM is 8KB, so
+        -- only the low bits of chr select its bank
+        chr_ram : boolean;
         chr     : chr_bank_1kb_t;
         mirror  : mirror_t;
     end record;
 
     -- The config with the masks for the sizes of the ROMs in its header
     function set_rom_masks(config : cart_config_t) return cart_config_t;
+
+    -- The board has CHR RAM in place of CHR ROM
+    function has_chr_ram(config : cart_config_t) return boolean;
 
     -- The window of a CPU access to PRG ROM
     function get_prg_window(cpu_in : cart_cpu_in_t) return prg_window_t;
@@ -287,6 +293,12 @@ package body cart_types is
                                      3));
 
         return ret;
+    end;
+
+    function has_chr_ram(config : cart_config_t) return boolean
+    is
+    begin
+        return is_zero(config.chr_rom_8kb_blocks);
     end;
 
     function get_prg_window(cpu_in : cart_cpu_in_t) return prg_window_t
@@ -359,13 +371,12 @@ package body cart_types is
         return ret;
     end;
 
-    -- The PPU accesses CHR ROM, or CHR RAM if the board has no CHR ROM.
-    -- CHR RAM is 8KB and is not banked
+    -- The PPU accesses CHR ROM or CHR RAM
     function map_chr
     (
         config   : cart_config_t;
         cart_in  : cart_in_t;
-        bank     : chr_bank_1kb_t;
+        banks    : cart_banks_t;
         cart_out : cart_out_t
     )
     return cart_out_t
@@ -375,16 +386,17 @@ package body cart_types is
     begin
         ret := cart_out;
 
-        if not is_zero(config.chr_rom_8kb_blocks)
+        if not banks.chr_ram
         then
-            address := (bank and config.chr_rom_mask) &
+            address := (banks.chr and config.chr_rom_mask) &
                        unsigned(cart_in.ppu.chr_bus.address(9 downto 0));
             ret.mem.chr_rom_bus :=
                 bus_read(resize(address, file_addr_t'length));
             ret.ppu.data := cart_in.mem.data_from_chr_rom;
         else
             ret.mem.chr_ram_bus.address :=
-                cart_in.ppu.chr_bus.address(sram_addr_t'range);
+                std_logic_vector(banks.chr(sram_addr_t'high - 10 downto 0)) &
+                cart_in.ppu.chr_bus.address(9 downto 0);
             ret.mem.chr_ram_bus.read := cart_in.ppu.chr_bus.read;
             ret.mem.chr_ram_bus.write := cart_in.ppu.chr_bus.write;
             ret.mem.data_to_chr_ram := cart_in.ppu.data;
@@ -461,7 +473,7 @@ package body cart_types is
         then
             if cart_in.ppu.chr_bus.address(13) = '0'
             then
-                ret := map_chr(config, cart_in, banks.chr, ret);
+                ret := map_chr(config, cart_in, banks, ret);
             else
                 ret := map_ciram(cart_in, banks.mirror, ret);
             end if;

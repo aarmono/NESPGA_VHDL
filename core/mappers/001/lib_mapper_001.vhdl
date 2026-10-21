@@ -227,10 +227,16 @@ package body lib_mapper_001 is
         prg_window := get_prg_window(cart_in.cpu);
         chr_window := get_chr_window(cart_in.ppu);
 
+        -- SUROM has 512KB of PRG ROM, and bit 4 of the CHR bank selects the
+        -- 256KB half. In 4KB CHR mode the chip takes it from the CHR bank
+        -- that PPU A12 selects, but the SUROM games use 8KB CHR mode, so
+        -- CHR bank 0 is used. With a smaller PRG ROM, the bit is masked off
         banks.prg_ram := true;
-        banks.prg := resize(get_prg_bank(ret.reg, prg_window(1)) &
+        banks.prg := resize(ret.reg.chr_bank_0(4) &
+                            get_prg_bank(ret.reg, prg_window(1)) &
                             prg_window(0),
                             prg_bank_8kb_t'length);
+        banks.chr_ram := has_chr_ram(config);
         banks.chr := resize(get_chr_bank(ret.reg, chr_window(2)) &
                             chr_window(1 downto 0),
                             chr_bank_1kb_t'length);
