@@ -67,6 +67,7 @@ begin
 
         ppu_clk_en => ppu_en,
         cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => (others => '-'),
         data_from_cart_mem => cart_mem_data,
 
         dram_addr => dram_addr,

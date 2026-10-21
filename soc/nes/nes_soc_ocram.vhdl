@@ -36,6 +36,7 @@ port
     cpu_ram_en : out boolean;
     
     cart_mem_bus       : out cart_mem_bus_t;
+    data_to_cart_mem   : out data_t;
     data_from_cart_mem : in data_t;
 
     sram_bus       : out sram_bus_t;
@@ -107,6 +108,7 @@ begin
         ppu_ram_en => sig_ppu_ram_en,
         
         cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem,
         
         sram_bus => sig_sram_bus,

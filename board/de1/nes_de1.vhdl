@@ -122,6 +122,7 @@ architecture behavioral of nes_de1 is
     
     signal flash_bus          : cart_mem_bus_t;
     signal cart_mem_bus       : cart_mem_bus_t;
+    signal data_to_cart_mem   : data_t;
     signal data_from_cart_mem : data_t;
 
     signal dram_ba : std_logic_vector(1 downto 0);
@@ -210,6 +211,7 @@ begin
 
             ppu_clk_en => ppu_clk_en,
             cart_mem_bus => cart_mem_bus,
+            data_to_cart_mem => data_to_cart_mem,
             data_from_cart_mem => data_from_cart_mem,
 
             dram_addr => DRAM_ADDR,
@@ -386,6 +388,7 @@ begin
         ppu_clk_en => ppu_clk_en,
 
         cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem,
 
         pixel_bus => pixel_bus,

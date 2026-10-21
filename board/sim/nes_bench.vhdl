@@ -37,6 +37,7 @@ architecture behavioral of nes_bench is
     constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
 
     signal cart_mem_bus       : cart_mem_bus_t;
+    signal data_to_cart_mem   : data_t;
     signal data_from_cart_mem : data_t;
     
     signal audio_out : mixed_audio_t;
@@ -79,6 +80,7 @@ begin
         cpu_clk_en => cpu_clk_en,
         
         cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem,
         
         pixel_bus => pixel_bus,
@@ -150,6 +152,7 @@ begin
     port map
     (
        file_bus_1 => cart_mem_bus,
+       data_to_file_1 => data_to_cart_mem,
        data_from_file_1 => data_from_cart_mem
     );
     

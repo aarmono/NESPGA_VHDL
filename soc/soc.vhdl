@@ -34,6 +34,7 @@ package soc is
         ppu_ram_en : out boolean;
         
         cart_mem_bus       : out cart_mem_bus_t;
+        data_to_cart_mem   : out data_t;
         data_from_cart_mem : in data_t;
         
         prg_ram_bus       : out ram_bus_t;
@@ -95,6 +96,7 @@ package soc is
         cpu_ram_en : out boolean;
 
         cart_mem_bus       : out cart_mem_bus_t;
+        data_to_cart_mem   : out data_t;
         data_from_cart_mem : in data_t;
         
         sram_bus       : out sram_bus_t;

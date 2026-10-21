@@ -36,6 +36,7 @@ port
 
     ppu_clk_en         : in boolean;
     cart_mem_bus       : in cart_mem_bus_t;
+    data_to_cart_mem   : in data_t;
     data_from_cart_mem : out data_t;
 
     dram_addr  : out std_logic_vector(11 downto 0);
@@ -53,8 +54,9 @@ end sdram_rom;
 
 architecture behavioral of sdram_rom is
 
-    -- Bytes addressable by the cartridge memory bus
-    constant MAX_BYTES : positive := 2**cart_mem_addr_t'length;
+    -- Largest ROM file that is loaded. The ROM file image starts at address
+    -- 0 of the cartridge memory bus, and the cartridge RAMs are above it
+    constant MAX_BYTES : positive := 2**20;
 
     subtype sdram_addr_t is std_logic_vector(22 downto 0);
     subtype load_addr_t is natural range 0 to MAX_BYTES - 1;

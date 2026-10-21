@@ -42,8 +42,9 @@ port
     ppu_ram_en : out boolean;
     
     cart_mem_bus       : out cart_mem_bus_t;
+    data_to_cart_mem   : out data_t;
     data_from_cart_mem : in data_t;
-    
+
     sram_bus       : out sram_bus_t;
     data_to_sram   : out data_t;
     data_from_sram : in data_t;
@@ -96,13 +97,16 @@ is
         clk_sync : in boolean;
         reset    : in boolean;
 
-        cart_mem_bus_chr : in cart_mem_bus_t;
-        data_to_chr_bus  : out data_t;
+        cart_mem_bus_chr  : in cart_mem_bus_t;
+        data_from_chr_bus : in data_t;
+        data_to_chr_bus   : out data_t;
 
-        cart_mem_bus_prg : in cart_mem_bus_t;
-        data_to_prg_bus  : out data_t;
+        cart_mem_bus_prg  : in cart_mem_bus_t;
+        data_from_prg_bus : in data_t;
+        data_to_prg_bus   : out data_t;
 
         cart_mem_bus_out   : out cart_mem_bus_t;
+        data_to_cart_mem   : out data_t;
         data_from_cart_mem : in data_t
     );
     end component;
@@ -161,9 +165,11 @@ is
     signal prg_data_from_ppu : data_t;
 
     signal cart_mem_bus_prg       : cart_mem_bus_t;
+    signal data_to_cart_mem_prg   : data_t;
     signal data_from_cart_mem_prg : data_t;
     
     signal cart_mem_bus_chr       : cart_mem_bus_t;
+    signal data_to_cart_mem_chr   : data_t;
     signal data_from_cart_mem_chr : data_t;
 
     signal cpu_en         : boolean;
@@ -215,12 +221,15 @@ begin
         reset => reset,
 
         cart_mem_bus_chr => cart_mem_bus_chr,
+        data_from_chr_bus => data_to_cart_mem_chr,
         data_to_chr_bus => data_from_cart_mem_chr,
 
         cart_mem_bus_prg => cart_mem_bus_prg,
+        data_from_prg_bus => data_to_cart_mem_prg,
         data_to_prg_bus => data_from_cart_mem_prg,
 
         cart_mem_bus_out => cart_mem_bus,
+        data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem
     );
 
@@ -443,6 +452,7 @@ begin
         sram_bus <= nes_out.sram_bus;
         ppu_bus <= nes_out.cpu_bus.ppu_bus;
         cart_mem_bus_prg <= nes_out.prg_cart_mem_bus;
+        data_to_cart_mem_prg <= (others => '-');
         oam_dma_cpu_write <= nes_out.cpu_bus.oam_dma_write;
         
         data_to_cpu <= nes_out.cpu_bus.data_to_cpu;
@@ -461,6 +471,7 @@ begin
         prg_data_to_ppu <= nes_out.cpu_bus.data_to_ppu;
         
         cart_mem_bus_chr <= nes_out.chr_cart_mem_bus;
+        data_to_cart_mem_chr <= (others => '-');
         chr_ram_bus <= nes_out.chr_ram_bus;
         ciram_bus <= nes_out.ppu_bus.ciram_bus;
         

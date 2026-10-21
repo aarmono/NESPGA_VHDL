@@ -169,10 +169,11 @@ package body lib_nes is
     is
         variable ret : unsigned(cart_mem_addr_t'range);
     begin
-        ret := offset_16kb(5 downto 0) &
-               "0000" &
-               to_std_logic(has_trainer) &
-               b"0_0001_0000";
+        ret := resize(offset_16kb(5 downto 0) &
+                      "0000" &
+                      to_std_logic(has_trainer) &
+                      b"0_0001_0000",
+                      ret'length);
         
         return ret;
     end;

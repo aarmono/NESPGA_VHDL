@@ -13,13 +13,16 @@ port
     clk_sync : in boolean;
     reset   : in boolean;
 
-    cart_mem_bus_chr : in cart_mem_bus_t;
-    data_to_chr_bus  : out data_t;
+    cart_mem_bus_chr  : in cart_mem_bus_t;
+    data_from_chr_bus : in data_t;
+    data_to_chr_bus   : out data_t;
 
-    cart_mem_bus_prg : in cart_mem_bus_t;
-    data_to_prg_bus  : out data_t;
+    cart_mem_bus_prg  : in cart_mem_bus_t;
+    data_from_prg_bus : in data_t;
+    data_to_prg_bus   : out data_t;
 
     cart_mem_bus_out   : out cart_mem_bus_t;
+    data_to_cart_mem   : out data_t;
     data_from_cart_mem : in data_t
 );
 end entity;
@@ -149,6 +152,7 @@ begin
     begin
 
         cart_mem_bus_out <= CART_MEM_BUS_IDLE;
+        data_to_cart_mem <= (others => '-');
 
         next_chr_cache <= chr_cache;
         next_prg_cache <= prg_cache;
@@ -169,6 +173,7 @@ begin
             prg_result.update_cache := true;
 
             cart_mem_bus_out <= cart_mem_bus_prg;
+            data_to_cart_mem <= data_from_prg_bus;
             sig_data_to_prg_bus <= data_from_cart_mem;
         -- Otherwise prioritize CHR because we usually have several PPU
         -- cycles to retrieve PRG data
@@ -177,6 +182,7 @@ begin
             chr_result.update_cache := true;
 
             cart_mem_bus_out <= cart_mem_bus_chr;
+            data_to_cart_mem <= data_from_chr_bus;
             sig_data_to_chr_bus <= data_from_cart_mem;
         end if;
 
