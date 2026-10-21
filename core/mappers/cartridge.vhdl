@@ -31,6 +31,7 @@ architecture behavioral of cartridge is
         BOARD_NONE,
         BOARD_LATCH,
         BOARD_MMC1,
+        BOARD_MMC2,
         BOARD_MMC3
     );
 
@@ -41,6 +42,7 @@ architecture behavioral of cartridge is
             when x"000" | x"002" | x"003" | x"007" | x"00B" | x"022" | x"042" =>
                 return BOARD_LATCH;
             when x"001" => return BOARD_MMC1;
+            when x"009" | x"00A" => return BOARD_MMC2;
             when x"004" | x"02F" | x"04C" | x"058" | x"05F" | x"076" | x"077" |
                  x"09A" | x"0CE" =>
                 return BOARD_MMC3;
@@ -78,6 +80,21 @@ architecture behavioral of cartridge is
     );
     end component;
 
+    component mapper_mmc2 is
+    port
+    (
+        clk      : in std_logic;
+        clk_en   : in boolean;
+        clk_sync : in boolean;
+        reset    : in boolean;
+
+        config   : in cart_config_t;
+
+        cart_in  : in cart_in_t;
+        cart_out : out cart_out_t
+    );
+    end component;
+
     component mapper_mmc3 is
     port
     (
@@ -101,10 +118,12 @@ architecture behavioral of cartridge is
     -- simulated
     signal latch_in : cart_in_t;
     signal mmc1_in  : cart_in_t;
+    signal mmc2_in  : cart_in_t;
     signal mmc3_in  : cart_in_t;
 
     signal latch_out : cart_out_t;
     signal mmc1_out  : cart_out_t;
+    signal mmc2_out  : cart_out_t;
     signal mmc3_out  : cart_out_t;
 
 begin
@@ -119,11 +138,13 @@ begin
 
     latch_in <= cart_in when board = BOARD_LATCH else CART_IN_IDLE;
     mmc1_in  <= cart_in when board = BOARD_MMC1  else CART_IN_IDLE;
+    mmc2_in  <= cart_in when board = BOARD_MMC2  else CART_IN_IDLE;
     mmc3_in  <= cart_in when board = BOARD_MMC3  else CART_IN_IDLE;
 
     with board select cart_out <=
         latch_out     when BOARD_LATCH,
         mmc1_out      when BOARD_MMC1,
+        mmc2_out      when BOARD_MMC2,
         mmc3_out      when BOARD_MMC3,
         CART_OUT_IDLE when BOARD_NONE;
 
@@ -149,6 +170,18 @@ begin
         config => board_config,
         cart_in => mmc1_in,
         cart_out => mmc1_out
+    );
+
+    mmc2 : mapper_mmc2
+    port map
+    (
+        clk => clk,
+        clk_en => clk_en,
+        clk_sync => clk_sync,
+        reset => reset,
+        config => board_config,
+        cart_in => mmc2_in,
+        cart_out => mmc2_out
     );
 
     mmc3 : mapper_mmc3
