@@ -144,10 +144,10 @@ set_false_path -from [get_ports {SD_DAT}]
 # Multicycle Paths
 #**************************************************************
 
-# sdram_rom starts each SDRAM read 2 clocks after the PPU clock enable that
-# updates the cartridge memory bus address, and the read data is registered at
-# least 2 clocks before the next PPU clock enable, so paths between the NES
-# core and the SDRAM controller have 2 clocks
+# sdram_rom starts each SDRAM access 2 clocks after the PPU clock enable that
+# updates the cartridge memory bus address and write data, and the read data
+# is registered at least 2 clocks before the next PPU clock enable, so paths
+# between the NES core and the SDRAM controller have 2 clocks
 set_multicycle_path -setup -end 2 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
 set_multicycle_path -hold -end 1 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
 set_multicycle_path -setup -end 2 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]

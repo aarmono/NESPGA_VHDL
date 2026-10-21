@@ -13,9 +13,10 @@ use work.cart_mem_bus_types.all;
 -- true. If the file starts with an iNES header, only as many bytes as the
 -- header says the file holds are copied, otherwise MAX_BYTES are. Once
 -- loading is complete each PPU cycle gets one SDRAM slot, started
--- START_DELAY clocks after ppu_clk_en. The cartridge memory bus address is
--- sampled when the slot starts, so it must be stable from then until the
--- next ppu_clk_en, and the read data is ready well before that.
+-- START_DELAY clocks after ppu_clk_en, which serves a read or a write of the
+-- cartridge memory bus. The address and write data are sampled when the
+-- slot starts, so they must be stable from then until the next ppu_clk_en,
+-- and the read data is ready well before that.
 entity sdram_rom is
 generic
 (
@@ -131,6 +132,7 @@ architecture behavioral of sdram_rom is
     signal read        : boolean;
     signal write       : boolean;
     signal address     : sdram_addr_t;
+    signal write_data  : data_t;
 
 begin
 
@@ -153,7 +155,7 @@ begin
         read => read,
         write => write,
         address => address,
-        data_in => load_data,
+        data_in => write_data,
         data_out => data_from_cart_mem,
 
         dram_addr => dram_addr,
@@ -180,6 +182,7 @@ begin
         read <= false;
         write <= false;
         address <= (others => '-');
+        write_data <= (others => '-');
 
         case reg.state is
             when STATE_INIT =>
@@ -196,6 +199,7 @@ begin
                 load_ready <= sdram_idle;
                 start <= sdram_idle;
                 write <= load_valid;
+                write_data <= load_data;
 
                 if load_valid and sdram_idle
                 then
@@ -241,7 +245,9 @@ begin
             when STATE_RUN =>
                 start <= reg.ppu_delay(reg.ppu_delay'high);
                 read <= is_bus_read(cart_mem_bus);
+                write <= is_bus_write(cart_mem_bus);
                 address <= resize(cart_mem_bus.address, sdram_addr_t'length);
+                write_data <= data_to_cart_mem;
         end case;
 
         reg_in <= v_reg;
@@ -263,10 +269,13 @@ begin
     -- pragma translate_off
     -- Check the assumptions that make one fixed slot per PPU cycle work: the
     -- slot is never started while the previous one is still running, and
-    -- the cartridge memory bus does not change between the start of the slot
-    -- and the PPU clock enable at which the data is consumed
+    -- the cartridge memory bus, and the data of a write, do not change
+    -- between the start of the slot and the PPU clock enable at which the
+    -- access is complete. The requester takes the access as served at that
+    -- PPU clock enable, so a change would make it disagree with the SDRAM
     process(clk)
-        variable slot_bus : cart_mem_bus_t := CART_MEM_BUS_IDLE;
+        variable slot_bus  : cart_mem_bus_t := CART_MEM_BUS_IDLE;
+        variable slot_data : data_t;
     begin
     if rising_edge(clk)
     then
@@ -278,11 +287,16 @@ begin
                     report "sdram_rom: slot started while SDRAM busy"
                     severity error;
                 slot_bus := cart_mem_bus;
-            elsif is_bus_read(slot_bus)
+                slot_data := data_to_cart_mem;
+            elsif is_bus_active(slot_bus)
             then
                 assert cart_mem_bus = slot_bus
                     report "sdram_rom: cartridge memory bus changed during " &
-                           "SDRAM read"
+                           "SDRAM access"
+                    severity error;
+                assert not is_bus_write(slot_bus) or
+                       data_to_cart_mem = slot_data
+                    report "sdram_rom: write data changed during SDRAM write"
                     severity error;
             end if;
 
