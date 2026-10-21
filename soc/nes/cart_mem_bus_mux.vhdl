@@ -114,10 +114,14 @@ is
         return cache_out;
     end;
 
+    -- The cache holds what memory holds at each cached address, so a write
+    -- only hits if memory already holds the data being written. A write that
+    -- misses is passed on to memory, which makes the cache write-through
     function cache_lookup
     (
         cache_in     : in cache_t;
-        cart_mem_bus : in cart_mem_bus_t
+        cart_mem_bus : in cart_mem_bus_t;
+        write_data   : in data_t
     )
     return cache_result_t
     is
@@ -129,7 +133,8 @@ is
 
             for i in cache_in'reverse_range
             loop
-                if cache_in(i).address = cart_mem_bus.address
+                if cache_in(i).address = cart_mem_bus.address and
+                   (is_bus_read(cart_mem_bus) or cache_in(i).data = write_data)
                 then
                     ret.cache_miss := false;
                     ret.update_cache := true;
@@ -139,6 +144,24 @@ is
         end if;
 
         return ret;
+    end;
+
+    -- The data memory holds at the address of an access once it is served
+    function served_data
+    (
+        cart_mem_bus : cart_mem_bus_t;
+        write_data   : data_t;
+        read_data    : data_t
+    )
+    return data_t
+    is
+    begin
+        if is_bus_write(cart_mem_bus)
+        then
+            return write_data;
+        else
+            return read_data;
+        end if;
     end;
 
 begin
@@ -157,11 +180,13 @@ begin
         next_chr_cache <= chr_cache;
         next_prg_cache <= prg_cache;
 
-        chr_result := cache_lookup(chr_cache, cart_mem_bus_chr);
-        sig_data_to_chr_bus <= chr_result.data;
+        chr_result := cache_lookup(chr_cache,
+                                   cart_mem_bus_chr,
+                                   data_from_chr_bus);
 
-        prg_result := cache_lookup(prg_cache, cart_mem_bus_prg);
-        sig_data_to_prg_bus <= prg_result.data;
+        prg_result := cache_lookup(prg_cache,
+                                   cart_mem_bus_prg,
+                                   data_from_prg_bus);
 
         -- If this is the sync cycle and there is a cache miss, prioritize
         -- PRG because this is the last chance for the CPU to receive data
@@ -172,32 +197,41 @@ begin
         then
             prg_result.update_cache := true;
 
+            prg_result.data := served_data(cart_mem_bus_prg,
+                                           data_from_prg_bus,
+                                           data_from_cart_mem);
+
             cart_mem_bus_out <= cart_mem_bus_prg;
             data_to_cart_mem <= data_from_prg_bus;
-            sig_data_to_prg_bus <= data_from_cart_mem;
         -- Otherwise prioritize CHR because we usually have several PPU
         -- cycles to retrieve PRG data
         elsif chr_result.cache_miss
         then
             chr_result.update_cache := true;
 
+            chr_result.data := served_data(cart_mem_bus_chr,
+                                           data_from_chr_bus,
+                                           data_from_cart_mem);
+
             cart_mem_bus_out <= cart_mem_bus_chr;
             data_to_cart_mem <= data_from_chr_bus;
-            sig_data_to_chr_bus <= data_from_cart_mem;
         end if;
+
+        sig_data_to_chr_bus <= chr_result.data;
+        sig_data_to_prg_bus <= prg_result.data;
 
         if chr_result.update_cache
         then
             next_chr_cache <= update_cache(chr_cache,
                                            cart_mem_bus_chr.address,
-                                           sig_data_to_chr_bus);
+                                           chr_result.data);
         end if;
 
         if prg_result.update_cache
         then
             next_prg_cache <= update_cache(prg_cache,
                                            cart_mem_bus_prg.address,
-                                           sig_data_to_prg_bus);
+                                           prg_result.data);
         end if;
 
     end process;
