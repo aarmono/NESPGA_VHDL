@@ -8,7 +8,6 @@ package de1_types is
     
     type rom_config_t is
     (
-        ROM_FLASH_DIRECT,
         ROM_FLASH_TO_SDRAM,
         ROM_SD_TO_SDRAM
     );

@@ -129,6 +129,10 @@ architecture behavioral of nes_de1 is
 
     signal rom_loading : boolean;
     signal sd_error    : boolean;
+
+    signal load_valid : boolean;
+    signal load_data  : data_t;
+    signal load_ready : boolean;
     
     signal joy_strobe : std_logic;
     
@@ -186,115 +190,85 @@ begin
     DRAM_BA_0 <= dram_ba(0);
     DRAM_BA_1 <= dram_ba(1);
 
-    gen_sdram : if ROM_CONFIG /= ROM_FLASH_DIRECT generate
-        signal load_valid : boolean;
-        signal load_data  : data_t;
-        signal load_ready : boolean;
+    nes_reset <= reset_50 or rom_loading;
+
+    -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
+    -- clock output delay to the SDRAM
+    DRAM_CLK <= CLOCK_WE;
+
+    rom : entity work.sdram_rom(behavioral)
+    port map
+    (
+        clk => CLOCK_50,
+        reset => reset_50,
+
+        loading => rom_loading,
+
+        load_valid => load_valid,
+        load_data => load_data,
+        load_ready => load_ready,
+
+        ppu_clk_en => ppu_clk_en,
+        cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => data_to_cart_mem,
+        data_from_cart_mem => data_from_cart_mem,
+
+        dram_addr => DRAM_ADDR,
+        dram_ba => dram_ba,
+        dram_cs_n => DRAM_CS_N,
+        dram_ras_n => DRAM_RAS_N,
+        dram_cas_n => DRAM_CAS_N,
+        dram_we_n => DRAM_WE_N,
+        dram_cke => DRAM_CKE,
+        dram_ldqm => DRAM_LDQM,
+        dram_udqm => DRAM_UDQM,
+        dram_dq => DRAM_DQ
+    );
+
+    gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
     begin
-        nes_reset <= reset_50 or rom_loading;
+        flash_bus <= CART_MEM_BUS_IDLE;
 
-        -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
-        -- clock output delay to the SDRAM
-        DRAM_CLK <= CLOCK_WE;
-
-        rom : entity work.sdram_rom(behavioral)
+        sd : entity work.sd_reader(behavioral)
         port map
         (
             clk => CLOCK_50,
             reset => reset_50,
 
-            loading => rom_loading,
+            failed => sd_error,
 
-            load_valid => load_valid,
-            load_data => load_data,
-            load_ready => load_ready,
+            stop => not rom_loading,
+            data => load_data,
+            valid => load_valid,
+            ready => load_ready,
 
-            ppu_clk_en => ppu_clk_en,
-            cart_mem_bus => cart_mem_bus,
-            data_to_cart_mem => data_to_cart_mem,
-            data_from_cart_mem => data_from_cart_mem,
-
-            dram_addr => DRAM_ADDR,
-            dram_ba => dram_ba,
-            dram_cs_n => DRAM_CS_N,
-            dram_ras_n => DRAM_RAS_N,
-            dram_cas_n => DRAM_CAS_N,
-            dram_we_n => DRAM_WE_N,
-            dram_cke => DRAM_CKE,
-            dram_ldqm => DRAM_LDQM,
-            dram_udqm => DRAM_UDQM,
-            dram_dq => DRAM_DQ
+            sd_clk => SD_CLK,
+            sd_cs_n => SD_DAT3,
+            sd_mosi => SD_CMD,
+            sd_miso => SD_DAT
         );
-
-        gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
-        begin
-            flash_bus <= CART_MEM_BUS_IDLE;
-
-            sd : entity work.sd_reader(behavioral)
-            port map
-            (
-                clk => CLOCK_50,
-                reset => reset_50,
-
-                failed => sd_error,
-
-                stop => not rom_loading,
-                data => load_data,
-                valid => load_valid,
-                ready => load_ready,
-
-                sd_clk => SD_CLK,
-                sd_cs_n => SD_DAT3,
-                sd_mosi => SD_CMD,
-                sd_miso => SD_DAT
-            );
-        else generate
-        begin
-            sd_error <= false;
-
-            SD_CLK <= '0';
-            SD_DAT3 <= '1';
-            SD_CMD <= '1';
-
-            flash : entity work.flash_stream(behavioral)
-            port map
-            (
-                clk => CLOCK_50,
-                reset => reset_50,
-
-                flash_bus => flash_bus,
-                data_from_flash => FL_DQ,
-
-                stop => not rom_loading,
-                data => load_data,
-                valid => load_valid,
-                ready => load_ready
-            );
-        end generate;
     else generate
     begin
-        nes_reset <= reset_50;
-        rom_loading <= false;
         sd_error <= false;
-
-        flash_bus <= cart_mem_bus;
-        data_from_cart_mem <= FL_DQ;
 
         SD_CLK <= '0';
         SD_DAT3 <= '1';
         SD_CMD <= '1';
 
-        DRAM_CLK <= '0';
-        DRAM_ADDR <= (others => '0');
-        dram_ba <= (others => '0');
-        DRAM_CS_N <= '1';
-        DRAM_RAS_N <= '1';
-        DRAM_CAS_N <= '1';
-        DRAM_WE_N <= '1';
-        DRAM_CKE <= '0';
-        DRAM_LDQM <= '1';
-        DRAM_UDQM <= '1';
-        DRAM_DQ <= (others => 'Z');
+        flash : entity work.flash_stream(behavioral)
+        port map
+        (
+            clk => CLOCK_50,
+            reset => reset_50,
+
+            flash_bus => flash_bus,
+            data_from_flash => FL_DQ,
+
+            stop => not rom_loading,
+            data => load_data,
+            valid => load_valid,
+            ready => load_ready
+        );
     end generate;
 
     VGA_R <= vga_out.color.red;
