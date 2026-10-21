@@ -236,6 +236,6 @@ lib_mapper_latch.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/
 mapper_latch.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o cart_types.o lib_mapper_latch.o
 lib_mapper_001.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_types.o
 mapper_001.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o cart_types.o lib_mapper_001.o
-lib_mapper_mmc3.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o prg_bus_types.o chr_bus_types.o nes_types.o utilities.o cart_types.o
+lib_mapper_mmc3.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o prg_bus_types.o chr_bus_types.o sram_bus_types.o nes_types.o utilities.o cart_types.o
 mapper_mmc3.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o cart_types.o lib_mapper_mmc3.o
 syncram_sp.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o

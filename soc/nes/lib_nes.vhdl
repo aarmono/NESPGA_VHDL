@@ -297,6 +297,17 @@ package body lib_nes is
                     when x"0007" =>
                         ret.reg.cart_config.mapper_num(7 downto 4) :=
                             nes_in.data_from_file(7 downto 4);
+                        ret.reg.cart_config.nes2 :=
+                            nes_in.data_from_file(3 downto 2) = "10";
+                    -- Mapper MSB/Submapper (NES 2.0 only)
+                    when x"0008" =>
+                        if nes_in.reg.cart_config.nes2
+                        then
+                            ret.reg.cart_config.mapper_num(11 downto 8) :=
+                                nes_in.data_from_file(3 downto 0);
+                            ret.reg.cart_config.submapper_num :=
+                                nes_in.data_from_file(7 downto 4);
+                        end if;
                     when others =>
                 end case;
                 

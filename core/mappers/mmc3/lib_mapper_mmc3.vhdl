@@ -3,12 +3,18 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
+use work.sram_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
 
--- Boards built around the MMC3. They differ in how the outputs of the MMC3
--- are wired, so the board is chosen by the mapper number at run time.
+-- Boards built around the MMC3 or the MMC6. They differ in how the outputs
+-- of the chip are wired, so the board is chosen by the mapper number at run
+-- time.
+--
+-- An iNES header cannot tell the MMC6 from the MMC3, so a TxROM board with
+-- an iNES header becomes an MMC6 once the CPU sets bit 5 of 0x8000, which
+-- enables the PRG RAM of the MMC6 and does nothing on the MMC3
 --
 -- To add a board, add it to mmc3_board_t and get_mmc3_board and its mapper
 -- number to get_board in the cartridge
@@ -18,6 +24,9 @@ package lib_mapper_mmc3 is
     (
         -- TxROM (4)
         MMC3_TXROM,
+        -- HKROM (4, NES 2.0 submapper 1): the MMC6, which has 1KB of PRG
+        -- RAM at 0x7000-0x7FFF, enabled in 512 byte halves
+        MMC3_MMC6,
         -- NES-QJ (47): two 128KB PRG ROM and CHR ROM sets, selected by a
         -- latch at 0x6000-0x7FFF in place of PRG RAM
         MMC3_QJ,
@@ -51,8 +60,14 @@ package lib_mapper_mmc3 is
 
         mirroring : std_logic;
 
-        prg_ram_enable  : boolean;
-        prg_ram_protect : boolean;
+        -- Bits 7-4 of 0xA001. On the MMC3, bit 7 enables PRG RAM and bit 6
+        -- protects it from writes. On the MMC6, bits 7 and 6 enable reads
+        -- and writes of the upper 512 bytes, and bits 5 and 4 of the lower
+        prg_ram_bits : std_logic_vector(7 downto 4);
+        -- Bit 5 of 0x8000, which enables the PRG RAM of the MMC6
+        mmc6_ram_enable : std_logic;
+        -- The chip is an MMC6, found from the writes to 0x8000
+        mmc6 : boolean;
 
         irq_count  : irq_count_t;
         irq_reload : irq_count_t;
@@ -77,8 +92,9 @@ package lib_mapper_mmc3 is
 
         mirroring => '0',
 
-        prg_ram_enable => false,
-        prg_ram_protect => false,
+        prg_ram_bits => (others => '0'),
+        mmc6_ram_enable => '0',
+        mmc6 => false,
 
         irq_count => 0,
         irq_reload => 0,
@@ -115,11 +131,29 @@ package body lib_mapper_mmc3 is
     is
     begin
         case config.mapper_num is
+            when x"004" =>
+                if config.submapper_num = x"1"
+                then
+                    return MMC3_MMC6;
+                else
+                    return MMC3_TXROM;
+                end if;
             when x"02F" => return MMC3_QJ;
             when x"076" => return MMC3_TXSROM;
             when x"077" => return MMC3_TQROM;
             when others => return MMC3_TXROM;
         end case;
+    end;
+
+    function is_mmc6
+    (
+        reg   : mapper_mmc3_reg_t;
+        board : mmc3_board_t
+    )
+    return boolean
+    is
+    begin
+        return board = MMC3_MMC6 or reg.mmc6;
     end;
 
     -- The 8KB PRG ROM bank in the window of the CPU address
@@ -199,6 +233,7 @@ package body lib_mapper_mmc3 is
     (
         reg      : mapper_mmc3_reg_t;
         board    : mmc3_board_t;
+        config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
@@ -218,6 +253,14 @@ package body lib_mapper_mmc3 is
                         ret.bank_idx := unsigned(cart_in.cpu.data(2 downto 0));
                         ret.chr_mode := cart_in.cpu.data(7);
                         ret.prg_mode := cart_in.cpu.data(6);
+                        ret.mmc6_ram_enable := cart_in.cpu.data(5);
+
+                        if board = MMC3_TXROM and
+                           not config.nes2 and
+                           cart_in.cpu.data(5) = '1'
+                        then
+                            ret.mmc6 := true;
+                        end if;
                     else
                         ret.banks(to_integer(reg.bank_idx)) :=
                             unsigned(cart_in.cpu.data);
@@ -227,9 +270,11 @@ package body lib_mapper_mmc3 is
                     if cart_in.cpu.prg_bus.address(0) = '0'
                     then
                         ret.mirroring := cart_in.cpu.data(0);
-                    else
-                        ret.prg_ram_enable := cart_in.cpu.data(7) = '1';
-                        ret.prg_ram_protect := cart_in.cpu.data(6) = '1';
+                    -- The MMC6 ignores this while its PRG RAM is disabled
+                    elsif not is_mmc6(reg, board) or
+                          reg.mmc6_ram_enable = '1'
+                    then
+                        ret.prg_ram_bits := cart_in.cpu.data(7 downto 4);
                     end if;
                 -- 0xC000-0xDFFF
                 when "10" =>
@@ -257,8 +302,7 @@ package body lib_mapper_mmc3 is
            is_bus_write(cart_in.cpu.prg_bus) and
            clk_sync and
            cart_in.cpu.prg_bus.address(14 downto 13) = "11" and
-           reg.prg_ram_enable and
-           not reg.prg_ram_protect
+           reg.prg_ram_bits(7 downto 6) = "10"
         then
             ret.outer := cart_in.cpu.data(0);
         end if;
@@ -315,6 +359,78 @@ package body lib_mapper_mmc3 is
         return ret;
     end;
 
+    -- The CPU accesses PRG RAM at 0x6000-0x7FFF
+    function is_prg_ram_enabled
+    (
+        reg     : mapper_mmc3_reg_t;
+        board   : mmc3_board_t;
+        cart_in : cart_in_t
+    )
+    return boolean
+    is
+    begin
+        if board = MMC3_QJ
+        then
+            return false;
+        elsif is_mmc6(reg, board)
+        then
+            -- 0x7000-0x7FFF, when either half can be read
+            return reg.mmc6_ram_enable = '1' and
+                   cart_in.cpu.prg_bus.address(12) = '1' and
+                   (reg.prg_ram_bits(7) = '1' or reg.prg_ram_bits(5) = '1');
+        else
+            return reg.prg_ram_bits(7) = '1';
+        end if;
+    end;
+
+    -- Applies the write protection of the PRG RAM, and on the MMC6 the
+    -- 1KB size of the PRG RAM and the enables of its halves
+    function protect_prg_ram
+    (
+        reg      : mapper_mmc3_reg_t;
+        board    : mmc3_board_t;
+        cart_in  : cart_in_t;
+        cart_out : cart_out_t
+    )
+    return cart_out_t
+    is
+        variable ret : cart_out_t;
+        variable bits : std_logic_vector(1 downto 0);
+    begin
+        ret := cart_out;
+
+        if is_mmc6(reg, board)
+        then
+            ret.mem.prg_ram_bus.address(12 downto 10) := "000";
+
+            -- The read and write enables of the half selected by bit 9 of
+            -- the address
+            if cart_in.cpu.prg_bus.address(9) = '1'
+            then
+                bits := reg.prg_ram_bits(7 downto 6);
+            else
+                bits := reg.prg_ram_bits(5 downto 4);
+            end if;
+
+            -- A half that cannot be read reads 0 when the other half can be
+            -- read. A half can only be written when it can be read
+            if bits(1) = '0'
+            then
+                ret.cpu.data := x"00";
+            end if;
+
+            if bits /= "11"
+            then
+                ret.mem.prg_ram_bus.write := false;
+            end if;
+        elsif reg.prg_ram_bits(6) = '1'
+        then
+            ret.mem.prg_ram_bus.write := false;
+        end if;
+
+        return ret;
+    end;
+
     function get_mirror
     (
         reg      : mapper_mmc3_reg_t;
@@ -363,22 +479,21 @@ package body lib_mapper_mmc3 is
         variable chr_bank : bank_t;
     begin
         -- The PPU sees the registers written by the CPU this cycle
-        written := cycle_write(reg, board, clk_sync, cart_in);
+        written := cycle_write(reg, board, config, clk_sync, cart_in);
         ret.reg := cycle_irq(written, cart_in);
 
         prg_bank := get_prg_bank(written, get_prg_window(cart_in.cpu));
         chr_bank := get_chr_bank(written, get_chr_window(cart_in.ppu));
 
-        banks.prg_ram := true;
+        banks.prg_ram := is_prg_ram_enabled(written, board, cart_in);
         banks.chr_ram := has_chr_ram(config);
         banks.mirror := get_mirror(written, board, config, chr_bank);
 
         case board is
-            when MMC3_TXROM | MMC3_TXSROM =>
+            when MMC3_TXROM | MMC3_MMC6 | MMC3_TXSROM =>
             when MMC3_QJ =>
                 prg_bank := "000" & written.outer & prg_bank(3 downto 0);
                 chr_bank := written.outer & chr_bank(6 downto 0);
-                banks.prg_ram := false;
             when MMC3_TQROM =>
                 banks.chr_ram := chr_bank(6) = '1';
         end case;
@@ -387,6 +502,10 @@ package body lib_mapper_mmc3 is
         banks.chr := resize(chr_bank, chr_bank_1kb_t'length);
 
         ret.cart := map_cart(config, cart_in, banks);
+        if is_bus_active(ret.cart.mem.prg_ram_bus)
+        then
+            ret.cart := protect_prg_ram(written, board, cart_in, ret.cart);
+        end if;
         ret.cart.cpu.irq := ret.reg.irq and
                             written.irq_delay(written.irq_delay'high);
 

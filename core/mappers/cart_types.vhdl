@@ -42,6 +42,9 @@ package cart_types is
     -- How the board is built: the chips on it and its solder pads. It comes
     -- from the header of the ROM file
     type cart_config_t is record
+        -- The header is NES 2.0. Otherwise it is iNES, which has no
+        -- submapper number, and the submapper number is 0
+        nes2                : boolean;
         mapper_num          : mapper_num_t;
         submapper_num       : submapper_num_t;
         prg_rom_16kb_blocks : rom_blocks_t;
@@ -59,6 +62,7 @@ package cart_types is
 
     constant RESET_CART_CONFIG : cart_config_t :=
     (
+        nes2 => false,
         mapper_num => (others => '0'),
         submapper_num => (others => '0'),
         prg_rom_16kb_blocks => (others => '0'),
