@@ -177,7 +177,9 @@ is
 
     signal oam_dma_status : oam_dma_status_t;
     
-    signal int_reset : boolean;
+    -- The NES is held in reset from power up, so asserts that only hold
+    -- out of reset do not fail at initialization
+    signal int_reset : boolean := true;
     signal nmi : boolean;
     
     signal cart_irq : boolean;
