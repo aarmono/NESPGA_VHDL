@@ -7,7 +7,7 @@ use work.nes_types.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.sram_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 
 -- Types shared by the cartridge and the boards (mappers) it can hold. The
 -- cart_cpu_* and cart_ppu_* records follow the pins of the cartridge
@@ -167,8 +167,8 @@ package cart_types is
     );
 
     type cart_mem_out_t is record
-        prg_rom_bus     : file_bus_t;
-        chr_rom_bus     : file_bus_t;
+        prg_rom_bus     : cart_mem_bus_t;
+        chr_rom_bus     : cart_mem_bus_t;
 
         prg_ram_bus     : sram_bus_t;
         data_to_prg_ram : data_t;
@@ -179,8 +179,8 @@ package cart_types is
 
     constant CART_MEM_OUT_IDLE : cart_mem_out_t :=
     (
-        prg_rom_bus => FILE_BUS_IDLE,
-        chr_rom_bus => FILE_BUS_IDLE,
+        prg_rom_bus => CART_MEM_BUS_IDLE,
+        chr_rom_bus => CART_MEM_BUS_IDLE,
 
         prg_ram_bus => SRAM_BUS_IDLE,
         data_to_prg_ram => (others => '-'),
@@ -367,7 +367,8 @@ package body cart_types is
 
         address := (bank and config.prg_rom_mask) &
                    unsigned(cart_in.cpu.prg_bus.address(12 downto 0));
-        ret.mem.prg_rom_bus := bus_read(resize(address, file_addr_t'length));
+        ret.mem.prg_rom_bus :=
+            bus_read(resize(address, cart_mem_addr_t'length));
 
         ret.cpu.data := cart_in.mem.data_from_prg_rom;
         ret.cpu.data_oe := true;
@@ -395,7 +396,7 @@ package body cart_types is
             address := (banks.chr and config.chr_rom_mask) &
                        unsigned(cart_in.ppu.chr_bus.address(9 downto 0));
             ret.mem.chr_rom_bus :=
-                bus_read(resize(address, file_addr_t'length));
+                bus_read(resize(address, cart_mem_addr_t'length));
             ret.ppu.data := cart_in.mem.data_from_chr_rom;
         else
             ret.mem.chr_ram_bus.address :=

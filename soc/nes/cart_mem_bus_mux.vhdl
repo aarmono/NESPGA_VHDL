@@ -2,10 +2,10 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.nes_types.all;
 
-entity file_bus_mux is
+entity cart_mem_bus_mux is
 port
 (
     clk     : in std_logic;
@@ -13,22 +13,22 @@ port
     clk_sync : in boolean;
     reset   : in boolean;
 
-    file_bus_chr    : in file_bus_t;
-    data_to_chr_bus : out data_t;
+    cart_mem_bus_chr : in cart_mem_bus_t;
+    data_to_chr_bus  : out data_t;
 
-    file_bus_prg    : in file_bus_t;
-    data_to_prg_bus : out data_t;
+    cart_mem_bus_prg : in cart_mem_bus_t;
+    data_to_prg_bus  : out data_t;
 
-    file_bus_out    : out file_bus_t;
-    data_from_file  : in data_t
+    cart_mem_bus_out   : out cart_mem_bus_t;
+    data_from_cart_mem : in data_t
 );
 end entity;
 
-architecture behavioral of file_bus_mux
+architecture behavioral of cart_mem_bus_mux
 is
 
     type cache_entry_t is record
-        address : file_addr_t;
+        address : cart_mem_addr_t;
         data    : data_t;
     end record;
 
@@ -68,7 +68,7 @@ is
     function update_cache
     (
         cache_in : cache_t;
-        address  : file_addr_t;
+        address  : cart_mem_addr_t;
         data     : data_t
     )
     return cache_t
@@ -113,20 +113,20 @@ is
 
     function cache_lookup
     (
-        cache_in : in cache_t;
-        file_bus : in file_bus_t
+        cache_in     : in cache_t;
+        cart_mem_bus : in cart_mem_bus_t
     )
     return cache_result_t
     is
         variable ret : cache_result_t := RESULT_INIT;
     begin
-        if is_bus_active(file_bus)
+        if is_bus_active(cart_mem_bus)
         then
             ret.cache_miss := true;
 
             for i in cache_in'reverse_range
             loop
-                if cache_in(i).address = file_bus.address
+                if cache_in(i).address = cart_mem_bus.address
                 then
                     ret.cache_miss := false;
                     ret.update_cache := true;
@@ -148,15 +148,15 @@ begin
         variable prg_result : cache_result_t := RESULT_INIT;
     begin
 
-        file_bus_out <= FILE_BUS_IDLE;
+        cart_mem_bus_out <= CART_MEM_BUS_IDLE;
 
         next_chr_cache <= chr_cache;
         next_prg_cache <= prg_cache;
 
-        chr_result := cache_lookup(chr_cache, file_bus_chr);
+        chr_result := cache_lookup(chr_cache, cart_mem_bus_chr);
         sig_data_to_chr_bus <= chr_result.data;
 
-        prg_result := cache_lookup(prg_cache, file_bus_prg);
+        prg_result := cache_lookup(prg_cache, cart_mem_bus_prg);
         sig_data_to_prg_bus <= prg_result.data;
 
         -- If this is the sync cycle and there is a cache miss, prioritize
@@ -168,29 +168,29 @@ begin
         then
             prg_result.update_cache := true;
 
-            file_bus_out <= file_bus_prg;
-            sig_data_to_prg_bus <= data_from_file;
+            cart_mem_bus_out <= cart_mem_bus_prg;
+            sig_data_to_prg_bus <= data_from_cart_mem;
         -- Otherwise prioritize CHR because we usually have several PPU
         -- cycles to retrieve PRG data
         elsif chr_result.cache_miss
         then
             chr_result.update_cache := true;
 
-            file_bus_out <= file_bus_chr;
-            sig_data_to_chr_bus <= data_from_file;
+            cart_mem_bus_out <= cart_mem_bus_chr;
+            sig_data_to_chr_bus <= data_from_cart_mem;
         end if;
 
         if chr_result.update_cache
         then
             next_chr_cache <= update_cache(chr_cache,
-                                           file_bus_chr.address,
+                                           cart_mem_bus_chr.address,
                                            sig_data_to_chr_bus);
         end if;
 
         if prg_result.update_cache
         then
             next_prg_cache <= update_cache(prg_cache,
-                                           file_bus_prg.address,
+                                           cart_mem_bus_prg.address,
                                            sig_data_to_prg_bus);
         end if;
 

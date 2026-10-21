@@ -9,7 +9,7 @@ use work.chr_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.ppu_bus_types.all;
 
 use work.simulation.all;
@@ -96,24 +96,24 @@ architecture behavioral of ppu_bench is
     signal data_to_sec_oam   : data_t;
     signal data_from_sec_oam : data_t;
 
-    function chr_to_mem(bus_in : chr_bus_t) return file_bus_t
+    function chr_to_mem(bus_in : chr_bus_t) return cart_mem_bus_t
     is
-        variable ret : file_bus_t;
+        variable ret : cart_mem_bus_t;
     begin
-        ret.address := resize(bus_in.address, file_addr_t'length);
+        ret.address := resize(bus_in.address, cart_mem_addr_t'length);
         ret.read := bus_in.read;
         ret.write := bus_in.write;
 
         return ret;
     end;
     
-    function palette_to_mem(bus_in : palette_bus_t) return file_bus_t
+    function palette_to_mem(bus_in : palette_bus_t) return cart_mem_bus_t
     is
-        variable ret : file_bus_t;
-        variable address : unsigned(file_addr_t'range);
+        variable ret : cart_mem_bus_t;
+        variable address : unsigned(cart_mem_addr_t'range);
     begin
         address :=
-            resize(unsigned(bus_in.address), file_addr_t'length) + x"03F00";
+            resize(unsigned(bus_in.address), cart_mem_addr_t'length) + x"03F00";
         ret.address := std_logic_vector(address);
         ret.read := bus_in.read;
         ret.write := bus_in.write;
@@ -121,22 +121,22 @@ architecture behavioral of ppu_bench is
         return ret;
     end;
 
-    function oam_to_mem(bus_in : oam_bus_t) return file_bus_t
+    function oam_to_mem(bus_in : oam_bus_t) return cart_mem_bus_t
     is
-        variable ret : file_bus_t;
+        variable ret : cart_mem_bus_t;
     begin
-        ret.address := resize(bus_in.address, file_addr_t'length);
+        ret.address := resize(bus_in.address, cart_mem_addr_t'length);
         ret.read := bus_in.read;
         ret.write := bus_in.write;
 
         return ret;
     end;
 
-    function sec_oam_to_mem(bus_in : sec_oam_bus_t) return file_bus_t
+    function sec_oam_to_mem(bus_in : sec_oam_bus_t) return cart_mem_bus_t
     is
-        variable ret : file_bus_t;
+        variable ret : cart_mem_bus_t;
     begin
-        ret.address := resize(bus_in.address, file_addr_t'length);
+        ret.address := resize(bus_in.address, cart_mem_addr_t'length);
         ret.read := bus_in.read;
         ret.write := bus_in.write;
 

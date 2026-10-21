@@ -10,7 +10,7 @@
 ../../../bus/sram_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
 ../../../bus/oam_bus_types.vhdl
-../../../bus/file_bus_types.vhdl
+../../../bus/cart_mem_bus_types.vhdl
 ../../../bus/ppu_bus_types.vhdl
 ../../../bus/joy_bus_types.vhdl
 
@@ -95,7 +95,7 @@
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../soc/nes/lib_nes.vhdl
-../../../soc/nes/file_bus_mux.vhdl
+../../../soc/nes/cart_mem_bus_mux.vhdl
 ../../../soc/nes/nes_soc.vhdl
 ../../../soc/nes/nes_soc_ocram.vhdl
 

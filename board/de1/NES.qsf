@@ -377,7 +377,7 @@ set_global_assignment -name VHDL_FILE de1_types.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/nes/nes_soc_ocram.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/nes/nes_soc.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/nes/lib_nes.vhdl
-set_global_assignment -name VHDL_FILE ../../soc/nes/file_bus_mux.vhdl
+set_global_assignment -name VHDL_FILE ../../soc/nes/cart_mem_bus_mux.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/soc.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2_keyboard.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2_bus.vhdl
@@ -434,7 +434,7 @@ set_global_assignment -name VHDL_FILE ../../bus/palette_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/oam_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/ciram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/joy_bus_types.vhdl
-set_global_assignment -name VHDL_FILE ../../bus/file_bus_types.vhdl
+set_global_assignment -name VHDL_FILE ../../bus/cart_mem_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/cpu_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/chr_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/apu_bus_types.vhdl

@@ -5,7 +5,7 @@ use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.cpu_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.utilities.all;
 use work.soc.all;
 use work.simulation.all;
@@ -20,8 +20,8 @@ end nsf_bench;
 
 architecture behavioral of nsf_bench is
     
-    signal file_bus    : file_bus_t;
-    signal data_from_file   : data_t;
+    signal cart_mem_bus       : cart_mem_bus_t;
+    signal data_from_cart_mem : data_t;
     
     signal audio_out : mixed_audio_t;
     
@@ -47,8 +47,8 @@ begin
         next_stb => '0',
         prev_stb => '0',
         
-        file_bus => file_bus,
-        data_from_file => data_from_file,
+        cart_mem_bus => cart_mem_bus,
+        data_from_cart_mem => data_from_cart_mem,
         
         enable_square_1 => enable_square_1,
         enable_square_2 => enable_square_2,
@@ -81,8 +81,8 @@ begin
     )
     port map
     (
-       file_bus_1 => file_bus,
-       data_from_file_1 => data_from_file
+       file_bus_1 => cart_mem_bus,
+       data_from_file_1 => data_from_cart_mem
     );
     -- }
     

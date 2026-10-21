@@ -7,7 +7,7 @@ use work.sram_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.ciram_bus_types.all;
 use work.nes_types.all;
 
@@ -33,8 +33,8 @@ package soc is
         cpu_ram_en : out boolean;
         ppu_ram_en : out boolean;
         
-        file_bus       : out file_bus_t;
-        data_from_file : in data_t;
+        cart_mem_bus       : out cart_mem_bus_t;
+        data_from_cart_mem : in data_t;
         
         prg_ram_bus       : out ram_bus_t;
         data_to_prg_ram   : out data_t;
@@ -94,8 +94,8 @@ package soc is
 
         cpu_ram_en : out boolean;
 
-        file_bus       : out file_bus_t;
-        data_from_file : in data_t;
+        cart_mem_bus       : out cart_mem_bus_t;
+        data_from_cart_mem : in data_t;
         
         sram_bus       : out sram_bus_t;
         data_to_sram   : out data_t;

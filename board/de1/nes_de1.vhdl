@@ -5,7 +5,7 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.sram_bus_types.all;
 use work.soc.all;
 use work.de1_types.all;
@@ -120,9 +120,9 @@ architecture behavioral of nes_de1 is
 
     signal nes_reset : boolean;
     
-    signal flash_bus : file_bus_t;
-    signal file_bus  : file_bus_t;
-    signal data_from_file : data_t;
+    signal flash_bus          : cart_mem_bus_t;
+    signal cart_mem_bus       : cart_mem_bus_t;
+    signal data_from_cart_mem : data_t;
 
     signal dram_ba : std_logic_vector(1 downto 0);
 
@@ -209,8 +209,8 @@ begin
             load_ready => load_ready,
 
             ppu_clk_en => ppu_clk_en,
-            file_bus => file_bus,
-            data_from_file => data_from_file,
+            cart_mem_bus => cart_mem_bus,
+            data_from_cart_mem => data_from_cart_mem,
 
             dram_addr => DRAM_ADDR,
             dram_ba => dram_ba,
@@ -226,7 +226,7 @@ begin
 
         gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
         begin
-            flash_bus <= FILE_BUS_IDLE;
+            flash_bus <= CART_MEM_BUS_IDLE;
 
             sd : entity work.sd_reader(behavioral)
             port map
@@ -275,8 +275,8 @@ begin
         rom_loading <= false;
         sd_error <= false;
 
-        flash_bus <= file_bus;
-        data_from_file <= FL_DQ;
+        flash_bus <= cart_mem_bus;
+        data_from_cart_mem <= FL_DQ;
 
         SD_CLK <= '0';
         SD_DAT3 <= '1';
@@ -385,8 +385,8 @@ begin
         cpu_clk_en => cpu_clk_en,
         ppu_clk_en => ppu_clk_en,
 
-        file_bus => file_bus,
-        data_from_file => data_from_file,
+        cart_mem_bus => cart_mem_bus,
+        data_from_cart_mem => data_from_cart_mem,
 
         pixel_bus => pixel_bus,
         audio => audio_out,

@@ -6,7 +6,7 @@ use work.ram_bus_types.all;
 use work.sram_bus_types.all;
 use work.ciram_bus_types.all;
 use work.cpu_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
@@ -35,8 +35,8 @@ port
 
     cpu_ram_en : out boolean;
     
-    file_bus       : out file_bus_t;
-    data_from_file : in data_t;
+    cart_mem_bus       : out cart_mem_bus_t;
+    data_from_cart_mem : in data_t;
 
     sram_bus       : out sram_bus_t;
     data_to_sram   : out data_t;
@@ -106,8 +106,8 @@ begin
         cpu_ram_en => sig_cpu_ram_en,
         ppu_ram_en => sig_ppu_ram_en,
         
-        file_bus => file_bus,
-        data_from_file => data_from_file,
+        cart_mem_bus => cart_mem_bus,
+        data_from_cart_mem => data_from_cart_mem,
         
         sram_bus => sig_sram_bus,
         data_to_sram => sig_data_to_sram,

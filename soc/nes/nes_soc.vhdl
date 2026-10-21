@@ -7,7 +7,7 @@ use work.apu_bus_types.all;
 use work.joy_bus_types.all;
 use work.ram_bus_types.all;
 use work.sram_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.chr_bus_types.all;
 use work.ciram_bus_types.all;
 use work.oam_bus_types.all;
@@ -41,8 +41,8 @@ port
     cpu_ram_en : out boolean;
     ppu_ram_en : out boolean;
     
-    file_bus       : out file_bus_t;
-    data_from_file : in data_t;
+    cart_mem_bus       : out cart_mem_bus_t;
+    data_from_cart_mem : in data_t;
     
     sram_bus       : out sram_bus_t;
     data_to_sram   : out data_t;
@@ -88,7 +88,7 @@ end entity;
 architecture behavioral of nes_soc
 is
 
-    component file_bus_mux is
+    component cart_mem_bus_mux is
     port
     (
         clk      : in std_logic;
@@ -96,14 +96,14 @@ is
         clk_sync : in boolean;
         reset    : in boolean;
 
-        file_bus_chr    : in file_bus_t;
-        data_to_chr_bus : out data_t;
+        cart_mem_bus_chr : in cart_mem_bus_t;
+        data_to_chr_bus  : out data_t;
 
-        file_bus_prg    : in file_bus_t;
-        data_to_prg_bus : out data_t;
+        cart_mem_bus_prg : in cart_mem_bus_t;
+        data_to_prg_bus  : out data_t;
 
-        file_bus_out    : out file_bus_t;
-        data_from_file  : in data_t
+        cart_mem_bus_out   : out cart_mem_bus_t;
+        data_from_cart_mem : in data_t
     );
     end component;
 
@@ -160,11 +160,11 @@ is
     signal prg_data_to_ppu   : data_t;
     signal prg_data_from_ppu : data_t;
 
-    signal file_bus_prg       : file_bus_t;
-    signal data_from_file_prg : data_t;
+    signal cart_mem_bus_prg       : cart_mem_bus_t;
+    signal data_from_cart_mem_prg : data_t;
     
-    signal file_bus_chr       : file_bus_t;
-    signal data_from_file_chr : data_t;
+    signal cart_mem_bus_chr       : cart_mem_bus_t;
+    signal data_from_cart_mem_chr : data_t;
 
     signal cpu_en         : boolean;
     signal ppu_en         : boolean;
@@ -206,7 +206,7 @@ begin
 
     irq <= apu_irq or cart_irq;
 
-    file_mux : file_bus_mux
+    cart_mem_mux : cart_mem_bus_mux
     port map
     (
         clk => clk,
@@ -214,14 +214,14 @@ begin
         clk_sync => ppu_sync,
         reset => reset,
 
-        file_bus_chr => file_bus_chr,
-        data_to_chr_bus => data_from_file_chr,
+        cart_mem_bus_chr => cart_mem_bus_chr,
+        data_to_chr_bus => data_from_cart_mem_chr,
 
-        file_bus_prg => file_bus_prg,
-        data_to_prg_bus => data_from_file_prg,
+        cart_mem_bus_prg => cart_mem_bus_prg,
+        data_to_prg_bus => data_from_cart_mem_prg,
 
-        file_bus_out => file_bus,
-        data_from_file => data_from_file
+        cart_mem_bus_out => cart_mem_bus,
+        data_from_cart_mem => data_from_cart_mem
     );
 
     nes_cart : cartridge
@@ -402,8 +402,8 @@ begin
         cart_in.ppu.chr_bus <= chr_bus;
         cart_in.ppu.data <= chr_data_from_ppu;
 
-        cart_in.mem.data_from_prg_rom <= data_from_file_prg;
-        cart_in.mem.data_from_chr_rom <= data_from_file_chr;
+        cart_in.mem.data_from_prg_rom <= data_from_cart_mem_prg;
+        cart_in.mem.data_from_chr_rom <= data_from_cart_mem_chr;
         cart_in.mem.data_from_prg_ram <= data_from_sram;
         cart_in.mem.data_from_chr_ram <= data_from_chr_ram;
 
@@ -416,7 +416,7 @@ begin
         nes_in.cpu_bus.data_from_joy := data_from_joy;
         nes_in.cpu_bus.data_from_ram := data_from_prg_ram;
         nes_in.cpu_bus.data_from_ppu := prg_data_from_ppu;
-        nes_in.data_from_file := data_from_file_prg;
+        nes_in.data_from_cart_mem := data_from_cart_mem_prg;
         
         nes_in.ppu_bus.chr_bus := chr_bus;
         nes_in.ppu_bus.data_from_ppu := chr_data_from_ppu;
@@ -442,7 +442,7 @@ begin
         prg_ram_bus <= nes_out.cpu_bus.ram_bus;
         sram_bus <= nes_out.sram_bus;
         ppu_bus <= nes_out.cpu_bus.ppu_bus;
-        file_bus_prg <= nes_out.prg_file_bus;
+        cart_mem_bus_prg <= nes_out.prg_cart_mem_bus;
         oam_dma_cpu_write <= nes_out.cpu_bus.oam_dma_write;
         
         data_to_cpu <= nes_out.cpu_bus.data_to_cpu;
@@ -460,7 +460,7 @@ begin
         data_to_sram <= nes_out.data_to_sram;
         prg_data_to_ppu <= nes_out.cpu_bus.data_to_ppu;
         
-        file_bus_chr <= nes_out.chr_file_bus;
+        cart_mem_bus_chr <= nes_out.chr_cart_mem_bus;
         chr_ram_bus <= nes_out.chr_ram_bus;
         ciram_bus <= nes_out.ppu_bus.ciram_bus;
         

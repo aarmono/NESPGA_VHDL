@@ -3,7 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use IEEE.math_real.all;
 use work.nes_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.simulation.all;
 
 -- Copies a file from an SD card model, or a flash model, into the SDRAM
@@ -36,8 +36,8 @@ architecture behavioral of sdram_rom_bench is
 
     signal ppu_en : boolean;
 
-    signal file_bus  : file_bus_t := FILE_BUS_IDLE;
-    signal file_data : data_t;
+    signal cart_mem_bus  : cart_mem_bus_t := CART_MEM_BUS_IDLE;
+    signal cart_mem_data : data_t;
     signal ref_data  : data_t;
 
     signal dram_addr  : std_logic_vector(11 downto 0);
@@ -66,8 +66,8 @@ begin
         load_ready => load_ready,
 
         ppu_clk_en => ppu_en,
-        file_bus => file_bus,
-        data_from_file => file_data,
+        cart_mem_bus => cart_mem_bus,
+        data_from_cart_mem => cart_mem_data,
 
         dram_addr => dram_addr,
         dram_ba => dram_ba,
@@ -151,7 +151,7 @@ begin
             report "SD card error"
             severity failure;
     else generate
-        signal flash_bus  : file_bus_t;
+        signal flash_bus  : cart_mem_bus_t;
         signal flash_data : data_t;
     begin
         reader : entity work.flash_stream(behavioral)
@@ -198,7 +198,7 @@ begin
     )
     port map
     (
-        file_bus_1 => file_bus,
+        file_bus_1 => cart_mem_bus,
         data_from_file_1 => ref_data
     );
 
@@ -219,8 +219,8 @@ begin
         odd_cpu_cycle => open
     );
 
-    -- Like the NES core, change the file bus right after each PPU clock
-    -- enable and consume the data at the next one
+    -- Like the NES core, change the cartridge memory bus right after each PPU
+    -- clock enable and consume the data at the next one
     process(clk_50)
         variable seed1   : positive := 1;
         variable seed2   : positive := 2;
@@ -231,16 +231,17 @@ begin
     begin
     if rising_edge(clk_50) and ppu_en
     then
-        if is_bus_read(file_bus)
+        if is_bus_read(cart_mem_bus)
         then
             reads := reads + 1;
-            if file_data /= ref_data
+            if cart_mem_data /= ref_data
             then
                 errors := errors + 1;
                 report "Mismatch at " &
-                       integer'image(to_integer(unsigned(file_bus.address))) &
+                       integer'image(
+                           to_integer(unsigned(cart_mem_bus.address))) &
                        ": expected " & to_hstring(ref_data) &
-                       " got " & to_hstring(file_data)
+                       " got " & to_hstring(cart_mem_data)
                     severity error;
             end if;
         end if;
@@ -260,11 +261,11 @@ begin
         if rand < 0.75
         then
             uniform(seed1, seed2, rand);
-            file_bus <= bus_read(to_unsigned(
+            cart_mem_bus <= bus_read(to_unsigned(
                 integer(floor(rand * real(NES_FILE_BYTES))),
-                file_addr_t'length));
+                cart_mem_addr_t'length));
         else
-            file_bus <= FILE_BUS_IDLE;
+            cart_mem_bus <= CART_MEM_BUS_IDLE;
         end if;
     end if;
     end process;
