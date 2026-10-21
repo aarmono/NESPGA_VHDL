@@ -247,6 +247,17 @@ begin
         else
             chr_cache <= next_chr_cache;
             prg_cache <= next_prg_cache;
+
+            -- pragma translate_off
+            -- The PPU presents a CHR write for only one PPU cycle, so it must
+            -- be served in that cycle. If it was, the cache now holds it
+            assert not (is_bus_write(cart_mem_bus_chr) and
+                        cache_lookup(next_chr_cache,
+                                     cart_mem_bus_chr,
+                                     data_from_chr_bus).cache_miss)
+                report "cart_mem_bus_mux: CHR write dropped"
+                severity failure;
+            -- pragma translate_on
         end if;
     end if;
     end if;

@@ -61,10 +61,6 @@ port
     data_to_palette   : out pixel_t;
     data_from_palette : in pixel_t;
     
-    chr_ram_bus       : out sram_bus_t;
-    data_to_chr_ram   : out data_t;
-    data_from_chr_ram : in data_t;
-
     ciram_bus       : out ciram_bus_t;
     data_to_ciram   : out data_t;
     data_from_ciram : in data_t;
@@ -410,7 +406,7 @@ begin
         cart_in.mem.data_from_prg_rom <= data_from_cart_mem_prg;
         cart_in.mem.data_from_chr_rom <= data_from_cart_mem_chr;
         cart_in.mem.data_from_prg_ram <= data_from_cart_mem_prg;
-        cart_in.mem.data_from_chr_ram <= data_from_chr_ram;
+        cart_in.mem.data_from_chr_ram <= data_from_cart_mem_chr;
 
         nes_in.cpu_bus.clk_sync := ppu_sync;
         nes_in.cpu_bus.apu_regs_active :=
@@ -465,12 +461,10 @@ begin
         prg_data_to_ppu <= nes_out.cpu_bus.data_to_ppu;
         
         cart_mem_bus_chr <= nes_out.chr_cart_mem_bus;
-        data_to_cart_mem_chr <= (others => '-');
-        chr_ram_bus <= nes_out.chr_ram_bus;
+        data_to_cart_mem_chr <= nes_out.data_to_chr_cart_mem;
         ciram_bus <= nes_out.ppu_bus.ciram_bus;
         
         chr_data_to_ppu <= nes_out.ppu_bus.data_to_ppu;
-        data_to_chr_ram <= nes_out.data_to_chr_ram;
         data_to_ciram <= nes_out.ppu_bus.data_to_ciram;
         
         oam_bus <= nes_out.oam_bus;
