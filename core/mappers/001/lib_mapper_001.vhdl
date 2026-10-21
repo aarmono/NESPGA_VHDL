@@ -1,8 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.prg_bus_types.all;
-use work.chr_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
@@ -13,10 +11,8 @@ package lib_mapper_001 is
     constant SHIFT_MAX : shift_t := to_unsigned(4, shift_t'length);
 
     subtype prg_bank_t is unsigned(3 downto 0);
-    subtype prg_rom_addr_t is unsigned(17 downto 0);
 
     subtype chr_bank_t is unsigned(4 downto 0);
-    subtype chr_rom_addr_t is unsigned(16 downto 0);
 
     type mapper_001_reg_t is record
         shift : unsigned(3 downto 0);
@@ -69,248 +65,146 @@ package lib_mapper_001 is
     )
     return mapper_001_out_t;
 
-    function get_cpu_prg_addr
-    (
-        addr_in   : prg_addr_t;
-        bank      : prg_bank_t;
-        num_banks : prg_bank_t
-    )
-    return prg_rom_addr_t;
-
-    function get_ppu_chr_addr
-    (
-        addr_in   : chr_addr_t;
-        bank      : chr_bank_t;
-        num_banks : chr_bank_t
-    )
-    return chr_rom_addr_t;
-
 end package lib_mapper_001;
 
 
 package body lib_mapper_001 is
 
-    function get_cpu_prg_addr
-    (
-        addr_in   : prg_addr_t;
-        bank      : prg_bank_t;
-        num_banks : prg_bank_t
-    )
-    return prg_rom_addr_t
-    is
-        variable ret : prg_rom_addr_t;
-        variable bank_addr : unsigned(prg_addr_t'range);
-        variable mod_bank : prg_bank_t;
-    begin
-        mod_bank := bank and (num_banks - "1");
-
-        bank_addr := unsigned(addr_in);
-        ret := mod_bank & bank_addr(13 downto 0);
-
-        return ret;
-    end;
-
-    function get_ppu_chr_addr
-    (
-        addr_in   : chr_addr_t;
-        bank      : chr_bank_t;
-        num_banks : chr_bank_t
-    )
-    return chr_rom_addr_t
-    is
-        variable ret : chr_rom_addr_t;
-        variable bank_addr : unsigned(chr_addr_t'range);
-        variable mod_bank : chr_bank_t;
-    begin
-        mod_bank := bank and (num_banks - "1");
-
-        bank_addr := unsigned(addr_in);
-        ret := mod_bank & bank_addr(11 downto 0);
-
-        return ret;
-    end;
-
-    function cycle_cpu
+    function cycle_write
     (
         reg      : mapper_001_reg_t;
-        config   : cart_config_t;
         clk_sync : boolean;
-        cart_in  : cart_in_t;
-        map_in   : mapper_001_out_t
+        cart_in  : cart_in_t
     )
-    return mapper_001_out_t
+    return mapper_001_reg_t
     is
-        variable map_out : mapper_001_out_t;
-
-        variable prg_address : prg_rom_addr_t;
-
-        variable bank : prg_bank_t;
-
-        variable num_banks : prg_bank_t;
-        variable max_bank  : prg_bank_t;
-
+        variable ret : mapper_001_reg_t;
         variable first_write : boolean;
-
         variable reg_val : unsigned(4 downto 0);
     begin
-        map_out := map_in;
-
-        num_banks := config.prg_rom_16kb_blocks(num_banks'range);
-        max_bank := num_banks - "1";
+        ret := reg;
 
         first_write := cart_in.cpu.prg_bus.write and not reg.write_prev;
 
-        case get_cpu_addr(cart_in.cpu) is
-            when 16#6000# to 16#7FFF# =>
-                map_out.cart := map_prg_ram(cart_in, map_out.cart);
-            when 16#8000# to 16#FFFF# =>
-                if is_bus_write(cart_in.cpu.prg_bus) and clk_sync
-                then
-                    if cart_in.cpu.data(7) = '1'
-                    then
-                        map_out.reg.count := (others => '0');
-                        map_out.reg.shift := (others => '0');
-                        map_out.reg.prg_bank_mode := (others => '1');
-                    elsif first_write and reg.count < SHIFT_MAX
-                    then
-                        map_out.reg.shift := cart_in.cpu.data(0) &
-                                             reg.shift(3 downto 1);
-                        map_out.reg.count := reg.count + "1";
-                    elsif first_write
-                    then
-                        map_out.reg.shift := (others => '0');
-                        map_out.reg.count := (others => '0');
-                        reg_val := cart_in.cpu.data(0) & reg.shift;
-
-                        case cart_in.cpu.prg_bus.address(14 downto 13) is
-                            when "00" =>
-                                map_out.reg.mirroring := reg_val(1 downto 0);
-                                map_out.reg.prg_bank_mode := reg_val(3 downto 2);
-                                map_out.reg.chr_bank_mode := reg_val(4);
-                            when "01" =>
-                                map_out.reg.chr_bank_0 := reg_val;
-                            when "10" =>
-                                map_out.reg.chr_bank_1 := reg_val;
-                            when "11" =>
-                                map_out.reg.prg_bank := reg_val(3 downto 0);
-                                map_out.reg.bypass := reg_val(4);
-                            when others =>
-                                null;
-                        end case;
-                    end if;
-                elsif is_bus_read(cart_in.cpu.prg_bus)
-                then
-                    if cart_in.cpu.prg_bus.address(14) = '0'
-                    then
-                        -- $8000-$BFFF
-                        case reg.prg_bank_mode is
-                            when "00" |
-                                 "01" =>
-                                bank := reg.prg_bank;
-                                bank(0) := '0';
-                            when "10" =>
-                                bank := (others => '0');
-                            when "11" =>
-                                bank := reg.prg_bank;
-                            when others =>
-                                null;
-                        end case;
-                    else
-                        -- $C000-$FFFF
-                        case reg.prg_bank_mode is
-                            when "00" | "01" =>
-                                bank := reg.prg_bank;
-                                bank(0) := '1';
-                            when "10" =>
-                                bank := reg.prg_bank;
-                            when "11" =>
-                                bank := max_bank;
-                            when others =>
-                                null;
-                        end case;
-                    end if;
-
-                    prg_address :=
-                        get_cpu_prg_addr(cart_in.cpu.prg_bus.address,
-                                         bank,
-                                         num_banks);
-                    map_out.cart := map_prg_rom(cart_in,
-                                                prg_address,
-                                                map_out.cart);
-                end if;
-            when others =>
-                null;
-        end case;
-
-        return map_out;
-    end;
-
-    function cycle_ppu
-    (
-        reg     : mapper_001_reg_t;
-        config  : cart_config_t;
-        cart_in : cart_in_t;
-        map_in  : mapper_001_out_t
-    )
-    return mapper_001_out_t
-    is
-        variable map_out : mapper_001_out_t;
-
-        variable address : chr_rom_addr_t;
-
-        variable mirror : mirror_t;
-
-        variable bank : chr_bank_t;
-        variable num_banks : chr_bank_t;
-    begin
-        map_out := map_in;
-
-        num_banks :=
-            shift_right(config.chr_rom_8kb_blocks, 1)(num_banks'range);
-
-        case reg.mirroring is
-            when "00" =>
-                mirror := MIRROR_A;
-            when "01" =>
-                mirror := MIRROR_B;
-            when "10" =>
-                mirror := MIRROR_VERT;
-            when "11" =>
-                mirror := MIRROR_HORZ;
-            when others =>
-                mirror := MIRROR_HORZ;
-        end case;
-
-        if cart_in.ppu.chr_bus.address(13) = '0'
+        if clk_sync
         then
-            if cart_in.ppu.chr_bus.address(12) = '0'
-            then
-                -- $0000-$0FFF
-                bank := reg.chr_bank_0;
-                if reg.chr_bank_mode = '0'
-                then
-                    bank(0) := '0';
-                end if;
-            else
-                -- $1000-$1FFF
-                if reg.chr_bank_mode = '0'
-                then
-                    bank := reg.chr_bank_0;
-                    bank(0) := '1';
-                else
-                    bank := reg.chr_bank_1;
-                end if;
-            end if;
-
-            address := get_ppu_chr_addr(cart_in.ppu.chr_bus.address,
-                                        bank,
-                                        num_banks);
-            map_out.cart := map_chr(config, cart_in, address, map_out.cart);
-        else
-            map_out.cart := map_ciram(cart_in, mirror, map_out.cart);
+            ret.write_prev := cart_in.cpu.prg_bus.write;
         end if;
 
-        return map_out;
+        if is_rom_write(cart_in.cpu, clk_sync)
+        then
+            if cart_in.cpu.data(7) = '1'
+            then
+                ret.count := (others => '0');
+                ret.shift := (others => '0');
+                ret.prg_bank_mode := (others => '1');
+            elsif first_write and reg.count < SHIFT_MAX
+            then
+                ret.shift := cart_in.cpu.data(0) & reg.shift(3 downto 1);
+                ret.count := reg.count + "1";
+            elsif first_write
+            then
+                ret.shift := (others => '0');
+                ret.count := (others => '0');
+                reg_val := cart_in.cpu.data(0) & reg.shift;
+
+                case cart_in.cpu.prg_bus.address(14 downto 13) is
+                    when "00" =>
+                        ret.mirroring := reg_val(1 downto 0);
+                        ret.prg_bank_mode := reg_val(3 downto 2);
+                        ret.chr_bank_mode := reg_val(4);
+                    when "01" =>
+                        ret.chr_bank_0 := reg_val;
+                    when "10" =>
+                        ret.chr_bank_1 := reg_val;
+                    when "11" =>
+                        ret.prg_bank := reg_val(3 downto 0);
+                        ret.bypass := reg_val(4);
+                    when others =>
+                        null;
+                end case;
+            end if;
+        end if;
+
+        return ret;
+    end;
+
+    -- The 16KB PRG ROM bank at 0x8000 or 0xC000
+    function get_prg_bank
+    (
+        reg    : mapper_001_reg_t;
+        high   : std_logic
+    )
+    return prg_bank_t
+    is
+        variable bank : prg_bank_t;
+    begin
+        case reg.prg_bank_mode is
+            -- 32KB
+            when "00" | "01" =>
+                bank := reg.prg_bank;
+                bank(0) := high;
+            -- 0x8000 is fixed to the first bank
+            when "10" =>
+                if high = '0'
+                then
+                    bank := (others => '0');
+                else
+                    bank := reg.prg_bank;
+                end if;
+            -- 0xC000 is fixed to the last bank
+            when others =>
+                if high = '0'
+                then
+                    bank := reg.prg_bank;
+                else
+                    bank := (others => '1');
+                end if;
+        end case;
+
+        return bank;
+    end;
+
+    -- The 4KB CHR bank at 0x0000 or 0x1000
+    function get_chr_bank
+    (
+        reg  : mapper_001_reg_t;
+        high : std_logic
+    )
+    return chr_bank_t
+    is
+        variable bank : chr_bank_t;
+    begin
+        if reg.chr_bank_mode = '1'
+        then
+            if high = '0'
+            then
+                bank := reg.chr_bank_0;
+            else
+                bank := reg.chr_bank_1;
+            end if;
+        else
+            -- 8KB
+            bank := reg.chr_bank_0;
+            bank(0) := high;
+        end if;
+
+        return bank;
+    end;
+
+    function get_mirror(reg : mapper_001_reg_t) return mirror_t
+    is
+    begin
+        case reg.mirroring is
+            when "00" =>
+                return MIRROR_A;
+            when "01" =>
+                return MIRROR_B;
+            when "10" =>
+                return MIRROR_VERT;
+            when others =>
+                return MIRROR_HORZ;
+        end case;
     end;
 
     function cycle_mapper_001
@@ -323,25 +217,26 @@ package body lib_mapper_001 is
     return mapper_001_out_t
     is
         variable ret : mapper_001_out_t;
+        variable banks : cart_banks_t;
+        variable prg_window : prg_window_t;
+        variable chr_window : chr_window_t;
     begin
-        ret.reg := reg;
-        ret.cart := CART_OUT_IDLE;
-
-        if clk_sync
-        then
-            ret.reg.write_prev := cart_in.cpu.prg_bus.write;
-        end if;
-
-        if is_bus_active(cart_in.cpu.prg_bus)
-        then
-            ret := cycle_cpu(reg, config, clk_sync, cart_in, ret);
-        end if;
+        ret.reg := cycle_write(reg, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
-        if is_bus_active(cart_in.ppu.chr_bus)
-        then
-            ret := cycle_ppu(ret.reg, config, cart_in, ret);
-        end if;
+        prg_window := get_prg_window(cart_in.cpu);
+        chr_window := get_chr_window(cart_in.ppu);
+
+        banks.prg_ram := true;
+        banks.prg := resize(get_prg_bank(ret.reg, prg_window(1)) &
+                            prg_window(0),
+                            prg_bank_8kb_t'length);
+        banks.chr := resize(get_chr_bank(ret.reg, chr_window(2)) &
+                            chr_window(1 downto 0),
+                            chr_bank_1kb_t'length);
+        banks.mirror := get_mirror(ret.reg);
+
+        ret.cart := map_cart(config, cart_in, banks);
 
         return ret;
     end;

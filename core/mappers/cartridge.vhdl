@@ -53,6 +53,8 @@ architecture behavioral of cartridge is
 
     signal board : board_t;
 
+    signal board_config : cart_config_t;
+
     -- Boards that are not in use see an idle bus, so they do not need to be
     -- simulated
     signal nrom_in  : cart_in_t;
@@ -72,6 +74,7 @@ architecture behavioral of cartridge is
 begin
 
     board <= get_board(config.mapper_num);
+    board_config <= set_rom_masks(config);
 
     assert reset or board /= BOARD_NONE
         report "Mapper not supported: " &
@@ -101,7 +104,7 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
-        config => config,
+        config => board_config,
         cart_in => nrom_in,
         cart_out => nrom_out
     );
@@ -113,7 +116,7 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
-        config => config,
+        config => board_config,
         cart_in => mmc1_in,
         cart_out => mmc1_out
     );
@@ -125,7 +128,7 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
-        config => config,
+        config => board_config,
         cart_in => uxrom_in,
         cart_out => uxrom_out
     );
@@ -137,7 +140,7 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
-        config => config,
+        config => board_config,
         cart_in => cnrom_in,
         cart_out => cnrom_out
     );
@@ -149,7 +152,7 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
-        config => config,
+        config => board_config,
         cart_in => mmc3_in,
         cart_out => mmc3_out
     );
@@ -161,7 +164,7 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
-        config => config,
+        config => board_config,
         cart_in => gxrom_in,
         cart_out => gxrom_out
     );

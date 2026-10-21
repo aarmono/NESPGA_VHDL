@@ -19,7 +19,16 @@ package cart_types is
     subtype submapper_num_t is std_logic_vector(3 downto 0);
     subtype rom_blocks_t is unsigned(7 downto 0);
 
-    subtype cpu_addr_int_t is natural range 0 to 16#FFFF#;
+    -- The boards map PRG ROM in 8KB banks to the four windows at 0x8000,
+    -- 0xA000, 0xC000 and 0xE000, and CHR ROM in 1KB banks to the eight
+    -- windows at 0x0000-0x1FFF. A board with larger banks maps one to
+    -- consecutive windows, using the low bits of the window as the low bits
+    -- of the bank
+    subtype prg_window_t is unsigned(1 downto 0);
+    subtype chr_window_t is unsigned(2 downto 0);
+
+    subtype prg_bank_8kb_t is unsigned(7 downto 0);
+    subtype chr_bank_1kb_t is unsigned(10 downto 0);
 
     type mirror_t is
     (
@@ -40,6 +49,12 @@ package cart_types is
         mirror              : mirror_t;
         has_prg_ram         : boolean;
         has_trainer         : boolean;
+
+        -- The ROMs are only wired to as many address lines as their size
+        -- needs, so the high bits of a bank number are dropped. These are
+        -- set by the cartridge from the sizes of the ROMs
+        prg_rom_mask        : prg_bank_8kb_t;
+        chr_rom_mask        : chr_bank_1kb_t;
     end record;
 
     constant RESET_CART_CONFIG : cart_config_t :=
@@ -50,7 +65,10 @@ package cart_types is
         chr_rom_8kb_blocks => (others => '0'),
         mirror => MIRROR_HORZ,
         has_prg_ram => false,
-        has_trainer => false
+        has_trainer => false,
+
+        prg_rom_mask => (others => '0'),
+        chr_rom_mask => (others => '0')
     );
 
     -- CPU side of the connector, driven by the console
@@ -193,43 +211,42 @@ package cart_types is
         mem => CART_MEM_OUT_IDLE
     );
 
-    -- The 16 bit address of a CPU access, from A0-A14 and /ROMSEL
-    function get_cpu_addr(cpu_in : cart_cpu_in_t) return cpu_addr_int_t;
+    -- The banks a board selects for an access: the PRG ROM bank in the
+    -- window of the CPU address and the CHR bank in the window of the PPU
+    -- address
+    type cart_banks_t is record
+        -- The board has PRG RAM at 0x6000-0x7FFF
+        prg_ram : boolean;
+        prg     : prg_bank_8kb_t;
+        chr     : chr_bank_1kb_t;
+        mirror  : mirror_t;
+    end record;
 
-    -- The board puts PRG RAM at 0x6000-0x7FFF
-    function map_prg_ram
+    -- The config with the masks for the sizes of the ROMs in its header
+    function set_rom_masks(config : cart_config_t) return cart_config_t;
+
+    -- The window of a CPU access to PRG ROM
+    function get_prg_window(cpu_in : cart_cpu_in_t) return prg_window_t;
+
+    -- The window of a PPU access to CHR
+    function get_chr_window(ppu_in : cart_ppu_in_t) return chr_window_t;
+
+    -- The CPU writes to 0x8000-0xFFFF, where most boards have their
+    -- registers
+    function is_rom_write
     (
-        cart_in  : cart_in_t;
-        cart_out : cart_out_t
+        cpu_in   : cart_cpu_in_t;
+        clk_sync : boolean
     )
-    return cart_out_t;
+    return boolean;
 
-    -- The CPU reads PRG ROM at address
-    function map_prg_rom
+    -- Connects the CPU and PPU to the memories on the board, through the
+    -- banks the board selects
+    function map_cart
     (
-        cart_in  : cart_in_t;
-        address  : unsigned;
-        cart_out : cart_out_t
-    )
-    return cart_out_t;
-
-    -- The PPU reads CHR ROM at address, or CHR RAM if the board has no
-    -- CHR ROM
-    function map_chr
-    (
-        config   : cart_config_t;
-        cart_in  : cart_in_t;
-        address  : unsigned;
-        cart_out : cart_out_t
-    )
-    return cart_out_t;
-
-    -- The PPU accesses the nametables in CIRAM
-    function map_ciram
-    (
-        cart_in  : cart_in_t;
-        mirror   : mirror_t;
-        cart_out : cart_out_t
+        config  : cart_config_t;
+        cart_in : cart_in_t;
+        banks   : cart_banks_t
     )
     return cart_out_t;
 
@@ -238,17 +255,61 @@ end package cart_types;
 
 package body cart_types is
 
-    function get_cpu_addr(cpu_in : cart_cpu_in_t) return cpu_addr_int_t
+    -- All of the bits up to the highest one needed for a bank number below
+    -- num_banks
+    function get_bank_mask(num_banks : unsigned) return unsigned
     is
-        variable ret : cpu_addr_int_t;
+        variable ret : unsigned(num_banks'length - 1 downto 0);
     begin
-        ret := to_integer(unsigned(cpu_in.prg_bus.address));
-        if cpu_in.romsel
-        then
-            ret := ret + 16#8000#;
-        end if;
+        ret := num_banks - 1;
+        for i in ret'high - 1 downto 0
+        loop
+            ret(i) := ret(i) or ret(i + 1);
+        end loop;
 
         return ret;
+    end;
+
+    function set_rom_masks(config : cart_config_t) return cart_config_t
+    is
+        variable ret : cart_config_t;
+    begin
+        ret := config;
+
+        ret.prg_rom_mask :=
+            resize(get_bank_mask(shift_left(resize(config.prg_rom_16kb_blocks,
+                                                   prg_bank_8kb_t'length + 1),
+                                            1)),
+                   prg_bank_8kb_t'length);
+        ret.chr_rom_mask :=
+            get_bank_mask(shift_left(resize(config.chr_rom_8kb_blocks,
+                                            chr_bank_1kb_t'length),
+                                     3));
+
+        return ret;
+    end;
+
+    function get_prg_window(cpu_in : cart_cpu_in_t) return prg_window_t
+    is
+    begin
+        return unsigned(cpu_in.prg_bus.address(14 downto 13));
+    end;
+
+    function get_chr_window(ppu_in : cart_ppu_in_t) return chr_window_t
+    is
+    begin
+        return unsigned(ppu_in.chr_bus.address(12 downto 10));
+    end;
+
+    function is_rom_write
+    (
+        cpu_in   : cart_cpu_in_t;
+        clk_sync : boolean
+    )
+    return boolean
+    is
+    begin
+        return cpu_in.romsel and is_bus_write(cpu_in.prg_bus) and clk_sync;
     end;
 
     function map_prg_ram
@@ -276,16 +337,20 @@ package body cart_types is
 
     function map_prg_rom
     (
+        config   : cart_config_t;
         cart_in  : cart_in_t;
-        address  : unsigned;
+        bank     : prg_bank_8kb_t;
         cart_out : cart_out_t
     )
     return cart_out_t
     is
         variable ret : cart_out_t;
+        variable address : unsigned(prg_bank_8kb_t'length + 12 downto 0);
     begin
         ret := cart_out;
 
+        address := (bank and config.prg_rom_mask) &
+                   unsigned(cart_in.cpu.prg_bus.address(12 downto 0));
         ret.mem.prg_rom_bus := bus_read(resize(address, file_addr_t'length));
 
         ret.cpu.data := cart_in.mem.data_from_prg_rom;
@@ -294,21 +359,26 @@ package body cart_types is
         return ret;
     end;
 
+    -- The PPU accesses CHR ROM, or CHR RAM if the board has no CHR ROM.
+    -- CHR RAM is 8KB and is not banked
     function map_chr
     (
         config   : cart_config_t;
         cart_in  : cart_in_t;
-        address  : unsigned;
+        bank     : chr_bank_1kb_t;
         cart_out : cart_out_t
     )
     return cart_out_t
     is
         variable ret : cart_out_t;
+        variable address : unsigned(chr_bank_1kb_t'length + 9 downto 0);
     begin
         ret := cart_out;
 
         if not is_zero(config.chr_rom_8kb_blocks)
         then
+            address := (bank and config.chr_rom_mask) &
+                       unsigned(cart_in.ppu.chr_bus.address(9 downto 0));
             ret.mem.chr_rom_bus :=
                 bus_read(resize(address, file_addr_t'length));
             ret.ppu.data := cart_in.mem.data_from_chr_rom;
@@ -326,6 +396,7 @@ package body cart_types is
         return ret;
     end;
 
+    -- The PPU accesses the nametables in CIRAM
     function map_ciram
     (
         cart_in  : cart_in_t;
@@ -356,6 +427,45 @@ package body cart_types is
             when MIRROR_B =>
                 ret.ppu.ciram_a10 := '1';
         end case;
+
+        return ret;
+    end;
+
+    function map_cart
+    (
+        config  : cart_config_t;
+        cart_in : cart_in_t;
+        banks   : cart_banks_t
+    )
+    return cart_out_t
+    is
+        variable ret : cart_out_t;
+    begin
+        ret := CART_OUT_IDLE;
+
+        if cart_in.cpu.romsel
+        then
+            if is_bus_read(cart_in.cpu.prg_bus)
+            then
+                ret := map_prg_rom(config, cart_in, banks.prg, ret);
+            end if;
+        elsif banks.prg_ram and
+              is_bus_active(cart_in.cpu.prg_bus) and
+              cart_in.cpu.prg_bus.address(14 downto 13) = "11"
+        then
+            -- 0x6000-0x7FFF
+            ret := map_prg_ram(cart_in, ret);
+        end if;
+
+        if is_bus_active(cart_in.ppu.chr_bus)
+        then
+            if cart_in.ppu.chr_bus.address(13) = '0'
+            then
+                ret := map_chr(config, cart_in, banks.chr, ret);
+            else
+                ret := map_ciram(cart_in, banks.mirror, ret);
+            end if;
+        end if;
 
         return ret;
     end;

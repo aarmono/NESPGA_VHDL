@@ -1,8 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.prg_bus_types.all;
-use work.chr_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
@@ -10,7 +8,9 @@ use work.cart_types.all;
 package lib_mapper_066 is
 
     type mapper_066_reg_t is record
+        -- 32KB PRG ROM bank
         prg_bank : unsigned(1 downto 0);
+        -- 8KB CHR ROM bank
         chr_bank : unsigned(1 downto 0);
     end record;
 
@@ -49,50 +49,25 @@ package body lib_mapper_066 is
     return mapper_066_out_t
     is
         variable ret : mapper_066_out_t;
-
-        variable prg_address : unsigned(16 downto 0);
-        variable chr_address : unsigned(14 downto 0);
-
-        variable num_banks : rom_blocks_t;
-        variable max_prg_bank : unsigned(1 downto 0);
-        variable max_chr_bank : unsigned(1 downto 0);
+        variable banks : cart_banks_t;
     begin
         ret.reg := reg;
-        ret.cart := CART_OUT_IDLE;
 
-        if is_bus_active(cart_in.cpu.prg_bus) and cart_in.cpu.romsel
+        if is_rom_write(cart_in.cpu, clk_sync)
         then
-            if is_bus_write(cart_in.cpu.prg_bus) and clk_sync
-            then
-                ret.reg.chr_bank := unsigned(cart_in.cpu.data(1 downto 0));
-                ret.reg.prg_bank := unsigned(cart_in.cpu.data(5 downto 4));
-            elsif is_bus_read(cart_in.cpu.prg_bus)
-            then
-                num_banks := shift_right(config.prg_rom_16kb_blocks, 1);
-                max_prg_bank := resize(num_banks - "1", max_prg_bank'length);
-
-                prg_address := (reg.prg_bank and max_prg_bank) &
-                               unsigned(cart_in.cpu.prg_bus.address);
-                ret.cart := map_prg_rom(cart_in, prg_address, ret.cart);
-            end if;
+            ret.reg.chr_bank := unsigned(cart_in.cpu.data(1 downto 0));
+            ret.reg.prg_bank := unsigned(cart_in.cpu.data(5 downto 4));
         end if;
 
         -- The PPU sees the registers written by the CPU this cycle
-        if is_bus_active(cart_in.ppu.chr_bus)
-        then
-            if cart_in.ppu.chr_bus.address(13) = '0'
-            then
-                max_chr_bank := resize(config.chr_rom_8kb_blocks - "1",
-                                       max_chr_bank'length);
+        banks.prg_ram := false;
+        banks.prg := resize(ret.reg.prg_bank & get_prg_window(cart_in.cpu),
+                            prg_bank_8kb_t'length);
+        banks.chr := resize(ret.reg.chr_bank & get_chr_window(cart_in.ppu),
+                            chr_bank_1kb_t'length);
+        banks.mirror := config.mirror;
 
-                chr_address :=
-                    (ret.reg.chr_bank and max_chr_bank) &
-                    unsigned(cart_in.ppu.chr_bus.address(12 downto 0));
-                ret.cart := map_chr(config, cart_in, chr_address, ret.cart);
-            else
-                ret.cart := map_ciram(cart_in, config.mirror, ret.cart);
-            end if;
-        end if;
+        ret.cart := map_cart(config, cart_in, banks);
 
         return ret;
     end;
