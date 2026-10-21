@@ -84,14 +84,20 @@
 ../../../core/apu/lib_apu.vhdl
 ../../../core/apu/apu.vhdl
 
-../../../core/mappers/mapper_types.vhdl
+../../../core/mappers/cart_types.vhdl
 ../../../core/mappers/000/lib_mapper_000.vhdl
+../../../core/mappers/000/mapper_000.vhdl
 ../../../core/mappers/001/lib_mapper_001.vhdl
+../../../core/mappers/001/mapper_001.vhdl
 ../../../core/mappers/002/lib_mapper_002.vhdl
+../../../core/mappers/002/mapper_002.vhdl
 ../../../core/mappers/003/lib_mapper_003.vhdl
+../../../core/mappers/003/mapper_003.vhdl
 ../../../core/mappers/004/lib_mapper_004.vhdl
+../../../core/mappers/004/mapper_004.vhdl
 ../../../core/mappers/066/lib_mapper_066.vhdl
-../../../core/mappers/lib_mapper.vhdl
+../../../core/mappers/066/mapper_066.vhdl
+../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../soc/nes/lib_nes.vhdl

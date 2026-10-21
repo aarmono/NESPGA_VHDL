@@ -172,6 +172,7 @@ set nes_core_regs [get_registers [list \
     "$nes_soc|oam_dma:nes_oam_dma|*" \
     "$nes_soc|joystick_io:nes_joystick_io|*" \
     "$nes_soc|file_bus_mux:file_mux|*" \
+    "$nes_soc|cartridge:nes_cart|*" \
     "$nes_soc|reg.*" \
     "$nes_soc|cart_irq" \
     "$nes_soc|clk_en:nes_clk_en|ppu_sync" \

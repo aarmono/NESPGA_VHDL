@@ -1,18 +1,14 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.cpu_bus_types.all;
-use work.apu_bus_types.all;
-use work.ram_bus_types.all;
-use work.sram_bus_types.all;
-use work.file_bus_types.all;
+use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
-use work.mapper_types.all;
+use work.cart_types.all;
 
 package lib_mapper_004 is
-    
+
     subtype bank_idx_t is unsigned(2 downto 0);
 
     subtype bank_t is unsigned(7 downto 0);
@@ -67,61 +63,23 @@ package lib_mapper_004 is
         a12_count => 0
     );
 
-    type cpu_mapper_004_in_t is record
-        common : mapper_common_reg_t;
-        reg    : mapper_004_reg_t;
-        bus_in : cpu_mapper_bus_in_t;
-    end record;
-    
-    type cpu_mapper_004_out_t is record
-        reg     : mapper_004_reg_t;
-        bus_out : cpu_mapper_bus_out_t;
-    end record;
-    
-    function cpu_map_using_mapper_004
-    (
-        map_in : cpu_mapper_004_in_t
-    )
-    return cpu_mapper_004_out_t;
-
-    type ppu_mapper_004_in_t is record
-        common : mapper_common_reg_t;
-        reg    : mapper_004_reg_t;
-        bus_in : ppu_mapper_bus_in_t;
+    type mapper_004_out_t is record
+        reg  : mapper_004_reg_t;
+        cart : cart_out_t;
     end record;
 
-    type ppu_mapper_004_out_t is record
-        reg     : mapper_004_reg_t;
-        bus_out : ppu_mapper_bus_out_t;
-        irq     : boolean;
-    end record;
-
-    function ppu_map_using_mapper_004
+    function cycle_mapper_004
     (
-        map_in : ppu_mapper_004_in_t
+        reg      : mapper_004_reg_t;
+        config   : cart_config_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
     )
-    return ppu_mapper_004_out_t;
+    return mapper_004_out_t;
 
-    function ppu_map_using_mapper_004_rom
-    (
-        reg         : mapper_004_reg_t;
-        mirror      : mirror_t;
-        num_banks   : bank_t;
-        file_offset : file_off_t;
-        bus_in      : ppu_mapper_bus_in_t
-    )
-    return ppu_mapper_bus_out_t;
-
-    function ppu_map_using_mapper_004_ram
-    (
-        mirror : mirror_t;
-        bus_in : ppu_mapper_bus_in_t
-    )
-    return ppu_mapper_bus_out_t;
-    
     function get_cpu_prg_addr
     (
-        addr_in   : cpu_addr_t;
+        addr_in   : prg_addr_t;
         bank      : bank_t;
         num_banks : bank_t
     )
@@ -139,24 +97,24 @@ end package lib_mapper_004;
 
 
 package body lib_mapper_004 is
-    
+
     function get_cpu_prg_addr
     (
-        addr_in   : cpu_addr_t;
+        addr_in   : prg_addr_t;
         bank      : bank_t;
         num_banks : bank_t
     )
     return prg_rom_addr_t
     is
         variable ret : prg_rom_addr_t;
-        variable bank_addr : unsigned(cpu_addr_t'range);
+        variable bank_addr : unsigned(prg_addr_t'range);
         variable mod_bank : bank_t;
     begin
         mod_bank := bank and (num_banks - "1");
 
         bank_addr := unsigned(addr_in);
         ret := mod_bank(5 downto 0) & bank_addr(12 downto 0);
-        
+
         return ret;
     end;
 
@@ -179,187 +137,204 @@ package body lib_mapper_004 is
 
         return ret;
     end;
-    
-    function cpu_map_using_mapper_004
-    (
-        map_in : cpu_mapper_004_in_t
-    )
-    return cpu_mapper_004_out_t
-    is
-        variable map_out : cpu_mapper_004_out_t;
 
-        variable file_offset : file_off_t;
+    -- The PRG ROM bank mapped at the 8KB window of the CPU address
+    function get_prg_bank
+    (
+        reg      : mapper_004_reg_t;
+        addr_in  : prg_addr_t;
+        max_bank : bank_t
+    )
+    return bank_t
+    is
+        variable bank : bank_t;
+    begin
+        case addr_in(14 downto 13) is
+            -- $8000-$9FFF
+            when "00" =>
+                if reg.prg_mode = '0'
+                then
+                    bank := reg.banks(6);
+                else
+                    bank := max_bank - "1";
+                end if;
+            -- $A000-$BFFF
+            when "01" =>
+                bank := reg.banks(7);
+            -- $C000-$DFFF
+            when "10" =>
+                if reg.prg_mode = '0'
+                then
+                    bank := max_bank - "1";
+                else
+                    bank := reg.banks(6);
+                end if;
+            -- $E000-$FFFF is hardcoded to the last bank
+            when others =>
+                bank := max_bank;
+        end case;
+
+        return bank;
+    end;
+
+    -- The CHR ROM bank mapped at the 1KB window of the PPU address
+    function get_chr_bank
+    (
+        reg     : mapper_004_reg_t;
+        addr_in : chr_addr_t
+    )
+    return bank_t
+    is
+        variable bank : bank_t;
+        variable window : std_logic_vector(2 downto 0);
+    begin
+        -- CHR mode 1 swaps the 2KB and 1KB banks between $0000 and $1000
+        window := addr_in(12 downto 10);
+        window(2) := window(2) xor reg.chr_mode;
+
+        case window is
+            when "000" | "001" =>
+                bank := reg.banks(0);
+                bank(0) := window(0);
+            when "010" | "011" =>
+                bank := reg.banks(1);
+                bank(0) := window(0);
+            when "100" =>
+                bank := reg.banks(2);
+            when "101" =>
+                bank := reg.banks(3);
+            when "110" =>
+                bank := reg.banks(4);
+            when others =>
+                bank := reg.banks(5);
+        end case;
+
+        return bank;
+    end;
+
+    function cycle_cpu
+    (
+        reg      : mapper_004_reg_t;
+        config   : cart_config_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t;
+        map_in   : mapper_004_out_t
+    )
+    return mapper_004_out_t
+    is
+        variable map_out : mapper_004_out_t;
+
         variable prg_address : prg_rom_addr_t;
 
-        variable bank : bank_t;
-
         variable num_banks : rom_blocks_t;
-        variable max_bank : bank_t;
     begin
-        
-        map_out.bus_out := CPU_MAPPER_BUS_IDLE;
-        map_out.reg := map_in.reg;
+        map_out := map_in;
 
-        num_banks := shift_left(map_in.common.prg_rom_16kb_blocks, 1);
-        max_bank := num_banks - "1";
-
-        file_offset := get_file_offset(x"00", map_in.common.has_trainer);
-
-        case to_integer(map_in.bus_in.cpu_bus.address) is
+        case get_cpu_addr(cart_in.cpu) is
             when 16#6000# to 16#7FFF# =>
-                map_out.bus_out.sram_bus.address :=
-                    get_sram_addr(map_in.bus_in.cpu_bus.address);
-                map_out.bus_out.sram_bus.read := map_in.bus_in.cpu_bus.read;
-                map_out.bus_out.sram_bus.write := map_in.bus_in.cpu_bus.write;
-                
-                map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_sram;
-                map_out.bus_out.data_to_sram := map_in.bus_in.data_from_cpu;
-            when 16#8000# to 16#9FFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
+                map_out.cart := map_prg_ram(cart_in, map_out.cart);
+            when 16#8000# to 16#FFFF# =>
+                if is_bus_write(cart_in.cpu.prg_bus) and clk_sync
                 then
-                    if map_in.bus_in.cpu_bus.address(0) = '0'
-                    then
-                        map_out.reg.bank_idx :=
-                            unsigned(map_in.bus_in.data_from_cpu(2 downto 0));
-                        map_out.reg.chr_mode := map_in.bus_in.data_from_cpu(7);
-                        map_out.reg.prg_mode := map_in.bus_in.data_from_cpu(6);
-                    else
-                        map_out.reg.banks(to_integer(map_in.reg.bank_idx)) :=
-                            unsigned(map_in.bus_in.data_from_cpu);
-                    end if;
-                elsif is_bus_read(map_in.bus_in.cpu_bus)
+                    case cart_in.cpu.prg_bus.address(14 downto 13) is
+                        -- $8000-$9FFF
+                        when "00" =>
+                            if cart_in.cpu.prg_bus.address(0) = '0'
+                            then
+                                map_out.reg.bank_idx :=
+                                    unsigned(cart_in.cpu.data(2 downto 0));
+                                map_out.reg.chr_mode := cart_in.cpu.data(7);
+                                map_out.reg.prg_mode := cart_in.cpu.data(6);
+                            else
+                                map_out.reg.banks(to_integer(reg.bank_idx)) :=
+                                    unsigned(cart_in.cpu.data);
+                            end if;
+                        -- $A000-$BFFF
+                        when "01" =>
+                            if cart_in.cpu.prg_bus.address(0) = '0'
+                            then
+                                map_out.reg.mirroring := cart_in.cpu.data(0);
+                            end if;
+                        -- $C000-$DFFF
+                        when "10" =>
+                            if cart_in.cpu.prg_bus.address(0) = '0'
+                            then
+                                map_out.reg.irq_reload :=
+                                    to_integer(unsigned(cart_in.cpu.data));
+                            else
+                                map_out.reg.irq_count := 0;
+                            end if;
+                        -- $E000-$FFFF
+                        when others =>
+                            map_out.reg.irq_enable :=
+                                cart_in.cpu.prg_bus.address(0) = '1';
+
+                            if cart_in.cpu.prg_bus.address(0) = '0'
+                            then
+                                map_out.reg.irq := false;
+                            end if;
+                    end case;
+                elsif is_bus_read(cart_in.cpu.prg_bus)
                 then
-                    if map_in.reg.prg_mode = '0'
-                    then
-                        bank := map_in.reg.banks(6);
-                    else
-                        bank := max_bank - "1";
-                    end if;
+                    num_banks := shift_left(config.prg_rom_16kb_blocks, 1);
 
                     prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
-                                         bank,
+                        get_cpu_prg_addr(cart_in.cpu.prg_bus.address,
+                                         get_prg_bank(reg,
+                                                      cart_in.cpu.prg_bus.address,
+                                                      num_banks - "1"),
                                          num_banks);
-
-                    map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
-                end if;
-            when 16#A000# to 16#BFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
-                then
-                    if map_in.bus_in.cpu_bus.address(0) = '0'
-                    then
-                        map_out.reg.mirroring := map_in.bus_in.data_from_cpu(0);
-                    end if;
-                elsif is_bus_read(map_in.bus_in.cpu_bus)
-                then
-                    bank := map_in.reg.banks(7);
-                    prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
-                                         bank,
-                                         num_banks);
-
-                    map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
-                end if;
-            when 16#C000# to 16#DFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
-                then
-                    if map_in.bus_in.cpu_bus.address(0) = '0'
-                    then
-                        map_out.reg.irq_reload :=
-                            to_integer(unsigned(map_in.bus_in.data_from_cpu));
-                    else
-                        map_out.reg.irq_count := 0;
-                    end if;
-                elsif is_bus_read(map_in.bus_in.cpu_bus)
-                then
-                    if map_in.reg.prg_mode = '0'
-                    then
-                        bank := max_bank - "1";
-                    else
-                        bank := map_in.reg.banks(6);
-                    end if;
-
-                    prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
-                                         bank,
-                                         num_banks);
-
-                    map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
-                end if;
-            when 16#E000# to 16#FFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
-                then
-                    map_out.reg.irq_enable :=
-                        map_in.bus_in.cpu_bus.address(0) = '1';
-                    
-                    if map_in.bus_in.cpu_bus.address(0) = '0'
-                    then
-                        map_out.reg.irq := false;
-                    end if;
-                elsif is_bus_read(map_in.bus_in.cpu_bus)
-                then
-                    -- Hardcoded to the last bank
-                    bank := max_bank;
-                    prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address,
-                                         bank,
-                                         num_banks);
-
-                    map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
+                    map_out.cart := map_prg_rom(cart_in,
+                                                prg_address,
+                                                map_out.cart);
                 end if;
             when others =>
-                map_out.bus_out.data_to_cpu := map_in.bus_in.open_bus;
+                null;
         end case;
         
         return map_out;
     end;
 
-    function ppu_map_using_mapper_004
+    function cycle_ppu
     (
-        map_in : ppu_mapper_004_in_t
+        reg     : mapper_004_reg_t;
+        config  : cart_config_t;
+        cart_in : cart_in_t;
+        map_in  : mapper_004_out_t
     )
-    return ppu_mapper_004_out_t
+    return mapper_004_out_t
     is
-        variable map_out : ppu_mapper_004_out_t;
-        
+        variable map_out : mapper_004_out_t;
+
         variable address : chr_rom_addr_t;
-        variable file_offset : file_off_t;
 
         variable mirror : mirror_t;
 
-        variable bank : bank_t;
         variable num_banks : bank_t;
     begin
-        map_out.reg := map_in.reg;
-        map_out.bus_out := PPU_MAPPER_BUS_IDLE;
+        map_out := map_in;
 
-        num_banks := shift_left(map_in.common.chr_rom_8kb_blocks, 3);
-
-        if not is_bus_active(map_in.bus_in.chr_bus) or
-           map_in.bus_in.chr_bus.address(12) = '0'
+        if not is_bus_active(cart_in.ppu.chr_bus) or
+           cart_in.ppu.chr_bus.address(12) = '0'
         then
-            if map_in.reg.a12_count < A12_MAX
+            if reg.a12_count < A12_MAX
             then
-                map_out.reg.a12_count := map_in.reg.a12_count + 1;
+                map_out.reg.a12_count := reg.a12_count + 1;
             end if;
         else
             map_out.reg.a12_count := 0;
-            if map_in.reg.a12_count = A12_MAX
+            if reg.a12_count = A12_MAX
             then
-                if map_in.reg.irq_count = 0
+                if reg.irq_count = 0
                 then
-                    map_out.reg.irq_count := map_in.reg.irq_reload;
+                    map_out.reg.irq_count := reg.irq_reload;
                 else
-                    map_out.reg.irq_count := map_in.reg.irq_count - 1;
+                    map_out.reg.irq_count := reg.irq_count - 1;
                 end if;
 
                 if map_out.reg.irq_count = 0
                 then
-                    map_out.reg.irq := map_in.reg.irq_enable;
+                    map_out.reg.irq := reg.irq_enable;
                 end if;
             end if;
         end if;
@@ -367,221 +342,67 @@ package body lib_mapper_004 is
         -- IRQ needs to be delayed, but acknowledging it clears it immediately
         if map_out.reg.irq
         then
-            map_out.reg.irq_delay := shift_left(map_in.reg.irq_delay, true);
+            map_out.reg.irq_delay := shift_left(reg.irq_delay, true);
         else
             map_out.reg.irq_delay := (others => false);
         end if;
 
-        map_out.irq := map_out.reg.irq and
-                       map_in.reg.irq_delay(map_in.reg.irq_delay'high);
+        map_out.cart.cpu.irq := map_out.reg.irq and
+                                reg.irq_delay(reg.irq_delay'high);
 
-        file_offset := get_file_offset(map_in.common.prg_rom_16kb_blocks,
-                                       map_in.common.has_trainer);
-
-        if map_in.common.mirror = MIRROR_FOUR
+        if config.mirror = MIRROR_FOUR
         then
-            mirror := map_in.common.mirror;
-        elsif map_in.reg.mirroring = '1'
+            mirror := config.mirror;
+        elsif reg.mirroring = '1'
         then
             mirror := MIRROR_HORZ;
         else
             mirror := MIRROR_VERT;
         end if;
 
-        if is_bus_active(map_in.bus_in.chr_bus)
+        if is_bus_active(cart_in.ppu.chr_bus)
         then
-            if is_zero(map_in.common.chr_rom_8kb_blocks)
+            if cart_in.ppu.chr_bus.address(13) = '0'
             then
-                map_out.bus_out := ppu_map_using_mapper_004_ram(mirror,
-                                                                map_in.bus_in);
+                num_banks := shift_left(config.chr_rom_8kb_blocks, 3);
+
+                address :=
+                    get_ppu_chr_addr(cart_in.ppu.chr_bus.address,
+                                     get_chr_bank(reg,
+                                                  cart_in.ppu.chr_bus.address),
+                                     num_banks);
+                map_out.cart := map_chr(config, cart_in, address, map_out.cart);
             else
-                map_out.bus_out := ppu_map_using_mapper_004_rom(map_in.reg,
-                                                                mirror,
-                                                                num_banks,
-                                                                file_offset,
-                                                                map_in.bus_in);
+                map_out.cart := map_ciram(cart_in, mirror, map_out.cart);
             end if;
         end if;
 
         return map_out;
     end;
 
-    function ppu_map_using_mapper_004_rom
+    function cycle_mapper_004
     (
-        reg         : mapper_004_reg_t;
-        mirror      : mirror_t;
-        num_banks   : bank_t;
-        file_offset : file_off_t;
-        bus_in      : ppu_mapper_bus_in_t
+        reg      : mapper_004_reg_t;
+        config   : cart_config_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
     )
-    return ppu_mapper_bus_out_t
+    return mapper_004_out_t
     is
-        variable bus_out : ppu_mapper_bus_out_t;
-
-        variable address : chr_rom_addr_t;
-        variable bank : bank_t;
+        variable ret : mapper_004_out_t;
     begin
-        bus_out := PPU_MAPPER_BUS_IDLE;
+        ret.reg := reg;
+        ret.cart := CART_OUT_IDLE;
 
-        case to_integer(bus_in.chr_bus.address) is
-            when 16#0000# to 16#03FF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(0);
-                    bank(0) := '0';
-                else
-                    bank := reg.banks(2);
-                end if;
+        if is_bus_active(cart_in.cpu.prg_bus)
+        then
+            ret := cycle_cpu(reg, config, clk_sync, cart_in, ret);
+        end if;
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#0400# to 16#07FF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(0);
-                    bank(0) := '1';
-                else
-                    bank := reg.banks(3);
-                end if;
+        -- The PPU sees the registers written by the CPU this cycle
+        ret := cycle_ppu(ret.reg, config, cart_in, ret);
 
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#0800# to 16#0BFF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(1);
-                    bank(0) := '0';
-                else
-                    bank := reg.banks(4);
-                end if;
-
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#0C00# to 16#0FFF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(1);
-                    bank(0) := '1';
-                else
-                    bank := reg.banks(5);
-                end if;
-
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#1000# to 16#13FF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(2);
-                else
-                    bank := reg.banks(0);
-                    bank(0) := '0';
-                end if;
-
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#1400# to 16#17FF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(3);
-                else
-                    bank := reg.banks(0);
-                    bank(0) := '1';
-                end if;
-
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#1800# to 16#1BFF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(4);
-                else
-                    bank := reg.banks(1);
-                    bank(0) := '0';
-                end if;
-
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#1C00# to 16#1FFF# =>
-                if reg.chr_mode = '0'
-                then
-                    bank := reg.banks(5);
-                else
-                    bank := reg.banks(1);
-                    bank(0) := '1';
-                end if;
-
-                address := get_ppu_chr_addr(bus_in.chr_bus.address,
-                                            bank,
-                                            num_banks);
-                bus_out.file_bus := bus_read(address + file_offset);
-                bus_out.data_to_ppu := bus_in.data_from_file;
-            when 16#2000# to 16#3FFF# =>
-                bus_out.ciram_bus.address :=
-                    get_mirrored_address(bus_in.chr_bus.address, mirror);
-
-                bus_out.ciram_bus.read := bus_in.chr_bus.read;
-                bus_out.ciram_bus.write := bus_in.chr_bus.write;
-                bus_out.data_to_ppu := bus_in.data_from_ciram;
-                bus_out.data_to_ciram := bus_in.data_from_ppu;
-            when others =>
-                null;
-        end case;
-
-        return bus_out;
-    end;
-
-    function ppu_map_using_mapper_004_ram
-    (
-        mirror : mirror_t;
-        bus_in : ppu_mapper_bus_in_t
-    )
-    return ppu_mapper_bus_out_t
-    is
-        variable bus_out : ppu_mapper_bus_out_t;
-    begin
-        case to_integer(bus_in.chr_bus.address) is
-            when 16#0000# to 16#1FFF# =>
-                bus_out.chr_ram_bus.address :=
-                    get_chr_ram_addr(bus_in.chr_bus.address);
-                bus_out.chr_ram_bus.read := bus_in.chr_bus.read;
-                bus_out.chr_ram_bus.write := bus_in.chr_bus.write;
-
-                bus_out.data_to_ppu := bus_in.data_from_chr_ram;
-                bus_out.data_to_chr_ram := bus_in.data_from_ppu;
-            when 16#2000# to 16#3FFF# =>
-                bus_out.ciram_bus.address :=
-                    get_mirrored_address(bus_in.chr_bus.address, mirror);
-
-                bus_out.ciram_bus.read := bus_in.chr_bus.read;
-                bus_out.ciram_bus.write := bus_in.chr_bus.write;
-                bus_out.data_to_ppu := bus_in.data_from_ciram;
-                bus_out.data_to_ciram := bus_in.data_from_ppu;
-            when others =>
-                null;
-        end case;
-
-        return bus_out;
+        return ret;
     end;
 
 end package body;

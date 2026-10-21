@@ -1,18 +1,14 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.cpu_bus_types.all;
-use work.apu_bus_types.all;
-use work.ram_bus_types.all;
-use work.sram_bus_types.all;
-use work.file_bus_types.all;
+use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
-use work.mapper_types.all;
+use work.cart_types.all;
 
 package lib_mapper_002 is
-    
+
     subtype bank_t is unsigned(3 downto 0);
     subtype prg_rom_addr_t is unsigned(17 downto 0);
 
@@ -25,26 +21,23 @@ package lib_mapper_002 is
         bank => (others => '0')
     );
 
-    type cpu_mapper_002_in_t is record
-        common : mapper_common_reg_t;
-        reg    : mapper_002_reg_t;
-        bus_in : cpu_mapper_bus_in_t;
+    type mapper_002_out_t is record
+        reg  : mapper_002_reg_t;
+        cart : cart_out_t;
     end record;
-    
-    type cpu_mapper_002_out_t is record
-        reg     : mapper_002_reg_t;
-        bus_out : cpu_mapper_bus_out_t;
-    end record;
-    
-    function cpu_map_using_mapper_002
+
+    function cycle_mapper_002
     (
-        map_in : cpu_mapper_002_in_t
+        reg      : mapper_002_reg_t;
+        config   : cart_config_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
     )
-    return cpu_mapper_002_out_t;
-    
+    return mapper_002_out_t;
+
     function get_cpu_prg_addr
     (
-        addr_in : cpu_addr_t;
+        addr_in : prg_addr_t;
         bank    : bank_t
     )
     return prg_rom_addr_t;
@@ -53,77 +46,81 @@ end package lib_mapper_002;
 
 
 package body lib_mapper_002 is
-    
+
     function get_cpu_prg_addr
     (
-        addr_in : cpu_addr_t;
+        addr_in : prg_addr_t;
         bank    : bank_t
     )
     return prg_rom_addr_t
     is
         variable ret : prg_rom_addr_t;
-        variable bank_addr : unsigned(cpu_addr_t'range);
+        variable bank_addr : unsigned(prg_addr_t'range);
     begin
         bank_addr := unsigned(addr_in);
         ret := bank & bank_addr(13 downto 0);
-        
+
         return ret;
     end;
-    
-    function cpu_map_using_mapper_002
+
+    function cycle_mapper_002
     (
-        map_in : cpu_mapper_002_in_t
+        reg      : mapper_002_reg_t;
+        config   : cart_config_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
     )
-    return cpu_mapper_002_out_t
+    return mapper_002_out_t
     is
-        variable map_out : cpu_mapper_002_out_t;
-        variable file_offset : file_off_t;
+        variable ret : mapper_002_out_t;
         variable prg_address : prg_rom_addr_t;
-        variable int_address : integer;
         variable bank : bank_t;
     begin
-        
-        map_out.bus_out := CPU_MAPPER_BUS_IDLE;
-        map_out.reg := map_in.reg;
-        int_address := to_integer(map_in.bus_in.cpu_bus.address);
+        ret.reg := reg;
+        ret.cart := CART_OUT_IDLE;
 
-        case int_address is
-            when 16#8000# to 16#FFFF# =>
-                if is_bus_write(map_in.bus_in.cpu_bus) and map_in.bus_in.clk_sync
+        if is_bus_active(cart_in.cpu.prg_bus) and cart_in.cpu.romsel
+        then
+            if is_bus_write(cart_in.cpu.prg_bus) and clk_sync
+            then
+                if config.prg_rom_16kb_blocks > x"08"
                 then
-                    if map_in.common.prg_rom_16kb_blocks > x"08"
-                    then
-                        map_out.reg.bank :=
-                            unsigned(map_in.bus_in.data_from_cpu(3 downto 0));
-                    else
-                        map_out.reg.bank :=
-                            '0' & unsigned(map_in.bus_in.data_from_cpu(2 downto 0));
-                    end if;
-                elsif is_bus_read(map_in.bus_in.cpu_bus)
-                then
-                    case int_address is
-                        when 16#8000# to 16#BFFF# =>
-                            bank := map_in.reg.bank;
-                        when 16#C000# to 16#FFFF# =>
-                            bank :=
-                                map_in.common.prg_rom_16kb_blocks(bank_t'range) - "1";
-                        when others =>
-                            bank := (others => '-');
-                    end case;
-
-                    prg_address :=
-                        get_cpu_prg_addr(map_in.bus_in.cpu_bus.address, bank);
-                    file_offset :=
-                        get_file_offset(x"00", map_in.common.has_trainer);
-                
-                    map_out.bus_out.file_bus := bus_read(prg_address + file_offset);
-                    map_out.bus_out.data_to_cpu := map_in.bus_in.data_from_file;
+                    ret.reg.bank := unsigned(cart_in.cpu.data(3 downto 0));
+                else
+                    ret.reg.bank :=
+                        '0' & unsigned(cart_in.cpu.data(2 downto 0));
                 end if;
-            when others =>
-                map_out.bus_out.data_to_cpu := map_in.bus_in.open_bus;
-        end case;
-        
-        return map_out;
+            elsif is_bus_read(cart_in.cpu.prg_bus)
+            then
+                if cart_in.cpu.prg_bus.address(14) = '0'
+                then
+                    -- $8000-$BFFF
+                    bank := reg.bank;
+                else
+                    -- $C000-$FFFF
+                    bank := config.prg_rom_16kb_blocks(bank_t'range) - "1";
+                end if;
+
+                prg_address :=
+                    get_cpu_prg_addr(cart_in.cpu.prg_bus.address, bank);
+                ret.cart := map_prg_rom(cart_in, prg_address, ret.cart);
+            end if;
+        end if;
+
+        if is_bus_active(cart_in.ppu.chr_bus)
+        then
+            if cart_in.ppu.chr_bus.address(13) = '0'
+            then
+                ret.cart := map_chr(config,
+                                    cart_in,
+                                    unsigned(cart_in.ppu.chr_bus.address(12 downto 0)),
+                                    ret.cart);
+            else
+                ret.cart := map_ciram(cart_in, config.mirror, ret.cart);
+            end if;
+        end if;
+
+        return ret;
     end;
 
 end package body;
