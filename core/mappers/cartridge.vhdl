@@ -5,10 +5,11 @@ use work.cart_types.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. Every supported board is instantiated and the board in use is
--- selected at run time. Its ports are the same as those of each board.
+-- selected at run time. Its ports are the same as those of each board, which
+-- also has an enable that is set only for the board in use.
 --
 -- To add a board, add it to board_t and get_board, declare and instantiate
--- it, and select its outputs below
+-- it with an enable of its own, and select its outputs below
 entity cartridge is
 port
 (
@@ -57,6 +58,7 @@ architecture behavioral of cartridge is
         clk_en   : in boolean;
         clk_sync : in boolean;
         reset    : in boolean;
+        enable   : in boolean;
 
         config   : in cart_config_t;
 
@@ -72,6 +74,7 @@ architecture behavioral of cartridge is
         clk_en   : in boolean;
         clk_sync : in boolean;
         reset    : in boolean;
+        enable   : in boolean;
 
         config   : in cart_config_t;
 
@@ -87,6 +90,7 @@ architecture behavioral of cartridge is
         clk_en   : in boolean;
         clk_sync : in boolean;
         reset    : in boolean;
+        enable   : in boolean;
 
         config   : in cart_config_t;
 
@@ -102,6 +106,7 @@ architecture behavioral of cartridge is
         clk_en   : in boolean;
         clk_sync : in boolean;
         reset    : in boolean;
+        enable   : in boolean;
 
         config   : in cart_config_t;
 
@@ -114,12 +119,12 @@ architecture behavioral of cartridge is
 
     signal board_config : cart_config_t;
 
-    -- Boards that are not in use see an idle bus, so they do not need to be
+    -- Boards that are not in use are disabled, so they do not need to be
     -- simulated
-    signal latch_in : cart_in_t;
-    signal mmc1_in  : cart_in_t;
-    signal mmc2_in  : cart_in_t;
-    signal mmc3_in  : cart_in_t;
+    signal latch_en : boolean;
+    signal mmc1_en  : boolean;
+    signal mmc2_en  : boolean;
+    signal mmc3_en  : boolean;
 
     signal latch_out : cart_out_t;
     signal mmc1_out  : cart_out_t;
@@ -136,10 +141,10 @@ begin
                integer'image(to_integer(unsigned(config.mapper_num)))
         severity failure;
 
-    latch_in <= cart_in when board = BOARD_LATCH else CART_IN_IDLE;
-    mmc1_in  <= cart_in when board = BOARD_MMC1  else CART_IN_IDLE;
-    mmc2_in  <= cart_in when board = BOARD_MMC2  else CART_IN_IDLE;
-    mmc3_in  <= cart_in when board = BOARD_MMC3  else CART_IN_IDLE;
+    latch_en <= board = BOARD_LATCH;
+    mmc1_en  <= board = BOARD_MMC1;
+    mmc2_en  <= board = BOARD_MMC2;
+    mmc3_en  <= board = BOARD_MMC3;
 
     with board select cart_out <=
         latch_out     when BOARD_LATCH,
@@ -155,8 +160,9 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
+        enable => latch_en,
         config => board_config,
-        cart_in => latch_in,
+        cart_in => cart_in,
         cart_out => latch_out
     );
 
@@ -167,8 +173,9 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
+        enable => mmc1_en,
         config => board_config,
-        cart_in => mmc1_in,
+        cart_in => cart_in,
         cart_out => mmc1_out
     );
 
@@ -179,8 +186,9 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
+        enable => mmc2_en,
         config => board_config,
-        cart_in => mmc2_in,
+        cart_in => cart_in,
         cart_out => mmc2_out
     );
 
@@ -191,8 +199,9 @@ begin
         clk_en => clk_en,
         clk_sync => clk_sync,
         reset => reset,
+        enable => mmc3_en,
         config => board_config,
-        cart_in => mmc3_in,
+        cart_in => cart_in,
         cart_out => mmc3_out
     );
 

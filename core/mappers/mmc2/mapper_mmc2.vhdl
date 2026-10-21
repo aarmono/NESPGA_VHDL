@@ -11,6 +11,8 @@ port
     clk_en   : in boolean;
     clk_sync : in boolean;
     reset    : in boolean;
+    -- The board is the one in the cartridge
+    enable   : in boolean;
 
     config   : in cart_config_t;
 
@@ -48,10 +50,18 @@ begin
     process(all)
         variable v_out : mapper_mmc2_out_t;
     begin
-        v_out := cycle_mapper_mmc2(reg, board, config, clk_sync, cart_in);
+        -- A board that is not in use holds its registers, so it does not
+        -- need to be simulated
+        if enable
+        then
+            v_out := cycle_mapper_mmc2(reg, board, config, clk_sync, cart_in);
 
-        reg_next <= v_out.reg;
-        cart_out <= v_out.cart;
+            reg_next <= v_out.reg;
+            cart_out <= v_out.cart;
+        else
+            reg_next <= reg;
+            cart_out <= CART_OUT_IDLE;
+        end if;
     end process;
 
 end behavioral;
