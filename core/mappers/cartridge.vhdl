@@ -41,7 +41,9 @@ architecture behavioral of cartridge is
             when x"000" | x"002" | x"003" | x"007" | x"00B" | x"022" | x"042" =>
                 return BOARD_LATCH;
             when x"001" => return BOARD_MMC1;
-            when x"004" | x"02F" | x"076" | x"077" => return BOARD_MMC3;
+            when x"004" | x"02F" | x"04C" | x"058" | x"05F" | x"076" | x"077" |
+                 x"09A" | x"0CE" =>
+                return BOARD_MMC3;
             when others => return BOARD_NONE;
         end case;
     end;

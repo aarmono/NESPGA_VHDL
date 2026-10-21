@@ -8,9 +8,13 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
 
--- Boards built around the MMC3 or the MMC6. They differ in how the outputs
--- of the chip are wired, so the board is chosen by the mapper number at run
--- time.
+-- Boards built around the MMC3, the MMC6 or the Namco 108, which came before
+-- the MMC3. They differ in how the outputs of the chip are wired, so the
+-- board is chosen by the mapper number at run time.
+--
+-- The Namco 108 has only the bank select and bank data registers of the
+-- MMC3, at 0x8000-0x9FFF. Its PRG and CHR modes are always 0, and it has no
+-- mirroring control, PRG RAM or IRQ. Its CHR banks are 6 bits wide
 --
 -- An iNES header cannot tell the MMC6 from the MMC3, so a TxROM board with
 -- an iNES header becomes an MMC6 once the CPU sets bit 5 of 0x8000, which
@@ -33,7 +37,19 @@ package lib_mapper_mmc3 is
         -- TxSROM (118): bit 7 of the CHR bank drives CIRAM A10
         MMC3_TXSROM,
         -- TQROM (119): bit 6 of the CHR bank selects CHR RAM
-        MMC3_TQROM
+        MMC3_TQROM,
+        -- Namco 108 boards with hardwired mirroring: DxROM (206) and
+        -- NAMCOT-3433/3443 (88), which wires PPU A12 to CHR A16 for 128KB of
+        -- CHR. DxROM has at most 64KB of CHR, so it can be wired the same way
+        NAMCO_108,
+        -- NAMCOT-3425 (95): bit 5 of the CHR bank drives CIRAM A10
+        NAMCO_3425,
+        -- NAMCOT-3446 (76): 128KB of CHR in four 2KB banks, selected by the
+        -- registers of the 1KB banks
+        NAMCO_3446,
+        -- NAMCOT-3453 (154): NAMCOT-3433 with single screen mirroring,
+        -- selected by bit 6 of every write to 0x8000-0xFFFF
+        NAMCO_3453
     );
 
     function get_mmc3_board(config : cart_config_t) return mmc3_board_t;
@@ -141,6 +157,10 @@ package body lib_mapper_mmc3 is
             when x"02F" => return MMC3_QJ;
             when x"076" => return MMC3_TXSROM;
             when x"077" => return MMC3_TQROM;
+            when x"0CE" | x"058" => return NAMCO_108;
+            when x"05F" => return NAMCO_3425;
+            when x"04C" => return NAMCO_3446;
+            when x"09A" => return NAMCO_3453;
             when others => return MMC3_TXROM;
         end case;
     end;
@@ -154,6 +174,15 @@ package body lib_mapper_mmc3 is
     is
     begin
         return board = MMC3_MMC6 or reg.mmc6;
+    end;
+
+    function is_namco_108(board : mmc3_board_t) return boolean
+    is
+    begin
+        return board = NAMCO_108 or
+               board = NAMCO_3425 or
+               board = NAMCO_3446 or
+               board = NAMCO_3453;
     end;
 
     -- The 8KB PRG ROM bank in the window of the CPU address
@@ -229,6 +258,60 @@ package body lib_mapper_mmc3 is
         return bank;
     end;
 
+    -- The 1KB CHR bank in the window of the PPU address on NAMCOT-3446,
+    -- which maps the 2KB banks of the 1KB bank registers to 0x0000-0x1FFF
+    function get_chr_bank_3446
+    (
+        reg    : mapper_mmc3_reg_t;
+        window : chr_window_t
+    )
+    return bank_t
+    is
+        variable bank : bank_t;
+    begin
+        case window(2 downto 1) is
+            when "00"   => bank := reg.banks(2);
+            when "01"   => bank := reg.banks(3);
+            when "10"   => bank := reg.banks(4);
+            when others => bank := reg.banks(5);
+        end case;
+
+        return "0" & bank(5 downto 0) & window(0);
+    end;
+
+    -- Writes to the Namco 108
+    function cycle_write_namco_108
+    (
+        reg     : mapper_mmc3_reg_t;
+        board   : mmc3_board_t;
+        cart_in : cart_in_t
+    )
+    return mapper_mmc3_reg_t
+    is
+        variable ret : mapper_mmc3_reg_t;
+    begin
+        ret := reg;
+
+        if cart_in.cpu.prg_bus.address(14 downto 13) = "00"
+        then
+            if cart_in.cpu.prg_bus.address(0) = '0'
+            then
+                ret.bank_idx := unsigned(cart_in.cpu.data(2 downto 0));
+            else
+                ret.banks(to_integer(reg.bank_idx)) :=
+                    unsigned(cart_in.cpu.data);
+            end if;
+        end if;
+
+        -- The single screen mirroring of NAMCOT-3453
+        if board = NAMCO_3453
+        then
+            ret.mirroring := cart_in.cpu.data(6);
+        end if;
+
+        return ret;
+    end;
+
     function cycle_write
     (
         reg      : mapper_mmc3_reg_t;
@@ -243,7 +326,10 @@ package body lib_mapper_mmc3 is
     begin
         ret := reg;
 
-        if is_rom_write(cart_in.cpu, clk_sync)
+        if is_rom_write(cart_in.cpu, clk_sync) and is_namco_108(board)
+        then
+            ret := cycle_write_namco_108(reg, board, cart_in);
+        elsif is_rom_write(cart_in.cpu, clk_sync)
         then
             case cart_in.cpu.prg_bus.address(14 downto 13) is
                 -- 0x8000-0x9FFF
@@ -369,7 +455,7 @@ package body lib_mapper_mmc3 is
     return boolean
     is
     begin
-        if board = MMC3_QJ
+        if board = MMC3_QJ or is_namco_108(board)
         then
             return false;
         elsif is_mmc6(reg, board)
@@ -440,25 +526,37 @@ package body lib_mapper_mmc3 is
     )
     return mirror_t
     is
+        variable a10 : std_logic;
     begin
-        if board = MMC3_TXSROM
+        -- The CHR bank is computed for nametable addresses as well, so on
+        -- the boards that wire a bit of it to CIRAM A10, each 1KB nametable
+        -- window has its own CIRAM A10
+        case board is
+            when MMC3_TXSROM =>
+                a10 := chr_bank(7);
+            when NAMCO_3425 =>
+                a10 := chr_bank(5);
+            when NAMCO_3453 =>
+                a10 := reg.mirroring;
+            when NAMCO_108 | NAMCO_3446 =>
+                return config.mirror;
+            when others =>
+                if config.mirror = MIRROR_FOUR
+                then
+                    return config.mirror;
+                elsif reg.mirroring = '1'
+                then
+                    return MIRROR_HORZ;
+                else
+                    return MIRROR_VERT;
+                end if;
+        end case;
+
+        if a10 = '0'
         then
-            -- The CHR bank is computed for nametable addresses as well, so
-            -- each 1KB nametable window has its own CIRAM A10
-            if chr_bank(7) = '0'
-            then
-                return MIRROR_A;
-            else
-                return MIRROR_B;
-            end if;
-        elsif config.mirror = MIRROR_FOUR
-        then
-            return config.mirror;
-        elsif reg.mirroring = '1'
-        then
-            return MIRROR_HORZ;
+            return MIRROR_A;
         else
-            return MIRROR_VERT;
+            return MIRROR_B;
         end if;
     end;
 
@@ -496,6 +594,14 @@ package body lib_mapper_mmc3 is
                 chr_bank := written.outer & chr_bank(6 downto 0);
             when MMC3_TQROM =>
                 banks.chr_ram := chr_bank(6) = '1';
+            when NAMCO_108 | NAMCO_3425 | NAMCO_3453 =>
+                -- PPU A12 drives CHR A16 on NAMCOT-3433 and NAMCOT-3453.
+                -- The other boards have at most 64KB of CHR, which drops it
+                chr_bank := "0" & cart_in.ppu.chr_bus.address(12) &
+                            chr_bank(5 downto 0);
+            when NAMCO_3446 =>
+                chr_bank := get_chr_bank_3446(written,
+                                              get_chr_window(cart_in.ppu));
         end case;
 
         banks.prg := prg_bank;

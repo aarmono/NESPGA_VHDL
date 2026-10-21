@@ -3,7 +3,8 @@ use IEEE.std_logic_1164.all;
 use work.cart_types.all;
 use work.lib_mapper_mmc3.all;
 
--- MMC3 and MMC6 boards: TxROM, HKROM, NES-QJ, TxSROM and TQROM
+-- MMC3, MMC6 and Namco 108 boards: TxROM, HKROM, NES-QJ, TxSROM, TQROM,
+-- DxROM and NAMCOT-3425, 3433, 3446 and 3453
 entity mapper_mmc3 is
 port
 (
