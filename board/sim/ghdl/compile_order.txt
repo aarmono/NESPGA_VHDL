@@ -87,10 +87,12 @@
 ../../../core/mappers/cart_types.vhdl
 ../../../core/mappers/latch/lib_mapper_latch.vhdl
 ../../../core/mappers/latch/mapper_latch.vhdl
-../../../core/mappers/001/lib_mapper_001.vhdl
-../../../core/mappers/001/mapper_001.vhdl
+../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
+../../../core/mappers/mmc1/mapper_mmc1.vhdl
 ../../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
 ../../../core/mappers/mmc3/mapper_mmc3.vhdl
+../../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
+../../../core/mappers/mmc2/mapper_mmc2.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
