@@ -13,3 +13,5 @@ the docker container runs as root, so files generated from within the docker con
 mesen-agent is installed on this machine. use the mesen-agent skill to reference what mesen does if mesen is passing a test this project does not.
 
 Prefer pure combinational logic to go into functions when feasible. if combinational logic is only assigning into regsitered values, prefer calling that function from within a clocked process instead of using the two-process method where that function is called from within a combinational process.
+
+Direct entity instantiations are OK within a subsystem (eg. cartridge can reference mapper entities directly), but prefer component declarations/instantiations across subsystems (eg. soc should use cartridge component declaration which the cartridge subsystem defines).
