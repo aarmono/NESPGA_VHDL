@@ -2365,9 +2365,16 @@ package body lib_ppu is
             -- location will be shown on screen instead of the backdrop color."
             if not is_bus_active(render_out.palette_bus)
             then
-                render_out.palette_bus :=
-                    bus_read(to_palette_addr(v_rnd_is_sprite,
-                                             v_rnd_pattern_color));
+                if not rendering_enabled(v_rnd_mask) and
+                   v_ppu_chr_addr >= PALETTE_ADDR_START
+                then
+                    render_out.palette_bus :=
+                        bus_read(to_palette_addr(v_ppu_chr_addr));
+                else
+                    render_out.palette_bus :=
+                        bus_read(to_palette_addr(v_rnd_is_sprite,
+                                                 v_rnd_pattern_color));
+                end if;
             end if;
             render_out.reg.pixel := render_in.data_from_palette;
             render_out.reg.pixel_valid := true;
