@@ -3,7 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
-use work.sram_bus_types.all;
+use work.prg_ram_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
@@ -584,6 +584,7 @@ package body lib_mapper_mmc3 is
         chr_bank := get_chr_bank(written, get_chr_window(cart_in.ppu));
 
         banks.prg_ram := is_prg_ram_enabled(written, board, cart_in);
+        banks.prg_ram_bank := (others => '0');
         banks.chr_ram := has_chr_ram(config);
         banks.mirror := get_mirror(written, board, config, chr_bank);
 

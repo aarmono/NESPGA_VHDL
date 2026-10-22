@@ -294,6 +294,7 @@ package body lib_mapper_mmc2 is
                                cart_in);
 
         banks.prg_ram := board = MMC4_FXROM;
+        banks.prg_ram_bank := (others => '0');
         banks.prg := get_prg_bank(ret.reg, board, get_prg_window(cart_in.cpu));
         banks.chr_ram := has_chr_ram(config);
         banks.chr := get_chr_bank(ret.reg, get_chr_window(cart_in.ppu));

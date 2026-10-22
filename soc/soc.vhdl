@@ -3,7 +3,6 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.cpu_bus_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;

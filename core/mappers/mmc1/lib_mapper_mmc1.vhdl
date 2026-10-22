@@ -403,6 +403,7 @@ package body lib_mapper_mmc1 is
         chr_window := get_chr_window(cart_in.ppu);
 
         banks.prg_ram := board = MMC1A_SXROM or ret.reg.prg_bank(4) = '0';
+        banks.prg_ram_bank := (others => '0');
         banks.prg := get_prg_bank_8kb(ret.reg,
                                       board,
                                       get_prg_window(cart_in.cpu));

@@ -7,7 +7,8 @@
 ../../../bus/apu_bus_types.vhdl
 ../../../bus/prg_bus_types.vhdl
 ../../../bus/ram_bus_types.vhdl
-../../../bus/sram_bus_types.vhdl
+../../../bus/prg_ram_bus_types.vhdl
+../../../bus/chr_ram_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
 ../../../bus/oam_bus_types.vhdl
 ../../../bus/cart_mem_bus_types.vhdl

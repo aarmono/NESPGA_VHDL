@@ -6,7 +6,8 @@ use work.nes_types.all;
 
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
-use work.sram_bus_types.all;
+use work.prg_ram_bus_types.all;
+use work.chr_ram_bus_types.all;
 use work.cart_mem_bus_types.all;
 
 -- Types shared by the cartridge and the boards (mappers) it can hold. The
@@ -29,6 +30,10 @@ package cart_types is
 
     subtype prg_bank_8kb_t is unsigned(7 downto 0);
     subtype chr_bank_1kb_t is unsigned(10 downto 0);
+
+    -- PRG RAM is mapped in 8KB banks to the window at 0x6000. CHR RAM is
+    -- mapped in the same 1KB banks as CHR ROM
+    subtype prg_ram_bank_8kb_t is unsigned(2 downto 0);
 
     type mirror_t is
     (
@@ -58,7 +63,15 @@ package cart_types is
         -- set by the cartridge from the sizes of the ROMs
         prg_rom_mask        : prg_bank_8kb_t;
         chr_rom_mask        : chr_bank_1kb_t;
+
+        -- Likewise for the RAMs, whose sizes come from the header. These
+        -- mask the RAM address, since a RAM can be smaller than a bank
+        prg_ram_mask        : prg_ram_addr_t;
+        chr_ram_mask        : chr_ram_addr_t;
     end record;
+
+    -- The size of PRG RAM and CHR RAM when the header does not give one
+    constant DEFAULT_RAM_MASK : std_logic_vector(15 downto 0) := x"1FFF";
 
     constant RESET_CART_CONFIG : cart_config_t :=
     (
@@ -72,7 +85,10 @@ package cart_types is
         has_trainer => false,
 
         prg_rom_mask => (others => '0'),
-        chr_rom_mask => (others => '0')
+        chr_rom_mask => (others => '0'),
+
+        prg_ram_mask => DEFAULT_RAM_MASK,
+        chr_ram_mask => DEFAULT_RAM_MASK
     );
 
     -- CPU side of the connector, driven by the console
@@ -170,10 +186,10 @@ package cart_types is
         prg_rom_bus     : cart_mem_bus_t;
         chr_rom_bus     : cart_mem_bus_t;
 
-        prg_ram_bus     : sram_bus_t;
+        prg_ram_bus     : prg_ram_bus_t;
         data_to_prg_ram : data_t;
 
-        chr_ram_bus     : sram_bus_t;
+        chr_ram_bus     : chr_ram_bus_t;
         data_to_chr_ram : data_t;
     end record;
 
@@ -182,10 +198,10 @@ package cart_types is
         prg_rom_bus => CART_MEM_BUS_IDLE,
         chr_rom_bus => CART_MEM_BUS_IDLE,
 
-        prg_ram_bus => SRAM_BUS_IDLE,
+        prg_ram_bus => PRG_RAM_BUS_IDLE,
         data_to_prg_ram => (others => '-'),
 
-        chr_ram_bus => SRAM_BUS_IDLE,
+        chr_ram_bus => CHR_RAM_BUS_IDLE,
         data_to_chr_ram => (others => '-')
     );
 
@@ -219,18 +235,25 @@ package cart_types is
     -- window of the CPU address and the CHR bank in the window of the PPU
     -- address
     type cart_banks_t is record
-        -- The board has PRG RAM at 0x6000-0x7FFF
-        prg_ram : boolean;
-        prg     : prg_bank_8kb_t;
-        -- The PPU accesses CHR RAM rather than CHR ROM. CHR RAM is 8KB, so
-        -- only the low bits of chr select its bank
-        chr_ram : boolean;
-        chr     : chr_bank_1kb_t;
-        mirror  : mirror_t;
+        -- The board has PRG RAM at 0x6000-0x7FFF, in bank prg_ram_bank
+        prg_ram      : boolean;
+        prg_ram_bank : prg_ram_bank_8kb_t;
+        prg          : prg_bank_8kb_t;
+        -- The PPU accesses CHR RAM rather than CHR ROM, in bank chr
+        chr_ram      : boolean;
+        chr          : chr_bank_1kb_t;
+        mirror       : mirror_t;
     end record;
 
     -- The config with the masks for the sizes of the ROMs in its header
     function set_rom_masks(config : cart_config_t) return cart_config_t;
+
+    -- The mask of the RAM address for a RAM size byte of an NES 2.0 header
+    -- (byte 10 for PRG RAM, 11 for CHR RAM). Its low nibble is the size of
+    -- the volatile RAM and its high nibble that of the battery backed RAM,
+    -- each 64 bytes shifted left by the nibble, or none for 0. A board with
+    -- no RAM given gets the default size, like an iNES board
+    function get_ram_mask(sizes : data_t) return std_logic_vector;
 
     -- The board has CHR RAM in place of CHR ROM
     function has_chr_ram(config : cart_config_t) return boolean;
@@ -299,6 +322,39 @@ package body cart_types is
         return ret;
     end;
 
+    function get_ram_mask(sizes : data_t) return std_logic_vector
+    is
+        variable volatile : integer range 0 to 15;
+        variable battery  : integer range 0 to 15;
+        variable shift    : integer range 0 to 16;
+        variable ret      : std_logic_vector(DEFAULT_RAM_MASK'range);
+    begin
+        volatile := to_integer(unsigned(sizes(3 downto 0)));
+        battery := to_integer(unsigned(sizes(7 downto 4)));
+
+        -- Two RAMs, each no larger than the larger one, fit in twice its
+        -- size
+        shift := max(volatile, battery);
+        if volatile /= 0 and battery /= 0
+        then
+            shift := shift + 1;
+        end if;
+
+        if shift = 0
+        then
+            return DEFAULT_RAM_MASK;
+        end if;
+
+        -- 64 bytes shifted left by shift, up to the 64KB the cartridge
+        -- memory bus has room for
+        for i in ret'range
+        loop
+            ret(i) := to_std_logic(i < shift + 6);
+        end loop;
+
+        return ret;
+    end;
+
     function has_chr_ram(config : cart_config_t) return boolean
     is
     begin
@@ -330,7 +386,9 @@ package body cart_types is
 
     function map_prg_ram
     (
+        config   : cart_config_t;
         cart_in  : cart_in_t;
+        bank     : prg_ram_bank_8kb_t;
         cart_out : cart_out_t
     )
     return cart_out_t
@@ -340,7 +398,8 @@ package body cart_types is
         ret := cart_out;
 
         ret.mem.prg_ram_bus.address :=
-            cart_in.cpu.prg_bus.address(sram_addr_t'range);
+            (std_logic_vector(bank) & cart_in.cpu.prg_bus.address(12 downto 0))
+            and config.prg_ram_mask;
         ret.mem.prg_ram_bus.read := cart_in.cpu.prg_bus.read;
         ret.mem.prg_ram_bus.write := cart_in.cpu.prg_bus.write;
         ret.mem.data_to_prg_ram := cart_in.cpu.data;
@@ -400,8 +459,10 @@ package body cart_types is
             ret.ppu.data := cart_in.mem.data_from_chr_rom;
         else
             ret.mem.chr_ram_bus.address :=
-                std_logic_vector(banks.chr(sram_addr_t'high - 10 downto 0)) &
-                cart_in.ppu.chr_bus.address(9 downto 0);
+                (std_logic_vector(banks.chr(chr_ram_addr_t'high - 10
+                                            downto 0)) &
+                 cart_in.ppu.chr_bus.address(9 downto 0))
+                and config.chr_ram_mask;
             ret.mem.chr_ram_bus.read := cart_in.ppu.chr_bus.read;
             ret.mem.chr_ram_bus.write := cart_in.ppu.chr_bus.write;
             ret.mem.data_to_chr_ram := cart_in.ppu.data;
@@ -471,7 +532,7 @@ package body cart_types is
               cart_in.cpu.prg_bus.address(14 downto 13) = "11"
         then
             -- 0x6000-0x7FFF
-            ret := map_prg_ram(cart_in, ret);
+            ret := map_prg_ram(config, cart_in, banks.prg_ram_bank, ret);
         end if;
 
         if is_bus_active(cart_in.ppu.chr_bus)

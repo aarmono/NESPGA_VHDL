@@ -6,7 +6,6 @@ use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.joy_bus_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.chr_bus_types.all;
 use work.ciram_bus_types.all;

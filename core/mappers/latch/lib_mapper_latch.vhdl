@@ -305,6 +305,7 @@ package body lib_mapper_latch is
         end case;
 
         banks.prg_ram := board.prg_ram;
+        banks.prg_ram_bank := (others => '0');
 
         ret.cart := map_cart(config, cart_in, banks);
 

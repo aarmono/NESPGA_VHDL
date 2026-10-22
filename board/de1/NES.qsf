@@ -425,7 +425,8 @@ set_global_assignment -name VHDL_FILE ../../core/nes_types.vhdl
 set_global_assignment -name VHDL_FILE ../../core/nes_core.vhdl
 set_global_assignment -name VHDL_FILE ../../core/nes_audio_mixer.vhdl
 set_global_assignment -name VHDL_FILE ../../core/lib_nes_mmap.vhdl
-set_global_assignment -name VHDL_FILE ../../bus/sram_bus_types.vhdl
+set_global_assignment -name VHDL_FILE ../../bus/prg_ram_bus_types.vhdl
+set_global_assignment -name VHDL_FILE ../../bus/chr_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/sec_oam_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/prg_bus_types.vhdl

@@ -4,7 +4,6 @@ use IEEE.numeric_std.all;
 use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
