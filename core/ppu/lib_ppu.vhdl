@@ -512,6 +512,8 @@ package lib_ppu is
 
     function mask_pixel(grayscale : boolean; pixel : pixel_t) return pixel_t;
 
+    function mask_emphasis(mask : mask_t) return emphasis_t;
+
     function is_transparent(palette_idx : palette_idx_t) return boolean;
     
     function clock_sprite_buffers
@@ -829,6 +831,14 @@ package body lib_ppu is
         end if;
 
         return mask and pixel;
+    end;
+
+    function mask_emphasis(mask : mask_t) return emphasis_t
+    is
+    begin
+        return to_std_logic(mask.intense_blue) &
+               to_std_logic(mask.intense_green) &
+               to_std_logic(mask.intense_red);
     end;
 
     function is_transparent(palette_idx : palette_idx_t) return boolean
@@ -2384,6 +2394,10 @@ package body lib_ppu is
         render_out.pixel_bus.pixel :=
             mask_pixel(render_out.reg.mask.enable_grayscale,
                        render_in.reg.pixel);
+        -- Emphasis applies to every pixel output, including the backdrop and
+        -- forced blanking, with the same latency as greyscale
+        render_out.pixel_bus.emphasis :=
+            mask_emphasis(render_out.reg.mask);
         render_out.pixel_bus.line_valid := render_in.reg.pixel_valid;
         
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);

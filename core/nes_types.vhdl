@@ -20,6 +20,10 @@ package nes_types is
     subtype mixed_audio_t is unsigned(7 downto 0);
     
     subtype pixel_t is std_logic_vector(5 downto 0);
+
+    -- Colour emphasis bits ($2001 bits 5-7). Bit 0 is red, bit 1 green and
+    -- bit 2 blue on the NTSC 2C02 (PAL and Dendy swap red and green)
+    subtype emphasis_t is std_logic_vector(2 downto 0);
     
     type palette_t is array(0 to 16#1F#) of pixel_t;
     
@@ -31,6 +35,7 @@ package nes_types is
     
     type pixel_bus_t is record
         pixel       : pixel_t;
+        emphasis    : emphasis_t;
         line_valid  : boolean;
         frame_valid : boolean;
     end record;
