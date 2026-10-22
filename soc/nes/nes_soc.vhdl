@@ -225,6 +225,19 @@ begin
         data_from_cart_mem => data_from_cart_mem
     );
 
+    cart_in.ppu.chr_bus <= chr_bus;
+    cart_in.ppu.data <= chr_data_from_ppu;
+
+    -- Kept out of the process below so that read data from the cartridge
+    -- memory bus does not run cycle_nes again on its way to the cartridge
+    cart_in.mem <=
+    (
+        data_from_prg_rom => data_from_cart_mem_prg,
+        data_from_chr_rom => data_from_cart_mem_chr,
+        data_from_prg_ram => data_from_cart_mem_prg,
+        data_from_chr_ram => data_from_cart_mem_chr
+    );
+
     nes_cart : cartridge
     port map
     (
@@ -399,14 +412,6 @@ begin
 
         cart_in.cpu <= get_cart_cpu_in(nes_in.cpu_bus.cpu_bus,
                                        nes_in.cpu_bus.data_from_cpu);
-
-        cart_in.ppu.chr_bus <= chr_bus;
-        cart_in.ppu.data <= chr_data_from_ppu;
-
-        cart_in.mem.data_from_prg_rom <= data_from_cart_mem_prg;
-        cart_in.mem.data_from_chr_rom <= data_from_cart_mem_chr;
-        cart_in.mem.data_from_prg_ram <= data_from_cart_mem_prg;
-        cart_in.mem.data_from_chr_ram <= data_from_cart_mem_chr;
 
         nes_in.cpu_bus.clk_sync := ppu_sync;
         nes_in.cpu_bus.apu_regs_active :=
