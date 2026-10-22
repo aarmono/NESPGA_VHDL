@@ -22,4 +22,4 @@ nes-test-roms/MMC1_A12/mmc1_a12.nes                                 | 617ms     
 nes-test-roms/mmc3_test_2/rom_singles/1-clocking.nes                | 501ms     | a252d147dcf09a1deb356097d46300310738df3d9a18a4a3aac126c68b2cdcb3 *frame_00029.bmp
 
 # Audio (DMC DMA reads from SDRAM)
-nes-test-roms/dmc_tests/latency.nes                                 | 350ms     | df218a460babec3ce7282fb2715414e7c2c5cc4b8f01a41915c171a734ab5947 *audio.au
+nes-test-roms/dmc_tests/latency.nes                                 | 350ms     | c5e6af1c0ef2e82d07ecbf3710723e71fb21c6f348e74db78f47980fa4748086 *audio.au
