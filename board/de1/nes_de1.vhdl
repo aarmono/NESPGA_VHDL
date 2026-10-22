@@ -306,7 +306,7 @@ begin
     );
     -- }
     
-    audio <= "0" & std_logic_vector(reg_audio_aud_clk) & "0000000";
+    audio <= "0" & std_logic_vector(reg_audio_aud_clk) & "000000";
 
     vram_mux : ppu_video_ram_mux
     port map

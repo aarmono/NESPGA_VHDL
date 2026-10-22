@@ -405,6 +405,9 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_mapper_fme7.vh
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc4/mapper_vrc4.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/lib_vrc_irq.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/mapper_vrc6.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_vrc6_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/latch/mapper_latch.vhdl

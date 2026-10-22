@@ -438,7 +438,7 @@ package body lib_nes is
                 end if;
                 
             when STATE_RUN =>
-                ret.audio := mix_audio(nes_in.audio);
+                ret.audio := mix_audio(nes_in.audio, nes_in.cart.audio);
                 
                 ret.oam_bus := nes_in.oam_bus;
                 ret.data_to_oam := nes_in.data_to_oam;

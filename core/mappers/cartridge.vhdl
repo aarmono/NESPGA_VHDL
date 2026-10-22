@@ -8,6 +8,7 @@ use work.lib_mapper_mmc2.all;
 use work.lib_mapper_mmc3.all;
 use work.lib_mapper_fme7.all;
 use work.lib_mapper_vrc4.all;
+use work.lib_mapper_vrc6.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. Every supported board is instantiated and the board in use is
@@ -41,7 +42,8 @@ architecture behavioral of cartridge is
         BOARD_MMC2,
         BOARD_MMC3,
         BOARD_FME7,
-        BOARD_VRC4
+        BOARD_VRC4,
+        BOARD_VRC6
     );
 
     function get_board(mapper_num : mapper_num_t) return board_t
@@ -65,6 +67,9 @@ architecture behavioral of cartridge is
         elsif is_vrc4_mapper(mapper_num)
         then
             return BOARD_VRC4;
+        elsif is_vrc6_mapper(mapper_num)
+        then
+            return BOARD_VRC6;
         else
             return BOARD_NONE;
         end if;
@@ -80,6 +85,7 @@ architecture behavioral of cartridge is
     signal mmc3_en  : boolean;
     signal fme7_en  : boolean;
     signal vrc4_en  : boolean;
+    signal vrc6_en  : boolean;
 
     signal latch_out : cart_out_t;
     signal mmc1_out  : cart_out_t;
@@ -87,6 +93,7 @@ architecture behavioral of cartridge is
     signal mmc3_out  : cart_out_t;
     signal fme7_out  : cart_out_t;
     signal vrc4_out  : cart_out_t;
+    signal vrc6_out  : cart_out_t;
 
 begin
 
@@ -103,6 +110,7 @@ begin
     mmc3_en  <= board = BOARD_MMC3;
     fme7_en  <= board = BOARD_FME7;
     vrc4_en  <= board = BOARD_VRC4;
+    vrc6_en  <= board = BOARD_VRC6;
 
     with board select cart_out <=
         latch_out     when BOARD_LATCH,
@@ -111,6 +119,7 @@ begin
         mmc3_out      when BOARD_MMC3,
         fme7_out      when BOARD_FME7,
         vrc4_out      when BOARD_VRC4,
+        vrc6_out      when BOARD_VRC6,
         CART_OUT_IDLE when BOARD_NONE;
 
     latch : entity work.mapper_latch(behavioral)
@@ -189,6 +198,19 @@ begin
         config => config,
         cart_in => cart_in,
         cart_out => vrc4_out
+    );
+
+    vrc6 : entity work.mapper_vrc6(behavioral)
+    port map
+    (
+        clk => clk,
+        clk_en => clk_en,
+        clk_sync => clk_sync,
+        reset => reset,
+        enable => vrc6_en,
+        config => config,
+        cart_in => cart_in,
+        cart_out => vrc6_out
     );
 
 end behavioral;

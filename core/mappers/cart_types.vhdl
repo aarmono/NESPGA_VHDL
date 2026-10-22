@@ -196,16 +196,21 @@ package cart_types is
     end record;
 
     type cart_out_t is record
-        cpu : cart_cpu_out_t;
-        ppu : cart_ppu_out_t;
-        mem : cart_mem_out_t;
+        cpu   : cart_cpu_out_t;
+        ppu   : cart_ppu_out_t;
+        mem   : cart_mem_out_t;
+        -- The audio of the chips on the board, which the console mixes with
+        -- its own. A Famicom cartridge does the mixing itself, on the
+        -- audio pins of its connector
+        audio : cart_audio_t;
     end record;
 
     constant CART_OUT_IDLE : cart_out_t :=
     (
         cpu => CART_CPU_OUT_IDLE,
         ppu => CART_PPU_OUT_IDLE,
-        mem => CART_MEM_OUT_IDLE
+        mem => CART_MEM_OUT_IDLE,
+        audio => 0
     );
 
     -- The banks a board selects for an access: the PRG ROM bank in the

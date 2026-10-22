@@ -52,6 +52,14 @@ package lib_vrc_irq is
     )
     return vrc_irq_t;
 
+    -- The VRC6 and VRC7 write the latch a byte at a time
+    function write_vrc_irq_latch
+    (
+        irq  : vrc_irq_t;
+        data : data_t
+    )
+    return vrc_irq_t;
+
     -- The VRC4 writes the latch a nibble at a time: the low nibble, or the
     -- high nibble when high is set, from the low 4 bits of data
     function write_vrc_irq_latch_nibble
@@ -114,6 +122,22 @@ package body lib_vrc_irq is
                 end if;
             end if;
         end if;
+
+        return ret;
+    end;
+
+    function write_vrc_irq_latch
+    (
+        irq  : vrc_irq_t;
+        data : data_t
+    )
+    return vrc_irq_t
+    is
+        variable ret : vrc_irq_t;
+    begin
+        ret := irq;
+
+        ret.latch := to_integer(unsigned(data));
 
         return ret;
     end;

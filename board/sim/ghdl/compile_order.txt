@@ -100,6 +100,9 @@
 ../../../core/mappers/lib_vrc_irq.vhdl
 ../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
 ../../../core/mappers/vrc4/mapper_vrc4.vhdl
+../../../core/mappers/vrc6/lib_vrc6_audio.vhdl
+../../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
+../../../core/mappers/vrc6/mapper_vrc6.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl

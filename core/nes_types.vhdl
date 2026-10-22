@@ -17,7 +17,13 @@ package nes_types is
         dmc      : dmc_audio_t;
     end record;
 
-    subtype mixed_audio_t is unsigned(7 downto 0);
+    -- The level of the audio from the cartridge, in the units of the mixed
+    -- audio, where the APU at its loudest is 255. Boards without audio of
+    -- their own output 0
+    subtype cart_audio_t is natural range 0 to 2**8-1;
+
+    -- The APU and the cartridge audio, each with up to half of the range
+    subtype mixed_audio_t is unsigned(8 downto 0);
     
     subtype pixel_t is std_logic_vector(5 downto 0);
     
