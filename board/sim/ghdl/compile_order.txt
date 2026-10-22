@@ -97,6 +97,9 @@
 ../../../core/mappers/mmc2/mapper_mmc2.vhdl
 ../../../core/mappers/fme7/lib_mapper_fme7.vhdl
 ../../../core/mappers/fme7/mapper_fme7.vhdl
+../../../core/mappers/lib_vrc_irq.vhdl
+../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
+../../../core/mappers/vrc4/mapper_vrc4.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
