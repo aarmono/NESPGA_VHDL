@@ -13,7 +13,6 @@ use work.palette_bus_types.all;
 use work.utilities.all;
 use work.soc.all;
 use work.simulation.all;
-use work.lib_nes.all;
 
 entity nes_bench is
 generic
@@ -37,14 +36,8 @@ architecture behavioral of nes_bench is
     constant CLK_FREQ : positive := 50_000_000 * 6 / 28;
     constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
 
-    type cart_ram_t is array(0 to 2**cart_ram_addr_t'length - 1) of data_t;
-
     signal cart_mem_bus       : cart_mem_bus_t;
-    signal data_to_cart_mem   : data_t;
     signal data_from_cart_mem : data_t;
-
-    signal file_bus       : cart_mem_bus_t;
-    signal data_from_file : data_t;
     
     signal audio_out : mixed_audio_t;
     signal pixel_bus : pixel_bus_t;
@@ -71,7 +64,6 @@ begin
     soc : nes_soc_ocram
     generic map
     (
-        USE_EXT_CART_RAM => true,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CLK_FREQ,
         CPU_FREQ_DEN => 6
@@ -87,7 +79,6 @@ begin
         cpu_clk_en => cpu_clk_en,
         
         cart_mem_bus => cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem,
         
         pixel_bus => pixel_bus,
@@ -158,39 +149,9 @@ begin
     )
     port map
     (
-       file_bus_1 => file_bus,
-       data_from_file_1 => data_from_file
+       file_bus_1 => cart_mem_bus,
+       data_from_file_1 => data_from_cart_mem
     );
-
-    -- The cartridge RAMs. Writes are taken at the PPU clock enable, the end
-    -- of the SDRAM slot that serves them on the board, so that the bus
-    -- settling over delta cycles cannot write to the wrong address
-    cart_ram : process(clk, cart_mem_bus, data_from_file)
-        variable ram : cart_ram_t;
-    begin
-        if not is_cart_ram(cart_mem_bus)
-        then
-            file_bus <= cart_mem_bus;
-            data_from_cart_mem <= data_from_file;
-        else
-            file_bus <= CART_MEM_BUS_IDLE;
-
-            if is_bus_read(cart_mem_bus)
-            then
-                data_from_cart_mem <=
-                    ram(to_integer(cart_mem_bus.address(cart_ram_addr_t'range)))
-                    after CLK_PERIOD / 2;
-            else
-                data_from_cart_mem <= (others => '-');
-            end if;
-
-            if rising_edge(clk) and ppu_clk_en and is_bus_write(cart_mem_bus)
-            then
-                ram(to_integer(cart_mem_bus.address(cart_ram_addr_t'range))) :=
-                    data_to_cart_mem;
-            end if;
-        end if;
-    end process;
     
     clk_gen : clock
     generic map
