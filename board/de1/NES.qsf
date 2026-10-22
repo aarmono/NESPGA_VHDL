@@ -400,6 +400,8 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/mmc2/mapper_mmc2.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc3/mapper_mmc3.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/mapper_fme7.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_mapper_fme7.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/latch/mapper_latch.vhdl

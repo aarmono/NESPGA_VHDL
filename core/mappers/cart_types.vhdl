@@ -215,6 +215,9 @@ package cart_types is
         -- The board has PRG RAM at 0x6000-0x7FFF, in bank prg_ram_bank
         prg_ram      : boolean;
         prg_ram_bank : prg_ram_bank_8kb_t;
+        -- The board has PRG ROM at 0x6000-0x7FFF, in bank prg, rather than
+        -- PRG RAM. prg_ram is not used
+        prg_rom_6000 : boolean;
         prg          : prg_bank_8kb_t;
         -- The PPU accesses CHR RAM rather than CHR ROM, in bank chr
         chr_ram      : boolean;
@@ -416,6 +419,7 @@ package body cart_types is
         (
             prg_ram => false,
             prg_ram_bank => (others => '0'),
+            prg_rom_6000 => false,
             prg => (others => '0'),
             chr_ram => has_chr_ram(config),
             chr => (others => '0'),
@@ -559,7 +563,8 @@ package body cart_types is
     begin
         ret := CART_OUT_IDLE;
 
-        if cart_in.cpu.romsel
+        if cart_in.cpu.romsel or
+           (banks.prg_rom_6000 and is_prg_ram_window(cart_in.cpu))
         then
             if is_bus_read(cart_in.cpu.prg_bus)
             then
