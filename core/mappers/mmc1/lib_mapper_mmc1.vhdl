@@ -10,9 +10,6 @@ use work.cart_types.all;
 -- chip and in how its outputs are wired, so the board is chosen by the
 -- mapper number at run time.
 --
--- SOROM and SXROM, which bank 16KB or 32KB of PRG RAM with bits of the CHR
--- bank, are not supported: PRG RAM is not banked.
---
 -- To add a board, add it to mmc1_board_t and get_mmc1_board and its mapper
 -- number to is_mmc1_mapper
 package lib_mapper_mmc1 is
@@ -21,7 +18,7 @@ package lib_mapper_mmc1 is
     (
         -- SxROM (1): the MMC1B, where bit 4 of the PRG bank disables PRG RAM.
         -- SUROM has 512KB of PRG ROM, and bit 4 of the CHR bank selects the
-        -- 256KB half
+        -- 256KB half. SOROM, SZROM and SXROM bank PRG RAM (mmc1_prg_ram_t)
         MMC1_SXROM,
         -- SEROM, SHROM and SH1ROM (1, NES 2.0 submapper 5): 32KB of PRG ROM,
         -- addressed by the CPU rather than the chip, so it is not banked
@@ -40,6 +37,35 @@ package lib_mapper_mmc1 is
     function is_mmc1_mapper(mapper_num : mapper_num_t) return boolean;
 
     function get_mmc1_board(config : cart_config_t) return mmc1_board_t;
+
+    -- SxROM boards with more than 8KB of PRG RAM select its 8KB bank with
+    -- bits of the CHR bank that they do not need for CHR. Which bits is told
+    -- from the sizes of PRG RAM and CHR in the header
+    type mmc1_prg_ram_t is
+    (
+        -- 8KB or less
+        PRG_RAM_UNBANKED,
+        -- SOROM: 16KB, with 8KB of CHR. Bit 3 selects the bank
+        PRG_RAM_SOROM,
+        -- SZROM: 16KB, with more than 8KB of CHR ROM. Bit 4 selects the bank
+        PRG_RAM_SZROM,
+        -- SXROM: 32KB. Bits 3-2 select the bank
+        PRG_RAM_SXROM
+    );
+
+    function get_mmc1_prg_ram(config : cart_config_t) return mmc1_prg_ram_t;
+
+    -- The mask of the PRG RAM address for an iNES header, which has no RAM
+    -- size. 32KB is enough for every SxROM game (nesdev), but a board with
+    -- more than 8KB of CHR uses the bits that bank 32KB for CHR, so only
+    -- boards with 8KB of CHR or less get it: SOROM, SUROM and SXROM, and
+    -- SNROM, which ignores those bits. SZROM cannot be told from SKROM
+    -- without the RAM size
+    function get_mmc1_ines_prg_ram_mask
+    (
+        config : cart_config_t
+    )
+    return std_logic_vector;
 
     subtype shift_t is unsigned(3 downto 0);
     constant SHIFT_MAX : shift_t := to_unsigned(4, shift_t'length);
@@ -121,6 +147,7 @@ package lib_mapper_mmc1 is
     (
         reg      : mapper_mmc1_reg_t;
         board    : mmc1_board_t;
+        prg_ram  : mmc1_prg_ram_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -155,6 +182,44 @@ package body lib_mapper_mmc1 is
                     return MMC1_SXROM;
                 end if;
         end case;
+    end;
+
+    function get_mmc1_prg_ram(config : cart_config_t) return mmc1_prg_ram_t
+    is
+    begin
+        case get_mmc1_board(config) is
+            when MMC1_SXROM | MMC1A_SXROM =>
+                if config.prg_ram_mask(14) = '1'
+                then
+                    return PRG_RAM_SXROM;
+                elsif config.prg_ram_mask(13) = '0'
+                then
+                    return PRG_RAM_UNBANKED;
+                elsif config.chr_rom_8kb_blocks > 1
+                then
+                    return PRG_RAM_SZROM;
+                else
+                    return PRG_RAM_SOROM;
+                end if;
+            when others =>
+                return PRG_RAM_UNBANKED;
+        end case;
+    end;
+
+    function get_mmc1_ines_prg_ram_mask
+    (
+        config : cart_config_t
+    )
+    return std_logic_vector
+    is
+    begin
+        if get_mmc1_board(config) /= MMC1_EVENT and
+           config.chr_rom_8kb_blocks <= 1
+        then
+            return x"7FFF";
+        else
+            return DEFAULT_RAM_MASK;
+        end if;
     end;
 
     function get_reset_mmc1_reg(board : mmc1_board_t) return mapper_mmc1_reg_t
@@ -348,6 +413,30 @@ package body lib_mapper_mmc1 is
         end case;
     end;
 
+    -- The 8KB PRG RAM bank. Like the 256KB half of PRG ROM on SUROM, it
+    -- comes from CHR bank 0. In 4KB CHR mode the chip takes it from the CHR
+    -- bank that PPU A12 selects, so games either use 8KB CHR mode or set the
+    -- bits the same in both CHR banks
+    function get_prg_ram_bank
+    (
+        reg     : mapper_mmc1_reg_t;
+        prg_ram : mmc1_prg_ram_t
+    )
+    return prg_ram_bank_8kb_t
+    is
+    begin
+        case prg_ram is
+            when PRG_RAM_UNBANKED =>
+                return "000";
+            when PRG_RAM_SOROM =>
+                return "00" & reg.chr_bank_0(3);
+            when PRG_RAM_SZROM =>
+                return "00" & reg.chr_bank_0(4);
+            when PRG_RAM_SXROM =>
+                return '0' & reg.chr_bank_0(3 downto 2);
+        end case;
+    end;
+
     -- The 4KB CHR bank at 0x0000 or 0x1000
     function get_chr_bank
     (
@@ -394,6 +483,7 @@ package body lib_mapper_mmc1 is
     (
         reg      : mapper_mmc1_reg_t;
         board    : mmc1_board_t;
+        prg_ram  : mmc1_prg_ram_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -416,6 +506,7 @@ package body lib_mapper_mmc1 is
         chr_window := get_chr_window(cart_in.ppu);
 
         banks.prg_ram := board = MMC1A_SXROM or ret.reg.prg_bank(4) = '0';
+        banks.prg_ram_bank := get_prg_ram_bank(ret.reg, prg_ram);
         banks.prg := get_prg_bank_8kb(ret.reg,
                                       board,
                                       get_prg_window(cart_in.cpu));

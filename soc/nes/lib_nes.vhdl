@@ -17,6 +17,7 @@ use work.nes_types.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
 use work.cart_types.all;
+use work.lib_cartridge.all;
 use work.lib_nes_mmap.all;
 
 package lib_nes is
@@ -385,8 +386,13 @@ package body lib_nes is
                 then
                     ret.reg.cart_config :=
                         set_rom_masks(nes_in.reg.cart_config);
+                    if not nes_in.reg.cart_config.nes2
+                    then
+                        ret.reg.cart_config :=
+                            set_ines_ram_masks(ret.reg.cart_config);
+                    end if;
 
-                    if needs_ram_clear(nes_in.reg.cart_config)
+                    if needs_ram_clear(ret.reg.cart_config)
                     then
                         ret.reg.cur_cycle := unsigned(DEFAULT_RAM_MASK) + 1;
                         ret.reg.cur_state := STATE_CLEAR;

@@ -95,6 +95,7 @@
 ../../../core/mappers/mmc3/mapper_mmc3.vhdl
 ../../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
 ../../../core/mappers/mmc2/mapper_mmc2.vhdl
+../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
 

@@ -23,7 +23,8 @@ end mapper_mmc1;
 
 architecture behavioral of mapper_mmc1 is
 
-    signal board : mmc1_board_t;
+    signal board   : mmc1_board_t;
+    signal prg_ram : mmc1_prg_ram_t;
 
     signal reg      : mapper_mmc1_reg_t := RESET_MAPPER_MMC1_REG;
     signal reg_next : mapper_mmc1_reg_t;
@@ -31,6 +32,7 @@ architecture behavioral of mapper_mmc1 is
 begin
 
     board <= get_mmc1_board(config);
+    prg_ram <= get_mmc1_prg_ram(config);
 
     process(clk)
     begin
@@ -54,7 +56,12 @@ begin
         -- need to be simulated
         if enable
         then
-            v_out := cycle_mapper_mmc1(reg, board, config, clk_sync, cart_in);
+            v_out := cycle_mapper_mmc1(reg,
+                                       board,
+                                       prg_ram,
+                                       config,
+                                       clk_sync,
+                                       cart_in);
 
             reg_next <= v_out.reg;
             cart_out <= v_out.cart;
