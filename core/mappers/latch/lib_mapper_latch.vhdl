@@ -26,6 +26,8 @@ package lib_mapper_latch is
         LATCH_ADDR_NONE,
         -- 0x8000-0xFFFF
         LATCH_ADDR_ROM,
+        -- 0xC000-0xFFFF
+        LATCH_ADDR_C000,
         LATCH_ADDR_7FFD,
         LATCH_ADDR_7FFE,
         LATCH_ADDR_7FFF
@@ -66,6 +68,14 @@ package lib_mapper_latch is
         CHR_4KB
     );
 
+    -- CHR RAM is larger than the 8KB of an iNES board without a size
+    type latch_chr_ram_t is
+    (
+        CHR_RAM_8KB,
+        CHR_RAM_16KB,
+        CHR_RAM_32KB
+    );
+
     type latch_mirror_mode_t is
     (
         -- Mirroring is set by solder pads, given by the header of the ROM
@@ -73,7 +83,13 @@ package lib_mapper_latch is
         MIRROR_FIXED,
         -- Bit 0 of LATCH_MIRROR selects the nametable for single screen
         -- mirroring
-        MIRROR_SINGLE
+        MIRROR_SINGLE,
+        -- Bit 0 of LATCH_MIRROR selects vertical ('1') or horizontal ('0')
+        -- mirroring
+        MIRROR_HV,
+        -- The four nametables are in the last 8KB of CHR RAM, which is
+        -- not banked
+        MIRROR_CHR_RAM
     );
 
     type latch_board_t is record
@@ -81,6 +97,7 @@ package lib_mapper_latch is
         chr_mode    : latch_chr_mode_t;
         mirror_mode : latch_mirror_mode_t;
         prg_ram     : boolean;
+        chr_ram     : latch_chr_ram_t;
         latches     : latches_t;
     end record;
 
@@ -89,6 +106,14 @@ package lib_mapper_latch is
 
     -- The row of the table for the board of the ROM file
     function get_latch_board(config : cart_config_t) return latch_board_t;
+
+    -- The mask of the CHR RAM address for the board of an iNES ROM file,
+    -- whose header gives no RAM size
+    function get_latch_ines_chr_ram_mask
+    (
+        config : cart_config_t
+    )
+    return std_logic_vector;
 
     type mapper_latch_reg_t is array(latch_id_t) of latch_value_t;
 
@@ -152,8 +177,8 @@ package body lib_mapper_latch is
     is
     begin
         case mapper_num is
-            when x"000" | x"002" | x"003" | x"007" | x"00B" | x"022" |
-                 x"042" => return true;
+            when x"000" | x"002" | x"003" | x"007" | x"00B" | x"00D" |
+                 x"01E" | x"022" | x"042" => return true;
             when others => return false;
         end case;
     end;
@@ -161,11 +186,13 @@ package body lib_mapper_latch is
     function get_latch_board(config : cart_config_t) return latch_board_t
     is
         variable ret : latch_board_t;
+        variable addr : latch_addr_t;
     begin
         ret.prg_mode := PRG_32KB;
         ret.chr_mode := CHR_8KB;
         ret.mirror_mode := MIRROR_FIXED;
         ret.prg_ram := false;
+        ret.chr_ram := CHR_RAM_8KB;
         ret.latches := (others => LATCH_NONE);
 
         case config.mapper_num is
@@ -189,6 +216,46 @@ package body lib_mapper_latch is
             when x"00B" =>
                 ret.latches(LATCH_PRG) := rom_latch(1, 0);
                 ret.latches(LATCH_CHR_0) := rom_latch(7, 4);
+            -- CPROM: the first 4KB of CHR RAM is fixed at 0x0000
+            when x"00D" =>
+                ret.chr_mode := CHR_4KB;
+                ret.chr_ram := CHR_RAM_16KB;
+                ret.latches(LATCH_CHR_1) := rom_latch(1, 0);
+            -- UNROM 512. Without the battery bit (flash), submapper 0 has
+            -- bus conflicts, like submapper 2, so the latch is written at
+            -- any ROM address. The flash boards and submappers 1, 3 and 4
+            -- write it at 0xC000-0xFFFF: the flash commands of the first
+            -- two and the LEDs of submapper 4, none of which are emulated,
+            -- are at 0x8000-0xBFFF
+            when x"01E" =>
+                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.chr_ram := CHR_RAM_32KB;
+                if (config.submapper_num = x"0" and not config.battery) or
+                   config.submapper_num = x"2"
+                then
+                    addr := LATCH_ADDR_ROM;
+                else
+                    addr := LATCH_ADDR_C000;
+                end if;
+                ret.latches(LATCH_PRG) := latch(addr, 4, 0);
+                ret.latches(LATCH_CHR_0) := latch(addr, 6, 5);
+                ret.latches(LATCH_MIRROR) := latch(addr, 7, 7);
+
+                -- Submapper 3 switches between horizontal and vertical
+                -- mirroring. The others use bits 3 and 0 of byte 6 of the
+                -- header: 1 and 0 for switchable single screen mirroring,
+                -- 1 and 1 for nametables in CHR RAM. Otherwise mirroring is
+                -- fixed and bit 7 of the latch is not connected
+                if config.submapper_num = x"3"
+                then
+                    ret.mirror_mode := MIRROR_HV;
+                elsif config.mirror_pads = "10"
+                then
+                    ret.mirror_mode := MIRROR_SINGLE;
+                elsif config.mirror_pads = "11"
+                then
+                    ret.mirror_mode := MIRROR_CHR_RAM;
+                end if;
             -- BNROM (submapper 2) and NINA-001 (submapper 1). Without a
             -- submapper, only NINA-001 has more than 8KB of CHR ROM
             when x"022" =>
@@ -214,6 +281,20 @@ package body lib_mapper_latch is
         return ret;
     end;
 
+    function get_latch_ines_chr_ram_mask
+    (
+        config : cart_config_t
+    )
+    return std_logic_vector
+    is
+    begin
+        case get_latch_board(config).chr_ram is
+            when CHR_RAM_8KB => return DEFAULT_RAM_MASK;
+            when CHR_RAM_16KB => return x"3FFF";
+            when CHR_RAM_32KB => return x"7FFF";
+        end case;
+    end;
+
     function is_latch_addr
     (
         addr   : latch_addr_t;
@@ -230,6 +311,8 @@ package body lib_mapper_latch is
                 return false;
             when LATCH_ADDR_ROM =>
                 return cpu_in.romsel;
+            when LATCH_ADDR_C000 =>
+                return cpu_in.romsel and a(14) = '1';
             when LATCH_ADDR_7FFD =>
                 return not cpu_in.romsel and a = "111" & x"FFD";
             when LATCH_ADDR_7FFE =>
@@ -305,10 +388,21 @@ package body lib_mapper_latch is
                                     chr_bank_1kb_t'length);
         end case;
 
-        if board.mirror_mode = MIRROR_SINGLE
-        then
-            banks.mirror := get_single_screen_mirror(ret.reg(LATCH_MIRROR)(0));
-        end if;
+        case board.mirror_mode is
+            when MIRROR_FIXED =>
+            when MIRROR_SINGLE =>
+                banks.mirror :=
+                    get_single_screen_mirror(ret.reg(LATCH_MIRROR)(0));
+            when MIRROR_HV =>
+                banks.mirror := get_hv_mirror(not ret.reg(LATCH_MIRROR)(0));
+            when MIRROR_CHR_RAM =>
+                if cart_in.ppu.chr_bus.address(13) = '1'
+                then
+                    banks.nt_chr := true;
+                    banks.chr := resize("11" & chr_window,
+                                        chr_bank_1kb_t'length);
+                end if;
+        end case;
 
         banks.prg_ram := board.prg_ram;
 

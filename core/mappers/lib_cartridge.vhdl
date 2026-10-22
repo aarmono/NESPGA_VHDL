@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use work.cart_types.all;
+use work.lib_mapper_latch.all;
 use work.lib_mapper_mmc1.all;
 
 -- What the console needs to know about the boards the cartridge can hold
@@ -22,7 +23,10 @@ package body lib_cartridge is
     begin
         ret := config;
 
-        if is_mmc1_mapper(config.mapper_num)
+        if is_latch_mapper(config.mapper_num)
+        then
+            ret.chr_ram_mask := get_latch_ines_chr_ram_mask(config);
+        elsif is_mmc1_mapper(config.mapper_num)
         then
             ret.prg_ram_mask := get_mmc1_ines_prg_ram_mask(config);
         end if;

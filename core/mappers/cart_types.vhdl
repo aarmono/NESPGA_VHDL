@@ -55,6 +55,11 @@ package cart_types is
         prg_rom_16kb_blocks : rom_blocks_t;
         chr_rom_8kb_blocks  : rom_blocks_t;
         mirror              : mirror_t;
+        -- Bits 3 and 0 of byte 6 of the header, from which mirror is
+        -- decoded. A few boards give them a meaning of their own
+        mirror_pads         : std_logic_vector(1 downto 0);
+        -- The board keeps its memory with a battery, or in flash
+        battery             : boolean;
         has_trainer         : boolean;
 
         -- The ROMs are only wired to as many address lines as their size
@@ -80,6 +85,8 @@ package cart_types is
         prg_rom_16kb_blocks => (others => '0'),
         chr_rom_8kb_blocks => (others => '0'),
         mirror => MIRROR_HORZ,
+        mirror_pads => "00",
+        battery => false,
         has_trainer => false,
 
         prg_rom_mask => (others => '0'),
@@ -213,6 +220,9 @@ package cart_types is
         chr_ram      : boolean;
         chr          : chr_bank_1kb_t;
         mirror       : mirror_t;
+        -- The PPU accesses the nametables in CHR, in bank chr like the
+        -- pattern tables, rather than in CIRAM. mirror is not used
+        nt_chr       : boolean;
     end record;
 
     -- The config with the masks for the sizes of the ROMs in its header
@@ -255,7 +265,8 @@ package cart_types is
 
     -- The banks of a board before it selects any: no PRG RAM, bank 0 of
     -- PRG ROM and of CHR, CHR RAM if the board has no CHR ROM, and the
-    -- mirroring of the header. A board sets the ones its chips control
+    -- nametables in CIRAM with the mirroring of the header. A board sets
+    -- the ones its chips control
     function default_banks(config : cart_config_t) return cart_banks_t;
 
     -- Connects the CPU and PPU to the memories on the board, through the
@@ -408,7 +419,8 @@ package body cart_types is
             prg => (others => '0'),
             chr_ram => has_chr_ram(config),
             chr => (others => '0'),
-            mirror => config.mirror
+            mirror => config.mirror,
+            nt_chr => false
         );
     end;
 
@@ -562,7 +574,7 @@ package body cart_types is
 
         if is_bus_active(cart_in.ppu.chr_bus)
         then
-            if cart_in.ppu.chr_bus.address(13) = '0'
+            if cart_in.ppu.chr_bus.address(13) = '0' or banks.nt_chr
             then
                 ret := map_chr(config, cart_in, banks, ret);
             else

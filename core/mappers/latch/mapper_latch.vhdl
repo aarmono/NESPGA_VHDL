@@ -3,8 +3,8 @@ use IEEE.std_logic_1164.all;
 use work.cart_types.all;
 use work.lib_mapper_latch.all;
 
--- Discrete logic boards: NROM, UxROM, CNROM, AxROM, Color Dreams, BNROM,
--- NINA-001 and GxROM
+-- Discrete logic boards: NROM, UxROM, CNROM, AxROM, Color Dreams, CPROM,
+-- UNROM 512, BNROM, NINA-001 and GxROM
 entity mapper_latch is
 port
 (
