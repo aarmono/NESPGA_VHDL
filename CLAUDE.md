@@ -10,7 +10,7 @@ ghdl runs within a docker container using the run_ghdl.sh script, however the ex
 
 the docker container runs as root, so files generated from within the docker container will have root ownership and may need to be deleted from within the docker container using run_ghdl.sh
 
-mesen-agent is installed on this machine. use the mesen-agent skill to reference what mesen does if mesen is passing a test this project does not.
+mesen-agent is installed on this machine. use the mesen-agent skill to reference what mesen does, but do not treat it as authoritative, especially as it pertains to APU/PPU/CPU timing.
 
 Prefer pure combinational logic to go into functions when feasible. if combinational logic is only assigning into regsitered values, prefer calling that function from within a clocked process instead of using the two-process method where that function is called from within a combinational process.
 
