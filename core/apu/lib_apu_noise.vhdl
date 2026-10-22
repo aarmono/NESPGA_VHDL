@@ -17,24 +17,26 @@ package lib_apu_noise is
     subtype random_shift_t is std_logic_vector(14 downto 0);
 
     type random_count_arr_t is array(0 to 16#F#) of random_count_t;
+    -- The periods in CPU cycles less one, since the timer counts every CPU
+    -- cycle and reloads at 0
     constant RANDOM_COUNT_ARR : random_count_arr_t :=
     (
-        16#004#,
-        16#008#,
-        16#010#,
-        16#020#,
-        16#040#,
-        16#060#,
-        16#080#,
-        16#0A0#,
-        16#0C0#,
-        16#0FE#,
-        16#17C#,
-        16#1FC#,
-        16#2FA#,
-        16#3F8#,
-        16#7F2#,
-        16#FE4#
+        16#003#,
+        16#007#,
+        16#00F#,
+        16#01F#,
+        16#03F#,
+        16#05F#,
+        16#07F#,
+        16#09F#,
+        16#0C9#,
+        16#0FD#,
+        16#17B#,
+        16#1FB#,
+        16#2F9#,
+        16#3F7#,
+        16#7F1#,
+        16#FE3#
     );
 
     type random_t is record

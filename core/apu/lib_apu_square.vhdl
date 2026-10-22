@@ -120,12 +120,7 @@ package lib_apu_square is
     )
     return square_seq_t;
 
-    function reload
-    (
-        val    : square_seq_t;
-        period : sweep_period_t
-    )
-    return square_seq_t;
+    function reload(val : square_seq_t) return square_seq_t;
 
     type square_t is record
         envelope : envelope_t;
@@ -361,21 +356,19 @@ package body lib_apu_square is
     return square_seq_timer_t
     is
     begin
-        -- The divider's period is P + 1 half-frames
-        return period * 2;
+        -- The divider is clocked every APU cycle and divides by P + 1, so
+        -- each step lasts 2P + 2 CPU cycles. This timer counts every CPU
+        -- cycle, reloading at 0
+        return period * 2 + 1;
     end;
 
-    function reload
-    (
-        val    : square_seq_t;
-        period : sweep_period_t
-    )
-    return square_seq_t
+    function reload(val : square_seq_t) return square_seq_t
     is
         variable ret : square_seq_t;
     begin
         ret := val;
-        ret.timer := square_timer_from_period(period);
+        -- The sequencer is restarted at the first step, but the period
+        -- divider is not reset
         ret.cycle := 0;
 
         return ret;
@@ -518,10 +511,10 @@ package body lib_apu_square is
         ret := val;
         ret.length := write_reg_1(val.length, reg(7 downto 3), update_length);
         ret.sweep := write_reg_2(val.sweep, reg(2 downto 0));
-        -- Writes to fourth register reset envelope and force reload
-        -- of sequencer period
+        -- Writes to fourth register reset envelope and restart the
+        -- sequencer
         ret.envelope := reload(val.envelope);
-        ret.seq := reload(val.seq, ret.sweep.period);
+        ret.seq := reload(val.seq);
 
         return ret;
     end;
