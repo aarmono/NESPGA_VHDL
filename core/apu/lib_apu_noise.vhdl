@@ -27,7 +27,7 @@ package lib_apu_noise is
         16#060#,
         16#080#,
         16#0A0#,
-        16#0C0#,
+        16#0CA#,
         16#0FE#,
         16#17C#,
         16#1FC#,
@@ -155,7 +155,9 @@ package body lib_apu_noise is
     return random_count_t
     is
     begin
-        return RANDOM_COUNT_ARR(idx);
+        -- The table is in CPU cycles, and the timer counts every CPU cycle,
+        -- reloading at 0
+        return RANDOM_COUNT_ARR(idx) - 1;
     end;
 
     function next_noise
