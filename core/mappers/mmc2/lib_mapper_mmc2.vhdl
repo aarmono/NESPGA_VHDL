@@ -14,7 +14,7 @@ use work.cart_types.all;
 -- lower half, so the board is chosen by the mapper number at run time.
 --
 -- To add a board, add it to mmc2_board_t and get_mmc2_board and its mapper
--- number to get_board in the cartridge
+-- number to is_mmc2_mapper
 package lib_mapper_mmc2 is
 
     type mmc2_board_t is
@@ -27,6 +27,9 @@ package lib_mapper_mmc2 is
         -- at 0xC000, and PRG RAM at 0x6000-0x7FFF
         MMC4_FXROM
     );
+
+    -- The mapper number is that of a board built around the MMC2 or the MMC4
+    function is_mmc2_mapper(mapper_num : mapper_num_t) return boolean;
 
     function get_mmc2_board(config : cart_config_t) return mmc2_board_t;
 
@@ -97,6 +100,15 @@ end package lib_mapper_mmc2;
 
 
 package body lib_mapper_mmc2 is
+
+    function is_mmc2_mapper(mapper_num : mapper_num_t) return boolean
+    is
+    begin
+        case mapper_num is
+            when x"009" | x"00A" => return true;
+            when others => return false;
+        end case;
+    end;
 
     function get_mmc2_board(config : cart_config_t) return mmc2_board_t
     is
@@ -263,17 +275,6 @@ package body lib_mapper_mmc2 is
         return resize(bank & window(1 downto 0), chr_bank_1kb_t'length);
     end;
 
-    function get_mirror(reg : mapper_mmc2_reg_t) return mirror_t
-    is
-    begin
-        if reg.mirroring = '1'
-        then
-            return MIRROR_HORZ;
-        else
-            return MIRROR_VERT;
-        end if;
-    end;
-
     function cycle_mapper_mmc2
     (
         reg      : mapper_mmc2_reg_t;
@@ -293,12 +294,11 @@ package body lib_mapper_mmc2 is
                                board,
                                cart_in);
 
+        banks := default_banks(config);
         banks.prg_ram := board = MMC4_FXROM;
-        banks.prg_ram_bank := (others => '0');
         banks.prg := get_prg_bank(ret.reg, board, get_prg_window(cart_in.cpu));
-        banks.chr_ram := has_chr_ram(config);
         banks.chr := get_chr_bank(ret.reg, get_chr_window(cart_in.ppu));
-        banks.mirror := get_mirror(ret.reg);
+        banks.mirror := get_hv_mirror(ret.reg.mirroring);
 
         ret.cart := map_cart(config, cart_in, banks);
 

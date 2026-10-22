@@ -65,9 +65,6 @@ is
     signal next_prg_cache : prg_cache_t;
     signal next_chr_cache : chr_cache_t;
 
-    signal sig_data_to_chr_bus : data_t;
-    signal sig_data_to_prg_bus : data_t;
-
     function update_cache
     (
         cache_in : cache_t;
@@ -166,9 +163,6 @@ is
 
 begin
 
-    data_to_chr_bus <= sig_data_to_chr_bus;
-    data_to_prg_bus <= sig_data_to_prg_bus;
-
     process(all)
         variable chr_result : cache_result_t := RESULT_INIT;
         variable prg_result : cache_result_t := RESULT_INIT;
@@ -217,8 +211,8 @@ begin
             data_to_cart_mem <= data_from_chr_bus;
         end if;
 
-        sig_data_to_chr_bus <= chr_result.data;
-        sig_data_to_prg_bus <= prg_result.data;
+        data_to_chr_bus <= chr_result.data;
+        data_to_prg_bus <= prg_result.data;
 
         if chr_result.update_cache
         then

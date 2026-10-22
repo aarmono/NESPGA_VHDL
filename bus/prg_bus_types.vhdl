@@ -11,13 +11,6 @@ package prg_bus_types is
         write    : boolean;
     end record;
     
-    constant PRG_BUS_IDLE : prg_bus_t :=
-    (
-        address => (others => '-'),
-        read => false,
-        write => false
-    );
-    
     function bus_read(addr_in : prg_addr_t) return prg_bus_t;
     function bus_read(addr_in : unsigned(prg_addr_t'RANGE)) return prg_bus_t;
     function bus_write(addr_in : prg_addr_t) return prg_bus_t;

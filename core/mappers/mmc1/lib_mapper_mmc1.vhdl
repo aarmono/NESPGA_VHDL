@@ -11,10 +11,10 @@ use work.cart_types.all;
 -- mapper number at run time.
 --
 -- SOROM and SXROM, which bank 16KB or 32KB of PRG RAM with bits of the CHR
--- bank, are not supported: PRG RAM is 8KB.
+-- bank, are not supported: PRG RAM is not banked.
 --
 -- To add a board, add it to mmc1_board_t and get_mmc1_board and its mapper
--- number to get_board in the cartridge
+-- number to is_mmc1_mapper
 package lib_mapper_mmc1 is
 
     type mmc1_board_t is
@@ -35,6 +35,9 @@ package lib_mapper_mmc1 is
         -- an IRQ when the time is up
         MMC1_EVENT
     );
+
+    -- The mapper number is that of a board built around this family
+    function is_mmc1_mapper(mapper_num : mapper_num_t) return boolean;
 
     function get_mmc1_board(config : cart_config_t) return mmc1_board_t;
 
@@ -128,6 +131,15 @@ end package lib_mapper_mmc1;
 
 
 package body lib_mapper_mmc1 is
+
+    function is_mmc1_mapper(mapper_num : mapper_num_t) return boolean
+    is
+    begin
+        case mapper_num is
+            when x"001" | x"069" | x"09B" => return true;
+            when others => return false;
+        end case;
+    end;
 
     function get_mmc1_board(config : cart_config_t) return mmc1_board_t
     is
@@ -393,6 +405,7 @@ package body lib_mapper_mmc1 is
         variable chr_window : chr_window_t;
     begin
         ret.reg := cycle_write(reg, clk_sync, cart_in);
+        banks := default_banks(config);
 
         if board = MMC1_EVENT
         then
@@ -403,11 +416,9 @@ package body lib_mapper_mmc1 is
         chr_window := get_chr_window(cart_in.ppu);
 
         banks.prg_ram := board = MMC1A_SXROM or ret.reg.prg_bank(4) = '0';
-        banks.prg_ram_bank := (others => '0');
         banks.prg := get_prg_bank_8kb(ret.reg,
                                       board,
                                       get_prg_window(cart_in.cpu));
-        banks.chr_ram := has_chr_ram(config);
         banks.chr := resize(get_chr_bank(ret.reg, chr_window(2)) &
                             chr_window(1 downto 0),
                             chr_bank_1kb_t'length);

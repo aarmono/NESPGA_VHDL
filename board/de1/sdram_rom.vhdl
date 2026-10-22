@@ -55,9 +55,10 @@ end sdram_rom;
 
 architecture behavioral of sdram_rom is
 
-    -- Largest ROM file that is loaded. The ROM file image starts at address
-    -- 0 of the cartridge memory bus, and the cartridge RAMs are above it
-    constant MAX_BYTES : positive := 2**20;
+    -- Largest ROM file that is loaded. The ROM file image is in the lower
+    -- half of the cartridge memory bus, from address 0, and the cartridge
+    -- RAMs are in the upper half
+    constant MAX_BYTES : positive := 2**(cart_mem_addr_t'length - 1);
 
     subtype sdram_addr_t is std_logic_vector(22 downto 0);
     subtype load_addr_t is natural range 0 to MAX_BYTES - 1;

@@ -12,8 +12,8 @@ use work.cart_types.all;
 -- bits they hold and what those bits are wired to, so each board is a row in
 -- a table chosen by the mapper number at run time.
 --
--- To add a board, add its row to get_latch_board and its mapper number to
--- get_board in the cartridge
+-- To add a board, add its mapper number to is_latch_mapper and its row to
+-- get_latch_board
 package lib_mapper_latch is
 
     subtype latch_value_t is unsigned(7 downto 0);
@@ -84,6 +84,9 @@ package lib_mapper_latch is
         latches     : latches_t;
     end record;
 
+    -- The mapper number is that of a board in the table
+    function is_latch_mapper(mapper_num : mapper_num_t) return boolean;
+
     -- The row of the table for the board of the ROM file
     function get_latch_board(config : cart_config_t) return latch_board_t;
 
@@ -143,6 +146,16 @@ package body lib_mapper_latch is
     is
     begin
         return latch(LATCH_ADDR_ROM, hi, lo);
+    end;
+
+    function is_latch_mapper(mapper_num : mapper_num_t) return boolean
+    is
+    begin
+        case mapper_num is
+            when x"000" | x"002" | x"003" | x"007" | x"00B" | x"022" |
+                 x"042" => return true;
+            when others => return false;
+        end case;
     end;
 
     function get_latch_board(config : cart_config_t) return latch_board_t
@@ -244,6 +257,7 @@ package body lib_mapper_latch is
         variable chr_bank : latch_value_t;
     begin
         ret.reg := reg;
+        banks := default_banks(config);
 
         if is_bus_write(cart_in.cpu.prg_bus) and clk_sync
         then
@@ -276,7 +290,6 @@ package body lib_mapper_latch is
         end case;
 
         chr_window := get_chr_window(cart_in.ppu);
-        banks.chr_ram := has_chr_ram(config);
         case board.chr_mode is
             when CHR_8KB =>
                 banks.chr := resize(ret.reg(LATCH_CHR_0) & chr_window,
@@ -292,20 +305,12 @@ package body lib_mapper_latch is
                                     chr_bank_1kb_t'length);
         end case;
 
-        case board.mirror_mode is
-            when MIRROR_FIXED =>
-                banks.mirror := config.mirror;
-            when MIRROR_SINGLE =>
-                if ret.reg(LATCH_MIRROR)(0) = '0'
-                then
-                    banks.mirror := MIRROR_A;
-                else
-                    banks.mirror := MIRROR_B;
-                end if;
-        end case;
+        if board.mirror_mode = MIRROR_SINGLE
+        then
+            banks.mirror := get_single_screen_mirror(ret.reg(LATCH_MIRROR)(0));
+        end if;
 
         banks.prg_ram := board.prg_ram;
-        banks.prg_ram_bank := (others => '0');
 
         ret.cart := map_cart(config, cart_in, banks);
 

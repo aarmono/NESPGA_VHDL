@@ -45,8 +45,9 @@ architecture behavioral of sdram_rom_bench is
     signal ref_data       : data_t;
 
     -- The RAM window is small so that most reads of it are of an address
-    -- that has been written
-    constant RAM_BASE  : natural := 16#100000#;
+    -- that has been written. It is at the start of the upper half of the
+    -- cartridge memory bus, where the cartridge RAMs are
+    constant RAM_BASE  : natural := 2**(cart_mem_addr_t'length - 1);
     constant RAM_BYTES : positive := 256;
 
     type ram_t is array(0 to RAM_BYTES - 1) of data_t;

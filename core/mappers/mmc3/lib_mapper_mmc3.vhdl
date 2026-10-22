@@ -21,7 +21,7 @@ use work.cart_types.all;
 -- enables the PRG RAM of the MMC6 and does nothing on the MMC3
 --
 -- To add a board, add it to mmc3_board_t and get_mmc3_board and its mapper
--- number to get_board in the cartridge
+-- number to is_mmc3_mapper
 package lib_mapper_mmc3 is
 
     type mmc3_board_t is
@@ -51,6 +51,10 @@ package lib_mapper_mmc3 is
         -- selected by bit 6 of every write to 0x8000-0xFFFF
         NAMCO_3453
     );
+
+    -- The mapper number is that of a board built around the MMC3, the MMC6
+    -- or the Namco 108
+    function is_mmc3_mapper(mapper_num : mapper_num_t) return boolean;
 
     function get_mmc3_board(config : cart_config_t) return mmc3_board_t;
 
@@ -142,6 +146,16 @@ end package lib_mapper_mmc3;
 
 
 package body lib_mapper_mmc3 is
+
+    function is_mmc3_mapper(mapper_num : mapper_num_t) return boolean
+    is
+    begin
+        case mapper_num is
+            when x"004" | x"02F" | x"04C" | x"058" | x"05F" | x"076" |
+                 x"077" | x"09A" | x"0CE" => return true;
+            when others => return false;
+        end case;
+    end;
 
     function get_mmc3_board(config : cart_config_t) return mmc3_board_t
     is
@@ -326,68 +340,73 @@ package body lib_mapper_mmc3 is
     begin
         ret := reg;
 
-        if is_rom_write(cart_in.cpu, clk_sync) and is_namco_108(board)
+        if is_rom_write(cart_in.cpu, clk_sync)
         then
-            ret := cycle_write_namco_108(reg, board, cart_in);
-        elsif is_rom_write(cart_in.cpu, clk_sync)
-        then
-            case cart_in.cpu.prg_bus.address(14 downto 13) is
-                -- 0x8000-0x9FFF
-                when "00" =>
-                    if cart_in.cpu.prg_bus.address(0) = '0'
-                    then
-                        ret.bank_idx := unsigned(cart_in.cpu.data(2 downto 0));
-                        ret.chr_mode := cart_in.cpu.data(7);
-                        ret.prg_mode := cart_in.cpu.data(6);
-                        ret.mmc6_ram_enable := cart_in.cpu.data(5);
-
-                        if board = MMC3_TXROM and
-                           not config.nes2 and
-                           cart_in.cpu.data(5) = '1'
+            if is_namco_108(board)
+            then
+                ret := cycle_write_namco_108(reg, board, cart_in);
+            else
+                case cart_in.cpu.prg_bus.address(14 downto 13) is
+                    -- 0x8000-0x9FFF
+                    when "00" =>
+                        if cart_in.cpu.prg_bus.address(0) = '0'
                         then
-                            ret.mmc6 := true;
-                        end if;
-                    else
-                        ret.banks(to_integer(reg.bank_idx)) :=
-                            unsigned(cart_in.cpu.data);
-                    end if;
-                -- 0xA000-0xBFFF
-                when "01" =>
-                    if cart_in.cpu.prg_bus.address(0) = '0'
-                    then
-                        ret.mirroring := cart_in.cpu.data(0);
-                    -- The MMC6 ignores this while its PRG RAM is disabled
-                    elsif not is_mmc6(reg, board) or
-                          reg.mmc6_ram_enable = '1'
-                    then
-                        ret.prg_ram_bits := cart_in.cpu.data(7 downto 4);
-                    end if;
-                -- 0xC000-0xDFFF
-                when "10" =>
-                    if cart_in.cpu.prg_bus.address(0) = '0'
-                    then
-                        ret.irq_reload := to_integer(unsigned(cart_in.cpu.data));
-                    else
-                        ret.irq_count := 0;
-                    end if;
-                -- 0xE000-0xFFFF
-                when others =>
-                    ret.irq_enable := cart_in.cpu.prg_bus.address(0) = '1';
+                            ret.bank_idx :=
+                                unsigned(cart_in.cpu.data(2 downto 0));
+                            ret.chr_mode := cart_in.cpu.data(7);
+                            ret.prg_mode := cart_in.cpu.data(6);
+                            ret.mmc6_ram_enable := cart_in.cpu.data(5);
 
-                    if cart_in.cpu.prg_bus.address(0) = '0'
-                    then
-                        ret.irq := false;
-                    end if;
-            end case;
+                            if board = MMC3_TXROM and
+                               not config.nes2 and
+                               cart_in.cpu.data(5) = '1'
+                            then
+                                ret.mmc6 := true;
+                            end if;
+                        else
+                            ret.banks(to_integer(reg.bank_idx)) :=
+                                unsigned(cart_in.cpu.data);
+                        end if;
+                    -- 0xA000-0xBFFF
+                    when "01" =>
+                        if cart_in.cpu.prg_bus.address(0) = '0'
+                        then
+                            ret.mirroring := cart_in.cpu.data(0);
+                        -- The MMC6 ignores this while its PRG RAM is
+                        -- disabled
+                        elsif not is_mmc6(reg, board) or
+                              reg.mmc6_ram_enable = '1'
+                        then
+                            ret.prg_ram_bits := cart_in.cpu.data(7 downto 4);
+                        end if;
+                    -- 0xC000-0xDFFF
+                    when "10" =>
+                        if cart_in.cpu.prg_bus.address(0) = '0'
+                        then
+                            ret.irq_reload :=
+                                to_integer(unsigned(cart_in.cpu.data));
+                        else
+                            ret.irq_count := 0;
+                        end if;
+                    -- 0xE000-0xFFFF
+                    when others =>
+                        ret.irq_enable :=
+                            cart_in.cpu.prg_bus.address(0) = '1';
+
+                        if cart_in.cpu.prg_bus.address(0) = '0'
+                        then
+                            ret.irq := false;
+                        end if;
+                end case;
+            end if;
         end if;
 
         -- The NES-QJ latch is written through the PRG RAM enables of the
         -- MMC3
         if board = MMC3_QJ and
-           not cart_in.cpu.romsel and
+           is_prg_ram_window(cart_in.cpu) and
            is_bus_write(cart_in.cpu.prg_bus) and
            clk_sync and
-           cart_in.cpu.prg_bus.address(14 downto 13) = "11" and
            reg.prg_ram_bits(7 downto 6) = "10"
         then
             ret.outer := cart_in.cpu.data(0);
@@ -544,20 +563,12 @@ package body lib_mapper_mmc3 is
                 if config.mirror = MIRROR_FOUR
                 then
                     return config.mirror;
-                elsif reg.mirroring = '1'
-                then
-                    return MIRROR_HORZ;
                 else
-                    return MIRROR_VERT;
+                    return get_hv_mirror(reg.mirroring);
                 end if;
         end case;
 
-        if a10 = '0'
-        then
-            return MIRROR_A;
-        else
-            return MIRROR_B;
-        end if;
+        return get_single_screen_mirror(a10);
     end;
 
     function cycle_mapper_mmc3
@@ -583,9 +594,8 @@ package body lib_mapper_mmc3 is
         prg_bank := get_prg_bank(written, get_prg_window(cart_in.cpu));
         chr_bank := get_chr_bank(written, get_chr_window(cart_in.ppu));
 
+        banks := default_banks(config);
         banks.prg_ram := is_prg_ram_enabled(written, board, cart_in);
-        banks.prg_ram_bank := (others => '0');
-        banks.chr_ram := has_chr_ram(config);
         banks.mirror := get_mirror(written, board, config, chr_bank);
 
         case board is

@@ -121,50 +121,25 @@ package lib_nes is
 
     function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t;
 
-    -- The offset in the ROM file of the PRG ROM (offset_16kb = 0) or the
-    -- CHR ROM (offset_16kb = the size of the PRG ROM)
-    function get_file_offset
-    (
-        offset_16kb : rom_blocks_t;
-        has_trainer : boolean
-    )
-    return unsigned;
-
-    -- The ROM file access for an access to PRG ROM or CHR ROM
-    function get_cart_mem_bus
-    (
-        rom_bus     : cart_mem_bus_t;
-        file_offset : unsigned
-    )
-    return cart_mem_bus_t;
-
     -- The ROM file is in the lower half of the cartridge memory bus, from
     -- address 0. The cartridge RAMs are in the upper half, each in its own
     -- fixed 64 KB window: PRG RAM, then CHR RAM
-    constant PRG_RAM_WINDOW : cart_mem_addr_t :=
-        std_logic_vector(to_unsigned(16#100000#, cart_mem_addr_t'length));
-    constant CHR_RAM_WINDOW : cart_mem_addr_t :=
-        std_logic_vector(to_unsigned(16#110000#, cart_mem_addr_t'length));
+    constant CART_RAM_BASE : natural := 2**(cart_mem_addr_t'length - 1);
 
     -- Offset into the cartridge RAM windows
     subtype cart_ram_addr_t is std_logic_vector(16 downto 0);
 
     function is_cart_ram(cart_mem_bus : cart_mem_bus_t) return boolean;
 
-    -- The cartridge memory bus access for an access to PRG RAM
-    function get_prg_ram_bus(ram_bus : prg_ram_bus_t) return cart_mem_bus_t;
-
-    -- The cartridge memory bus access for an access to CHR RAM
-    function get_chr_ram_bus(ram_bus : chr_ram_bus_t) return cart_mem_bus_t;
-
-    -- Reset clears the first 8KB of PRG RAM and CHR RAM, before the header
-    -- gives their sizes. A board with more needs the rest cleared after the
-    -- header is loaded
-    function needs_ram_clear(config : cart_config_t) return boolean;
-
 end lib_nes;
 
 package body lib_nes is
+
+    constant PRG_RAM_WINDOW : cart_mem_addr_t :=
+        std_logic_vector(to_unsigned(CART_RAM_BASE, cart_mem_addr_t'length));
+    constant CHR_RAM_WINDOW : cart_mem_addr_t :=
+        std_logic_vector(to_unsigned(CART_RAM_BASE + 16#10000#,
+                                     cart_mem_addr_t'length));
 
     function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t
     is
@@ -185,6 +160,8 @@ package body lib_nes is
         return ret;
     end;
 
+    -- The offset in the ROM file of the PRG ROM (offset_16kb = 0) or the
+    -- CHR ROM (offset_16kb = the size of the PRG ROM)
     function get_file_offset
     (
         offset_16kb : rom_blocks_t;
@@ -203,6 +180,7 @@ package body lib_nes is
         return ret;
     end;
 
+    -- The ROM file access for an access to PRG ROM or CHR ROM
     function get_cart_mem_bus
     (
         rom_bus     : cart_mem_bus_t;
@@ -225,6 +203,7 @@ package body lib_nes is
         return cart_mem_bus.address(cart_mem_addr_t'high) = '1';
     end;
 
+    -- The cartridge memory bus access for an access to PRG RAM
     function get_prg_ram_bus(ram_bus : prg_ram_bus_t) return cart_mem_bus_t
     is
         variable ret : cart_mem_bus_t;
@@ -237,6 +216,7 @@ package body lib_nes is
         return ret;
     end;
 
+    -- The cartridge memory bus access for an access to CHR RAM
     function get_chr_ram_bus(ram_bus : chr_ram_bus_t) return cart_mem_bus_t
     is
         variable ret : cart_mem_bus_t;
@@ -249,11 +229,14 @@ package body lib_nes is
         return ret;
     end;
 
+    -- Reset clears the first 8KB of PRG RAM and CHR RAM, before the header
+    -- gives their sizes. A board with more needs the rest cleared after the
+    -- header is loaded
     function needs_ram_clear(config : cart_config_t) return boolean
     is
     begin
-        return config.prg_ram_mask(15 downto 13) /= "000" or
-               config.chr_ram_mask(15 downto 13) /= "000";
+        return not is_zero(config.prg_ram_mask and not DEFAULT_RAM_MASK) or
+               not is_zero(config.chr_ram_mask and not DEFAULT_RAM_MASK);
     end;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t
@@ -364,8 +347,6 @@ package body lib_nes is
                         mirror := nes_in.data_from_cart_mem(3) &
                                   nes_in.data_from_cart_mem(0);
                         ret.reg.cart_config.mirror := parse_mirror(mirror);
-                        ret.reg.cart_config.has_prg_ram :=
-                            nes_in.data_from_cart_mem(1) = '1';
                         ret.reg.cart_config.mapper_num(3 downto 0) :=
                             nes_in.data_from_cart_mem(7 downto 4);
                     -- Flags 7
@@ -402,9 +383,12 @@ package body lib_nes is
                 
                 if nes_in.reg.cur_cycle = x"0F"
                 then
+                    ret.reg.cart_config :=
+                        set_rom_masks(nes_in.reg.cart_config);
+
                     if needs_ram_clear(nes_in.reg.cart_config)
                     then
-                        ret.reg.cur_cycle := x"2000";
+                        ret.reg.cur_cycle := unsigned(DEFAULT_RAM_MASK) + 1;
                         ret.reg.cur_state := STATE_CLEAR;
                     else
                         ret.reg.cur_state := STATE_RUN;

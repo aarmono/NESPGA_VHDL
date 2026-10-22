@@ -80,43 +80,6 @@ end entity;
 architecture behavioral of nes_soc
 is
 
-    component cart_mem_bus_mux is
-    port
-    (
-        clk      : in std_logic;
-        clk_en   : in boolean;
-        clk_sync : in boolean;
-        reset    : in boolean;
-
-        cart_mem_bus_chr  : in cart_mem_bus_t;
-        data_from_chr_bus : in data_t;
-        data_to_chr_bus   : out data_t;
-
-        cart_mem_bus_prg  : in cart_mem_bus_t;
-        data_from_prg_bus : in data_t;
-        data_to_prg_bus   : out data_t;
-
-        cart_mem_bus_out   : out cart_mem_bus_t;
-        data_to_cart_mem   : out data_t;
-        data_from_cart_mem : in data_t
-    );
-    end component;
-
-    component cartridge is
-    port
-    (
-        clk      : in std_logic;
-        clk_en   : in boolean;
-        clk_sync : in boolean;
-        reset    : in boolean;
-
-        config   : in cart_config_t;
-
-        cart_in  : in cart_in_t;
-        cart_out : out cart_out_t
-    );
-    end component;
-
     signal reg      : reg_t := RESET_REG;
     signal reg_next : reg_t;
     
@@ -158,6 +121,7 @@ is
     signal cart_mem_bus_prg       : cart_mem_bus_t;
     signal data_to_cart_mem_prg   : data_t;
     signal data_from_cart_mem_prg : data_t;
+    signal header_data            : data_t;
     
     signal cart_mem_bus_chr       : cart_mem_bus_t;
     signal data_to_cart_mem_chr   : data_t;
@@ -203,7 +167,7 @@ begin
 
     irq <= apu_irq or cart_irq;
 
-    cart_mem_mux : cart_mem_bus_mux
+    cart_mem_mux : entity work.cart_mem_bus_mux(behavioral)
     port map
     (
         clk => clk,
@@ -237,7 +201,12 @@ begin
         data_from_chr_ram => data_from_cart_mem_chr
     );
 
-    nes_cart : cartridge
+    -- The header is only read while loading, so that otherwise read data
+    -- from the cartridge memory bus does not run cycle_nes again
+    header_data <= data_from_cart_mem_prg when reg.cur_state = STATE_LOAD else
+                   (others => '-');
+
+    nes_cart : entity work.cartridge(behavioral)
     port map
     (
         clk => clk,
@@ -421,7 +390,7 @@ begin
         nes_in.cpu_bus.data_from_joy := data_from_joy;
         nes_in.cpu_bus.data_from_ram := data_from_prg_ram;
         nes_in.cpu_bus.data_from_ppu := prg_data_from_ppu;
-        nes_in.data_from_cart_mem := data_from_cart_mem_prg;
+        nes_in.data_from_cart_mem := header_data;
         
         nes_in.ppu_bus.chr_bus := chr_bus;
         nes_in.ppu_bus.data_from_ppu := chr_data_from_ppu;
