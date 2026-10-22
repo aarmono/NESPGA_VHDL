@@ -80,7 +80,7 @@ begin
     )
     port map
     (
-       file_bus_1 => cart_mem_bus,
+       file_bus_1 => get_file_bus(cart_mem_bus),
        data_from_file_1 => data_from_cart_mem
     );
     -- }

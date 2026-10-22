@@ -1,7 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.cart_mem_bus_types.all;
+use work.file_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
 use work.utilities.all;
@@ -32,7 +32,7 @@ architecture behavioral of nes_de1_bench is
     signal fl_addr : std_logic_vector(21 downto 0);
     signal fl_oe_n : std_logic;
 
-    signal flash_bus : cart_mem_bus_t;
+    signal flash_bus : file_bus_t;
 
     signal dram_addr  : std_logic_vector(11 downto 0);
     signal dram_ba_0  : std_logic;
@@ -237,7 +237,7 @@ begin
 
     flash_bus.read <= fl_oe_n = '0';
     flash_bus.write <= false;
-    flash_bus.address <= fl_addr(cart_mem_addr_t'range);
+    flash_bus.address <= fl_addr(file_addr_t'range);
 
     nes_file : file_memory
     generic map

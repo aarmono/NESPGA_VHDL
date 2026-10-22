@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use IEEE.math_real.all;
 use work.nes_types.all;
 use work.cart_mem_bus_types.all;
+use work.file_bus_types.all;
 use work.simulation.all;
 
 -- Copies a file from an SD card model, or a flash model, into the SDRAM
@@ -41,7 +42,7 @@ architecture behavioral of sdram_rom_bench is
     signal cart_mem_bus   : cart_mem_bus_t := CART_MEM_BUS_IDLE;
     signal cart_mem_wdata : data_t := (others => '-');
     signal cart_mem_data  : data_t;
-    signal ref_bus        : cart_mem_bus_t := CART_MEM_BUS_IDLE;
+    signal ref_bus        : file_bus_t := FILE_BUS_IDLE;
     signal ref_data       : data_t;
 
     -- The RAM window is small so that most reads of it are of an address
@@ -165,7 +166,7 @@ begin
             report "SD card error"
             severity failure;
     else generate
-        signal flash_bus  : cart_mem_bus_t;
+        signal flash_bus  : file_bus_t;
         signal flash_data : data_t;
     begin
         reader : entity work.flash_stream(behavioral)
@@ -297,7 +298,7 @@ begin
 
         cart_mem_bus <= CART_MEM_BUS_IDLE;
         cart_mem_wdata <= (others => '-');
-        ref_bus <= CART_MEM_BUS_IDLE;
+        ref_bus <= FILE_BUS_IDLE;
 
         uniform(seed1, seed2, rand);
         if rand < 0.45
@@ -306,7 +307,7 @@ begin
             rom_addr := to_unsigned(integer(floor(rand * real(NES_FILE_BYTES))),
                                     cart_mem_addr_t'length);
             cart_mem_bus <= bus_read(rom_addr);
-            ref_bus <= bus_read(rom_addr);
+            ref_bus <= bus_read(rom_addr(file_addr_t'range));
         elsif rand < 0.75
         then
             uniform(seed1, seed2, rand);

@@ -436,6 +436,7 @@ set_global_assignment -name VHDL_FILE ../../bus/oam_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/ciram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/joy_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/cart_mem_bus_types.vhdl
+set_global_assignment -name VHDL_FILE ../../bus/file_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/cpu_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/chr_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/apu_bus_types.vhdl

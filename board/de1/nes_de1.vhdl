@@ -6,6 +6,7 @@ use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.cart_mem_bus_types.all;
+use work.file_bus_types.all;
 use work.soc.all;
 use work.de1_types.all;
 
@@ -119,7 +120,7 @@ architecture behavioral of nes_de1 is
 
     signal nes_reset : boolean;
     
-    signal flash_bus          : cart_mem_bus_t;
+    signal flash_bus          : file_bus_t;
     signal cart_mem_bus       : cart_mem_bus_t;
     signal data_to_cart_mem   : data_t;
     signal data_from_cart_mem : data_t;
@@ -226,7 +227,7 @@ begin
 
     gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
     begin
-        flash_bus <= CART_MEM_BUS_IDLE;
+        flash_bus <= FILE_BUS_IDLE;
 
         sd : entity work.sd_reader(behavioral)
         port map

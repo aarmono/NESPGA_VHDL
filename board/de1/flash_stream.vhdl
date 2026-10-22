@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
-use work.cart_mem_bus_types.all;
+use work.file_bus_types.all;
 
 -- Streams the contents of flash from address 0, for sdram_rom.
 --
@@ -22,7 +22,7 @@ port
     clk   : in std_logic;
     reset : in boolean;
 
-    flash_bus       : out cart_mem_bus_t;
+    flash_bus       : out file_bus_t;
     data_from_flash : in data_t;
 
     stop  : in boolean;
@@ -34,7 +34,7 @@ end flash_stream;
 
 architecture behavioral of flash_stream is
 
-    subtype addr_t is natural range 0 to 2**cart_mem_addr_t'length - 1;
+    subtype addr_t is natural range 0 to 2**file_addr_t'length - 1;
     subtype wait_t is natural range 0 to FLASH_READ_CLKS;
 
     type reg_t is record
@@ -55,8 +55,8 @@ architecture behavioral of flash_stream is
 
 begin
 
-    flash_bus <= CART_MEM_BUS_IDLE when stop else
-                 bus_read(to_unsigned(reg.addr, cart_mem_addr_t'length));
+    flash_bus <= FILE_BUS_IDLE when stop else
+                 bus_read(to_unsigned(reg.addr, file_addr_t'length));
     data <= data_from_flash;
     valid <= reg.flash_wait = 0 and not reg.advance and not stop;
 

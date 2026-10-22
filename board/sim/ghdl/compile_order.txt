@@ -11,6 +11,7 @@
 ../../../bus/chr_ram_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
 ../../../bus/oam_bus_types.vhdl
+../../../bus/file_bus_types.vhdl
 ../../../bus/cart_mem_bus_types.vhdl
 ../../../bus/ppu_bus_types.vhdl
 ../../../bus/joy_bus_types.vhdl
