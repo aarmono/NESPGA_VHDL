@@ -84,6 +84,7 @@ is
     signal reg_next : reg_t;
     
     signal chr_bus           : chr_bus_t;
+    signal chr_ale           : boolean;
     signal chr_data_from_ppu : data_t;
     signal chr_data_to_ppu   : data_t;
     
@@ -189,6 +190,7 @@ begin
     );
 
     cart_in.ppu.chr_bus <= chr_bus;
+    cart_in.ppu.ale <= chr_ale;
     cart_in.ppu.data <= chr_data_from_ppu;
 
     -- Kept out of the process below so that read data from the cartridge
@@ -310,6 +312,7 @@ begin
         reset  => int_reset,
 
         chr_bus             => chr_bus,
+        chr_ale             => chr_ale,
         chr_data_from_ppu   => chr_data_from_ppu,
         chr_data_to_ppu     => chr_data_to_ppu,
         

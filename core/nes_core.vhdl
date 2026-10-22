@@ -67,6 +67,7 @@ package nes_core is
         reset             : in boolean;
 
         chr_bus           : out chr_bus_t;
+        chr_ale           : out boolean;
         chr_data_from_ppu : out data_t;
         chr_data_to_ppu   : in  data_t;
         

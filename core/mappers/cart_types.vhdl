@@ -129,6 +129,10 @@ package cart_types is
     type cart_ppu_in_t is record
         -- PPU A0-A13, /RD and /WR
         chr_bus : chr_bus_t;
+        -- Set on the first dot of each access. On the console /RD and /WR
+        -- go high between back-to-back accesses, which chr_bus does not
+        -- show, so this stands in for their falling edges
+        ale     : boolean;
         -- PPU D0-D7 during a write
         data    : data_t;
     end record;
@@ -223,6 +227,9 @@ package cart_types is
         -- The board has PRG ROM at 0x6000-0x7FFF, in bank prg, rather than
         -- PRG RAM. prg_ram is not used
         prg_rom_6000 : boolean;
+        -- The board has PRG RAM rather than PRG ROM in the window of a CPU
+        -- address at 0x8000-0xFFFF, in bank prg_ram_bank
+        prg_ram_8000 : boolean;
         prg          : prg_bank_8kb_t;
         -- The PPU accesses CHR RAM rather than CHR ROM, in bank chr
         chr_ram      : boolean;
@@ -425,6 +432,7 @@ package body cart_types is
             prg_ram => false,
             prg_ram_bank => (others => '0'),
             prg_rom_6000 => false,
+            prg_ram_8000 => false,
             prg => (others => '0'),
             chr_ram => has_chr_ram(config),
             chr => (others => '0'),
@@ -568,8 +576,11 @@ package body cart_types is
     begin
         ret := CART_OUT_IDLE;
 
-        if cart_in.cpu.romsel or
-           (banks.prg_rom_6000 and is_prg_ram_window(cart_in.cpu))
+        if cart_in.cpu.romsel and banks.prg_ram_8000
+        then
+            ret := map_prg_ram(config, cart_in, banks.prg_ram_bank, ret);
+        elsif cart_in.cpu.romsel or
+              (banks.prg_rom_6000 and is_prg_ram_window(cart_in.cpu))
         then
             if is_bus_read(cart_in.cpu.prg_bus)
             then
