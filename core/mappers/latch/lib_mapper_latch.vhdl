@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.prg_bus_types.all;
+use work.chr_ram_bus_types.all;
 use work.cart_types.all;
 
 -- Boards built from discrete logic: one or more latches that hold bits of
@@ -68,14 +69,6 @@ package lib_mapper_latch is
         CHR_4KB
     );
 
-    -- CHR RAM is larger than the 8KB of an iNES board without a size
-    type latch_chr_ram_t is
-    (
-        CHR_RAM_8KB,
-        CHR_RAM_16KB,
-        CHR_RAM_32KB
-    );
-
     type latch_mirror_mode_t is
     (
         -- Mirroring is set by solder pads, given by the header of the ROM
@@ -93,12 +86,14 @@ package lib_mapper_latch is
     );
 
     type latch_board_t is record
-        prg_mode    : latch_prg_mode_t;
-        chr_mode    : latch_chr_mode_t;
-        mirror_mode : latch_mirror_mode_t;
-        prg_ram     : boolean;
-        chr_ram     : latch_chr_ram_t;
-        latches     : latches_t;
+        prg_mode     : latch_prg_mode_t;
+        chr_mode     : latch_chr_mode_t;
+        mirror_mode  : latch_mirror_mode_t;
+        prg_ram      : boolean;
+        -- The mask of the CHR RAM address when the header is iNES, which
+        -- gives no size. Some boards have more than the default 8KB
+        chr_ram_mask : chr_ram_addr_t;
+        latches      : latches_t;
     end record;
 
     -- The mapper number is that of a board in the table
@@ -113,7 +108,7 @@ package lib_mapper_latch is
     (
         config : cart_config_t
     )
-    return std_logic_vector;
+    return chr_ram_addr_t;
 
     type mapper_latch_reg_t is array(latch_id_t) of latch_value_t;
 
@@ -140,6 +135,10 @@ end package lib_mapper_latch;
 
 package body lib_mapper_latch is
 
+    -- The masks of the CHR RAM address for boards with more than 8KB
+    constant CHR_RAM_16KB_MASK : chr_ram_addr_t := x"3FFF";
+    constant CHR_RAM_32KB_MASK : chr_ram_addr_t := x"7FFF";
+
     -- A latch that is never written, so it always holds 0
     constant LATCH_NONE : latch_t :=
     (
@@ -157,13 +156,13 @@ package body lib_mapper_latch is
     )
     return latch_t
     is
-        variable ret : latch_t;
     begin
-        ret.addr := addr;
-        ret.shift := lo;
-        ret.mask := to_unsigned(2**(hi - lo + 1) - 1, latch_value_t'length);
-
-        return ret;
+        return
+        (
+            addr => addr,
+            shift => lo,
+            mask => to_unsigned(2**(hi - lo + 1) - 1, latch_value_t'length)
+        );
     end;
 
     -- A latch of data bits hi downto lo, written at 0x8000-0xFFFF
@@ -192,7 +191,7 @@ package body lib_mapper_latch is
         ret.chr_mode := CHR_8KB;
         ret.mirror_mode := MIRROR_FIXED;
         ret.prg_ram := false;
-        ret.chr_ram := CHR_RAM_8KB;
+        ret.chr_ram_mask := DEFAULT_RAM_MASK;
         ret.latches := (others => LATCH_NONE);
 
         case config.mapper_num is
@@ -219,7 +218,7 @@ package body lib_mapper_latch is
             -- CPROM: the first 4KB of CHR RAM is fixed at 0x0000
             when x"00D" =>
                 ret.chr_mode := CHR_4KB;
-                ret.chr_ram := CHR_RAM_16KB;
+                ret.chr_ram_mask := CHR_RAM_16KB_MASK;
                 ret.latches(LATCH_CHR_1) := rom_latch(1, 0);
             -- UNROM 512. Without the battery bit (flash), submapper 0 has
             -- bus conflicts, like submapper 2, so the latch is written at
@@ -229,7 +228,7 @@ package body lib_mapper_latch is
             -- are at 0x8000-0xBFFF
             when x"01E" =>
                 ret.prg_mode := PRG_16KB_FIXED_LAST;
-                ret.chr_ram := CHR_RAM_32KB;
+                ret.chr_ram_mask := CHR_RAM_32KB_MASK;
                 if (config.submapper_num = x"0" and not config.battery) or
                    config.submapper_num = x"2"
                 then
@@ -285,14 +284,10 @@ package body lib_mapper_latch is
     (
         config : cart_config_t
     )
-    return std_logic_vector
+    return chr_ram_addr_t
     is
     begin
-        case get_latch_board(config).chr_ram is
-            when CHR_RAM_8KB => return DEFAULT_RAM_MASK;
-            when CHR_RAM_16KB => return x"3FFF";
-            when CHR_RAM_32KB => return x"7FFF";
-        end case;
+        return get_latch_board(config).chr_ram_mask;
     end;
 
     function is_latch_addr
@@ -302,23 +297,72 @@ package body lib_mapper_latch is
     )
     return boolean
     is
-        variable a : std_logic_vector(14 downto 0);
     begin
-        a := cpu_in.prg_bus.address;
-
         case addr is
             when LATCH_ADDR_NONE =>
                 return false;
             when LATCH_ADDR_ROM =>
                 return cpu_in.romsel;
             when LATCH_ADDR_C000 =>
-                return cpu_in.romsel and a(14) = '1';
+                return cpu_in.romsel and cpu_in.prg_bus.address(14) = '1';
             when LATCH_ADDR_7FFD =>
-                return not cpu_in.romsel and a = "111" & x"FFD";
+                return is_low_addr(cpu_in, "111" & x"FFD");
             when LATCH_ADDR_7FFE =>
-                return not cpu_in.romsel and a = "111" & x"FFE";
+                return is_low_addr(cpu_in, "111" & x"FFE");
             when LATCH_ADDR_7FFF =>
-                return not cpu_in.romsel and a = "111" & x"FFF";
+                return is_low_addr(cpu_in, "111" & x"FFF");
+        end case;
+    end;
+
+    -- The 8KB PRG ROM bank in the window of the CPU address
+    function get_prg_bank
+    (
+        reg    : mapper_latch_reg_t;
+        mode   : latch_prg_mode_t;
+        window : prg_window_t
+    )
+    return prg_bank_8kb_t
+    is
+        variable bank : latch_value_t;
+    begin
+        case mode is
+            when PRG_32KB =>
+                return resize(reg(LATCH_PRG) & window, prg_bank_8kb_t'length);
+            when PRG_16KB_FIXED_LAST =>
+                if window(1) = '0'
+                then
+                    bank := reg(LATCH_PRG);
+                else
+                    bank := (others => '1');
+                end if;
+                return resize(bank & window(0), prg_bank_8kb_t'length);
+        end case;
+    end;
+
+    -- The 1KB CHR bank in the window of the PPU address
+    function get_chr_bank
+    (
+        reg    : mapper_latch_reg_t;
+        mode   : latch_chr_mode_t;
+        window : chr_window_t
+    )
+    return chr_bank_1kb_t
+    is
+        variable bank : latch_value_t;
+    begin
+        case mode is
+            when CHR_8KB =>
+                return resize(reg(LATCH_CHR_0) & window,
+                              chr_bank_1kb_t'length);
+            when CHR_4KB =>
+                if window(2) = '0'
+                then
+                    bank := reg(LATCH_CHR_0);
+                else
+                    bank := reg(LATCH_CHR_1);
+                end if;
+                return resize(bank & window(1 downto 0),
+                              chr_bank_1kb_t'length);
         end case;
     end;
 
@@ -334,10 +378,7 @@ package body lib_mapper_latch is
     is
         variable ret : mapper_latch_out_t;
         variable banks : cart_banks_t;
-        variable prg_window : prg_window_t;
         variable chr_window : chr_window_t;
-        variable prg_bank : latch_value_t;
-        variable chr_bank : latch_value_t;
     begin
         ret.reg := reg;
         banks := default_banks(config);
@@ -356,52 +397,26 @@ package body lib_mapper_latch is
         end if;
 
         -- The PPU sees the latches written by the CPU this cycle
-        prg_window := get_prg_window(cart_in.cpu);
-        case board.prg_mode is
-            when PRG_32KB =>
-                banks.prg := resize(ret.reg(LATCH_PRG) & prg_window,
-                                    prg_bank_8kb_t'length);
-            when PRG_16KB_FIXED_LAST =>
-                if prg_window(1) = '0'
-                then
-                    prg_bank := ret.reg(LATCH_PRG);
-                else
-                    prg_bank := (others => '1');
-                end if;
-                banks.prg := resize(prg_bank & prg_window(0),
-                                    prg_bank_8kb_t'length);
-        end case;
+        banks.prg := get_prg_bank(ret.reg, board.prg_mode,
+                                  get_prg_window(cart_in.cpu));
 
         chr_window := get_chr_window(cart_in.ppu);
-        case board.chr_mode is
-            when CHR_8KB =>
-                banks.chr := resize(ret.reg(LATCH_CHR_0) & chr_window,
-                                    chr_bank_1kb_t'length);
-            when CHR_4KB =>
-                if chr_window(2) = '0'
-                then
-                    chr_bank := ret.reg(LATCH_CHR_0);
-                else
-                    chr_bank := ret.reg(LATCH_CHR_1);
-                end if;
-                banks.chr := resize(chr_bank & chr_window(1 downto 0),
-                                    chr_bank_1kb_t'length);
-        end case;
+        if board.mirror_mode = MIRROR_CHR_RAM and
+           cart_in.ppu.chr_bus.address(13) = '1'
+        then
+            banks.nt_chr := true;
+            banks.chr := resize("11" & chr_window, chr_bank_1kb_t'length);
+        else
+            banks.chr := get_chr_bank(ret.reg, board.chr_mode, chr_window);
+        end if;
 
         case board.mirror_mode is
-            when MIRROR_FIXED =>
+            when MIRROR_FIXED | MIRROR_CHR_RAM =>
             when MIRROR_SINGLE =>
                 banks.mirror :=
                     get_single_screen_mirror(ret.reg(LATCH_MIRROR)(0));
             when MIRROR_HV =>
                 banks.mirror := get_hv_mirror(not ret.reg(LATCH_MIRROR)(0));
-            when MIRROR_CHR_RAM =>
-                if cart_in.ppu.chr_bus.address(13) = '1'
-                then
-                    banks.nt_chr := true;
-                    banks.chr := resize("11" & chr_window,
-                                        chr_bank_1kb_t'length);
-                end if;
         end case;
 
         banks.prg_ram := board.prg_ram;

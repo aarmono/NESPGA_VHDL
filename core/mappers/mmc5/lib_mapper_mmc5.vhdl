@@ -266,19 +266,6 @@ package body lib_mapper_mmc5 is
         end if;
     end;
 
-    -- The CPU address is exactly addr, which is below 0x8000. The MMC5
-    -- fully decodes the PPU registers it watches
-    function is_low_addr
-    (
-        cpu_in : cart_cpu_in_t;
-        addr   : prg_addr_t
-    )
-    return boolean
-    is
-    begin
-        return not cpu_in.romsel and cpu_in.prg_bus.address = addr;
-    end;
-
     -- The CPU reads 0xFFFA or 0xFFFB, the NMI vector
     function is_nmi_vector_read(cpu_in : cart_cpu_in_t) return boolean
     is
@@ -674,6 +661,7 @@ package body lib_mapper_mmc5 is
             if reg_addr >= 0
             then
                 ret := write_register(reg, reg_addr, cart_in.cpu.data);
+            -- The MMC5 fully decodes the PPU registers it watches
             elsif is_low_addr(cart_in.cpu, "010000000000000")
             then
                 ret.sprite_8x16 := cart_in.cpu.data(5) = '1';

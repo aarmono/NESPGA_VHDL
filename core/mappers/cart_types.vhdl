@@ -291,6 +291,14 @@ package cart_types is
     -- The CPU address is in 0x6000-0x7FFF, where boards have PRG RAM
     function is_prg_ram_window(cpu_in : cart_cpu_in_t) return boolean;
 
+    -- The CPU address is exactly addr, which is below 0x8000
+    function is_low_addr
+    (
+        cpu_in : cart_cpu_in_t;
+        addr   : prg_addr_t
+    )
+    return boolean;
+
     -- The mirroring of a board that drives CIRAM A10 with a single bit
     function get_single_screen_mirror(a10 : std_logic) return mirror_t;
 
@@ -429,6 +437,17 @@ package body cart_types is
     begin
         return not cpu_in.romsel and
                cpu_in.prg_bus.address(14 downto 13) = "11";
+    end;
+
+    function is_low_addr
+    (
+        cpu_in : cart_cpu_in_t;
+        addr   : prg_addr_t
+    )
+    return boolean
+    is
+    begin
+        return not cpu_in.romsel and cpu_in.prg_bus.address = addr;
     end;
 
     function get_single_screen_mirror(a10 : std_logic) return mirror_t
