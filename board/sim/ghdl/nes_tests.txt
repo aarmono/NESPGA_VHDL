@@ -124,6 +124,10 @@ nes-test-roms/ppu_open_bus/ppu_open_bus.nes                         | 4186ms    
 
 nes-test-roms/nmi_sync/demo_ntsc.nes                                | 400ms     | cbd1f4256c482ca547f5ef30bda183159731fc2fb863a04f8f9810bd540f2548 *frame_00023.bmp
 
+# Colour emphasis: 240p Test Suite PLUGE with the emphasis filter, which sets
+# all three emphasis bits. Hashes a 24-bit BMP
+nes-test-roms/240pee/240pee.nes                                     | 5521ms    | 5177f1d9d5883e4b9faedd13b18e751e1d64635b650c5624ce31a086b2d1e221 *frame_00330.bmp | test_inputs/240pee/pluge_emphasis.fm2
+
 # Mappers
 nes-test-roms/mmc3_irq_tests/1.Clocking.nes                         | 333ms     | 3b44ce552796e9bf83f8de13b8682ac303f366363e44e1dbafd531ea02a20250 *frame_00019.bmp
 nes-test-roms/mmc3_irq_tests/2.Details.nes                          | 400ms     | 07c31f60dc13ec1251af5a39e8f6e487eb0b502af7bf96a6ca3b5a90f2dbe2e3 *frame_00023.bmp

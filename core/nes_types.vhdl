@@ -20,6 +20,17 @@ package nes_types is
     subtype mixed_audio_t is unsigned(7 downto 0);
     
     subtype pixel_t is std_logic_vector(5 downto 0);
+
+    -- Colour channels in the order of the emphasis bits ($2001 bits 5-7) on
+    -- the NTSC 2C02. PAL and Dendy PPUs swap red and green
+    type color_channel_t is (RED, GREEN, BLUE);
+
+    -- True for each colour channel whose emphasis bit is set
+    type emphasis_t is array(color_channel_t) of boolean;
+    constant NO_EMPHASIS : emphasis_t := (others => false);
+
+    -- Emphasis bits as they are in $2001 bits 5-7: red is the LSB
+    subtype emphasis_bits_t is std_logic_vector(2 downto 0);
     
     type palette_t is array(0 to 16#1F#) of pixel_t;
     
@@ -31,6 +42,7 @@ package nes_types is
     
     type pixel_bus_t is record
         pixel       : pixel_t;
+        emphasis    : emphasis_t;
         line_valid  : boolean;
         frame_valid : boolean;
     end record;
@@ -40,8 +52,35 @@ package nes_types is
         read_cycle : boolean;
     end record;
 
+    function to_emphasis_t(bits : emphasis_bits_t) return emphasis_t;
+    function to_emphasis_bits(emphasis : emphasis_t) return emphasis_bits_t;
+
 end nes_types;
 
 package body nes_types is
-    
+
+    function to_emphasis_t(bits : emphasis_bits_t) return emphasis_t
+    is
+        variable ret : emphasis_t;
+    begin
+        for channel in color_channel_t
+        loop
+            ret(channel) := bits(color_channel_t'pos(channel)) = '1';
+        end loop;
+
+        return ret;
+    end;
+
+    function to_emphasis_bits(emphasis : emphasis_t) return emphasis_bits_t
+    is
+        variable ret : emphasis_bits_t;
+    begin
+        for channel in color_channel_t
+        loop
+            ret(color_channel_t'pos(channel)) := to_std_logic(emphasis(channel));
+        end loop;
+
+        return ret;
+    end;
+
 end package body;

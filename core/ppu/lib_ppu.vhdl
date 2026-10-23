@@ -231,12 +231,8 @@ package lib_ppu is
         enable_playfield    : boolean;
         -- If true enables sprite fetch/display
         enable_sprite       : boolean;
-        -- If true intensifies red colors
-        intense_red         : boolean;
-        -- If true intensifies green colors
-        intense_green       : boolean;
-        -- If true intensifies blue colors
-        intense_blue        : boolean;
+        -- Colour emphasis. Each channel that is set darkens the other two
+        emphasis            : emphasis_t;
     end record;
     
     constant RESET_MASK : mask_t :=
@@ -246,9 +242,7 @@ package lib_ppu is
         left_sprite_show => false,
         enable_playfield => false,
         enable_sprite => false,
-        intense_red => false,
-        intense_green => false,
-        intense_blue => false
+        emphasis => NO_EMPHASIS
     );
     
     function to_mask_t(val : data_t) return mask_t;
@@ -672,9 +666,7 @@ package body lib_ppu is
     is
         variable ret : mask_t;
     begin
-        ret.intense_blue := val(7) = '1';
-        ret.intense_green := val(6) = '1';
-        ret.intense_red := val(5) = '1';
+        ret.emphasis := to_emphasis_t(val(7 downto 5));
         ret.enable_sprite := val(4) = '1';
         ret.enable_playfield := val(3) = '1';
         ret.left_sprite_show := val(2) = '1';
@@ -2355,9 +2347,16 @@ package body lib_ppu is
             -- location will be shown on screen instead of the backdrop color."
             if not is_bus_active(render_out.palette_bus)
             then
-                render_out.palette_bus :=
-                    bus_read(to_palette_addr(v_rnd_is_sprite,
-                                             v_rnd_pattern_color));
+                if not rendering_enabled(v_rnd_mask) and
+                   v_ppu_chr_addr >= PALETTE_ADDR_START
+                then
+                    render_out.palette_bus :=
+                        bus_read(to_palette_addr(v_ppu_chr_addr));
+                else
+                    render_out.palette_bus :=
+                        bus_read(to_palette_addr(v_rnd_is_sprite,
+                                                 v_rnd_pattern_color));
+                end if;
             end if;
             render_out.reg.pixel := render_in.data_from_palette;
             render_out.reg.pixel_valid := true;
@@ -2384,6 +2383,9 @@ package body lib_ppu is
         render_out.pixel_bus.pixel :=
             mask_pixel(render_out.reg.mask.enable_grayscale,
                        render_in.reg.pixel);
+        -- Emphasis applies to every pixel output, including the backdrop and
+        -- forced blanking, with the same latency as greyscale
+        render_out.pixel_bus.emphasis := render_out.reg.mask.emphasis;
         render_out.pixel_bus.line_valid := render_in.reg.pixel_valid;
         
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);
