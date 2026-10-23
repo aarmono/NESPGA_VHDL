@@ -298,6 +298,15 @@ package cart_types is
     -- ('1') or vertical ('0') mirroring
     function get_hv_mirror(horz : std_logic) return mirror_t;
 
+    -- The mirroring of a board with two register bits that select vertical
+    -- ("00"), horizontal ("01"), one screen A ("10") or one screen B ("11")
+    -- mirroring
+    function get_hv_single_screen_mirror
+    (
+        mode : std_logic_vector(1 downto 0)
+    )
+    return mirror_t;
+
     -- The banks of a board before it selects any: no PRG RAM, bank 0 of
     -- PRG ROM and of CHR, CHR RAM if the board has no CHR ROM, and the
     -- nametables in CIRAM with the mirroring of the header. A board sets
@@ -441,6 +450,21 @@ package body cart_types is
             return MIRROR_HORZ;
         else
             return MIRROR_VERT;
+        end if;
+    end;
+
+    function get_hv_single_screen_mirror
+    (
+        mode : std_logic_vector(1 downto 0)
+    )
+    return mirror_t
+    is
+    begin
+        if mode(1) = '0'
+        then
+            return get_hv_mirror(mode(0));
+        else
+            return get_single_screen_mirror(mode(0));
         end if;
     end;
 

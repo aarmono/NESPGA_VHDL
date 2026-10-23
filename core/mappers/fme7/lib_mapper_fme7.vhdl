@@ -15,7 +15,7 @@ package lib_mapper_fme7 is
     -- The mapper number is that of a board built around the FME-7
     function is_fme7_mapper(mapper_num : mapper_num_t) return boolean;
 
-    subtype command_t is unsigned(3 downto 0);
+    subtype command_t is natural range 0 to 15;
 
     -- The FME-7 has 6 bits of PRG bank. The 5A and 5B have 5, but no game
     -- for them has PRG ROM large enough for the difference to matter
@@ -53,7 +53,7 @@ package lib_mapper_fme7 is
 
     constant RESET_MAPPER_FME7_REG : mapper_fme7_reg_t :=
     (
-        command => (others => '0'),
+        command => 0,
 
         prg_banks => (others => (others => '0')),
         prg_ram_select => false,
@@ -94,18 +94,6 @@ package body lib_mapper_fme7 is
         return mapper_num = x"045";
     end;
 
-    -- The mirroring selected by the parameter of command 0xC
-    function get_mirror(data : data_t) return mirror_t
-    is
-    begin
-        case data(1 downto 0) is
-            when "00" => return MIRROR_VERT;
-            when "01" => return MIRROR_HORZ;
-            when "10" => return MIRROR_A;
-            when others => return MIRROR_B;
-        end case;
-    end;
-
     -- The parameter of the command in the command register
     function write_parameter
     (
@@ -118,21 +106,20 @@ package body lib_mapper_fme7 is
     begin
         ret := reg;
 
-        case to_integer(reg.command) is
+        case reg.command is
             when 0 to 7 =>
-                ret.chr_banks(to_integer(reg.command(2 downto 0))) :=
-                    unsigned(data);
+                ret.chr_banks(reg.command) := unsigned(data);
             when 8 to 11 =>
-                ret.prg_banks(to_integer(reg.command(1 downto 0))) :=
+                ret.prg_banks(reg.command - 8) :=
                     unsigned(data(prg_bank_t'range));
 
-                if reg.command(1 downto 0) = "00"
+                if reg.command = 8
                 then
                     ret.prg_ram_select := data(6) = '1';
                     ret.prg_ram_enable := data(7) = '1';
                 end if;
             when 12 =>
-                ret.mirror := get_mirror(data);
+                ret.mirror := get_hv_single_screen_mirror(data(1 downto 0));
             when 13 =>
                 ret.irq_enable := data(0) = '1';
                 ret.irq_count_enable := data(7) = '1';
@@ -140,7 +127,7 @@ package body lib_mapper_fme7 is
                 ret.irq := false;
             when 14 =>
                 ret.irq_count := set_bits(reg.irq_count, 0, data);
-            when others =>
+            when 15 =>
                 ret.irq_count := set_bits(reg.irq_count, 8, data);
         end case;
 
@@ -163,7 +150,7 @@ package body lib_mapper_fme7 is
         then
             case cart_in.cpu.prg_bus.address(14 downto 13) is
                 when "00" =>
-                    ret.command := unsigned(cart_in.cpu.data(command_t'range));
+                    ret.command := to_integer(cart_in.cpu.data(3 downto 0));
                 when "01" =>
                     ret := write_parameter(reg, cart_in.cpu.data);
                 -- The audio registers of the 5B
@@ -212,17 +199,31 @@ package body lib_mapper_fme7 is
     )
     return prg_bank_8kb_t
     is
+        variable idx : natural range 0 to 3;
     begin
+        idx := to_integer(std_logic_vector(window));
         if not romsel
         then
             return resize(reg.prg_banks(0), prg_bank_8kb_t'length);
-        elsif window = "11"
+        elsif idx = 3
         then
             return (others => '1');
         else
-            return resize(reg.prg_banks(to_integer(window) + 1),
-                          prg_bank_8kb_t'length);
+            return resize(reg.prg_banks(idx + 1), prg_bank_8kb_t'length);
         end if;
+    end;
+
+    -- The 1KB CHR bank in the window of the PPU address
+    function get_chr_bank
+    (
+        reg    : mapper_fme7_reg_t;
+        window : chr_window_t
+    )
+    return chr_bank_1kb_t
+    is
+    begin
+        return resize(reg.chr_banks(to_integer(std_logic_vector(window))),
+                      chr_bank_1kb_t'length);
     end;
 
     function cycle_mapper_fme7
@@ -252,9 +253,7 @@ package body lib_mapper_fme7 is
         banks.prg := get_prg_bank(ret.reg,
                                   cart_in.cpu.romsel,
                                   get_prg_window(cart_in.cpu));
-        banks.chr :=
-            resize(ret.reg.chr_banks(to_integer(get_chr_window(cart_in.ppu))),
-                   chr_bank_1kb_t'length);
+        banks.chr := get_chr_bank(ret.reg, get_chr_window(cart_in.ppu));
         banks.mirror := ret.reg.mirror;
 
         ret.cart := map_cart(config, cart_in, banks);

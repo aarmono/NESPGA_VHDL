@@ -201,12 +201,7 @@ package body lib_mapper_vrc4 is
             mode(1) := '0';
         end if;
 
-        case mode is
-            when "00" => return MIRROR_VERT;
-            when "01" => return MIRROR_HORZ;
-            when "10" => return MIRROR_A;
-            when others => return MIRROR_B;
-        end case;
+        return get_hv_single_screen_mirror(mode);
     end;
 
     function write_chr_bank
