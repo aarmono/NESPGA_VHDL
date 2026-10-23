@@ -6,6 +6,7 @@ use work.utilities.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
+use work.exram_bus_types.all;
 use work.cart_types.all;
 
 -- Boards built around the Nintendo MMC5 (5): EKROM, ELROM, ETROM and
@@ -13,11 +14,12 @@ use work.cart_types.all;
 -- 0x6000 and optionally in the windows at 0x8000-0xDFFF. CHR is banked in
 -- four modes, with a second set of registers for the background when
 -- sprites are 8x16. The 1KB of ExRAM inside the chip is a nametable,
--- extended attributes or RAM for the CPU, and each nametable is CIRAM,
--- ExRAM or a fill tile. The MMC5 watches the reads of the PPU to find the
--- start of each scanline, which clocks a counter that raises an IRQ, and to
--- tell sprite fetches from background fetches. The audio and the vertical
--- split are not emulated
+-- extended attributes or RAM for the CPU. It is kept with the memories of
+-- the board, with a bus for the CPU and one for the PPU. Each nametable is
+-- CIRAM, ExRAM or a fill tile. The MMC5 watches the reads of the PPU to
+-- find the start of each scanline, which clocks a counter that raises an
+-- IRQ, and to tell sprite fetches from background fetches. The audio and
+-- the vertical split are not emulated
 package lib_mapper_mmc5 is
 
     -- The mapper number is that of a board built around the MMC5
@@ -26,25 +28,6 @@ package lib_mapper_mmc5 is
     -- An iNES header gives no PRG RAM size. 64KB covers every board, and no
     -- game is known to depend on the banks of a smaller RAM mirroring
     constant MMC5_INES_PRG_RAM_MASK : prg_ram_addr_t := x"FFFF";
-
-    subtype exram_addr_t is std_logic_vector(9 downto 0);
-
-    -- The single port of ExRAM. The CPU can only read it in the RAM and ROM
-    -- modes, and the PPU only reads it in the others, so they never need it
-    -- at the same time. Writes by the CPU wait for a dot when the PPU is not
-    -- reading it
-    type exram_bus_t is record
-        address : exram_addr_t;
-        write   : boolean;
-        data    : data_t;
-    end record;
-
-    constant EXRAM_BUS_IDLE : exram_bus_t :=
-    (
-        address => (others => '-'),
-        write => false,
-        data => (others => '-')
-    );
 
     -- 0x5100
     type prg_mode_t is
@@ -153,11 +136,6 @@ package lib_mapper_mmc5 is
         bg_fetch        : bg_fetch_t;
         -- The ExRAM byte of the last nametable fetch
         ext_attr        : data_t;
-
-        -- A write by the CPU to ExRAM that has not been made yet
-        exram_pending   : boolean;
-        exram_addr      : exram_addr_t;
-        exram_data      : data_t;
     end record;
 
     constant RESET_MAPPER_MMC5_REG : mapper_mmc5_reg_t :=
@@ -199,17 +177,12 @@ package lib_mapper_mmc5 is
         idle_cycles => 0,
 
         bg_fetch => FETCH_NONE,
-        ext_attr => (others => '0'),
-
-        exram_pending => false,
-        exram_addr => (others => '0'),
-        exram_data => (others => '0')
+        ext_attr => (others => '0')
     );
 
     type mapper_mmc5_out_t is record
-        reg   : mapper_mmc5_reg_t;
-        cart  : cart_out_t;
-        exram : exram_bus_t;
+        reg  : mapper_mmc5_reg_t;
+        cart : cart_out_t;
     end record;
 
     function cycle_mapper_mmc5
@@ -217,9 +190,7 @@ package lib_mapper_mmc5 is
         reg      : mapper_mmc5_reg_t;
         config   : cart_config_t;
         clk_sync : boolean;
-        cart_in  : cart_in_t;
-        -- ExRAM read at the address of the last clock
-        exram    : data_t
+        cart_in  : cart_in_t
     )
     return mapper_mmc5_out_t;
 
@@ -609,86 +580,89 @@ package body lib_mapper_mmc5 is
         return ret;
     end;
 
-    -- The PPU may read ExRAM this dot: any nametable read with extended
-    -- attributes, or a read of a nametable in ExRAM. The longest run of such
-    -- dots is 8, at the start of a short pre-render line, and the CPU writes
-    -- two different addresses at least 4 CPU cycles (12 dots) apart
-    function is_ppu_exram_read
-    (
-        reg     : mapper_mmc5_reg_t;
-        cart_in : cart_in_t
-    )
-    return boolean
+    -- ExRAM is a nametable or extended attributes
+    function is_exram_nt_mode(reg : mapper_mmc5_reg_t) return boolean
     is
-        variable addr : chr_addr_t;
     begin
-        addr := cart_in.ppu.chr_bus.address;
-
-        return is_bus_read(cart_in.ppu.chr_bus) and
-               is_nt_addr(addr) and
-               (reg.exram_mode = EXRAM_EXT_ATTR or
-                (reg.exram_mode = EXRAM_NT and
-                 get_nt_source(reg, addr) = NT_EXRAM));
+        return reg.exram_mode = EXRAM_NT or reg.exram_mode = EXRAM_EXT_ATTR;
     end;
 
-    -- The CPU writes 0x5C00-0x5FFF, or the PPU writes a nametable in ExRAM.
-    -- As a nametable or extended attributes, ExRAM can only be written by
-    -- the CPU while the PPU is rendering. Otherwise 0 is written, as in
-    -- Mesen; nesdev says the write may be ignored or corrupt the byte
-    function cycle_exram
+    -- The CPU accesses 0x5C00-0x5FFF. It can only read ExRAM in the RAM and
+    -- ROM modes, and can write it in any mode but ROM. As a nametable or
+    -- extended attributes ExRAM can only be written while the PPU is
+    -- rendering; otherwise 0 is written, as in Mesen. nesdev says the write
+    -- may be ignored or corrupt the byte. Writes are made in the sync
+    -- cycle, where the PRG channel of the cartridge memory bus always wins
+    function map_cpu_exram
     (
-        mapper   : mapper_mmc5_out_t;
+        reg      : mapper_mmc5_reg_t;
         clk_sync : boolean;
-        cart_in  : cart_in_t
+        cart_in  : cart_in_t;
+        cart     : cart_out_t
     )
-    return mapper_mmc5_out_t
+    return cart_out_t
     is
-        variable ret : mapper_mmc5_out_t;
-        variable reg : mapper_mmc5_reg_t;
-        variable ppu_addr : chr_addr_t;
+        variable ret : cart_out_t;
+        variable addr : exram_addr_t;
     begin
-        ret := mapper;
-        reg := mapper.reg;
-        ppu_addr := cart_in.ppu.chr_bus.address;
+        ret := cart;
+        addr := cart_in.cpu.prg_bus.address(exram_addr_t'range);
 
-        if clk_sync and
-           is_bus_write(cart_in.cpu.prg_bus) and
-           is_exram_addr(cart_in.cpu) and
-           reg.exram_mode /= EXRAM_ROM
+        if is_exram_addr(cart_in.cpu)
         then
-            ret.reg.exram_pending := true;
-            ret.reg.exram_addr := cart_in.cpu.prg_bus.address(exram_addr_t'range);
-            if reg.exram_mode = EXRAM_RAM or reg.in_frame
+            if is_bus_read(cart_in.cpu.prg_bus) and not is_exram_nt_mode(reg)
             then
-                ret.reg.exram_data := cart_in.cpu.data;
-            else
-                ret.reg.exram_data := (others => '0');
+                ret.mem.cpu_exram_bus := bus_read(addr);
+            elsif clk_sync and
+                  is_bus_write(cart_in.cpu.prg_bus) and
+                  reg.exram_mode /= EXRAM_ROM
+            then
+                ret.mem.cpu_exram_bus := bus_write(addr);
+                if reg.exram_mode = EXRAM_RAM or reg.in_frame
+                then
+                    ret.mem.data_to_cpu_exram := cart_in.cpu.data;
+                else
+                    ret.mem.data_to_cpu_exram := (others => '0');
+                end if;
             end if;
         end if;
 
-        ret.exram := EXRAM_BUS_IDLE;
-        if reg.exram_mode = EXRAM_RAM or reg.exram_mode = EXRAM_ROM
-        then
-            ret.exram.address := cart_in.cpu.prg_bus.address(exram_addr_t'range);
-        else
-            ret.exram.address := ppu_addr(exram_addr_t'range);
-        end if;
+        return ret;
+    end;
 
-        if is_bus_write(cart_in.ppu.chr_bus) and
-           is_nt_addr(ppu_addr) and
-           get_nt_source(reg, ppu_addr) = NT_EXRAM
+    -- The PPU accesses a nametable in ExRAM, or reads the ExRAM byte of
+    -- each background nametable fetch for its extended attributes. A
+    -- nametable in ExRAM reads as 0 and cannot be written in the RAM and
+    -- ROM modes, so ExRAM is not accessed
+    function map_ppu_exram
+    (
+        reg     : mapper_mmc5_reg_t;
+        cart_in : cart_in_t;
+        cart    : cart_out_t
+    )
+    return cart_out_t
+    is
+        variable ret : cart_out_t;
+        variable addr : chr_addr_t;
+        variable in_exram : boolean;
+    begin
+        ret := cart;
+        addr := cart_in.ppu.chr_bus.address;
+        in_exram := get_nt_source(reg, addr) = NT_EXRAM;
+
+        if is_nt_addr(addr) and is_exram_nt_mode(reg)
         then
-            if reg.exram_mode = EXRAM_NT or reg.exram_mode = EXRAM_EXT_ATTR
+            if is_bus_write(cart_in.ppu.chr_bus) and in_exram
             then
-                ret.exram.write := true;
-                ret.exram.data := cart_in.ppu.data;
+                ret.mem.ppu_exram_bus := bus_write(addr(exram_addr_t'range));
+                ret.mem.data_to_ppu_exram := cart_in.ppu.data;
+            elsif is_bus_read(cart_in.ppu.chr_bus) and
+                  (in_exram or
+                   (reg.exram_mode = EXRAM_EXT_ATTR and
+                    reg.bg_fetch = FETCH_NT))
+            then
+                ret.mem.ppu_exram_bus := bus_read(addr(exram_addr_t'range));
             end if;
-        elsif ret.reg.exram_pending and not is_ppu_exram_read(reg, cart_in)
-        then
-            ret.exram.address := ret.reg.exram_addr;
-            ret.exram.write := true;
-            ret.exram.data := ret.reg.exram_data;
-            ret.reg.exram_pending := false;
         end if;
 
         return ret;
@@ -873,7 +847,7 @@ package body lib_mapper_mmc5 is
             else
                 return reg.fill_tile;
             end if;
-        elsif reg.exram_mode = EXRAM_NT or reg.exram_mode = EXRAM_EXT_ATTR
+        elsif is_exram_nt_mode(reg)
         then
             return exram;
         else
@@ -886,7 +860,6 @@ package body lib_mapper_mmc5 is
         reg     : mapper_mmc5_reg_t;
         config  : cart_config_t;
         cart_in : cart_in_t;
-        exram   : data_t;
         banks   : cart_banks_t
     )
     return cart_out_t
@@ -931,7 +904,9 @@ package body lib_mapper_mmc5 is
                 ret := drive_ppu_data(ret, palette & palette & palette & palette);
             elsif source = NT_EXRAM or source = NT_FILL
             then
-                ret := drive_ppu_data(ret, get_nt_data(reg, addr, source, exram));
+                ret := drive_ppu_data(ret,
+                                      get_nt_data(reg, addr, source,
+                                                  cart_in.mem.data_from_ppu_exram));
             end if;
         end if;
 
@@ -943,7 +918,6 @@ package body lib_mapper_mmc5 is
     (
         reg     : mapper_mmc5_reg_t;
         cart_in : cart_in_t;
-        exram   : data_t;
         cart    : cart_out_t
     )
     return cart_out_t
@@ -973,9 +947,9 @@ package body lib_mapper_mmc5 is
                     end if;
                     ret.cpu.data_oe := true;
                 when 16#C00# to 16#FFF# =>
-                    if reg.exram_mode = EXRAM_RAM or reg.exram_mode = EXRAM_ROM
+                    if not is_exram_nt_mode(reg)
                     then
-                        ret.cpu.data := exram;
+                        ret.cpu.data := cart_in.mem.data_from_cpu_exram;
                         ret.cpu.data_oe := true;
                     end if;
                 when others =>
@@ -991,8 +965,7 @@ package body lib_mapper_mmc5 is
         reg      : mapper_mmc5_reg_t;
         config   : cart_config_t;
         clk_sync : boolean;
-        cart_in  : cart_in_t;
-        exram    : data_t
+        cart_in  : cart_in_t
     )
     return mapper_mmc5_out_t
     is
@@ -1006,14 +979,6 @@ package body lib_mapper_mmc5 is
         ret.reg := cycle_ppu_read(ret.reg, cart_in);
         ret.reg := cycle_write(ret.reg, clk_sync, cart_in);
         ret.reg := cycle_read(ret.reg, clk_sync, cart_in);
-        ret := cycle_exram(ret, clk_sync, cart_in);
-
-        -- Latched on both dots of the nametable read, so the second, when
-        -- ExRAM has been read at its address, is kept
-        if ret.reg.bg_fetch = FETCH_NT
-        then
-            ret.reg.ext_attr := exram;
-        end if;
 
         -- The PPU sees the registers written by the CPU this cycle, and the
         -- read it starts this dot
@@ -1039,7 +1004,18 @@ package body lib_mapper_mmc5 is
         end if;
         banks.prg_ram_bank := get_prg_ram_bank(config, ram_bank);
 
-        ret.cart := map_ppu(ret.reg, config, cart_in, exram, banks);
+        ret.cart := map_ppu(ret.reg, config, cart_in, banks);
+        ret.cart := map_ppu_exram(ret.reg, cart_in, ret.cart);
+        ret.cart := map_cpu_exram(ret.reg, clk_sync, cart_in, ret.cart);
+
+        -- Latched on both dots of the nametable read, so the second, which
+        -- the cartridge memory bus always serves, is kept. Extended
+        -- attributes are not used until the next read
+        if ret.reg.bg_fetch = FETCH_NT and
+           is_bus_read(ret.cart.mem.ppu_exram_bus)
+        then
+            ret.reg.ext_attr := cart_in.mem.data_from_ppu_exram;
+        end if;
 
         if ram
         then
@@ -1053,7 +1029,7 @@ package body lib_mapper_mmc5 is
             end if;
         end if;
 
-        ret.cart := read_register(reg, cart_in, exram, ret.cart);
+        ret.cart := read_register(reg, cart_in, ret.cart);
 
         ret.cart.cpu.irq := reg.irq_pending and reg.irq_enable;
 

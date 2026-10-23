@@ -8,12 +8,15 @@ use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
+use work.exram_bus_types.all;
 use work.cart_mem_bus_types.all;
 
 -- Types shared by the cartridge and the boards (mappers) it can hold. The
 -- cart_cpu_* and cart_ppu_* records follow the pins of the cartridge
 -- connector. The memories on the board (PRG ROM, CHR ROM, PRG RAM and
--- CHR RAM) are not on the connector, so they have records of their own
+-- CHR RAM) are not on the connector, so they have records of their own.
+-- So does RAM inside a mapper chip (the ExRAM of the MMC5), which is kept
+-- with the memories of the board rather than in the board
 package cart_types is
 
     subtype mapper_num_t is std_logic_vector(11 downto 0);
@@ -168,6 +171,9 @@ package cart_types is
         data_from_chr_rom : data_t;
         data_from_prg_ram : data_t;
         data_from_chr_ram : data_t;
+        -- Read data of the CPU and PPU accesses to ExRAM
+        data_from_cpu_exram : data_t;
+        data_from_ppu_exram : data_t;
     end record;
 
     type cart_mem_out_t is record
@@ -179,6 +185,14 @@ package cart_types is
 
         chr_ram_bus     : chr_ram_bus_t;
         data_to_chr_ram : data_t;
+
+        -- ExRAM has a bus for the accesses of the CPU and one for those of
+        -- the PPU, since the two can fall on the same dot
+        cpu_exram_bus     : exram_bus_t;
+        data_to_cpu_exram : data_t;
+
+        ppu_exram_bus     : exram_bus_t;
+        data_to_ppu_exram : data_t;
     end record;
 
     constant CART_MEM_OUT_IDLE : cart_mem_out_t :=
@@ -190,7 +204,13 @@ package cart_types is
         data_to_prg_ram => (others => '-'),
 
         chr_ram_bus => CHR_RAM_BUS_IDLE,
-        data_to_chr_ram => (others => '-')
+        data_to_chr_ram => (others => '-'),
+
+        cpu_exram_bus => EXRAM_BUS_IDLE,
+        data_to_cpu_exram => (others => '-'),
+
+        ppu_exram_bus => EXRAM_BUS_IDLE,
+        data_to_ppu_exram => (others => '-')
     );
 
     type cart_in_t is record

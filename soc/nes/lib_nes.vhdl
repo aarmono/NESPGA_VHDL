@@ -6,6 +6,7 @@ use work.apu_bus_types.all;
 use work.ram_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
+use work.exram_bus_types.all;
 use work.chr_bus_types.all;
 use work.ciram_bus_types.all;
 use work.oam_bus_types.all;
@@ -87,7 +88,9 @@ package lib_nes is
         cpu_bus              : cpu_mmap_bus_out_t;
         ppu_bus              : ppu_mmap_bus_out_t;
         -- Memories on the cartridge. PRG ROM and CHR ROM are in the ROM file,
-        -- and each RAM shares its channel with the ROM
+        -- and each RAM shares its channel with the ROM. ExRAM is on both
+        -- channels: the CPU accesses it on the PRG channel and the PPU on
+        -- the CHR channel
         prg_cart_mem_bus     : cart_mem_bus_t;
         data_to_prg_cart_mem : data_t;
         chr_cart_mem_bus     : cart_mem_bus_t;
@@ -124,11 +127,11 @@ package lib_nes is
 
     -- The ROM file is in the lower half of the cartridge memory bus, from
     -- address 0. The cartridge RAMs are in the upper half, each in its own
-    -- fixed 64 KB window: PRG RAM, then CHR RAM
+    -- fixed 64 KB window: PRG RAM, then CHR RAM, then ExRAM
     constant CART_RAM_BASE : natural := 2**(cart_mem_addr_t'length - 1);
 
     -- Offset into the cartridge RAM windows
-    subtype cart_ram_addr_t is std_logic_vector(16 downto 0);
+    subtype cart_ram_addr_t is std_logic_vector(17 downto 0);
 
     function is_cart_ram(cart_mem_bus : cart_mem_bus_t) return boolean;
 
@@ -140,6 +143,9 @@ package body lib_nes is
         std_logic_vector(to_unsigned(CART_RAM_BASE, cart_mem_addr_t'length));
     constant CHR_RAM_WINDOW : cart_mem_addr_t :=
         std_logic_vector(to_unsigned(CART_RAM_BASE + 16#10000#,
+                                     cart_mem_addr_t'length));
+    constant EXRAM_WINDOW : cart_mem_addr_t :=
+        std_logic_vector(to_unsigned(CART_RAM_BASE + 16#20000#,
                                      cart_mem_addr_t'length));
 
     function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t
@@ -224,6 +230,19 @@ package body lib_nes is
     begin
         ret.address := CHR_RAM_WINDOW;
         ret.address(chr_ram_addr_t'range) := ram_bus.address;
+        ret.read := ram_bus.read;
+        ret.write := ram_bus.write;
+
+        return ret;
+    end;
+
+    -- The cartridge memory bus access for an access to ExRAM
+    function get_exram_bus(ram_bus : exram_bus_t) return cart_mem_bus_t
+    is
+        variable ret : cart_mem_bus_t;
+    begin
+        ret.address := EXRAM_WINDOW;
+        ret.address(exram_addr_t'range) := ram_bus.address;
         ret.read := ram_bus.read;
         ret.write := ram_bus.write;
 
@@ -316,6 +335,19 @@ package body lib_nes is
                             bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
                                              chr_ram_addr_t'length)));
                     ret.data_to_chr_cart_mem := x"00";
+
+                    -- ExRAM is zeroed alongside the first 1KB of CHR RAM
+                    -- writes, on the PRG channel, which is otherwise idle in
+                    -- these cycles. Two writes fit in a whole CPU cycle, and
+                    -- these are never the first or last cycle of reset. Every
+                    -- board gets this, so it costs no time in reset
+                    if nes_in.reg.cur_cycle(13 downto 11) = "000"
+                    then
+                        ret.prg_cart_mem_bus :=
+                            get_exram_bus(
+                                bus_write(nes_in.reg.cur_cycle(10 downto 1)));
+                        ret.data_to_prg_cart_mem := x"00";
+                    end if;
                 end if;
                 
                 ret.reg.cart_config := RESET_CART_CONFIG;
@@ -458,11 +490,16 @@ package body lib_nes is
                 ret.cpu_bus := cpu_map_out.bus_out;
                 ret.ppu_bus := mmap_ppu_memory(nes_in.ppu_bus, nes_in.cart.ppu);
 
-                -- PRG ROM and PRG RAM share the PRG channel of the cartridge
-                -- memory bus, since the CPU only accesses one at a time
-                assert not (is_bus_active(nes_in.cart.mem.prg_rom_bus) and
-                            is_bus_active(nes_in.cart.mem.prg_ram_bus))
-                    report "PRG ROM and PRG RAM accessed together"
+                -- PRG ROM, PRG RAM and the CPU's ExRAM accesses share the PRG
+                -- channel of the cartridge memory bus, since the CPU only
+                -- accesses one at a time
+                assert not ((is_bus_active(nes_in.cart.mem.prg_rom_bus) and
+                             is_bus_active(nes_in.cart.mem.prg_ram_bus)) or
+                            (is_bus_active(nes_in.cart.mem.prg_rom_bus) and
+                             is_bus_active(nes_in.cart.mem.cpu_exram_bus)) or
+                            (is_bus_active(nes_in.cart.mem.prg_ram_bus) and
+                             is_bus_active(nes_in.cart.mem.cpu_exram_bus)))
+                    report "PRG ROM, PRG RAM and ExRAM accessed together"
                     severity failure;
 
                 if is_bus_active(nes_in.cart.mem.prg_ram_bus)
@@ -471,6 +508,12 @@ package body lib_nes is
                         get_prg_ram_bus(nes_in.cart.mem.prg_ram_bus);
                     ret.data_to_prg_cart_mem :=
                         nes_in.cart.mem.data_to_prg_ram;
+                elsif is_bus_active(nes_in.cart.mem.cpu_exram_bus)
+                then
+                    ret.prg_cart_mem_bus :=
+                        get_exram_bus(nes_in.cart.mem.cpu_exram_bus);
+                    ret.data_to_prg_cart_mem :=
+                        nes_in.cart.mem.data_to_cpu_exram;
                 else
                     ret.prg_cart_mem_bus :=
                         get_cart_mem_bus(
@@ -480,11 +523,16 @@ package body lib_nes is
                                 nes_in.reg.cart_config.has_trainer));
                 end if;
 
-                -- CHR ROM and CHR RAM share the CHR channel, since the board
-                -- maps each CHR bank to one of them
-                assert not (is_bus_active(nes_in.cart.mem.chr_rom_bus) and
-                            is_bus_active(nes_in.cart.mem.chr_ram_bus))
-                    report "CHR ROM and CHR RAM accessed together"
+                -- CHR ROM, CHR RAM and the PPU's ExRAM accesses share the CHR
+                -- channel, since the board maps each PPU address to one of
+                -- them
+                assert not ((is_bus_active(nes_in.cart.mem.chr_rom_bus) and
+                             is_bus_active(nes_in.cart.mem.chr_ram_bus)) or
+                            (is_bus_active(nes_in.cart.mem.chr_rom_bus) and
+                             is_bus_active(nes_in.cart.mem.ppu_exram_bus)) or
+                            (is_bus_active(nes_in.cart.mem.chr_ram_bus) and
+                             is_bus_active(nes_in.cart.mem.ppu_exram_bus)))
+                    report "CHR ROM, CHR RAM and ExRAM accessed together"
                     severity failure;
 
                 if is_bus_active(nes_in.cart.mem.chr_ram_bus)
@@ -493,6 +541,12 @@ package body lib_nes is
                         get_chr_ram_bus(nes_in.cart.mem.chr_ram_bus);
                     ret.data_to_chr_cart_mem :=
                         nes_in.cart.mem.data_to_chr_ram;
+                elsif is_bus_active(nes_in.cart.mem.ppu_exram_bus)
+                then
+                    ret.chr_cart_mem_bus :=
+                        get_exram_bus(nes_in.cart.mem.ppu_exram_bus);
+                    ret.data_to_chr_cart_mem :=
+                        nes_in.cart.mem.data_to_ppu_exram;
                 else
                     ret.chr_cart_mem_bus :=
                         get_cart_mem_bus(

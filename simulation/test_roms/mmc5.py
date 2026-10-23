@@ -45,6 +45,9 @@ The ROM checks, in order (each is a group; its number is the failure color):
   17    With the IRQ disabled, 0x5204 reads pending and in frame after the
         target scanline, then only in frame, then neither after a read of
         0xFFFA; compared with PENDING_EXPECTED, from Mesen
+  18    An ExRAM nametable byte the PPU has just read, written by the CPU in
+        ExRAM mode 2, reads back through $2007 as the value written. In
+        nes_bench the CPU and PPU reach ExRAM through separate caches
 
 The expected values of 1-13 come from a model of the registers written from
 the nesdev tables, run alongside the generation of the script.
@@ -683,6 +686,33 @@ def nt_scripts(model):
     return s
 
 
+# Run after the IRQ checks, which leave rendering on, so that adding it did
+# not move the timing trials
+def exram_reread_scripts(model):
+    s = []
+
+    # After each $2007 access the PPU puts the next address on its bus as a
+    # read, so the first check leaves it having read 0x2012 last, which the
+    # second check reads again
+    sc = Script(model)
+    sc.w(0x2001, 0x00)
+    sc.w(0x5105, 0xAA)
+    sc.w(0x5104, 0)
+    sc.ppu_addr(0x2010)
+    sc.ppu_write(0x21)
+    sc.ppu_write(0x42)
+    sc.ppu_write(0x63)
+    sc.ppu_check(0x2010, 1)
+    sc.w(0x5104, 2)
+    sc.w(0x5C12, 0x84)
+    sc.w(0x5104, 0)
+    sc.ppu_check(0x2012, 1)
+    sc.w(0x5105, 0x44)
+    s.append(sc)
+
+    return s
+
+
 def build(variant):
     v = VARIANTS[variant]
     a = Assembler()
@@ -747,20 +777,23 @@ def build(variant):
     wait_vblank('vblank_1')
     wait_vblank('vblank_2')
 
-    groups = (prg_scripts(model) + ram_scripts(model) +
-              exram_mul_scripts(model) + chr_scripts(model) +
-              nt_scripts(model))
-    for sc in groups:
-        for i, part in enumerate(sc.parts()):
-            name = 'script_%d_%d' % (step[0], i)
-            scripts.append((name, part))
-            a.imm_label(LDA_IMM, name, False)
-            a.emit(STA_ZP, SCRIPT)
-            a.imm_label(LDA_IMM, name, True)
-            a.emit(STA_ZP, SCRIPT + 1)
-            a.emit(LDX_IMM, step[0])
-            a.abs_label(JSR, 'run_script')
-        next_group()
+    # Each script is a group
+    def run_scripts(groups):
+        for sc in groups:
+            for i, part in enumerate(sc.parts()):
+                name = 'script_%d_%d' % (step[0], i)
+                scripts.append((name, part))
+                a.imm_label(LDA_IMM, name, False)
+                a.emit(STA_ZP, SCRIPT)
+                a.imm_label(LDA_IMM, name, True)
+                a.emit(STA_ZP, SCRIPT + 1)
+                a.emit(LDX_IMM, step[0])
+                a.abs_label(JSR, 'run_script')
+            next_group()
+
+    run_scripts(prg_scripts(model) + ram_scripts(model) +
+                exram_mul_scripts(model) + chr_scripts(model) +
+                nt_scripts(model))
 
     # No IRQ with the target 0
     a.emit(LDA_IMM, step[0])
@@ -833,6 +866,8 @@ def build(variant):
             a.emit(LDA_ZP, PENDING + i)
             check(value, i)
     next_group()
+
+    run_scripts(exram_reread_scripts(model))
 
     a.emit(LDX_IMM, PASS_COLOR)
     a.emit(LDY_IMM, 0x00)

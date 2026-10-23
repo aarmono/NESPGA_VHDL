@@ -200,7 +200,9 @@ begin
         data_from_prg_rom => data_from_cart_mem_prg,
         data_from_chr_rom => data_from_cart_mem_chr,
         data_from_prg_ram => data_from_cart_mem_prg,
-        data_from_chr_ram => data_from_cart_mem_chr
+        data_from_chr_ram => data_from_cart_mem_chr,
+        data_from_cpu_exram => data_from_cart_mem_prg,
+        data_from_ppu_exram => data_from_cart_mem_chr
     );
 
     -- The header is only read while loading, so that otherwise read data

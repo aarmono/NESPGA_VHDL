@@ -161,18 +161,54 @@ is
         end if;
     end;
 
+    -- A write that memory serves through one channel is also made to the
+    -- entry for its address in the cache of the other channel, if it has
+    -- one, so that both caches keep holding what memory holds. Only ExRAM
+    -- can be accessed through both channels
+    function follow_write
+    (
+        cache_in : cache_t;
+        address  : cart_mem_addr_t;
+        data     : data_t
+    )
+    return cache_t
+    is
+        variable cache_out : cache_t(cache_in'range);
+    begin
+        cache_out := cache_in;
+
+        for i in cache_in'range
+        loop
+            if cache_in(i).address = address
+            then
+                cache_out(i).data := data;
+            end if;
+        end loop;
+
+        return cache_out;
+    end;
+
 begin
 
     process(all)
         variable chr_result : cache_result_t := RESULT_INIT;
         variable prg_result : cache_result_t := RESULT_INIT;
+
+        variable v_chr_cache : chr_cache_t;
+        variable v_prg_cache : prg_cache_t;
+
+        variable prg_served : boolean;
+        variable chr_served : boolean;
     begin
 
         cart_mem_bus_out <= CART_MEM_BUS_IDLE;
         data_to_cart_mem <= (others => '-');
 
-        next_chr_cache <= chr_cache;
-        next_prg_cache <= prg_cache;
+        v_chr_cache := chr_cache;
+        v_prg_cache := prg_cache;
+
+        prg_served := false;
+        chr_served := false;
 
         chr_result := cache_lookup(chr_cache,
                                    cart_mem_bus_chr,
@@ -189,6 +225,7 @@ begin
         -- data at the same address
         if prg_result.cache_miss and (clk_sync or not chr_result.cache_miss)
         then
+            prg_served := true;
             prg_result.update_cache := true;
 
             prg_result.data := served_data(cart_mem_bus_prg,
@@ -201,6 +238,7 @@ begin
         -- cycles to retrieve PRG data
         elsif chr_result.cache_miss
         then
+            chr_served := true;
             chr_result.update_cache := true;
 
             chr_result.data := served_data(cart_mem_bus_chr,
@@ -216,17 +254,36 @@ begin
 
         if chr_result.update_cache
         then
-            next_chr_cache <= update_cache(chr_cache,
-                                           cart_mem_bus_chr.address,
-                                           chr_result.data);
+            v_chr_cache := update_cache(chr_cache,
+                                        cart_mem_bus_chr.address,
+                                        chr_result.data);
         end if;
 
         if prg_result.update_cache
         then
-            next_prg_cache <= update_cache(prg_cache,
-                                           cart_mem_bus_prg.address,
-                                           prg_result.data);
+            v_prg_cache := update_cache(prg_cache,
+                                        cart_mem_bus_prg.address,
+                                        prg_result.data);
         end if;
+
+        -- A read through the other channel in the same cycle as the write
+        -- returns the data from before it. The CPU writes ExRAM in its sync
+        -- cycle, where the PRG channel wins, so this is only a PPU read of
+        -- the same byte racing the write, which is undefined on hardware too
+        if prg_served and is_bus_write(cart_mem_bus_prg)
+        then
+            v_chr_cache := follow_write(v_chr_cache,
+                                        cart_mem_bus_prg.address,
+                                        data_from_prg_bus);
+        elsif chr_served and is_bus_write(cart_mem_bus_chr)
+        then
+            v_prg_cache := follow_write(v_prg_cache,
+                                        cart_mem_bus_chr.address,
+                                        data_from_chr_bus);
+        end if;
+
+        next_chr_cache <= v_chr_cache;
+        next_prg_cache <= v_prg_cache;
 
     end process;
 
