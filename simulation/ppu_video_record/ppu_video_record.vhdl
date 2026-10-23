@@ -118,8 +118,25 @@ architecture behavioral of ppu_video_record is
 
     type emphasis_palette_t is array(color_idx_t) of bgr_t;
 
-    -- Attenuates a colour channel by Mesen's emphasis factor, truncating the
-    -- result like Mesen does
+    function to_color_idx(emphasis : emphasis_t; pixel : pixel_t) return color_idx_t
+    is
+    begin
+        return to_integer(unsigned(std_logic_vector'(to_emphasis_bits(emphasis) &
+                                                      pixel)));
+    end;
+
+    type channel_lsb_t is array(color_channel_t) of natural;
+    -- Bit position of each colour channel in a bgr_t
+    constant BGR_CHANNEL_LSB : channel_lsb_t :=
+    (
+        RED => 16,
+        GREEN => 8,
+        BLUE => 0
+    );
+
+    type channel_values_t is array(color_channel_t) of real;
+
+    -- Attenuates a colour channel by Mesen's emphasis factor
     function attenuate(channel : real) return real
     is
     begin
@@ -130,7 +147,7 @@ architecture behavioral of ppu_video_record is
     is
         variable ret : integer;
     begin
-        -- Truncate rather than round
+        -- Truncate rather than round, like Mesen does
         ret := integer(channel);
         if real(ret) > channel
         then
@@ -147,42 +164,54 @@ architecture behavioral of ppu_video_record is
     function make_emphasis_palette return emphasis_palette_t
     is
         variable ret : emphasis_palette_t;
-        variable red : real;
-        variable green : real;
-        variable blue : real;
+        variable emphasis : emphasis_t;
+        variable pixel : pixel_t;
+        variable channels : channel_values_t;
+        variable color : bgr_t;
+        variable lsb : natural;
     begin
-        for emphasis in 0 to 7
+        for emphasis_bits in 0 to 2**emphasis_bits_t'length-1
         loop
-            for pixel in 0 to 63
-            loop
-                red := real(to_integer(unsigned(PALETTE(pixel)(23 downto 16))));
-                green := real(to_integer(unsigned(PALETTE(pixel)(15 downto 8))));
-                blue := real(to_integer(unsigned(PALETTE(pixel)(7 downto 0))));
+            emphasis := to_emphasis_t(
+                std_logic_vector(to_unsigned(emphasis_bits, emphasis_bits_t'length)));
 
-                if (pixel mod 16) <= 16#D#
+            for pixel_idx in 0 to 2**pixel_t'length-1
+            loop
+                pixel := std_logic_vector(to_unsigned(pixel_idx, pixel_t'length));
+
+                for channel in color_channel_t
+                loop
+                    lsb := BGR_CHANNEL_LSB(channel);
+                    channels(channel) := real(to_integer(unsigned(
+                        PALETTE(pixel_idx)(lsb+7 downto lsb))));
+                end loop;
+
+                if pixel(3 downto 1) /= "111"
                 then
-                    -- Red
-                    if (emphasis mod 2) = 1
-                    then
-                        green := attenuate(green);
-                        blue := attenuate(blue);
-                    end if;
-                    -- Green
-                    if ((emphasis / 2) mod 2) = 1
-                    then
-                        red := attenuate(red);
-                        blue := attenuate(blue);
-                    end if;
-                    -- Blue
-                    if emphasis >= 4
-                    then
-                        red := attenuate(red);
-                        green := attenuate(green);
-                    end if;
+                    for emphasized in color_channel_t
+                    loop
+                        if emphasis(emphasized)
+                        then
+                            for channel in color_channel_t
+                            loop
+                                if channel /= emphasized
+                                then
+                                    channels(channel) :=
+                                        attenuate(channels(channel));
+                                end if;
+                            end loop;
+                        end if;
+                    end loop;
                 end if;
 
-                ret((emphasis * 64) + pixel) :=
-                    to_channel(red) & to_channel(green) & to_channel(blue);
+                color := (others => '0');
+                for channel in color_channel_t
+                loop
+                    lsb := BGR_CHANNEL_LSB(channel);
+                    color(lsb+7 downto lsb) := to_channel(channels(channel));
+                end loop;
+
+                ret(to_color_idx(emphasis, pixel)) := color;
             end loop;
         end loop;
 
@@ -277,9 +306,9 @@ begin
 
                 if pixel_bus.line_valid and pixel_num < FRAME_PIXELS
                 then
-                    frame(pixel_num) := to_integer(unsigned(
-                        std_logic_vector'(pixel_bus.emphasis & pixel_bus.pixel)));
-                    if pixel_bus.emphasis /= "000"
+                    frame(pixel_num) :=
+                        to_color_idx(pixel_bus.emphasis, pixel_bus.pixel);
+                    if pixel_bus.emphasis /= NO_EMPHASIS
                     then
                         frame_emphasis := true;
                     end if;

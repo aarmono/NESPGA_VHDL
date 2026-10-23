@@ -43,7 +43,8 @@ is
     constant BUFFER_SIZE : positive := 2 ** buffer_addr_t'length;
 
     -- Emphasis bits and palette index of a pixel
-    subtype color_t is std_logic_vector(emphasis_t'length+pixel_t'length-1 downto 0);
+    subtype color_t is
+        std_logic_vector(emphasis_bits_t'length+pixel_t'length-1 downto 0);
 
     type ppu_pixel_buf_t is array(0 to BUFFER_SIZE-1) of color_t;
     signal ppu_pixel_buf : ppu_pixel_buf_t;
@@ -124,8 +125,9 @@ is
 
     subtype channel_t is unsigned(3 downto 0);
     type channel_arr_t is array(0 to 2**channel_t'length-1) of channel_t;
-    -- Indexed by the number of times a channel is attenuated
-    type attenuation_t is array(0 to 2) of channel_arr_t;
+    -- The number of times a channel is attenuated
+    subtype attenuation_count_t is integer range 0 to 2;
+    type attenuation_t is array(attenuation_count_t) of channel_arr_t;
 
     -- Each emphasis bit attenuates the other two colour channels by Mesen's
     -- factor of 0.84, compounding when two bits attenuate the same channel
@@ -146,29 +148,36 @@ is
 
     constant ATTENUATION : attenuation_t := make_attenuation;
 
-    -- Attenuates a colour channel once for each emphasis bit of the other two
-    -- channels that is set
-    function attenuate
+    type channel_lsb_t is array(color_channel_t) of natural;
+    -- Bit position of each colour channel in an RGB444 sram_data_t
+    constant RGB_CHANNEL_LSB : channel_lsb_t :=
     (
-        channel : std_logic_vector;
-        other_1 : std_logic;
-        other_2 : std_logic
-    )
-    return std_logic_vector
-    is
-        variable count : integer range 0 to 2;
-    begin
-        count := 0;
-        if other_1 = '1'
-        then
-            count := count + 1;
-        end if;
-        if other_2 = '1'
-        then
-            count := count + 1;
-        end if;
+        RED => 8,
+        GREEN => 4,
+        BLUE => 0
+    );
 
-        return std_logic_vector(ATTENUATION(count)(to_integer(unsigned(channel))));
+    -- The number of emphasis bits set for the colour channels other than
+    -- channel, each of which attenuates it
+    function attenuation_count
+    (
+        emphasis : emphasis_t;
+        channel  : color_channel_t
+    )
+    return attenuation_count_t
+    is
+        variable ret : attenuation_count_t;
+    begin
+        ret := 0;
+        for other in color_channel_t
+        loop
+            if other /= channel and emphasis(other)
+            then
+                ret := ret + 1;
+            end if;
+        end loop;
+
+        return ret;
     end;
 
     -- Converts a pixel to its RGB444 colour. On the NTSC 2C02 each emphasis
@@ -176,20 +185,23 @@ is
     -- and green bits). Columns $xE and $xF are not affected
     function to_rgb(color : color_t) return sram_data_t
     is
-        alias emphasis : emphasis_t is color(color_t'high downto pixel_t'length);
         alias pixel : pixel_t is color(pixel_t'range);
+        variable emphasis : emphasis_t;
+        variable lsb : natural;
         variable ret : sram_data_t;
     begin
+        emphasis := to_emphasis_t(color(color_t'high downto pixel_t'length));
         ret := PALETTE(to_integer(unsigned(pixel)));
 
         if pixel(3 downto 1) /= "111"
         then
-            ret(11 downto 8) :=
-                attenuate(ret(11 downto 8), emphasis(1), emphasis(2));
-            ret(7 downto 4) :=
-                attenuate(ret(7 downto 4), emphasis(0), emphasis(2));
-            ret(3 downto 0) :=
-                attenuate(ret(3 downto 0), emphasis(0), emphasis(1));
+            for channel in color_channel_t
+            loop
+                lsb := RGB_CHANNEL_LSB(channel);
+                ret(lsb+3 downto lsb) := std_logic_vector(
+                    ATTENUATION(attenuation_count(emphasis, channel))
+                               (to_integer(unsigned(ret(lsb+3 downto lsb)))));
+            end loop;
         end if;
 
         return ret;
@@ -258,7 +270,7 @@ begin
         if pixel_bus.line_valid and ppu_clk_en
         then
             ppu_pixel_buf(to_integer(write_buffer_addr)) <=
-                pixel_bus.emphasis & pixel_bus.pixel;
+                to_emphasis_bits(pixel_bus.emphasis) & pixel_bus.pixel;
             
             next_write_pixel_addr := incr_pixel_addr(reg.write_pixel_addr);
 

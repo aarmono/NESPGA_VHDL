@@ -231,12 +231,8 @@ package lib_ppu is
         enable_playfield    : boolean;
         -- If true enables sprite fetch/display
         enable_sprite       : boolean;
-        -- If true intensifies red colors
-        intense_red         : boolean;
-        -- If true intensifies green colors
-        intense_green       : boolean;
-        -- If true intensifies blue colors
-        intense_blue        : boolean;
+        -- Colour emphasis. Each channel that is set darkens the other two
+        emphasis            : emphasis_t;
     end record;
     
     constant RESET_MASK : mask_t :=
@@ -246,9 +242,7 @@ package lib_ppu is
         left_sprite_show => false,
         enable_playfield => false,
         enable_sprite => false,
-        intense_red => false,
-        intense_green => false,
-        intense_blue => false
+        emphasis => NO_EMPHASIS
     );
     
     function to_mask_t(val : data_t) return mask_t;
@@ -512,8 +506,6 @@ package lib_ppu is
 
     function mask_pixel(grayscale : boolean; pixel : pixel_t) return pixel_t;
 
-    function mask_emphasis(mask : mask_t) return emphasis_t;
-
     function is_transparent(palette_idx : palette_idx_t) return boolean;
     
     function clock_sprite_buffers
@@ -674,9 +666,7 @@ package body lib_ppu is
     is
         variable ret : mask_t;
     begin
-        ret.intense_blue := val(7) = '1';
-        ret.intense_green := val(6) = '1';
-        ret.intense_red := val(5) = '1';
+        ret.emphasis := to_emphasis_t(val(7 downto 5));
         ret.enable_sprite := val(4) = '1';
         ret.enable_playfield := val(3) = '1';
         ret.left_sprite_show := val(2) = '1';
@@ -831,14 +821,6 @@ package body lib_ppu is
         end if;
 
         return mask and pixel;
-    end;
-
-    function mask_emphasis(mask : mask_t) return emphasis_t
-    is
-    begin
-        return to_std_logic(mask.intense_blue) &
-               to_std_logic(mask.intense_green) &
-               to_std_logic(mask.intense_red);
     end;
 
     function is_transparent(palette_idx : palette_idx_t) return boolean
@@ -2403,8 +2385,7 @@ package body lib_ppu is
                        render_in.reg.pixel);
         -- Emphasis applies to every pixel output, including the backdrop and
         -- forced blanking, with the same latency as greyscale
-        render_out.pixel_bus.emphasis :=
-            mask_emphasis(render_out.reg.mask);
+        render_out.pixel_bus.emphasis := render_out.reg.mask.emphasis;
         render_out.pixel_bus.line_valid := render_in.reg.pixel_valid;
         
         render_out.pixel_bus.frame_valid := scanline_valid(render_in.reg.cur_time);
