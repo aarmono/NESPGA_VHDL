@@ -40,6 +40,7 @@ begin
     begin
 
         pixel_bus.pixel <= (others => '0');
+        pixel_bus.emphasis <= NO_EMPHASIS;
         pixel_bus.line_valid <= false;
         pixel_bus.frame_valid <= false;
         clk <= '0';

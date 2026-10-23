@@ -42,7 +42,11 @@ is
     subtype buffer_addr_t is unsigned(7 downto 0);
     constant BUFFER_SIZE : positive := 2 ** buffer_addr_t'length;
 
-    type ppu_pixel_buf_t is array(0 to BUFFER_SIZE-1) of pixel_t;
+    -- Emphasis bits and palette index of a pixel
+    subtype color_t is
+        std_logic_vector(emphasis_bits_t'length+pixel_t'length-1 downto 0);
+
+    type ppu_pixel_buf_t is array(0 to BUFFER_SIZE-1) of color_t;
     signal ppu_pixel_buf : ppu_pixel_buf_t;
     
     attribute ramstyle : string;
@@ -119,6 +123,90 @@ is
         x"0000"
     );
 
+    subtype channel_t is unsigned(3 downto 0);
+    type channel_arr_t is array(0 to 2**channel_t'length-1) of channel_t;
+    -- The number of times a channel is attenuated
+    subtype attenuation_count_t is integer range 0 to 2;
+    type attenuation_t is array(attenuation_count_t) of channel_arr_t;
+
+    -- Each emphasis bit attenuates the other two colour channels by Mesen's
+    -- factor of 0.84, compounding when two bits attenuate the same channel
+    function make_attenuation return attenuation_t
+    is
+        variable ret : attenuation_t;
+    begin
+        for i in channel_arr_t'range
+        loop
+            ret(0)(i) := to_unsigned(i, channel_t'length);
+            ret(1)(i) := to_unsigned(((i * 84) + 50) / 100, channel_t'length);
+            ret(2)(i) := to_unsigned(((i * 7056) + 5000) / 10000,
+                                     channel_t'length);
+        end loop;
+
+        return ret;
+    end;
+
+    constant ATTENUATION : attenuation_t := make_attenuation;
+
+    type channel_lsb_t is array(color_channel_t) of natural;
+    -- Bit position of each colour channel in an RGB444 sram_data_t
+    constant RGB_CHANNEL_LSB : channel_lsb_t :=
+    (
+        RED => 8,
+        GREEN => 4,
+        BLUE => 0
+    );
+
+    -- The number of emphasis bits set for the colour channels other than
+    -- channel, each of which attenuates it
+    function attenuation_count
+    (
+        emphasis : emphasis_t;
+        channel  : color_channel_t
+    )
+    return attenuation_count_t
+    is
+        variable ret : attenuation_count_t;
+    begin
+        ret := 0;
+        for other in color_channel_t
+        loop
+            if other /= channel and emphasis(other)
+            then
+                ret := ret + 1;
+            end if;
+        end loop;
+
+        return ret;
+    end;
+
+    -- Converts a pixel to its RGB444 colour. On the NTSC 2C02 each emphasis
+    -- bit darkens the other two colour components (PAL and Dendy swap the red
+    -- and green bits). Columns $xE and $xF are not affected
+    function to_rgb(color : color_t) return sram_data_t
+    is
+        alias pixel : pixel_t is color(pixel_t'range);
+        variable emphasis : emphasis_t;
+        variable lsb : natural;
+        variable ret : sram_data_t;
+    begin
+        emphasis := to_emphasis_t(color(color_t'high downto pixel_t'length));
+        ret := PALETTE(to_integer(unsigned(pixel)));
+
+        if pixel(3 downto 1) /= "111"
+        then
+            for channel in color_channel_t
+            loop
+                lsb := RGB_CHANNEL_LSB(channel);
+                ret(lsb+3 downto lsb) := std_logic_vector(
+                    ATTENUATION(attenuation_count(emphasis, channel))
+                               (to_integer(unsigned(ret(lsb+3 downto lsb)))));
+            end loop;
+        end if;
+
+        return ret;
+    end;
+
     function incr_pixel_addr(pixel_addr : pixel_addr_t) return pixel_addr_t
     is
         variable ret : pixel_addr_t;
@@ -173,7 +261,7 @@ begin
         alias read_buffer_addr : buffer_addr_t is
             reg.read_pixel_addr(buffer_addr_t'range);
 
-        variable v_pixel : pixel_t;
+        variable v_color : color_t;
         variable next_write_pixel_addr : pixel_addr_t;
         variable next_read_pixel_addr : pixel_addr_t;
     begin
@@ -181,7 +269,8 @@ begin
     then
         if pixel_bus.line_valid and ppu_clk_en
         then
-            ppu_pixel_buf(to_integer(write_buffer_addr)) <= pixel_bus.pixel;
+            ppu_pixel_buf(to_integer(write_buffer_addr)) <=
+                to_emphasis_bits(pixel_bus.emphasis) & pixel_bus.pixel;
             
             next_write_pixel_addr := incr_pixel_addr(reg.write_pixel_addr);
 
@@ -200,8 +289,8 @@ begin
             reg.sram_addr <=
                 std_logic_vector(resize(reg.read_pixel_addr, sram_addr'length));
             
-            v_pixel := ppu_pixel_buf(to_integer(read_buffer_addr));
-            reg.sram_data <= PALETTE(to_integer(v_pixel));
+            v_color := ppu_pixel_buf(to_integer(read_buffer_addr));
+            reg.sram_data <= to_rgb(v_color);
             reg.sram_we_n <= '0';
 
             next_read_pixel_addr := incr_pixel_addr(reg.read_pixel_addr);

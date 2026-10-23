@@ -12,11 +12,6 @@ amplitude of the fundamental, which Mesen's filters change little, unlike
 the peak to peak level. A segment that outputs a constant level cannot be
 compared, as Mesen filters the level out; its level is instead the peak to
 peak level of its middle, which should be 0 in nes_bench and small in Mesen.
-
-The frequencies of nes_bench come out 0.1% low against those of Mesen
-because the APU pulse of nes_bench, which they are divided by, runs 0.1%
-fast at this period: its sequencer is clocked every 2P+1 CPU cycles rather
-than 2P+2.
 """
 
 import os
