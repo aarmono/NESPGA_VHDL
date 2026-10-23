@@ -89,8 +89,7 @@ package simulation is
     (
         FILEPATH    : string;
         MEM_BYTES   : integer := 131072;
-        READ_DELAY  : time := 0 ns;
-        WRITE_DELAY : time := 0 ns
+        READ_DELAY  : time := 0 ns
     );
     port
     (

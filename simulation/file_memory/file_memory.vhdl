@@ -11,8 +11,7 @@ generic
 (
     FILEPATH    : string;
     MEM_BYTES   : integer := 65536;
-    READ_DELAY  : time := 0 ns;
-    WRITE_DELAY : time := 0 ns
+    READ_DELAY  : time := 0 ns
 );
 port
 (
@@ -29,14 +28,17 @@ end file_memory;
 architecture behavioral of file_memory is
 
     type file_memory_t is array (0 to MEM_BYTES-1) of data_t;
-    signal mem : file_memory_t;
-    signal mem_initialized : boolean := false;
-    
+
 begin
 
+    -- The memory is a variable, since ghdl keeps a signal array as a signal
+    -- per bit, which takes hundreds of bytes each. A write is made before
+    -- the reads, so a read of the address written on the other port gives
+    -- the new data
     process(all)
         file test_mem     : byte_file_t;
-        variable read_val : byte;
+        variable mem      : file_memory_t;
+        variable mem_initialized : boolean := false;
     begin
         if not mem_initialized
         then
@@ -44,33 +46,39 @@ begin
             for i in mem'RANGE loop
                 if not byte_feof(test_mem)
                 then
-                    mem(i) <= byte_fread(test_mem);
+                    mem(i) := byte_fread(test_mem);
                 else
-                    mem(i) <= x"00";
+                    mem(i) := x"00";
                 end if;
             end loop;
             byte_fclose(test_mem);
-            
-            mem_initialized <= true;
+
+            mem_initialized := true;
         end if;
-        
+
+        if is_bus_write(file_bus_1)
+        then
+            mem(to_integer(file_bus_1.address)) := data_to_file_1;
+        end if;
+
+        if is_bus_write(file_bus_2)
+        then
+            mem(to_integer(file_bus_2.address)) := data_to_file_2;
+        end if;
+
         if is_bus_read(file_bus_1)
         then
             data_from_file_1 <= mem(to_integer(file_bus_1.address)) after READ_DELAY;
-        elsif is_bus_write(file_bus_1)
+        elsif not is_bus_write(file_bus_1)
         then
-            mem(to_integer(file_bus_1.address)) <= data_to_file_1 after WRITE_DELAY;
-        else
             data_from_file_1 <= (others => '-');
         end if;
-        
+
         if is_bus_read(file_bus_2)
         then
             data_from_file_2 <= mem(to_integer(file_bus_2.address)) after READ_DELAY;
-        elsif is_bus_write(file_bus_2)
+        elsif not is_bus_write(file_bus_2)
         then
-            mem(to_integer(file_bus_2.address)) <= data_to_file_2 after WRITE_DELAY;
-        else
             data_from_file_2 <= (others => '-');
         end if;
     end process;
