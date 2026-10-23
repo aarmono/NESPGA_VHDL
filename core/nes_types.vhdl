@@ -20,10 +20,11 @@ package nes_types is
     -- The level of the audio from the cartridge, in the units of the mixed
     -- audio, where the APU at its loudest is 255. Boards without audio of
     -- their own output 0
-    subtype cart_audio_t is natural range 0 to 2**8-1;
+    subtype cart_audio_t is natural range 0 to 2**10-1-255;
 
-    -- The APU and the cartridge audio, each with up to half of the range
-    subtype mixed_audio_t is unsigned(8 downto 0);
+    -- The APU with a quarter of the range and the cartridge audio with the
+    -- rest
+    subtype mixed_audio_t is unsigned(9 downto 0);
     
     subtype pixel_t is std_logic_vector(5 downto 0);
 

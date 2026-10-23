@@ -82,44 +82,42 @@ def frequency(x, rate):
 
 
 # The starts of the segments. Each but the first is the first change after
-# the silent frame before it: a quiet stretch of a frame or two. A frame
+# the silent frame before it: a quiet stretch of one to three frames. A frame
 # count is not enough, since a vblank missed in polling makes a segment a
 # frame longer
-def find_onsets(samples, rate, frame):
+def find_onsets(samples, rate, frame, rom=vrc6):
     active = np.flatnonzero(np.abs(np.diff(samples)) > 20) + 1
     gaps = np.diff(active)
     onsets = [first_sound(samples)]
     for i in np.flatnonzero((gaps > 0.75 * frame * rate) &
-                            (gaps < 2.5 * frame * rate)):
+                            (gaps < 3 * frame * rate)):
         start = active[i + 1]
-        if start - onsets[-1] > 0.5 * vrc6.SEGMENT_FRAMES * frame * rate:
+        if start - onsets[-1] > 0.5 * rom.SEGMENT_FRAMES * frame * rate:
             onsets.append(start)
-    assert len(onsets) == len(vrc6.SEGMENTS), len(onsets)
+    assert len(onsets) == len(rom.SEGMENTS), len(onsets)
     return onsets
 
 
-def measure(samples, rate, frame):
-    length = vrc6.SEGMENT_FRAMES * frame
+# The segments of rom, of which flat are of a constant level and mixed have
+# no one frequency
+def measure(samples, rate, frame, rom=vrc6, flat=FLAT_SEGMENTS,
+            mixed=MIXED_SEGMENTS):
+    length = rom.SEGMENT_FRAMES * frame
     ret = []
-    for k, onset in enumerate(find_onsets(samples, rate, frame)):
+    for k, onset in enumerate(find_onsets(samples, rate, frame, rom)):
         lo = onset + int(0.2 * length * rate)
         hi = onset + int(0.8 * length * rate)
         x = samples[lo:hi]
-        if k in FLAT_SEGMENTS:
+        if k in flat:
             ret.append((None, np.ptp(x)))
-        elif k in MIXED_SEGMENTS:
+        elif k in mixed:
             ret.append((None, fundamental(x, rate)[1]))
         else:
             ret.append((frequency(x, rate), fundamental(x, rate)[1]))
     return ret
 
 
-def main():
-    if len(sys.argv) != 3:
-        sys.exit(__doc__)
-    bench = measure(*read_au(sys.argv[1]), BENCH_FRAME)
-    mesen = measure(*read_wav(sys.argv[2]), NTSC_FRAME)
-
+def report(bench, mesen):
     bf0, bl0 = bench[APU_SEGMENT]
     mf0, ml0 = mesen[APU_SEGMENT]
     print('%3s  %22s  %22s' % ('seg', 'freq / APU (bench mesen)',
@@ -128,6 +126,13 @@ def main():
         freq = '%10s %10s' % ('-', '-') if bf is None else \
             '%10.4f %10.4f' % (bf / bf0, mf / mf0)
         print('%3d  %22s  %10.3f %10.3f' % (k, freq, bl / bl0, ml / ml0))
+
+
+def main():
+    if len(sys.argv) != 3:
+        sys.exit(__doc__)
+    report(measure(*read_au(sys.argv[1]), BENCH_FRAME),
+           measure(*read_wav(sys.argv[2]), NTSC_FRAME))
 
 
 if __name__ == '__main__':

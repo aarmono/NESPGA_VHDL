@@ -44,10 +44,10 @@ nes-test-roms/cpu_exec_space/test_cpu_exec_space_ppuio.nes          | 718ms     
 nes-test-roms/cpu_exec_space/test_cpu_exec_space_apu.nes            | 5037ms    | dbb09aaf1f00ef8f45c196fe36421b74f466b9a33feec5b4e9624573fef25428 *frame_00301.bmp
 
 # Basic APU
-nes-test-roms/dmc_tests/buffer_retained.nes                         | 300ms     | 67be7f60a46b6042d5660366d859c2fb97d76c479337c4b5319050e953101a11 *audio.au
-nes-test-roms/dmc_tests/latency.nes                                 | 300ms     | 4531c03c9dd229382ee7a2d7a7fe3976369ecea7405e6d7e585ee694eefa5375 *audio.au
-nes-test-roms/dmc_tests/status.nes                                  | 300ms     | fef0b60cc103dabf4d5a3fcda9e450b0d98d020a51280f34ca0b65929d071f49 *audio.au
-nes-test-roms/dmc_tests/status_irq.nes                              | 300ms     | eca7e25f5e5be39088f0549bbfe361b9d3406b8493b7108a3473055e1dbd4a85 *audio.au
+nes-test-roms/dmc_tests/buffer_retained.nes                         | 300ms     | ace02105e4243a6a7f02661f84a84a31d679a6f599068f941ed4d9bdc175dd9d *audio.au
+nes-test-roms/dmc_tests/latency.nes                                 | 300ms     | eaf20f932a6c1d0eb00093cbd813bbd5077694752c84940eaec1e2a73bc44f9d *audio.au
+nes-test-roms/dmc_tests/status.nes                                  | 300ms     | 000398983c7f218f0d0e5a173e1b8a36d3419d7823103af0c3cb8adcf0401045 *audio.au
+nes-test-roms/dmc_tests/status_irq.nes                              | 300ms     | 053da5aa221043a86343a70c4ee5a139daf81ee7d839c0d31d7ff26ea50dc1a4 *audio.au
 
 nes-test-roms/apu_test/rom_singles/1-len_ctr.nes                    | 334ms     | f89d0540946059fe833bfc061db296f478fee5833ed97180bf38c4cd069c9105 *frame_00019.bmp
 nes-test-roms/apu_test/rom_singles/2-len_table.nes                  | 250ms     | c8b767953575b78737c61e58223c722dd6c71e652cd0b193821420361aeec7d3 *frame_00014.bmp

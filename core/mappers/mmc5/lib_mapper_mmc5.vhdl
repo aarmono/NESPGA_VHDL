@@ -8,6 +8,7 @@ use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.exram_bus_types.all;
 use work.cart_types.all;
+use work.lib_mmc5_audio.all;
 
 -- Boards built around the Nintendo MMC5 (5): EKROM, ELROM, ETROM and
 -- EWROM. PRG ROM and PRG RAM are banked in four modes, with PRG RAM at
@@ -20,7 +21,8 @@ use work.cart_types.all;
 -- find the start of each scanline, which clocks a counter that raises an
 -- IRQ, and to tell sprite fetches from background fetches. In the vertical
 -- split, the tiles on one side of a column come from ExRAM with their own
--- vertical scroll. The audio is not emulated
+-- vertical scroll. The audio (lib_mmc5_audio) is two pulses and a PCM DAC,
+-- which can raise an IRQ of its own
 package lib_mapper_mmc5 is
 
     -- The mapper number is that of a board built around the MMC5
@@ -154,6 +156,8 @@ package lib_mapper_mmc5 is
         split_inside    : boolean;
         split_row       : tile_pos_t;
         split_col       : tile_pos_t;
+
+        audio           : mmc5_audio_t;
     end record;
 
     constant RESET_MAPPER_MMC5_REG : mapper_mmc5_reg_t :=
@@ -204,7 +208,9 @@ package lib_mapper_mmc5 is
         split_bank => (others => '0'),
         split_inside => false,
         split_row => 0,
-        split_col => 0
+        split_col => 0,
+
+        audio => RESET_MMC5_AUDIO
     );
 
     type mapper_mmc5_out_t is record
@@ -671,6 +677,33 @@ package body lib_mapper_mmc5 is
         return ret;
     end;
 
+    -- The audio is clocked every CPU cycle, before a write to its registers
+    -- at 0x5000-0x501F
+    function cycle_audio
+    (
+        reg      : mapper_mmc5_reg_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return mapper_mmc5_reg_t
+    is
+        variable ret : mapper_mmc5_reg_t;
+        variable reg_addr : integer;
+    begin
+        ret := reg;
+        reg_addr := get_reg_addr(cart_in.cpu);
+
+        ret.audio := cycle_mmc5_audio(reg.audio,
+                                      clk_sync,
+                                      is_bus_write(cart_in.cpu.prg_bus) and
+                                      reg_addr >= 0 and
+                                      reg_addr < 16#20#,
+                                      reg_addr mod 2**5,
+                                      cart_in.cpu.data);
+
+        return ret;
+    end;
+
     -- Reads that change the state of the MMC5
     function cycle_read
     (
@@ -693,6 +726,10 @@ package body lib_mapper_mmc5 is
                   get_reg_addr(cart_in.cpu) = 16#204#
             then
                 ret.irq_pending := false;
+            elsif is_bus_read(cart_in.cpu.prg_bus) and
+                  get_reg_addr(cart_in.cpu) = 16#010#
+            then
+                ret.audio := ack_mmc5_pcm_irq(reg.audio);
             end if;
         end if;
 
@@ -1122,6 +1159,10 @@ package body lib_mapper_mmc5 is
         if is_bus_read(cart_in.cpu.prg_bus)
         then
             case get_reg_addr(cart_in.cpu) is
+                when 16#010# | 16#015# =>
+                    ret.cpu.data := get_mmc5_audio_status(reg.audio,
+                                                          get_reg_addr(cart_in.cpu) mod 2**5);
+                    ret.cpu.data_oe := true;
                 when 16#204# =>
                     ret.cpu.data := to_std_logic(reg.irq_pending) &
                                     to_std_logic(reg.in_frame) &
@@ -1170,6 +1211,7 @@ package body lib_mapper_mmc5 is
         ret.reg := cycle_cpu(reg, clk_sync);
         ret.reg := cycle_ppu_read(ret.reg, cart_in);
         ret.reg := cycle_write(ret.reg, clk_sync, cart_in);
+        ret.reg := cycle_audio(ret.reg, clk_sync, cart_in);
         ret.reg := cycle_read(ret.reg, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle, and the
@@ -1223,7 +1265,20 @@ package body lib_mapper_mmc5 is
 
         ret.cart := read_register(reg, cart_in, ret.cart);
 
-        ret.cart.cpu.irq := reg.irq_pending and reg.irq_enable;
+        -- In PCM read mode the DAC is given what the CPU reads from
+        -- 0x8000-0xBFFF
+        if clk_sync and
+           cart_in.cpu.romsel and
+           cart_in.cpu.prg_bus.address(14) = '0' and
+           is_bus_read(cart_in.cpu.prg_bus) and
+           ret.cart.cpu.data_oe
+        then
+            ret.reg.audio := read_mmc5_pcm(ret.reg.audio, ret.cart.cpu.data);
+        end if;
+
+        ret.cart.cpu.irq := (reg.irq_pending and reg.irq_enable) or
+                            get_mmc5_pcm_irq(reg.audio);
+        ret.cart.audio := get_mmc5_audio_level(reg.audio);
 
         return ret;
     end;
