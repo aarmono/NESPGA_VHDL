@@ -75,12 +75,29 @@ package lib_mapper_mmc5 is
     subtype chr_reg_t is unsigned(9 downto 0);
     type chr_reg_arr_t is array(0 to 11) of chr_reg_t;
 
+    -- 0x5205 and 0x5206
+    subtype factor_t is natural range 0 to 255;
+
+    -- A scanline counted by the MMC5, or the vertical scroll of the split
+    subtype scanline_t is natural range 0 to 255;
+
+    -- The reads before the last from the same nametable address. The
+    -- start of a scanline is detected at the read after the third
+    subtype match_count_t is natural range 0 to 2;
+
+    -- The CPU cycles since the PPU last read. The PPU is no longer
+    -- rendering after the last
+    subtype idle_cycles_t is natural range 0 to 3;
+
     -- The reads the PPU has made since the start of the scanline was
     -- detected, counting the read at which it was
     subtype fetch_count_t is natural range 0 to 255;
 
     -- A row or column of tiles in ExRAM
     subtype tile_pos_t is natural range 0 to 31;
+
+    -- The palette of a background tile, one field of an attribute byte
+    subtype palette_t is std_logic_vector(1 downto 0);
 
     -- The part of a background tile fetch the PPU is reading, as the MMC5
     -- tells from the order of its reads
@@ -101,8 +118,7 @@ package lib_mapper_mmc5 is
         exram_mode      : exram_mode_t;
         nt_sources      : nt_source_arr_t;
         fill_tile       : data_t;
-        -- The palette of 0x5107 in each of the four attribute fields
-        fill_attr       : data_t;
+        fill_palette    : palette_t;
 
         prg_ram_bank    : prg_ram_reg_t;
         prg_regs        : prg_reg_arr_t;
@@ -112,8 +128,8 @@ package lib_mapper_mmc5 is
         -- The last CHR registers written were 0x5128-0x512B
         chr_bg_written  : boolean;
 
-        multiplicand    : natural range 0 to 255;
-        multiplier      : natural range 0 to 255;
+        multiplicand    : factor_t;
+        multiplier      : factor_t;
 
         -- Bit 5 of the last write to 0x2000
         sprite_8x16     : boolean;
@@ -122,22 +138,20 @@ package lib_mapper_mmc5 is
         -- no separate background banks and no extended attributes
         substitutions   : boolean;
 
-        irq_target      : natural range 0 to 255;
+        irq_target      : scanline_t;
         irq_enable      : boolean;
         irq_pending     : boolean;
 
         -- The PPU is rendering visible scanlines
         in_frame        : boolean;
-        scanline        : natural range 0 to 255;
-        -- The address of the last read, and how many reads before it were
-        -- from the same nametable address
+        scanline        : scanline_t;
+        -- The address of the last read
         last_addr       : chr_addr_t;
-        match_count     : natural range 0 to 2;
+        match_count     : match_count_t;
         fetch_count     : fetch_count_t;
-        -- The PPU has read since the last CPU cycle, and the CPU cycles
-        -- since it last read
+        -- The PPU has read since the last CPU cycle
         ppu_reading     : boolean;
-        idle_cycles     : natural range 0 to 3;
+        idle_cycles     : idle_cycles_t;
 
         bg_fetch        : bg_fetch_t;
         -- The ExRAM byte of the last nametable fetch
@@ -149,7 +163,7 @@ package lib_mapper_mmc5 is
         split_right     : boolean;
         split_threshold : tile_pos_t;
         -- 0x5201 and 0x5202
-        split_scroll    : natural range 0 to 255;
+        split_scroll    : scanline_t;
         split_bank      : unsigned(7 downto 0);
         -- The background tile being fetched is in the split region, and
         -- its place in the ExRAM nametable
@@ -170,7 +184,7 @@ package lib_mapper_mmc5 is
         exram_mode => EXRAM_NT,
         nt_sources => (others => NT_CIRAM_0),
         fill_tile => (others => '0'),
-        fill_attr => (others => '0'),
+        fill_palette => (others => '0'),
 
         prg_ram_bank => (others => '0'),
         prg_regs => (3 => (others => '1'), others => (others => '0')),
@@ -246,18 +260,10 @@ package body lib_mapper_mmc5 is
         if not cpu_in.romsel and
            cpu_in.prg_bus.address(14 downto 12) = "101"
         then
-            return to_integer(unsigned(cpu_in.prg_bus.address(11 downto 0)));
+            return to_integer(cpu_in.prg_bus.address(11 downto 0));
         else
             return -1;
         end if;
-    end;
-
-    -- The CPU address is 0x5C00-0x5FFF
-    function is_exram_addr(cpu_in : cart_cpu_in_t) return boolean
-    is
-    begin
-        return not cpu_in.romsel and
-               cpu_in.prg_bus.address(14 downto 10) = "10111";
     end;
 
     -- The CPU address is exactly addr, which is below 0x8000. The MMC5
@@ -304,7 +310,14 @@ package body lib_mapper_mmc5 is
     return nt_source_t
     is
     begin
-        return reg.nt_sources(to_integer(unsigned(addr(11 downto 10))));
+        return reg.nt_sources(to_integer(addr(11 downto 10)));
+    end;
+
+    -- A 2-bit palette in each of the four fields of an attribute byte
+    function repeat_palette(palette : palette_t) return data_t
+    is
+    begin
+        return palette & palette & palette & palette;
     end;
 
     -- The PPU is fetching sprite patterns: reads 127 to 158 after the
@@ -354,10 +367,10 @@ package body lib_mapper_mmc5 is
     -- the attribute rows are read as tiles
     function get_split_y
     (
-        scroll : natural;
+        scroll : scanline_t;
         line   : natural
     )
-    return natural
+    return scanline_t
     is
         variable sum : natural range 0 to 511;
     begin
@@ -400,13 +413,14 @@ package body lib_mapper_mmc5 is
         return ret;
     end;
 
-    -- The MMC5 forgets the address of the last read, so that it starts
-    -- looking for three matching reads again
-    function forget_last_read(reg : mapper_mmc5_reg_t) return mapper_mmc5_reg_t
+    -- The PPU is no longer rendering. The MMC5 forgets the address of the
+    -- last read, so that it starts looking for three matching reads again
+    function exit_frame(reg : mapper_mmc5_reg_t) return mapper_mmc5_reg_t
     is
         variable ret : mapper_mmc5_reg_t;
     begin
         ret := reg;
+        ret.in_frame := false;
         ret.last_addr := (others => '0');
         ret.match_count := 0;
 
@@ -419,8 +433,7 @@ package body lib_mapper_mmc5 is
     is
         variable ret : mapper_mmc5_reg_t;
     begin
-        ret := forget_last_read(reg);
-        ret.in_frame := false;
+        ret := exit_frame(reg);
         ret.irq_pending := false;
 
         return ret;
@@ -444,13 +457,12 @@ package body lib_mapper_mmc5 is
             if reg.ppu_reading
             then
                 ret.idle_cycles := 0;
-            elsif reg.idle_cycles < 3
+            elsif reg.idle_cycles < idle_cycles_t'high
             then
                 ret.idle_cycles := reg.idle_cycles + 1;
-                if reg.idle_cycles = 2
+                if ret.idle_cycles = idle_cycles_t'high
                 then
-                    ret := forget_last_read(ret);
-                    ret.in_frame := false;
+                    ret := exit_frame(ret);
                 end if;
             end if;
             ret.ppu_reading := false;
@@ -478,7 +490,7 @@ package body lib_mapper_mmc5 is
 
         if cart_in.ppu.ale and is_bus_read(cart_in.ppu.chr_bus)
         then
-            if reg.match_count = 2
+            if reg.match_count = match_count_t'high
             then
                 if not reg.in_frame
                 then
@@ -486,7 +498,7 @@ package body lib_mapper_mmc5 is
                     ret.scanline := 0;
                     ret.irq_pending := false;
                 else
-                    ret.scanline := (reg.scanline + 1) mod 256;
+                    ret.scanline := (reg.scanline + 1) mod (scanline_t'high + 1);
                     if ret.scanline = reg.irq_target and reg.irq_target /= 0
                     then
                         ret.irq_pending := true;
@@ -500,7 +512,7 @@ package body lib_mapper_mmc5 is
 
             if is_nt_addr(addr) and addr = reg.last_addr
             then
-                if reg.match_count < 2
+                if reg.match_count < match_count_t'high
                 then
                     ret.match_count := reg.match_count + 1;
                 end if;
@@ -557,8 +569,7 @@ package body lib_mapper_mmc5 is
 
         if data(4 downto 3) = "00"
         then
-            ret := forget_last_read(ret);
-            ret.in_frame := false;
+            ret := exit_frame(ret);
             ret.substitutions := false;
         elsif not reg.substitutions
         then
@@ -610,8 +621,7 @@ package body lib_mapper_mmc5 is
             when 16#106# =>
                 ret.fill_tile := data;
             when 16#107# =>
-                ret.fill_attr := data(1 downto 0) & data(1 downto 0) &
-                                 data(1 downto 0) & data(1 downto 0);
+                ret.fill_palette := data(1 downto 0);
             when 16#113# =>
                 ret.prg_ram_bank := unsigned(data(prg_ram_reg_t'range));
             when 16#114# to 16#116# =>
@@ -650,18 +660,17 @@ package body lib_mapper_mmc5 is
     (
         reg      : mapper_mmc5_reg_t;
         clk_sync : boolean;
-        cart_in  : cart_in_t
+        cart_in  : cart_in_t;
+        reg_addr : integer
     )
     return mapper_mmc5_reg_t
     is
         variable ret : mapper_mmc5_reg_t;
-        variable reg_addr : integer;
     begin
         ret := reg;
 
         if clk_sync and is_bus_write(cart_in.cpu.prg_bus)
         then
-            reg_addr := get_reg_addr(cart_in.cpu);
             if reg_addr >= 0
             then
                 ret := write_register(reg, reg_addr, cart_in.cpu.data);
@@ -677,39 +686,13 @@ package body lib_mapper_mmc5 is
         return ret;
     end;
 
-    -- The audio is clocked every CPU cycle, before a write to its registers
-    -- at 0x5000-0x501F
-    function cycle_audio
-    (
-        reg      : mapper_mmc5_reg_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
-    )
-    return mapper_mmc5_reg_t
-    is
-        variable ret : mapper_mmc5_reg_t;
-        variable reg_addr : integer;
-    begin
-        ret := reg;
-        reg_addr := get_reg_addr(cart_in.cpu);
-
-        ret.audio := cycle_mmc5_audio(reg.audio,
-                                      clk_sync,
-                                      is_bus_write(cart_in.cpu.prg_bus) and
-                                      reg_addr >= 0 and
-                                      reg_addr < 16#20#,
-                                      reg_addr mod 2**5,
-                                      cart_in.cpu.data);
-
-        return ret;
-    end;
-
     -- Reads that change the state of the MMC5
     function cycle_read
     (
         reg      : mapper_mmc5_reg_t;
         clk_sync : boolean;
-        cart_in  : cart_in_t
+        cart_in  : cart_in_t;
+        reg_addr : integer
     )
     return mapper_mmc5_reg_t
     is
@@ -722,14 +705,16 @@ package body lib_mapper_mmc5 is
             if is_nmi_vector_read(cart_in.cpu)
             then
                 ret := leave_frame(reg);
-            elsif is_bus_read(cart_in.cpu.prg_bus) and
-                  get_reg_addr(cart_in.cpu) = 16#204#
+            elsif is_bus_read(cart_in.cpu.prg_bus)
             then
-                ret.irq_pending := false;
-            elsif is_bus_read(cart_in.cpu.prg_bus) and
-                  get_reg_addr(cart_in.cpu) = 16#010#
-            then
-                ret.audio := ack_mmc5_pcm_irq(reg.audio);
+                case reg_addr is
+                    when 16#204# =>
+                        ret.irq_pending := false;
+                    when 16#010# =>
+                        ret.audio := ack_mmc5_pcm_irq(reg.audio);
+                    when others =>
+                        null;
+                end case;
             end if;
         end if;
 
@@ -747,6 +732,7 @@ package body lib_mapper_mmc5 is
         reg      : mapper_mmc5_reg_t;
         clk_sync : boolean;
         cart_in  : cart_in_t;
+        reg_addr : integer;
         cart     : cart_out_t
     )
     return cart_out_t
@@ -757,7 +743,7 @@ package body lib_mapper_mmc5 is
         ret := cart;
         addr := cart_in.cpu.prg_bus.address(exram_addr_t'range);
 
-        if is_exram_addr(cart_in.cpu)
+        if reg_addr >= 16#C00#
         then
             if is_bus_read(cart_in.cpu.prg_bus) and not is_exram_nt_mode(reg)
             then
@@ -795,13 +781,12 @@ package body lib_mapper_mmc5 is
     begin
         if reg.bg_fetch = FETCH_NT
         then
-            return std_logic_vector(to_unsigned(reg.split_row * 32 +
-                                                reg.split_col,
-                                                exram_addr_t'length));
+            return to_std_logic_vector(reg.split_row * 32 + reg.split_col,
+                                       exram_addr_t'length);
         else
             return "1111" &
-                   std_logic_vector(to_unsigned(reg.split_row / 4, 3)) &
-                   std_logic_vector(to_unsigned(reg.split_col / 4, 3));
+                   to_std_logic_vector(reg.split_row / 4, 3) &
+                   to_std_logic_vector(reg.split_col / 4, 3);
         end if;
     end;
 
@@ -814,7 +799,7 @@ package body lib_mapper_mmc5 is
     )
     return data_t
     is
-        variable palette : std_logic_vector(1 downto 0);
+        variable palette : palette_t;
     begin
         if (reg.split_row / 2) mod 2 = 0
         then
@@ -831,7 +816,7 @@ package body lib_mapper_mmc5 is
             palette := data(7 downto 6);
         end if;
 
-        return palette & palette & palette & palette;
+        return repeat_palette(palette);
     end;
 
     -- The PPU accesses a nametable in ExRAM, or reads the ExRAM byte of
@@ -842,6 +827,7 @@ package body lib_mapper_mmc5 is
     (
         reg     : mapper_mmc5_reg_t;
         cart_in : cart_in_t;
+        source  : nt_source_t;
         cart    : cart_out_t
     )
     return cart_out_t
@@ -852,7 +838,7 @@ package body lib_mapper_mmc5 is
     begin
         ret := cart;
         addr := cart_in.ppu.chr_bus.address;
-        in_exram := get_nt_source(reg, addr) = NT_EXRAM;
+        in_exram := source = NT_EXRAM;
 
         if is_nt_addr(addr) and is_split_fetch(reg)
         then
@@ -908,10 +894,10 @@ package body lib_mapper_mmc5 is
                     ret := reg.prg_regs(1);
                     ret(0) := window(0);
                 else
-                    ret := reg.prg_regs(to_integer(window));
+                    ret := reg.prg_regs(to_integer(std_logic_vector(window)));
                 end if;
             when PRG_8KB =>
-                ret := reg.prg_regs(to_integer(window));
+                ret := reg.prg_regs(to_integer(std_logic_vector(window)));
         end case;
 
         return ret;
@@ -968,7 +954,7 @@ package body lib_mapper_mmc5 is
     is
         variable low_mask : chr_window_t;
         variable idx : natural range 0 to 11;
-        variable bank : unsigned(12 downto 0);
+        variable bank : chr_reg_t;
     begin
         case reg.chr_mode is
             when 0 => low_mask := "111";
@@ -976,17 +962,19 @@ package body lib_mapper_mmc5 is
             when 2 => low_mask := "001";
             when 3 => low_mask := "000";
         end case;
-        idx := to_integer(window or low_mask);
+        idx := to_integer(std_logic_vector(window or low_mask));
         if bg
         then
             idx := 8 + idx mod 4;
         end if;
 
-        bank := shift_left(resize(reg.chr_regs(idx), bank'length),
-                           3 - reg.chr_mode);
-        bank(2 downto 0) := bank(2 downto 0) or (window and low_mask);
-
-        return resize(bank, chr_bank_1kb_t'length);
+        bank := reg.chr_regs(idx);
+        case reg.chr_mode is
+            when 0 => return bank(7 downto 0) & window;
+            when 1 => return bank(8 downto 0) & window(1 downto 0);
+            when 2 => return bank & window(0);
+            when 3 => return '0' & bank;
+        end case;
     end;
 
     -- The PPU fetches the background with the separate registers: sprites
@@ -1015,9 +1003,7 @@ package body lib_mapper_mmc5 is
                reg.substitutions and
                reg.in_frame and
                not reg.split_inside and
-               (reg.bg_fetch = FETCH_AT or
-                reg.bg_fetch = FETCH_PT_LOW or
-                reg.bg_fetch = FETCH_PT_HIGH);
+               reg.bg_fetch >= FETCH_AT;
     end;
 
     -- The PPU reads data from the MMC5 rather than CIRAM or CHR
@@ -1054,7 +1040,7 @@ package body lib_mapper_mmc5 is
         then
             if is_attr_addr(addr)
             then
-                return reg.fill_attr;
+                return repeat_palette(reg.fill_palette);
             else
                 return reg.fill_tile;
             end if;
@@ -1071,6 +1057,7 @@ package body lib_mapper_mmc5 is
         reg     : mapper_mmc5_reg_t;
         config  : cart_config_t;
         cart_in : cart_in_t;
+        source  : nt_source_t;
         banks   : cart_banks_t
     )
     return cart_out_t
@@ -1078,12 +1065,9 @@ package body lib_mapper_mmc5 is
         variable ret : cart_out_t;
         variable v_banks : cart_banks_t;
         variable addr : chr_addr_t;
-        variable source : nt_source_t;
-        variable palette : std_logic_vector(1 downto 0);
     begin
         v_banks := banks;
         addr := cart_in.ppu.chr_bus.address;
-        source := get_nt_source(reg, addr);
 
         if addr(13) = '0'
         then
@@ -1093,24 +1077,20 @@ package body lib_mapper_mmc5 is
             -- tiles in the split region in place
             if is_split_fetch(reg)
             then
-                v_banks.chr := resize(reg.split_bank & unsigned(addr(11 downto 10)),
-                                      chr_bank_1kb_t'length);
+                v_banks.chr := '0' & reg.split_bank & unsigned(addr(11 downto 10));
             elsif is_ext_attr_fetch(reg)
             then
-                v_banks.chr := resize(reg.chr_upper &
-                                      unsigned(reg.ext_attr(5 downto 0)) &
-                                      unsigned(addr(11 downto 10)),
-                                      chr_bank_1kb_t'length);
+                v_banks.chr := '0' &
+                               reg.chr_upper &
+                               unsigned(reg.ext_attr(5 downto 0)) &
+                               unsigned(addr(11 downto 10));
             else
                 v_banks.chr := get_chr_bank(reg,
                                             get_chr_window(cart_in.ppu),
                                             is_bg_chr(reg));
             end if;
-        elsif source = NT_CIRAM_1
-        then
-            v_banks.mirror := MIRROR_B;
         else
-            v_banks.mirror := MIRROR_A;
+            v_banks.mirror := get_single_screen_mirror(to_std_logic(source = NT_CIRAM_1));
         end if;
 
         ret := map_cart(config, cart_in, v_banks);
@@ -1129,8 +1109,7 @@ package body lib_mapper_mmc5 is
                 end if;
             elsif is_ext_attr_fetch(reg)
             then
-                palette := reg.ext_attr(7 downto 6);
-                ret := drive_ppu_data(ret, palette & palette & palette & palette);
+                ret := drive_ppu_data(ret, repeat_palette(reg.ext_attr(7 downto 6)));
             elsif source = NT_EXRAM or source = NT_FILL
             then
                 ret := drive_ppu_data(ret,
@@ -1146,22 +1125,25 @@ package body lib_mapper_mmc5 is
     function read_register
     (
         reg     : mapper_mmc5_reg_t;
-        cart_in : cart_in_t;
-        cart    : cart_out_t
+        cart_in  : cart_in_t;
+        reg_addr : integer;
+        cart     : cart_out_t
     )
     return cart_out_t
     is
         variable ret : cart_out_t;
-        variable product : natural range 0 to 2**16-1;
+        variable product : std_logic_vector(15 downto 0);
     begin
         ret := cart;
 
         if is_bus_read(cart_in.cpu.prg_bus)
         then
-            case get_reg_addr(cart_in.cpu) is
-                when 16#010# | 16#015# =>
-                    ret.cpu.data := get_mmc5_audio_status(reg.audio,
-                                                          get_reg_addr(cart_in.cpu) mod 2**5);
+            case reg_addr is
+                when 16#010# =>
+                    ret.cpu.data := get_mmc5_pcm_status(reg.audio);
+                    ret.cpu.data_oe := true;
+                when 16#015# =>
+                    ret.cpu.data := get_mmc5_pulse_status(reg.audio);
                     ret.cpu.data_oe := true;
                 when 16#204# =>
                     ret.cpu.data := to_std_logic(reg.irq_pending) &
@@ -1169,14 +1151,13 @@ package body lib_mapper_mmc5 is
                                     "000000";
                     ret.cpu.data_oe := true;
                 when 16#205# | 16#206# =>
-                    product := reg.multiplicand * reg.multiplier;
-                    if cart_in.cpu.prg_bus.address(0) = '1'
+                    product := to_std_logic_vector(reg.multiplicand * reg.multiplier,
+                                                   product'length);
+                    if reg_addr = 16#205#
                     then
-                        ret.cpu.data :=
-                            std_logic_vector(to_unsigned(product mod 256, 8));
+                        ret.cpu.data := product(7 downto 0);
                     else
-                        ret.cpu.data :=
-                            std_logic_vector(to_unsigned(product / 256, 8));
+                        ret.cpu.data := product(15 downto 8);
                     end if;
                     ret.cpu.data_oe := true;
                 when 16#C00# to 16#FFF# =>
@@ -1203,16 +1184,28 @@ package body lib_mapper_mmc5 is
     return mapper_mmc5_out_t
     is
         variable ret : mapper_mmc5_out_t;
+        variable reg_addr : integer;
         variable banks : cart_banks_t;
         variable prg_reg : prg_reg_t;
         variable ram_bank : prg_ram_reg_t;
         variable ram : boolean;
+        variable source : nt_source_t;
     begin
+        reg_addr := get_reg_addr(cart_in.cpu);
+
         ret.reg := cycle_cpu(reg, clk_sync);
         ret.reg := cycle_ppu_read(ret.reg, cart_in);
-        ret.reg := cycle_write(ret.reg, clk_sync, cart_in);
-        ret.reg := cycle_audio(ret.reg, clk_sync, cart_in);
-        ret.reg := cycle_read(ret.reg, clk_sync, cart_in);
+        ret.reg := cycle_write(ret.reg, clk_sync, cart_in, reg_addr);
+        -- The audio is clocked every CPU cycle, before a write to its
+        -- registers at 0x5000-0x501F
+        ret.reg.audio := cycle_mmc5_audio(ret.reg.audio,
+                                          clk_sync,
+                                          is_bus_write(cart_in.cpu.prg_bus) and
+                                          reg_addr >= 0 and
+                                          reg_addr < 16#20#,
+                                          reg_addr mod 2**5,
+                                          cart_in.cpu.data);
+        ret.reg := cycle_read(ret.reg, clk_sync, cart_in, reg_addr);
 
         -- The PPU sees the registers written by the CPU this cycle, and the
         -- read it starts this dot
@@ -1238,9 +1231,10 @@ package body lib_mapper_mmc5 is
         end if;
         banks.prg_ram_bank := get_prg_ram_bank(config, ram_bank);
 
-        ret.cart := map_ppu(ret.reg, config, cart_in, banks);
-        ret.cart := map_ppu_exram(ret.reg, cart_in, ret.cart);
-        ret.cart := map_cpu_exram(ret.reg, clk_sync, cart_in, ret.cart);
+        source := get_nt_source(ret.reg, cart_in.ppu.chr_bus.address);
+        ret.cart := map_ppu(ret.reg, config, cart_in, source, banks);
+        ret.cart := map_ppu_exram(ret.reg, cart_in, source, ret.cart);
+        ret.cart := map_cpu_exram(ret.reg, clk_sync, cart_in, reg_addr, ret.cart);
 
         -- Latched on both dots of the nametable read, so the second, which
         -- the cartridge memory bus always serves, is kept. Extended
@@ -1263,7 +1257,7 @@ package body lib_mapper_mmc5 is
             end if;
         end if;
 
-        ret.cart := read_register(reg, cart_in, ret.cart);
+        ret.cart := read_register(reg, cart_in, reg_addr, ret.cart);
 
         -- In PCM read mode the DAC is given what the CPU reads from
         -- 0x8000-0xBFFF

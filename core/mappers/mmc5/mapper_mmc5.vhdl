@@ -1,6 +1,5 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
-use work.nes_types.all;
 use work.cart_types.all;
 use work.lib_mapper_mmc5.all;
 

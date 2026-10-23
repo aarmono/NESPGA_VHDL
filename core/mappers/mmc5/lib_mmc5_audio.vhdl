@@ -75,19 +75,13 @@ package lib_mmc5_audio is
     -- A CPU read of 0x5010 acknowledges the PCM IRQ
     function ack_mmc5_pcm_irq(audio : mmc5_audio_t) return mmc5_audio_t;
 
-    -- The data of a CPU read of 0x5010 or 0x5015
-    function get_mmc5_audio_status
-    (
-        audio : mmc5_audio_t;
-        reg   : mmc5_audio_reg_t
-    )
-    return data_t;
+    -- The data of a CPU read of 0x5010
+    function get_mmc5_pcm_status(audio : mmc5_audio_t) return data_t;
+
+    -- The data of a CPU read of 0x5015
+    function get_mmc5_pulse_status(audio : mmc5_audio_t) return data_t;
 
     function get_mmc5_pcm_irq(audio : mmc5_audio_t) return boolean;
-
-    -- The highest level of the channels, scaled to the units of the mixed
-    -- audio. The inverted output is this less the level
-    constant MMC5_AUDIO_MAX : cart_audio_t := 625;
 
     -- The level of the channels, inverted and scaled to the units of the
     -- mixed audio
@@ -97,6 +91,10 @@ end package lib_mmc5_audio;
 
 
 package body lib_mmc5_audio is
+
+    -- The highest level of the channels, scaled to the units of the mixed
+    -- audio. The inverted output is this less the level
+    constant MMC5_AUDIO_MAX : cart_audio_t := 625;
 
     -- The PCM IRQ is raised when the DAC is given 0, which does not change
     -- it, and cleared when it is given any other value
@@ -111,11 +109,9 @@ package body lib_mmc5_audio is
     begin
         ret := audio;
 
-        if is_zero(data)
+        ret.pcm_irq := is_zero(data);
+        if not ret.pcm_irq
         then
-            ret.pcm_irq := true;
-        else
-            ret.pcm_irq := false;
             ret.pcm := to_integer(data);
         end if;
 
@@ -232,23 +228,19 @@ package body lib_mmc5_audio is
 
     -- Bit 0 of 0x5010 reading back the mode is nesdev's guess; Mesen reads
     -- 0
-    function get_mmc5_audio_status
-    (
-        audio : mmc5_audio_t;
-        reg   : mmc5_audio_reg_t
-    )
-    return data_t
+    function get_mmc5_pcm_status(audio : mmc5_audio_t) return data_t
     is
     begin
-        if reg = 16#10#
-        then
-            return to_std_logic(get_mmc5_pcm_irq(audio)) & "000000" &
-                   to_std_logic(audio.pcm_read_mode);
-        else
-            return "000000" &
-                   get_status(audio.pulse_2) &
-                   get_status(audio.pulse_1);
-        end if;
+        return to_std_logic(get_mmc5_pcm_irq(audio)) & "000000" &
+               to_std_logic(audio.pcm_read_mode);
+    end;
+
+    function get_mmc5_pulse_status(audio : mmc5_audio_t) return data_t
+    is
+    begin
+        return "000000" &
+               get_status(audio.pulse_2) &
+               get_status(audio.pulse_1);
     end;
 
     -- The volume of a pulse while its step of the duty is high and its
