@@ -3,6 +3,7 @@
 *.ghw
 *dump
 *output
+generated_roms
 *.fm2
 *.txt
 *.sig
