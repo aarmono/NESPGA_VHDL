@@ -18,8 +18,9 @@ use work.cart_types.all;
 -- the board, with a bus for the CPU and one for the PPU. Each nametable is
 -- CIRAM, ExRAM or a fill tile. The MMC5 watches the reads of the PPU to
 -- find the start of each scanline, which clocks a counter that raises an
--- IRQ, and to tell sprite fetches from background fetches. The audio and
--- the vertical split are not emulated
+-- IRQ, and to tell sprite fetches from background fetches. In the vertical
+-- split, the tiles on one side of a column come from ExRAM with their own
+-- vertical scroll. The audio is not emulated
 package lib_mapper_mmc5 is
 
     -- The mapper number is that of a board built around the MMC5
@@ -75,6 +76,9 @@ package lib_mapper_mmc5 is
     -- The reads the PPU has made since the start of the scanline was
     -- detected, counting the read at which it was
     subtype fetch_count_t is natural range 0 to 255;
+
+    -- A row or column of tiles in ExRAM
+    subtype tile_pos_t is natural range 0 to 31;
 
     -- The part of a background tile fetch the PPU is reading, as the MMC5
     -- tells from the order of its reads
@@ -136,6 +140,20 @@ package lib_mapper_mmc5 is
         bg_fetch        : bg_fetch_t;
         -- The ExRAM byte of the last nametable fetch
         ext_attr        : data_t;
+
+        -- 0x5200: the split is enabled, is right of the threshold rather
+        -- than left of it, and the threshold in tiles
+        split_enable    : boolean;
+        split_right     : boolean;
+        split_threshold : tile_pos_t;
+        -- 0x5201 and 0x5202
+        split_scroll    : natural range 0 to 255;
+        split_bank      : unsigned(7 downto 0);
+        -- The background tile being fetched is in the split region, and
+        -- its place in the ExRAM nametable
+        split_inside    : boolean;
+        split_row       : tile_pos_t;
+        split_col       : tile_pos_t;
     end record;
 
     constant RESET_MAPPER_MMC5_REG : mapper_mmc5_reg_t :=
@@ -177,7 +195,16 @@ package lib_mapper_mmc5 is
         idle_cycles => 0,
 
         bg_fetch => FETCH_NONE,
-        ext_attr => (others => '0')
+        ext_attr => (others => '0'),
+
+        split_enable => false,
+        split_right => false,
+        split_threshold => 0,
+        split_scroll => 0,
+        split_bank => (others => '0'),
+        split_inside => false,
+        split_row => 0,
+        split_col => 0
     );
 
     type mapper_mmc5_out_t is record
@@ -282,6 +309,89 @@ package body lib_mapper_mmc5 is
         return reg.in_frame and
                reg.fetch_count >= 127 and
                reg.fetch_count <= 158;
+    end;
+
+    -- ExRAM is a nametable or extended attributes
+    function is_exram_nt_mode(reg : mapper_mmc5_reg_t) return boolean
+    is
+    begin
+        return reg.exram_mode = EXRAM_NT or reg.exram_mode = EXRAM_EXT_ATTR;
+    end;
+
+    -- The read of the nametable byte of tile 0 of the next scanline, at dot
+    -- 321. Tiles 0 and 1 are fetched at the end of the scanline before
+    -- theirs, and tile 2 at dot 1, before its start is detected
+    constant SPLIT_PREFETCH_COUNT : fetch_count_t := 159;
+
+    -- The tile of the scanline, 0 to 33, whose nametable byte is being
+    -- read. Tile 3 is read 3 reads after the start was detected, at dot 9,
+    -- and tile 33 120 reads after that
+    function get_split_col(fetch_count : fetch_count_t) return natural
+    is
+    begin
+        if fetch_count >= SPLIT_PREFETCH_COUNT + 8
+        then
+            return 2;
+        elsif fetch_count >= SPLIT_PREFETCH_COUNT
+        then
+            return (fetch_count - SPLIT_PREFETCH_COUNT) / 4;
+        elsif fetch_count >= 123
+        then
+            return 33;
+        else
+            return (fetch_count + 9) / 4;
+        end if;
+    end;
+
+    -- The vertical scroll of 0x5201 plus the scanline wraps from 239 to 0
+    -- like that of the PPU, but from 255 when it starts at 240 or more, so
+    -- the attribute rows are read as tiles
+    function get_split_y
+    (
+        scroll : natural;
+        line   : natural
+    )
+    return natural
+    is
+        variable sum : natural range 0 to 511;
+    begin
+        sum := scroll + line;
+        if scroll < 240 and sum >= 240
+        then
+            sum := sum - 240;
+        end if;
+
+        return sum mod 256;
+    end;
+
+    -- At the nametable fetch of a background tile, whether the tile is in
+    -- the split region, counted in fetches from the left of the screen
+    -- whatever the horizontal scroll, and its place in ExRAM. The split is
+    -- only made with ExRAM as a nametable or extended attributes
+    function fetch_split_tile(reg : mapper_mmc5_reg_t) return mapper_mmc5_reg_t
+    is
+        variable ret : mapper_mmc5_reg_t;
+        variable col : natural range 0 to 33;
+        variable line : natural range 0 to 256;
+    begin
+        ret := reg;
+        col := get_split_col(reg.fetch_count);
+        if reg.fetch_count >= SPLIT_PREFETCH_COUNT
+        then
+            line := reg.scanline + 1;
+        else
+            line := reg.scanline;
+        end if;
+
+        ret.split_inside := reg.split_enable and
+                            reg.substitutions and
+                            reg.in_frame and
+                            is_exram_nt_mode(reg) and
+                            (col >= reg.split_threshold) = reg.split_right;
+        ret.split_row := get_split_y(reg.split_scroll, line) / 8;
+        ret.split_col := col mod 32;
+
+        return ret;
     end;
 
     -- The MMC5 forgets the address of the last read, so that it starts
@@ -401,6 +511,7 @@ package body lib_mapper_mmc5 is
                not is_sprite_fetch(ret)
             then
                 ret.bg_fetch := FETCH_NT;
+                ret := fetch_split_tile(ret);
             else
                 case reg.bg_fetch is
                     when FETCH_NT => ret.bg_fetch := FETCH_AT;
@@ -506,6 +617,14 @@ package body lib_mapper_mmc5 is
                 ret.chr_bg_written := reg_addr >= 16#128#;
             when 16#130# =>
                 ret.chr_upper := unsigned(data(1 downto 0));
+            when 16#200# =>
+                ret.split_enable := data(7) = '1';
+                ret.split_right := data(6) = '1';
+                ret.split_threshold := to_integer(unsigned(data(4 downto 0)));
+            when 16#201# =>
+                ret.split_scroll := to_integer(unsigned(data));
+            when 16#202# =>
+                ret.split_bank := unsigned(data);
             when 16#203# =>
                 ret.irq_target := to_integer(unsigned(data));
             when 16#204# =>
@@ -580,13 +699,6 @@ package body lib_mapper_mmc5 is
         return ret;
     end;
 
-    -- ExRAM is a nametable or extended attributes
-    function is_exram_nt_mode(reg : mapper_mmc5_reg_t) return boolean
-    is
-    begin
-        return reg.exram_mode = EXRAM_NT or reg.exram_mode = EXRAM_EXT_ATTR;
-    end;
-
     -- The CPU accesses 0x5C00-0x5FFF. It can only read ExRAM in the RAM and
     -- ROM modes, and can write it in any mode but ROM. As a nametable or
     -- extended attributes ExRAM can only be written while the PPU is
@@ -630,6 +742,61 @@ package body lib_mapper_mmc5 is
         return ret;
     end;
 
+    -- The PPU is fetching a background tile in the split region
+    function is_split_fetch(reg : mapper_mmc5_reg_t) return boolean
+    is
+    begin
+        return reg.split_inside and
+               reg.in_frame and
+               reg.bg_fetch /= FETCH_NONE;
+    end;
+
+    -- The ExRAM address of the nametable or attribute byte of a tile in the
+    -- split region
+    function get_split_exram_addr(reg : mapper_mmc5_reg_t) return exram_addr_t
+    is
+    begin
+        if reg.bg_fetch = FETCH_NT
+        then
+            return std_logic_vector(to_unsigned(reg.split_row * 32 +
+                                                reg.split_col,
+                                                exram_addr_t'length));
+        else
+            return "1111" &
+                   std_logic_vector(to_unsigned(reg.split_row / 4, 3)) &
+                   std_logic_vector(to_unsigned(reg.split_col / 4, 3));
+        end if;
+    end;
+
+    -- The palette of a tile in the split region from its attribute byte,
+    -- in each of the four attribute fields
+    function get_split_attr
+    (
+        reg  : mapper_mmc5_reg_t;
+        data : data_t
+    )
+    return data_t
+    is
+        variable palette : std_logic_vector(1 downto 0);
+    begin
+        if (reg.split_row / 2) mod 2 = 0
+        then
+            if (reg.split_col / 2) mod 2 = 0
+            then
+                palette := data(1 downto 0);
+            else
+                palette := data(3 downto 2);
+            end if;
+        elsif (reg.split_col / 2) mod 2 = 0
+        then
+            palette := data(5 downto 4);
+        else
+            palette := data(7 downto 6);
+        end if;
+
+        return palette & palette & palette & palette;
+    end;
+
     -- The PPU accesses a nametable in ExRAM, or reads the ExRAM byte of
     -- each background nametable fetch for its extended attributes. A
     -- nametable in ExRAM reads as 0 and cannot be written in the RAM and
@@ -650,7 +817,13 @@ package body lib_mapper_mmc5 is
         addr := cart_in.ppu.chr_bus.address;
         in_exram := get_nt_source(reg, addr) = NT_EXRAM;
 
-        if is_nt_addr(addr) and is_exram_nt_mode(reg)
+        if is_nt_addr(addr) and is_split_fetch(reg)
+        then
+            if is_bus_read(cart_in.ppu.chr_bus)
+            then
+                ret.mem.ppu_exram_bus := bus_read(get_split_exram_addr(reg));
+            end if;
+        elsif is_nt_addr(addr) and is_exram_nt_mode(reg)
         then
             if is_bus_write(cart_in.ppu.chr_bus) and in_exram
             then
@@ -797,13 +970,14 @@ package body lib_mapper_mmc5 is
     end;
 
     -- Extended attributes replace the attribute and pattern reads of a
-    -- background tile
+    -- background tile outside the split region
     function is_ext_attr_fetch(reg : mapper_mmc5_reg_t) return boolean
     is
     begin
         return reg.exram_mode = EXRAM_EXT_ATTR and
                reg.substitutions and
                reg.in_frame and
+               not reg.split_inside and
                (reg.bg_fetch = FETCH_AT or
                 reg.bg_fetch = FETCH_PT_LOW or
                 reg.bg_fetch = FETCH_PT_HIGH);
@@ -876,7 +1050,15 @@ package body lib_mapper_mmc5 is
 
         if addr(13) = '0'
         then
-            if is_ext_attr_fetch(reg)
+            -- The PPU gives the row of the pattern (CHR A0-A2), as on the
+            -- Nintendo boards, which are wired in "CL" mode. Only when the
+            -- fine scroll of 0x5201 is that of the PPU are the rows of the
+            -- tiles in the split region in place
+            if is_split_fetch(reg)
+            then
+                v_banks.chr := resize(reg.split_bank & unsigned(addr(11 downto 10)),
+                                      chr_bank_1kb_t'length);
+            elsif is_ext_attr_fetch(reg)
             then
                 v_banks.chr := resize(reg.chr_upper &
                                       unsigned(reg.ext_attr(5 downto 0)) &
@@ -898,7 +1080,17 @@ package body lib_mapper_mmc5 is
 
         if is_bus_active(cart_in.ppu.chr_bus) and addr(13) = '1'
         then
-            if is_ext_attr_fetch(reg)
+            if is_split_fetch(reg)
+            then
+                if reg.bg_fetch = FETCH_NT
+                then
+                    ret := drive_ppu_data(ret, cart_in.mem.data_from_ppu_exram);
+                else
+                    ret := drive_ppu_data(ret,
+                                          get_split_attr(reg,
+                                                         cart_in.mem.data_from_ppu_exram));
+                end if;
+            elsif is_ext_attr_fetch(reg)
             then
                 palette := reg.ext_attr(7 downto 6);
                 ret := drive_ppu_data(ret, palette & palette & palette & palette);
