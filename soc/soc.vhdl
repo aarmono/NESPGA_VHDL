@@ -9,6 +9,7 @@ use work.palette_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.ciram_bus_types.all;
 use work.nes_types.all;
+use work.perhipheral_types.all;
 
 package soc is
     
@@ -74,6 +75,7 @@ package soc is
     generic
     (
         USE_EXT_CART_RAM : boolean := false;
+        VENDOR           : vendor_t := VENDOR_ALTERA;
         CLK_FREQ         : positive := 50_000_000;
         CPU_FREQ_NUM     : positive := 39_375_000;
         CPU_FREQ_DEN     : positive := 22

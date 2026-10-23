@@ -10,6 +10,7 @@ use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.utilities.all;
+use work.perhipheral_types.all;
 use work.soc.all;
 use work.simulation.all;
 
@@ -63,6 +64,9 @@ begin
     soc : nes_soc_ocram
     generic map
     (
+        -- The bench runs the RAMs built for simulation. nes_de1_bench runs
+        -- the ones synthesized for the DE1
+        VENDOR => VENDOR_SIM,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CLK_FREQ,
         CPU_FREQ_DEN => 6

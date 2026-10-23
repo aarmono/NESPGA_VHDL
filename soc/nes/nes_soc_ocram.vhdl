@@ -20,6 +20,8 @@ generic
     -- Leave the cartridge RAMs on the cartridge memory bus. Otherwise they
     -- are on chip, and only reads of the ROM file are on the bus
     USE_EXT_CART_RAM : boolean := false;
+    -- Vendor of the on-chip RAMs. See syncram_sp
+    VENDOR           : vendor_t := VENDOR_ALTERA;
     -- See clk_en
     CLK_FREQ         : positive := 50_000_000;
     CPU_FREQ_NUM     : positive := 39_375_000;
@@ -139,6 +141,7 @@ begin
     prg_ram : syncram_sp
     generic map
     (
+        VENDOR => VENDOR,
         ADDR_BITS => ram_addr_t'length,
         DATA_BITS => data_t'length
     )
@@ -183,6 +186,7 @@ begin
         cart_ram : syncram_sp
         generic map
         (
+            VENDOR => VENDOR,
             ADDR_BITS => cart_ram_addr_t'length,
             DATA_BITS => data_t'length
         )
@@ -203,6 +207,7 @@ begin
     ciram : syncram_sp
     generic map
     (
+        VENDOR => VENDOR,
         ADDR_BITS => ciram_addr_t'length,
         DATA_BITS => data_t'length
     )
@@ -222,6 +227,7 @@ begin
     oam : syncram_sp
     generic map
     (
+        VENDOR => VENDOR,
         ADDR_BITS => oam_addr_t'length,
         DATA_BITS => data_t'length
     )
@@ -241,6 +247,7 @@ begin
     sec_oam : syncram_sp
     generic map
     (
+        VENDOR => VENDOR,
         ADDR_BITS => sec_oam_addr_t'length,
         DATA_BITS => data_t'length
     )
@@ -260,6 +267,7 @@ begin
     palette : syncram_sp
     generic map
     (
+        VENDOR => VENDOR,
         ADDR_BITS => palette_addr_t'length,
         DATA_BITS => pixel_t'length
     )
