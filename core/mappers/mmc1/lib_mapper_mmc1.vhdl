@@ -1,8 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.nes_types.all;
-use work.utilities.all;
+use work.prg_ram_bus_types.all;
 use work.cart_types.all;
 
 -- Boards built around the MMC1. The CPU writes its registers one bit at a
@@ -61,21 +60,29 @@ package lib_mapper_mmc1 is
     -- boards with 8KB of CHR or less get it: SOROM, SUROM and SXROM, and
     -- SNROM, which ignores those bits. SZROM cannot be told from SKROM
     -- without the RAM size
+    constant PRG_RAM_32KB_MASK : prg_ram_addr_t := x"7FFF";
+
     function get_mmc1_ines_prg_ram_mask
     (
         config : cart_config_t
     )
-    return std_logic_vector;
+    return prg_ram_addr_t;
 
-    subtype shift_t is unsigned(3 downto 0);
-    constant SHIFT_MAX : shift_t := to_unsigned(4, shift_t'length);
+    -- The 5 bit value of a register
+    subtype reg_value_t is unsigned(4 downto 0);
+
+    -- The bits of a register value written so far, shifted in from bit 4
+    -- ahead of a marker bit. The fifth write, when the marker has reached
+    -- bit 0, writes the register
+    subtype shift_t is reg_value_t;
+    constant SHIFT_RESET : shift_t := "10000";
 
     -- Bits 3-0 select the 16KB bank, and bit 4 is the PRG RAM disable of
     -- the MMC1B or the fixed bank bypass of the MMC1A
-    subtype prg_bank_t is unsigned(4 downto 0);
+    subtype prg_bank_t is reg_value_t;
     subtype prg_bank_16kb_t is unsigned(3 downto 0);
 
-    subtype chr_bank_t is unsigned(4 downto 0);
+    subtype chr_bank_t is reg_value_t;
 
     -- PRG ROM on NES-EVENT is locked to its first 32KB until the I bit of
     -- CHR bank 0, which is set on power up, is cleared and then set
@@ -94,10 +101,9 @@ package lib_mapper_mmc1 is
     subtype event_timer_t is natural range 0 to EVENT_TIMER_MAX;
 
     type mapper_mmc1_reg_t is record
-        shift : unsigned(3 downto 0);
-        count : unsigned(2 downto 0);
+        shift : shift_t;
 
-        mirroring : unsigned(1 downto 0);
+        mirror : mirror_t;
         prg_bank_mode : unsigned(1 downto 0);
         chr_bank_mode : std_logic;
 
@@ -118,10 +124,9 @@ package lib_mapper_mmc1 is
 
     constant RESET_MAPPER_MMC1_REG : mapper_mmc1_reg_t :=
     (
-        shift => (others => '0'),
-        count => (others => '0'),
+        shift => SHIFT_RESET,
 
-        mirroring => (others => '0'),
+        mirror => MIRROR_A,
         prg_bank_mode => (others => '1'),
         chr_bank_mode => '0',
 
@@ -210,16 +215,20 @@ package body lib_mapper_mmc1 is
     (
         config : cart_config_t
     )
-    return std_logic_vector
+    return prg_ram_addr_t
     is
     begin
-        if get_mmc1_board(config) /= MMC1_EVENT and
-           config.chr_rom_8kb_blocks <= 1
-        then
-            return x"7FFF";
-        else
-            return DEFAULT_RAM_MASK;
-        end if;
+        case get_mmc1_board(config) is
+            when MMC1_SXROM | MMC1A_SXROM =>
+                if config.chr_rom_8kb_blocks <= 1
+                then
+                    return PRG_RAM_32KB_MASK;
+                end if;
+            when others =>
+                null;
+        end case;
+
+        return DEFAULT_RAM_MASK;
     end;
 
     function get_reset_mmc1_reg(board : mmc1_board_t) return mapper_mmc1_reg_t
@@ -237,6 +246,50 @@ package body lib_mapper_mmc1 is
         return ret;
     end;
 
+    -- The mirroring of bits 1-0 of the control register: one screen A
+    -- ("00") or B ("01"), vertical ("10") or horizontal ("11")
+    function get_mirror(mode : unsigned(1 downto 0)) return mirror_t
+    is
+    begin
+        if mode(1) = '1'
+        then
+            return get_hv_mirror(mode(0));
+        else
+            return get_single_screen_mirror(mode(0));
+        end if;
+    end;
+
+    -- The register at the CPU address
+    function write_register
+    (
+        reg    : mapper_mmc1_reg_t;
+        cpu_in : cart_cpu_in_t;
+        value  : reg_value_t
+    )
+    return mapper_mmc1_reg_t
+    is
+        variable ret : mapper_mmc1_reg_t;
+    begin
+        ret := reg;
+
+        case cpu_in.prg_bus.address(14 downto 13) is
+            when "00" =>
+                ret.mirror := get_mirror(value(1 downto 0));
+                ret.prg_bank_mode := value(3 downto 2);
+                ret.chr_bank_mode := value(4);
+            when "01" =>
+                ret.chr_bank_0 := value;
+            when "10" =>
+                ret.chr_bank_1 := value;
+            when "11" =>
+                ret.prg_bank := value;
+            when others =>
+                null;
+        end case;
+
+        return ret;
+    end;
+
     function cycle_write
     (
         reg      : mapper_mmc1_reg_t;
@@ -247,7 +300,7 @@ package body lib_mapper_mmc1 is
     is
         variable ret : mapper_mmc1_reg_t;
         variable first_write : boolean;
-        variable reg_val : unsigned(4 downto 0);
+        variable value : reg_value_t;
     begin
         ret := reg;
 
@@ -262,33 +315,19 @@ package body lib_mapper_mmc1 is
         then
             if cart_in.cpu.data(7) = '1'
             then
-                ret.count := (others => '0');
-                ret.shift := (others => '0');
+                ret.shift := SHIFT_RESET;
                 ret.prg_bank_mode := (others => '1');
-            elsif first_write and reg.count < SHIFT_MAX
-            then
-                ret.shift := cart_in.cpu.data(0) & reg.shift(3 downto 1);
-                ret.count := reg.count + "1";
             elsif first_write
             then
-                ret.shift := (others => '0');
-                ret.count := (others => '0');
-                reg_val := cart_in.cpu.data(0) & reg.shift;
+                value := cart_in.cpu.data(0) & reg.shift(4 downto 1);
 
-                case cart_in.cpu.prg_bus.address(14 downto 13) is
-                    when "00" =>
-                        ret.mirroring := reg_val(1 downto 0);
-                        ret.prg_bank_mode := reg_val(3 downto 2);
-                        ret.chr_bank_mode := reg_val(4);
-                    when "01" =>
-                        ret.chr_bank_0 := reg_val;
-                    when "10" =>
-                        ret.chr_bank_1 := reg_val;
-                    when "11" =>
-                        ret.prg_bank := reg_val;
-                    when others =>
-                        null;
-                end case;
+                if reg.shift(0) = '1'
+                then
+                    ret := write_register(ret, cart_in.cpu, value);
+                    ret.shift := SHIFT_RESET;
+                else
+                    ret.shift := value;
+                end if;
             end if;
         end if;
 
@@ -317,7 +356,7 @@ package body lib_mapper_mmc1 is
                 ret.event_lock := EVENT_UNLOCKED;
             end if;
         else
-            if clk_sync and reg.event_timer /= EVENT_TIMER_MAX
+            if clk_sync and reg.event_timer < EVENT_TIMER_MAX
             then
                 ret.event_timer := reg.event_timer + 1;
             end if;
@@ -332,7 +371,7 @@ package body lib_mapper_mmc1 is
     end;
 
     -- The 16KB PRG ROM bank at 0x8000 or 0xC000
-    function get_prg_bank
+    function get_prg_bank_16kb
     (
         reg    : mapper_mmc1_reg_t;
         high   : std_logic
@@ -341,25 +380,22 @@ package body lib_mapper_mmc1 is
     is
         variable bank : prg_bank_16kb_t;
     begin
+        bank := reg.prg_bank(prg_bank_16kb_t'range);
+
         case reg.prg_bank_mode is
             -- 32KB
             when "00" | "01" =>
-                bank := reg.prg_bank(3 downto 0);
                 bank(0) := high;
             -- 0x8000 is fixed to the first bank
             when "10" =>
                 if high = '0'
                 then
                     bank := (others => '0');
-                else
-                    bank := reg.prg_bank(3 downto 0);
                 end if;
             -- 0xC000 is fixed to the last bank
             when others =>
-                if high = '0'
+                if high = '1'
                 then
-                    bank := reg.prg_bank(3 downto 0);
-                else
                     bank := (others => '1');
                 end if;
         end case;
@@ -368,7 +404,7 @@ package body lib_mapper_mmc1 is
     end;
 
     -- The 8KB PRG ROM bank in the window of the CPU address
-    function get_prg_bank_8kb
+    function get_prg_bank
     (
         reg    : mapper_mmc1_reg_t;
         board  : mmc1_board_t;
@@ -378,7 +414,7 @@ package body lib_mapper_mmc1 is
     is
         variable bank : prg_bank_16kb_t;
     begin
-        bank := get_prg_bank(reg, window(1));
+        bank := get_prg_bank_16kb(reg, window(1));
 
         case board is
             when MMC1_SEROM =>
@@ -437,46 +473,29 @@ package body lib_mapper_mmc1 is
         end case;
     end;
 
-    -- The 4KB CHR bank at 0x0000 or 0x1000
+    -- The 1KB CHR bank in the window of the PPU address
     function get_chr_bank
     (
-        reg  : mapper_mmc1_reg_t;
-        high : std_logic
+        reg    : mapper_mmc1_reg_t;
+        window : chr_window_t
     )
-    return chr_bank_t
+    return chr_bank_1kb_t
     is
         variable bank : chr_bank_t;
     begin
-        if reg.chr_bank_mode = '1'
+        if reg.chr_bank_mode = '0'
         then
-            if high = '0'
-            then
-                bank := reg.chr_bank_0;
-            else
-                bank := reg.chr_bank_1;
-            end if;
-        else
             -- 8KB
             bank := reg.chr_bank_0;
-            bank(0) := high;
+            bank(0) := window(2);
+        elsif window(2) = '0'
+        then
+            bank := reg.chr_bank_0;
+        else
+            bank := reg.chr_bank_1;
         end if;
 
-        return bank;
-    end;
-
-    function get_mirror(reg : mapper_mmc1_reg_t) return mirror_t
-    is
-    begin
-        case reg.mirroring is
-            when "00" =>
-                return MIRROR_A;
-            when "01" =>
-                return MIRROR_B;
-            when "10" =>
-                return MIRROR_VERT;
-            when others =>
-                return MIRROR_HORZ;
-        end case;
+        return resize(bank & window(1 downto 0), chr_bank_1kb_t'length);
     end;
 
     function cycle_mapper_mmc1
@@ -492,7 +511,6 @@ package body lib_mapper_mmc1 is
     is
         variable ret : mapper_mmc1_out_t;
         variable banks : cart_banks_t;
-        variable chr_window : chr_window_t;
     begin
         ret.reg := cycle_write(reg, clk_sync, cart_in);
         banks := default_banks(config);
@@ -503,21 +521,15 @@ package body lib_mapper_mmc1 is
         end if;
 
         -- The PPU sees the registers written by the CPU this cycle
-        chr_window := get_chr_window(cart_in.ppu);
-
         banks.prg_ram := board = MMC1A_SXROM or ret.reg.prg_bank(4) = '0';
         banks.prg_ram_bank := get_prg_ram_bank(ret.reg, prg_ram);
-        banks.prg := get_prg_bank_8kb(ret.reg,
-                                      board,
-                                      get_prg_window(cart_in.cpu));
-        banks.chr := resize(get_chr_bank(ret.reg, chr_window(2)) &
-                            chr_window(1 downto 0),
-                            chr_bank_1kb_t'length);
-        banks.mirror := get_mirror(ret.reg);
+        banks.prg := get_prg_bank(ret.reg, board, get_prg_window(cart_in.cpu));
+        banks.chr := get_chr_bank(ret.reg, get_chr_window(cart_in.ppu));
+        banks.mirror := ret.reg.mirror;
 
         ret.cart := map_cart(config, cart_in, banks);
 
-        ret.cart.cpu.irq := reg.event_timer = EVENT_TIMER_MAX;
+        ret.cart.cpu.irq := reg.event_timer >= EVENT_TIMER_MAX;
 
         return ret;
     end;
