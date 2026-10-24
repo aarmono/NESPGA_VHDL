@@ -13,9 +13,10 @@ The latch is written through a table in the fixed bank whose byte at
 $F000+n is n, so that a board with bus conflicts reads back what is written.
 
 The result is shown in the backdrop with rendering off: color $2A (green)
-on pass, otherwise the color of the step that failed (1 is the first byte
-read back). The result is up a few frames after reset, so 250ms of
-nes_bench is enough.
+on pass, otherwise the number of the group of checks that failed: 1 PRG
+ROM banks, 2 CHR RAM banks, 3 nametables. The index of the failing check
+within its group is at zero page DETAIL. The result is up a few frames after
+reset, so 250ms of nes_bench is enough.
 
 Variants:
   cprom     iNES mapper 13, vertical: 4KB CHR RAM banks at $1000, the first
@@ -57,6 +58,9 @@ VARIANTS = {
 }
 
 PASS_COLOR = 0x2A
+
+# Zero page
+DETAIL = 0x00
 
 # The code is in the last 16KB, which both boards have fixed at 0xC000. Each
 # 16KB PRG bank of UNROM 512 holds its number at SIG_LO and its complement
@@ -107,7 +111,8 @@ class Assembler:
 
 
 LDA_IMM, LDA_ABS, STA_ABS, STX_ABS = 0xA9, 0xAD, 0x8D, 0x8E
-LDX_IMM, CMP_IMM, BIT_ABS, TAY = 0xA2, 0xC9, 0x2C, 0xA8
+LDX_IMM, LDY_IMM, CMP_IMM, BIT_ABS, TAY = 0xA2, 0xA0, 0xC9, 0x2C, 0xA8
+STY_ZP = 0x84
 BPL, BEQ, JMP_ABS, JSR, RTS, RTI = 0x10, 0xF0, 0x4C, 0x20, 0x60, 0x40
 STA_ABS_Y = 0x99
 
@@ -115,6 +120,12 @@ STA_ABS_Y = 0x99
 def build(v):
     a = Assembler()
     step = [1]
+    detail = [0]
+
+    def next_group():
+        step[0] += 1
+        detail[0] = 0
+        assert step[0] < PASS_COLOR
 
     def wait_vblank(name):
         a.label(name)
@@ -136,13 +147,14 @@ def build(v):
         a.emit(LDA_IMM, value)
         a.abs(STA_ABS, 0x2007)
 
-    # Fails with the next step number unless A is value
+    # Fails with the group number unless A is value
     def check(value):
         a.emit(LDX_IMM, step[0])
+        a.emit(LDY_IMM, detail[0] & 0xFF)
         a.emit(CMP_IMM, value)
         a.emit(BEQ, 3)
         a.abs_label(JMP_ABS, 'show')
-        step[0] += 1
+        detail[0] += 1
 
     def ppu_check(addr, value):
         ppu_addr(addr)
@@ -178,6 +190,7 @@ def build(v):
         a.emit(LDA_IMM, 0x00)
         a.abs(STA_ABS, 0x8000)
         cpu_check(0x8000 + SIG_LO, 1)
+    next_group()
 
     # CHR RAM banks. CPROM banks 4KB at 0x1000 only, so bank 0 there is the
     # same RAM as 0x0000, which no bank select moves
@@ -205,6 +218,7 @@ def build(v):
             latch(chr=b)
             ppu_check(0x0000, 0xC0 + b)
             ppu_check(0x1FFF, 0xD0 + b)
+    next_group()
 
     # Nametables. Each of the four is written with its own byte, so the
     # bytes read back show which share CIRAM
@@ -250,6 +264,7 @@ def build(v):
     # Backdrop color X, then the VRAM address off the palette so that the
     # backdrop is what rendering off shows
     a.label('show')
+    a.emit(STY_ZP, DETAIL)
     wait_vblank('vblank_3')
     a.emit(LDA_IMM, 0x3F)
     a.abs(STA_ABS, 0x2006)

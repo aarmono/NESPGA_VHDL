@@ -13,8 +13,14 @@ OUT ?= ../../board/sim/ghdl/generated_roms
 PYTHON ?= python3 -B
 
 FME7_VARIANTS := ines nes2
+LATCH_VARIANTS := nrom_128 nrom_256_v uxrom uorom cnrom axrom colordreams \
+                  bnrom_ines bnrom_nes2 nina001_ines nina001_nes2 gxrom
 LATCH_CHR_RAM_VARIANTS := cprom unrom512 flash single four hv
+MMC1_VARIANTS := sxrom surom serom 155 105
 MMC1_PRG_RAM_VARIANTS := sorom sxrom szrom ines
+MMC2_VARIANTS := mmc2 mmc4
+MMC3_VARIANTS := mmc3 mmc3_big qj txsrom tqrom mmc6_nes2 mmc6_ines 206 88 76 \
+                 95 154
 MMC5_VARIANTS := ines ekrom etrom ewrom
 MMC5_AUDIO_VARIANTS := check
 VRC4_VARIANTS := 21_ines_a 21_ines_c 21_1 21_2 22 23_ines_f 23_ines_e 23_1 \
@@ -22,14 +28,19 @@ VRC4_VARIANTS := 21_ines_a 21_ines_c 21_1 21_2 22 23_ines_f 23_ines_e 23_1 \
 VRC6_VARIANTS := 24 26 24_nes2
 
 FME7_ROMS := $(FME7_VARIANTS:%=$(OUT)/fme7_%.nes)
+LATCH_ROMS := $(LATCH_VARIANTS:%=$(OUT)/latch_%.nes)
 LATCH_CHR_RAM_ROMS := $(LATCH_CHR_RAM_VARIANTS:%=$(OUT)/latch_chr_ram_%.nes)
+MMC1_ROMS := $(MMC1_VARIANTS:%=$(OUT)/mmc1_%.nes)
 MMC1_PRG_RAM_ROMS := $(MMC1_PRG_RAM_VARIANTS:%=$(OUT)/mmc1_prg_ram_%.nes)
+MMC2_ROMS := $(MMC2_VARIANTS:%=$(OUT)/mmc2_%.nes)
+MMC3_ROMS := $(MMC3_VARIANTS:%=$(OUT)/mmc3_%.nes)
 MMC5_ROMS := $(MMC5_VARIANTS:%=$(OUT)/mmc5_%.nes)
 MMC5_AUDIO_ROMS := $(MMC5_AUDIO_VARIANTS:%=$(OUT)/mmc5_audio_%.nes)
 VRC4_ROMS := $(VRC4_VARIANTS:%=$(OUT)/vrc4_%.nes)
 VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 
-ROMS := $(FME7_ROMS) $(LATCH_CHR_RAM_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC5_ROMS) \
+ROMS := $(FME7_ROMS) $(LATCH_ROMS) $(LATCH_CHR_RAM_ROMS) $(MMC1_ROMS) \
+        $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) $(MMC5_ROMS) \
         $(MMC5_AUDIO_ROMS) $(VRC4_ROMS) $(VRC6_ROMS) $(OUT)/mmc5_split.nes
 
 .PHONY: all clean
@@ -38,15 +49,27 @@ ROMS := $(FME7_ROMS) $(LATCH_CHR_RAM_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC5_ROMS) \
 all: $(ROMS)
 
 # Static pattern rules, since mmc5_% would also match mmc5_split and
-# mmc5_audio_%
+# mmc5_audio_%, and likewise latch_% and mmc1_%
 $(FME7_ROMS): $(OUT)/fme7_%.nes: fme7.py | $(OUT)
 	$(PYTHON) fme7.py $@ $*
+
+$(LATCH_ROMS): $(OUT)/latch_%.nes: latch.py | $(OUT)
+	$(PYTHON) latch.py $@ $*
 
 $(LATCH_CHR_RAM_ROMS): $(OUT)/latch_chr_ram_%.nes: latch_chr_ram.py | $(OUT)
 	$(PYTHON) latch_chr_ram.py $@ $*
 
+$(MMC1_ROMS): $(OUT)/mmc1_%.nes: mmc1.py | $(OUT)
+	$(PYTHON) mmc1.py $@ $*
+
 $(MMC1_PRG_RAM_ROMS): $(OUT)/mmc1_prg_ram_%.nes: mmc1_prg_ram.py | $(OUT)
 	$(PYTHON) mmc1_prg_ram.py $@ $*
+
+$(MMC2_ROMS): $(OUT)/mmc2_%.nes: mmc2.py | $(OUT)
+	$(PYTHON) mmc2.py $@ $*
+
+$(MMC3_ROMS): $(OUT)/mmc3_%.nes: mmc3.py | $(OUT)
+	$(PYTHON) mmc3.py $@ $*
 
 $(MMC5_ROMS): $(OUT)/mmc5_%.nes: mmc5.py | $(OUT)
 	$(PYTHON) mmc5.py $@ $*

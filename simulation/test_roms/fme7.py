@@ -21,8 +21,11 @@ The ROM checks, in order:
     EXPECTED, which is what Mesen gives
 
 The result is shown in the backdrop with rendering off: color $2A (green)
-on pass, otherwise the color of the step that failed (1 is the first
-check). The result is up a few frames after reset, so 250ms of nes_bench is
+on pass, otherwise the number of the group of checks that failed: 1 PRG ROM
+banks, 2 PRG RAM, 3 CHR ROM banks, 4 mirroring, 5 an IRQ with IRQs disabled
+or enabled after the wrap, 6 no IRQ in a timing trial, 7 the timing trial
+results. The index of the failing check within its group is at zero page
+DETAIL. The result is up a few frames after reset, so 250ms of nes_bench is
 enough.
 
 Variants:
@@ -60,6 +63,7 @@ TRIAL = 0x00
 # Bit 7 set: an IRQ now is a failure, of step FAIL_STEP
 MODE = 0x01
 FAIL_STEP = 0x02
+DETAIL = 0x03
 RESULTS = 0x10
 
 # The IRQ counts of the timing trials
@@ -110,8 +114,9 @@ class Assembler:
 
 
 LDA_IMM, LDA_ABS, STA_ABS, STX_ABS = 0xA9, 0xAD, 0x8D, 0x8E
-LDX_IMM, CMP_IMM, BIT_ABS, BIT_ZP = 0xA2, 0xC9, 0x2C, 0x24
-LDA_ZP, STA_ZP, LDX_ZP, INC_ZP = 0xA5, 0x85, 0xA6, 0xE6
+LDX_IMM, LDY_IMM, CMP_IMM, BIT_ABS, BIT_ZP = 0xA2, 0xA0, 0xC9, 0x2C, 0x24
+STY_ZP = 0x84
+LDA_ZP, STA_ZP, LDX_ZP, LDY_ZP, INC_ZP = 0xA5, 0x85, 0xA6, 0xA4, 0xE6
 LDA_ABS_X, STA_ZP_X, CMP_ABS_X = 0xBD, 0x95, 0xDD
 BPL, BMI, BEQ, BNE, JMP_ABS, RTI = 0x10, 0x30, 0xF0, 0xD0, 0x4C, 0x40
 SEI, CLI, CLD, TXS, TSX, NOP, DEX = 0x78, 0x58, 0xD8, 0x9A, 0xBA, 0xEA, 0xCA
@@ -120,6 +125,12 @@ SEI, CLI, CLD, TXS, TSX, NOP, DEX = 0x78, 0x58, 0xD8, 0x9A, 0xBA, 0xEA, 0xCA
 def build(v):
     a = Assembler()
     step = [1]
+    detail = [0]
+
+    def next_group():
+        step[0] += 1
+        detail[0] = 0
+        assert step[0] < PASS_COLOR
 
     def wait_vblank(name):
         a.label(name)
@@ -143,13 +154,14 @@ def build(v):
         a.emit(LDA_IMM, value)
         a.abs(STA_ABS, 0x2007)
 
-    # Fails with the next step number unless A is value
+    # Fails with the group number unless A is value
     def check(value):
         a.emit(LDX_IMM, step[0])
+        a.emit(LDY_IMM, detail[0] & 0xFF)
         a.emit(CMP_IMM, value)
         a.emit(BEQ, 3)
         a.abs_label(JMP_ABS, 'show')
-        step[0] += 1
+        detail[0] += 1
 
     def ppu_check(addr, value):
         ppu_addr(addr)
@@ -200,6 +212,7 @@ def build(v):
     bank_check(0x8000, PRG_BANKS - 2)
     bank_check(0xA000, 12)
     bank_check(0xC000, 14)
+    next_group()
 
     # PRG RAM
     for b in range(v['ram_banks']):
@@ -220,6 +233,7 @@ def build(v):
     a.abs(STA_ABS, 0x6000)
     fme7(0x8, 0xC0)
     cpu_check(0x6000, 0xA0)
+    next_group()
 
     # CHR ROM banks
     chr_banks = [(w * 9 + 5) % CHR_BANKS for w in range(8)]
@@ -227,6 +241,7 @@ def build(v):
         fme7(w, b)
     for w, b in enumerate(chr_banks):
         ppu_check(0x400 * w, b)
+    next_group()
 
     # Mirroring. Each of the four nametables is written with its own byte,
     # so the bytes read back show which share CIRAM
@@ -243,11 +258,12 @@ def build(v):
     nt_test(3, [3, 3, 3, 3])
     fme7(0xC, 2)
     ppu_check(0x2400, 0x63)
+    next_group()
 
     # The counter wraps with IRQs disabled, then IRQs are enabled
     a.emit(LDA_IMM, step[0])
     a.emit(STA_ZP, FAIL_STEP)
-    step[0] += 1
+    next_group()
     fme7(0xE, 0x05)
     fme7(0xF, 0x00)
     fme7(0xD, 0x80)
@@ -283,8 +299,9 @@ def build(v):
     a.emit(*([NOP] * SLED_NOPS))
     # No IRQ
     a.emit(LDX_IMM, step[0])
+    a.emit(LDY_ZP, TRIAL)
     a.abs_label(JMP_ABS, 'show')
-    step[0] += 1
+    next_group()
 
     a.label('trials_done')
     if EXPECTED is not None:
@@ -297,6 +314,7 @@ def build(v):
     # backdrop is what rendering off shows
     a.label('show')
     a.emit(SEI)
+    a.emit(STY_ZP, DETAIL)
     wait_vblank('vblank_3')
     a.emit(LDA_IMM, 0x3F)
     a.abs(STA_ABS, 0x2006)
@@ -313,6 +331,7 @@ def build(v):
     a.emit(BIT_ZP, MODE)
     a.branch(BPL, 'irq_trial')
     a.emit(LDX_ZP, FAIL_STEP)
+    a.emit(LDY_IMM, 0x00)
     a.abs_label(JMP_ABS, 'show')
     a.label('irq_trial')
     a.emit(TSX)
