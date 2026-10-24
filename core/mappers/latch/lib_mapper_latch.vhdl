@@ -4,14 +4,16 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.prg_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.chr_ram_bus_types.all;
 use work.cart_types.all;
 
 -- Boards built from discrete logic: one or more latches that hold bits of
--- the data the CPU writes, wired to the high address lines of the ROMs and to
--- CIRAM A10. They differ only in where the latches are written, which data
--- bits they hold and what those bits are wired to, so each board is a row in
--- a table chosen by the mapper number at run time.
+-- the data the CPU writes, or of the address it writes to, wired to the high
+-- address lines of the ROMs and to CIRAM A10. They differ only in where the
+-- latches are written, which bits they hold and what those bits are wired
+-- to, so each board is a row in a table chosen by the mapper number at run
+-- time.
 --
 -- To add a board, add its mapper number to is_latch_mapper and its row to
 -- get_latch_board
@@ -34,12 +36,17 @@ package lib_mapper_latch is
         LATCH_ADDR_7FFF
     );
 
-    -- A latch written by the CPU at addr. It holds the data shifted right by
-    -- shift and masked by mask
+    -- A latch written by the CPU at addr. It holds bits of the CPU address
+    -- above bits of the data: the address shifted right by addr_shift and
+    -- masked by addr_mask, above the data shifted right by data_shift and
+    -- masked by data_mask, which is data_width bits wide
     type latch_t is record
-        addr  : latch_addr_t;
-        shift : natural range 0 to 7;
-        mask  : latch_value_t;
+        addr       : latch_addr_t;
+        addr_shift : natural range 0 to prg_addr_t'length - 1;
+        addr_mask  : latch_value_t;
+        data_shift : natural range 0 to 7;
+        data_mask  : latch_value_t;
+        data_width : natural range 0 to latch_value_t'length;
     end record;
 
     type latch_id_t is
@@ -47,6 +54,7 @@ package lib_mapper_latch is
         LATCH_PRG,
         LATCH_CHR_0,
         LATCH_CHR_1,
+        LATCH_PRG_MODE,
         LATCH_MIRROR
     );
 
@@ -58,7 +66,11 @@ package lib_mapper_latch is
         PRG_32KB,
         -- LATCH_PRG selects a 16KB bank at 0x8000. 0xC000 holds the last
         -- bank
-        PRG_16KB_FIXED_LAST
+        PRG_16KB_FIXED_LAST,
+        -- LATCH_PRG selects a 16KB bank. When bit 0 of LATCH_PRG_MODE is
+        -- set it is at both 0x8000 and 0xC000, otherwise its bit 0 is
+        -- dropped and it selects a 32KB bank at 0x8000
+        PRG_16KB_OR_32KB
     );
 
     type latch_chr_mode_t is
@@ -77,9 +89,12 @@ package lib_mapper_latch is
         -- Bit 0 of LATCH_MIRROR selects the nametable for single screen
         -- mirroring
         MIRROR_SINGLE,
-        -- Bit 0 of LATCH_MIRROR selects vertical ('1') or horizontal ('0')
+        -- Bit 0 of LATCH_MIRROR selects horizontal ('0') or vertical ('1')
         -- mirroring
         MIRROR_HV,
+        -- Bit 0 of LATCH_MIRROR selects vertical ('0') or horizontal ('1')
+        -- mirroring
+        MIRROR_VH,
         -- The four nametables are in the last 8KB of CHR RAM, which is
         -- not banked
         MIRROR_CHR_RAM
@@ -90,6 +105,11 @@ package lib_mapper_latch is
         chr_mode     : latch_chr_mode_t;
         mirror_mode  : latch_mirror_mode_t;
         prg_ram      : boolean;
+        -- PRG ROM is in 512KB chips, in the four sockets selected by bits
+        -- 7-6 of the 8KB bank, and socket 2 is empty: the CPU reads open
+        -- bus there. The ROM file holds the chip of socket 3 after those of
+        -- sockets 0 and 1
+        prg_no_socket_2 : boolean;
         -- The mask of the CHR RAM address when the header is iNES, which
         -- gives no size. Some boards have more than the default 8KB
         chr_ram_mask : chr_ram_addr_t;
@@ -143,9 +163,45 @@ package body lib_mapper_latch is
     constant LATCH_NONE : latch_t :=
     (
         addr => LATCH_ADDR_NONE,
-        shift => 0,
-        mask => (others => '0')
+        addr_shift => 0,
+        addr_mask => (others => '0'),
+        data_shift => 0,
+        data_mask => (others => '0'),
+        data_width => 0
     );
+
+    -- The mask of bits hi downto lo, shifted down to bit 0. There are none
+    -- when hi is one below lo
+    function get_bits_mask(hi : integer; lo : natural) return latch_value_t
+    is
+    begin
+        return to_unsigned(2**(hi - lo + 1) - 1, latch_value_t'length);
+    end;
+
+    -- A latch of CPU address bits addr_hi downto addr_lo above data bits
+    -- data_hi downto data_lo, written at addr. A range whose hi is one below
+    -- its lo has no bits
+    function latch
+    (
+        addr    : latch_addr_t;
+        addr_hi : integer;
+        addr_lo : natural;
+        data_hi : integer;
+        data_lo : natural
+    )
+    return latch_t
+    is
+    begin
+        return
+        (
+            addr => addr,
+            addr_shift => addr_lo,
+            addr_mask => get_bits_mask(addr_hi, addr_lo),
+            data_shift => data_lo,
+            data_mask => get_bits_mask(data_hi, data_lo),
+            data_width => data_hi - data_lo + 1
+        );
+    end;
 
     -- A latch of data bits hi downto lo, written at addr
     function latch
@@ -157,12 +213,7 @@ package body lib_mapper_latch is
     return latch_t
     is
     begin
-        return
-        (
-            addr => addr,
-            shift => lo,
-            mask => to_unsigned(2**(hi - lo + 1) - 1, latch_value_t'length)
-        );
+        return latch(addr, -1, 0, hi, lo);
     end;
 
     -- A latch of data bits hi downto lo, written at 0x8000-0xFFFF
@@ -172,12 +223,20 @@ package body lib_mapper_latch is
         return latch(LATCH_ADDR_ROM, hi, lo);
     end;
 
+    -- A latch of the bits hi downto lo of the address written, at
+    -- 0x8000-0xFFFF
+    function rom_addr_latch(hi : natural; lo : natural) return latch_t
+    is
+    begin
+        return latch(LATCH_ADDR_ROM, hi, lo, -1, 0);
+    end;
+
     function is_latch_mapper(mapper_num : mapper_num_t) return boolean
     is
     begin
         case mapper_num is
             when x"000" | x"002" | x"003" | x"007" | x"00B" | x"00D" |
-                 x"01E" | x"022" | x"042" => return true;
+                 x"01E" | x"022" | x"042" | x"0E4" => return true;
             when others => return false;
         end case;
     end;
@@ -191,6 +250,7 @@ package body lib_mapper_latch is
         ret.chr_mode := CHR_8KB;
         ret.mirror_mode := MIRROR_FIXED;
         ret.prg_ram := false;
+        ret.prg_no_socket_2 := false;
         ret.chr_ram_mask := DEFAULT_RAM_MASK;
         ret.latches := (others => LATCH_NONE);
 
@@ -274,6 +334,18 @@ package body lib_mapper_latch is
             when x"042" =>
                 ret.latches(LATCH_PRG) := rom_latch(5, 4);
                 ret.latches(LATCH_CHR_0) := rom_latch(1, 0);
+            -- Action 52 and Cheetah Men II. The latch holds most of the
+            -- address written and two bits of the data. Action 52 has three
+            -- 512KB chips of PRG ROM
+            when x"0E4" =>
+                ret.prg_mode := PRG_16KB_OR_32KB;
+                ret.mirror_mode := MIRROR_VH;
+                ret.prg_no_socket_2 := config.prg_rom_16kb_blocks = 96;
+                ret.latches(LATCH_PRG) := rom_addr_latch(12, 6);
+                ret.latches(LATCH_PRG_MODE) := rom_addr_latch(5, 5);
+                ret.latches(LATCH_CHR_0) :=
+                    latch(LATCH_ADDR_ROM, 3, 0, 1, 0);
+                ret.latches(LATCH_MIRROR) := rom_addr_latch(13, 13);
             when others =>
         end case;
 
@@ -336,7 +408,35 @@ package body lib_mapper_latch is
                     bank := (others => '1');
                 end if;
                 return resize(bank & window(0), prg_bank_8kb_t'length);
+            when PRG_16KB_OR_32KB =>
+                bank := reg(LATCH_PRG);
+                if reg(LATCH_PRG_MODE)(0) = '0'
+                then
+                    bank(0) := window(1);
+                end if;
+                return resize(bank & window(0), prg_bank_8kb_t'length);
         end case;
+    end;
+
+    -- The value the CPU writes to a latch
+    function get_latch_value
+    (
+        wiring : latch_t;
+        cpu_in : cart_cpu_in_t
+    )
+    return latch_value_t
+    is
+        variable addr : latch_value_t;
+        variable data : latch_value_t;
+    begin
+        addr := resize(shift_right(unsigned(cpu_in.prg_bus.address),
+                                   wiring.addr_shift),
+                       latch_value_t'length) and
+                wiring.addr_mask;
+        data := shift_right(unsigned(cpu_in.data), wiring.data_shift) and
+                wiring.data_mask;
+
+        return shift_left(addr, wiring.data_width) or data;
     end;
 
     -- The 1KB CHR bank in the window of the PPU address
@@ -379,6 +479,7 @@ package body lib_mapper_latch is
         variable ret : mapper_latch_out_t;
         variable banks : cart_banks_t;
         variable chr_window : chr_window_t;
+        variable prg_open_bus : boolean;
     begin
         ret.reg := reg;
         banks := default_banks(config);
@@ -389,9 +490,8 @@ package body lib_mapper_latch is
             loop
                 if is_latch_addr(board.latches(i).addr, cart_in.cpu)
                 then
-                    ret.reg(i) := shift_right(unsigned(cart_in.cpu.data),
-                                              board.latches(i).shift) and
-                                  board.latches(i).mask;
+                    ret.reg(i) := get_latch_value(board.latches(i),
+                                                  cart_in.cpu);
                 end if;
             end loop;
         end if;
@@ -399,6 +499,18 @@ package body lib_mapper_latch is
         -- The PPU sees the latches written by the CPU this cycle
         banks.prg := get_prg_bank(ret.reg, board.prg_mode,
                                   get_prg_window(cart_in.cpu));
+
+        -- The ROM file holds the chip of socket 3 where that of the empty
+        -- socket 2 would be
+        prg_open_bus := false;
+        if board.prg_no_socket_2
+        then
+            case banks.prg(7 downto 6) is
+                when "10" => prg_open_bus := true;
+                when "11" => banks.prg(6) := '0';
+                when others =>
+            end case;
+        end if;
 
         chr_window := get_chr_window(cart_in.ppu);
         if board.mirror_mode = MIRROR_CHR_RAM and
@@ -417,11 +529,19 @@ package body lib_mapper_latch is
                     get_single_screen_mirror(ret.reg(LATCH_MIRROR)(0));
             when MIRROR_HV =>
                 banks.mirror := get_hv_mirror(not ret.reg(LATCH_MIRROR)(0));
+            when MIRROR_VH =>
+                banks.mirror := get_hv_mirror(ret.reg(LATCH_MIRROR)(0));
         end case;
 
         banks.prg_ram := board.prg_ram;
 
         ret.cart := map_cart(config, cart_in, banks);
+
+        if prg_open_bus and cart_in.cpu.romsel
+        then
+            ret.cart.cpu := CART_CPU_OUT_IDLE;
+            ret.cart.mem.prg_rom_bus := CART_MEM_BUS_IDLE;
+        end if;
 
         return ret;
     end;

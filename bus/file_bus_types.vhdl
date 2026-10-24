@@ -4,7 +4,7 @@ use IEEE.numeric_std.all;
 
 package file_bus_types is
    
-    subtype file_addr_t is std_logic_vector(19 downto 0);
+    subtype file_addr_t is std_logic_vector(21 downto 0);
     type file_bus_t is record
         address  : file_addr_t;
         read     : boolean;
