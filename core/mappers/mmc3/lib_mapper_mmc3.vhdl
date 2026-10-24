@@ -363,6 +363,15 @@ package body lib_mapper_mmc3 is
                             then
                                 ret.mmc6 := true;
                             end if;
+
+                            -- The MMC6 holds 0xA001 at 0 while its PRG RAM
+                            -- is disabled
+                            if is_mmc6(ret, board) and
+                               (reg.mmc6_ram_enable = '0' or
+                                cart_in.cpu.data(5) = '0')
+                            then
+                                ret.prg_ram_bits := (others => '0');
+                            end if;
                         else
                             ret.banks(to_integer(reg.bank_idx)) :=
                                 unsigned(cart_in.cpu.data);
