@@ -14,7 +14,9 @@ use work.cart_types.all;
 -- lower half, so the board is chosen by the mapper number at run time.
 --
 -- To add a board, add it to mmc2_board_t and get_mmc2_board and its mapper
--- number to is_mmc2_mapper
+-- number to is_mmc2_mapper, then give it its PRG banking in get_prg_bank,
+-- the reads that set the lower latch in get_latch_trigger, and whether it
+-- has PRG RAM in cycle_mapper_mmc2
 package lib_mapper_mmc2 is
 
     type mmc2_board_t is
@@ -168,26 +170,23 @@ package body lib_mapper_mmc2 is
     )
     return latch_trigger_t
     is
-        variable ret : latch_trigger_t;
         variable addr : chr_addr_t;
     begin
-        ret := LATCH_TRIGGER_NONE;
         addr := chr_bus.address;
 
         if is_bus_read(chr_bus) and
            addr(13) = '0' and
-           (addr(11 downto 3) = "111111011" or
-            addr(11 downto 3) = "111111101") and
+           addr(3) = '1' and
+           (addr(11 downto 4) = x"FD" or addr(11 downto 4) = x"FE") and
            (board = MMC4_FXROM or
             addr(12) = '1' or
             addr(2 downto 0) = "000")
         then
-            ret.active := true;
-            ret.half := addr(12);
-            ret.value := addr(5);
+            -- Bit 1 of the tile number: '0' for 0xFD, '1' for 0xFE
+            return (active => true, half => addr(12), value => addr(5));
         end if;
 
-        return ret;
+        return LATCH_TRIGGER_NONE;
     end;
 
     -- The latch changes once the read that set it is over, so that read is
@@ -230,21 +229,16 @@ package body lib_mapper_mmc2 is
     is
         variable bank : prg_bank_8kb_t;
     begin
-        if board = MMC4_FXROM
+        if board = MMC4_FXROM and window(1) = '0'
         then
-            -- 16KB banks
-            if window(1) = '0'
-            then
-                bank := resize(reg.prg_bank & window(0), bank'length);
-            else
-                bank := (others => '1');
-                bank(0) := window(0);
-            end if;
-        elsif window = "00"
+            -- A 16KB bank
+            bank := resize(reg.prg_bank & window(0), bank'length);
+        elsif board = MMC2_PXROM and window(1) = '0' and window(0) = '0'
         then
             bank := resize(reg.prg_bank, bank'length);
         else
-            -- The last three banks
+            -- The last banks: the last three 8KB banks on the MMC2, the
+            -- last 16KB bank on the MMC4
             bank := (others => '1');
             bank(window'range) := window;
         end if;
@@ -260,7 +254,6 @@ package body lib_mapper_mmc2 is
     )
     return chr_bank_1kb_t
     is
-        variable bank : chr_bank_t;
         variable latch : std_logic;
     begin
         if window(2) = '0'
@@ -270,9 +263,9 @@ package body lib_mapper_mmc2 is
             latch := reg.latch(1);
         end if;
 
-        bank := reg.chr_banks(to_integer(unsigned'(window(2) & latch)));
-
-        return resize(bank & window(1 downto 0), chr_bank_1kb_t'length);
+        return resize(reg.chr_banks(to_integer(std_logic_vector'(window(2) & latch)))
+                          & window(1 downto 0),
+                      chr_bank_1kb_t'length);
     end;
 
     function cycle_mapper_mmc2
