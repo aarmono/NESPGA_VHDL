@@ -20,8 +20,10 @@ use work.cart_types.all;
 -- an iNES header becomes an MMC6 once the CPU sets bit 5 of 0x8000, which
 -- enables the PRG RAM of the MMC6 and does nothing on the MMC3
 --
--- To add a board, add it to mmc3_board_t and get_mmc3_board and its mapper
--- number to is_mmc3_mapper
+-- To add a board, add it to mmc3_board_t, get_mmc3_board and the case of
+-- cycle_mapper_mmc3 and its mapper number to is_mmc3_mapper. A Namco 108
+-- board also goes in is_namco_108, and a board that wires its own CIRAM A10
+-- in get_mirror
 package lib_mapper_mmc3 is
 
     type mmc3_board_t is
@@ -70,6 +72,9 @@ package lib_mapper_mmc3 is
     constant A12_MAX : natural := 10;
     subtype a12_count_t is natural range 0 to A12_MAX;
 
+    -- Bits 7-4 of 0xA001
+    subtype prg_ram_bits_t is std_logic_vector(7 downto 4);
+
     type mapper_mmc3_reg_t is record
         bank_idx : bank_idx_t;
 
@@ -83,9 +88,9 @@ package lib_mapper_mmc3 is
         -- Bits 7-4 of 0xA001. On the MMC3, bit 7 enables PRG RAM and bit 6
         -- protects it from writes. On the MMC6, bits 7 and 6 enable reads
         -- and writes of the upper 512 bytes, and bits 5 and 4 of the lower
-        prg_ram_bits : std_logic_vector(7 downto 4);
+        prg_ram_bits : prg_ram_bits_t;
         -- Bit 5 of 0x8000, which enables the PRG RAM of the MMC6
-        mmc6_ram_enable : std_logic;
+        mmc6_ram_enable : boolean;
         -- The chip is an MMC6, found from the writes to 0x8000
         mmc6 : boolean;
 
@@ -113,7 +118,7 @@ package lib_mapper_mmc3 is
         mirroring => '0',
 
         prg_ram_bits => (others => '0'),
-        mmc6_ram_enable => '0',
+        mmc6_ram_enable => false,
         mmc6 => false,
 
         irq_count => 0,
@@ -210,28 +215,20 @@ package body lib_mapper_mmc3 is
         variable bank : bank_t;
     begin
         case window is
-            -- 0x8000-0x9FFF
-            when "00" =>
-                if reg.prg_mode = '0'
-                then
-                    bank := reg.banks(6);
-                else
-                    bank := x"FE";
-                end if;
             -- 0xA000-0xBFFF
             when "01" =>
                 bank := reg.banks(7);
-            -- 0xC000-0xDFFF
-            when "10" =>
-                if reg.prg_mode = '0'
-                then
-                    bank := x"FE";
-                else
-                    bank := reg.banks(6);
-                end if;
             -- 0xE000-0xFFFF is the last bank
-            when others =>
+            when "11" =>
                 bank := x"FF";
+            -- PRG mode 1 swaps 0x8000-0x9FFF and 0xC000-0xDFFF
+            when others =>
+                if (window(1) xor reg.prg_mode) = '0'
+                then
+                    bank := reg.banks(6);
+                else
+                    bank := x"FE";
+                end if;
         end case;
 
         return bank;
@@ -272,60 +269,6 @@ package body lib_mapper_mmc3 is
         return bank;
     end;
 
-    -- The 1KB CHR bank in the window of the PPU address on NAMCOT-3446,
-    -- which maps the 2KB banks of the 1KB bank registers to 0x0000-0x1FFF
-    function get_chr_bank_3446
-    (
-        reg    : mapper_mmc3_reg_t;
-        window : chr_window_t
-    )
-    return bank_t
-    is
-        variable bank : bank_t;
-    begin
-        case window(2 downto 1) is
-            when "00"   => bank := reg.banks(2);
-            when "01"   => bank := reg.banks(3);
-            when "10"   => bank := reg.banks(4);
-            when others => bank := reg.banks(5);
-        end case;
-
-        return "0" & bank(5 downto 0) & window(0);
-    end;
-
-    -- Writes to the Namco 108
-    function cycle_write_namco_108
-    (
-        reg     : mapper_mmc3_reg_t;
-        board   : mmc3_board_t;
-        cart_in : cart_in_t
-    )
-    return mapper_mmc3_reg_t
-    is
-        variable ret : mapper_mmc3_reg_t;
-    begin
-        ret := reg;
-
-        if cart_in.cpu.prg_bus.address(14 downto 13) = "00"
-        then
-            if cart_in.cpu.prg_bus.address(0) = '0'
-            then
-                ret.bank_idx := unsigned(cart_in.cpu.data(2 downto 0));
-            else
-                ret.banks(to_integer(reg.bank_idx)) :=
-                    unsigned(cart_in.cpu.data);
-            end if;
-        end if;
-
-        -- The single screen mirroring of NAMCOT-3453
-        if board = NAMCO_3453
-        then
-            ret.mirroring := cart_in.cpu.data(6);
-        end if;
-
-        return ret;
-    end;
-
     function cycle_write
     (
         reg      : mapper_mmc3_reg_t;
@@ -340,74 +283,74 @@ package body lib_mapper_mmc3 is
     begin
         ret := reg;
 
-        if is_rom_write(cart_in.cpu, clk_sync)
+        -- The single screen mirroring of NAMCOT-3453
+        if board = NAMCO_3453 and is_rom_write(cart_in.cpu, clk_sync)
         then
-            if is_namco_108(board)
-            then
-                ret := cycle_write_namco_108(reg, board, cart_in);
-            else
-                case cart_in.cpu.prg_bus.address(14 downto 13) is
-                    -- 0x8000-0x9FFF
-                    when "00" =>
-                        if cart_in.cpu.prg_bus.address(0) = '0'
+            ret.mirroring := cart_in.cpu.data(6);
+        end if;
+
+        -- The Namco 108 has only the registers at 0x8000-0x9FFF
+        if is_rom_write(cart_in.cpu, clk_sync) and
+           (not is_namco_108(board) or
+            cart_in.cpu.prg_bus.address(14 downto 13) = "00")
+        then
+            case cart_in.cpu.prg_bus.address(14 downto 13) is
+                -- 0x8000-0x9FFF
+                when "00" =>
+                    if cart_in.cpu.prg_bus.address(0) = '0'
+                    then
+                        ret.bank_idx := unsigned(cart_in.cpu.data(2 downto 0));
+
+                        if not is_namco_108(board)
                         then
-                            ret.bank_idx :=
-                                unsigned(cart_in.cpu.data(2 downto 0));
                             ret.chr_mode := cart_in.cpu.data(7);
                             ret.prg_mode := cart_in.cpu.data(6);
-                            ret.mmc6_ram_enable := cart_in.cpu.data(5);
-
-                            if board = MMC3_TXROM and
-                               not config.nes2 and
-                               cart_in.cpu.data(5) = '1'
-                            then
-                                ret.mmc6 := true;
-                            end if;
-
-                            -- The MMC6 holds 0xA001 at 0 while its PRG RAM
-                            -- is disabled
-                            if is_mmc6(ret, board) and
-                               (reg.mmc6_ram_enable = '0' or
-                                cart_in.cpu.data(5) = '0')
-                            then
-                                ret.prg_ram_bits := (others => '0');
-                            end if;
-                        else
-                            ret.banks(to_integer(reg.bank_idx)) :=
-                                unsigned(cart_in.cpu.data);
+                            ret.mmc6_ram_enable := cart_in.cpu.data(5) = '1';
                         end if;
-                    -- 0xA000-0xBFFF
-                    when "01" =>
-                        if cart_in.cpu.prg_bus.address(0) = '0'
+
+                        if board = MMC3_TXROM and
+                           not config.nes2 and
+                           cart_in.cpu.data(5) = '1'
                         then
-                            ret.mirroring := cart_in.cpu.data(0);
-                        -- The MMC6 ignores this while its PRG RAM is
+                            ret.mmc6 := true;
+                        end if;
+
+                        -- The MMC6 holds 0xA001 at 0 while its PRG RAM is
                         -- disabled
-                        elsif not is_mmc6(reg, board) or
-                              reg.mmc6_ram_enable = '1'
+                        if is_mmc6(ret, board) and
+                           (not reg.mmc6_ram_enable or
+                            cart_in.cpu.data(5) = '0')
                         then
-                            ret.prg_ram_bits := cart_in.cpu.data(7 downto 4);
+                            ret.prg_ram_bits := (others => '0');
                         end if;
-                    -- 0xC000-0xDFFF
-                    when "10" =>
-                        if cart_in.cpu.prg_bus.address(0) = '0'
-                        then
-                            ret.irq_reload :=
-                                to_integer(unsigned(cart_in.cpu.data));
-                        else
-                            ret.irq_count := 0;
-                        end if;
-                    -- 0xE000-0xFFFF
-                    when others =>
-                        ret.irq_enable :=
-                            cart_in.cpu.prg_bus.address(0) = '1';
-
-                        if cart_in.cpu.prg_bus.address(0) = '0'
-                        then
-                            ret.irq := false;
-                        end if;
-                end case;
-            end if;
+                    else
+                        ret.banks(to_integer(reg.bank_idx)) :=
+                            unsigned(cart_in.cpu.data);
+                    end if;
+                -- 0xA000-0xBFFF
+                when "01" =>
+                    if cart_in.cpu.prg_bus.address(0) = '0'
+                    then
+                        ret.mirroring := cart_in.cpu.data(0);
+                    -- The MMC6 ignores this while its PRG RAM is disabled
+                    elsif not is_mmc6(reg, board) or reg.mmc6_ram_enable
+                    then
+                        ret.prg_ram_bits := cart_in.cpu.data(7 downto 4);
+                    end if;
+                -- 0xC000-0xDFFF
+                when "10" =>
+                    if cart_in.cpu.prg_bus.address(0) = '0'
+                    then
+                        ret.irq_reload :=
+                            to_integer(unsigned(cart_in.cpu.data));
+                    else
+                        ret.irq_count := 0;
+                    end if;
+                -- 0xE000-0xFFFF
+                when others =>
+                    ret.irq_enable := cart_in.cpu.prg_bus.address(0) = '1';
+                    ret.irq := reg.irq and ret.irq_enable;
+            end case;
         end if;
 
         -- The NES-QJ latch is written through the PRG RAM enables of the
@@ -489,7 +432,7 @@ package body lib_mapper_mmc3 is
         elsif is_mmc6(reg, board)
         then
             -- 0x7000-0x7FFF, when either half can be read
-            return reg.mmc6_ram_enable = '1' and
+            return reg.mmc6_ram_enable and
                    cart_in.cpu.prg_bus.address(12) = '1' and
                    (reg.prg_ram_bits(7) = '1' or reg.prg_ram_bits(5) = '1');
         else
@@ -554,18 +497,17 @@ package body lib_mapper_mmc3 is
     )
     return mirror_t
     is
-        variable a10 : std_logic;
     begin
         -- The CHR bank is computed for nametable addresses as well, so on
         -- the boards that wire a bit of it to CIRAM A10, each 1KB nametable
         -- window has its own CIRAM A10
         case board is
             when MMC3_TXSROM =>
-                a10 := chr_bank(7);
+                return get_single_screen_mirror(chr_bank(7));
             when NAMCO_3425 =>
-                a10 := chr_bank(5);
+                return get_single_screen_mirror(chr_bank(5));
             when NAMCO_3453 =>
-                a10 := reg.mirroring;
+                return get_single_screen_mirror(reg.mirroring);
             when NAMCO_108 | NAMCO_3446 =>
                 return config.mirror;
             when others =>
@@ -576,8 +518,6 @@ package body lib_mapper_mmc3 is
                     return get_hv_mirror(reg.mirroring);
                 end if;
         end case;
-
-        return get_single_screen_mirror(a10);
     end;
 
     function cycle_mapper_mmc3
@@ -594,14 +534,26 @@ package body lib_mapper_mmc3 is
         variable written : mapper_mmc3_reg_t;
         variable banks : cart_banks_t;
         variable prg_bank : bank_t;
+        variable chr_window : chr_window_t;
+        variable bank_window : chr_window_t;
         variable chr_bank : bank_t;
     begin
         -- The PPU sees the registers written by the CPU this cycle
         written := cycle_write(reg, board, config, clk_sync, cart_in);
         ret.reg := cycle_irq(written, cart_in);
 
+        chr_window := get_chr_window(cart_in.ppu);
+
+        -- NAMCOT-3446 maps the 2KB banks of the 1KB bank registers, at
+        -- 0x1000-0x1FFF in CHR mode 0, to 0x0000-0x1FFF
+        bank_window := chr_window;
+        if board = NAMCO_3446
+        then
+            bank_window := "1" & chr_window(2 downto 1);
+        end if;
+
         prg_bank := get_prg_bank(written, get_prg_window(cart_in.cpu));
-        chr_bank := get_chr_bank(written, get_chr_window(cart_in.ppu));
+        chr_bank := get_chr_bank(written, bank_window);
 
         banks := default_banks(config);
         banks.prg_ram := is_prg_ram_enabled(written, board, cart_in);
@@ -620,8 +572,7 @@ package body lib_mapper_mmc3 is
                 chr_bank := "0" & cart_in.ppu.chr_bus.address(12) &
                             chr_bank(5 downto 0);
             when NAMCO_3446 =>
-                chr_bank := get_chr_bank_3446(written,
-                                              get_chr_window(cart_in.ppu));
+                chr_bank := "0" & chr_bank(5 downto 0) & chr_window(0);
         end case;
 
         banks.prg := prg_bank;
@@ -633,7 +584,7 @@ package body lib_mapper_mmc3 is
             ret.cart := protect_prg_ram(written, board, cart_in, ret.cart);
         end if;
         ret.cart.cpu.irq := ret.reg.irq and
-                            written.irq_delay(written.irq_delay'high);
+                            reg.irq_delay(reg.irq_delay'high);
 
         return ret;
     end;
