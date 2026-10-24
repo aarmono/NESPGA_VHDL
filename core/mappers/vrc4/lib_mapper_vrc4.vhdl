@@ -22,8 +22,12 @@ use work.lib_vrc_irq.all;
 -- of 0x9002, but some games read the latch back, which RAM does as well, so
 -- neither is emulated, as in Mesen
 --
--- To add a board, add its mapper number to is_vrc4_mapper and its wiring
--- to get_vrc4_board
+-- To add a board, add its mapper number to is_vrc4_mapper and give it an
+-- arm in get_vrc4_board with its wiring from vrc_board, or from
+-- vrc4_ines_board for an iNES number that stands for two wirings. A quirk
+-- beyond the wiring and the chip, like the CHR shift of the VRC2a, needs a
+-- field in vrc4_board_t, a parameter of vrc_board and its use in
+-- cycle_mapper_vrc4 or the functions it calls
 package lib_mapper_vrc4 is
 
     -- CPU A7-A0
@@ -112,9 +116,10 @@ package body lib_mapper_vrc4 is
     -- in a0 and a1
     function vrc_board
     (
-        a0   : natural;
-        a1   : natural;
-        vrc4 : boolean
+        a0        : natural;
+        a1        : natural;
+        vrc4      : boolean;
+        chr_shift : boolean := false
     )
     return vrc4_board_t
     is
@@ -125,7 +130,7 @@ package body lib_mapper_vrc4 is
         ret.a0(a0) := '1';
         ret.a1(a1) := '1';
         ret.vrc4 := vrc4;
-        ret.chr_shift := false;
+        ret.chr_shift := chr_shift;
 
         return ret;
     end;
@@ -141,67 +146,58 @@ package body lib_mapper_vrc4 is
     return vrc4_board_t
     is
         variable ret : vrc4_board_t;
-        variable other : vrc4_board_t;
     begin
         ret := vrc_board(a0_0, a1_0, true);
-        other := vrc_board(a0_1, a1_1, true);
-        ret.a0 := ret.a0 or other.a0;
-        ret.a1 := ret.a1 or other.a1;
+        ret.a0(a0_1) := '1';
+        ret.a1(a1_1) := '1';
 
         return ret;
     end;
 
     function get_vrc4_board(config : cart_config_t) return vrc4_board_t
     is
-        variable ret : vrc4_board_t;
     begin
         case config.mapper_num is
-            -- VRC4a (submapper 1) and VRC4c (submapper 2)
+            -- 21: VRC4a (submapper 1) and VRC4c (submapper 2)
             when x"015" =>
                 case config.submapper_num is
-                    when x"1" => ret := vrc_board(1, 2, true);
-                    when x"2" => ret := vrc_board(6, 7, true);
-                    when others => ret := vrc4_ines_board(1, 2, 6, 7);
+                    when x"1" => return vrc_board(1, 2, true);
+                    when x"2" => return vrc_board(6, 7, true);
+                    when others => return vrc4_ines_board(1, 2, 6, 7);
                 end case;
-            -- VRC2a
+            -- 22: VRC2a
             when x"016" =>
-                ret := vrc_board(1, 0, false);
-                ret.chr_shift := true;
-            -- VRC4f (submapper 1), VRC4e (submapper 2) and VRC2b
+                return vrc_board(1, 0, false, chr_shift => true);
+            -- 23: VRC4f (submapper 1), VRC4e (submapper 2) and VRC2b
             -- (submapper 3)
             when x"017" =>
                 case config.submapper_num is
-                    when x"1" => ret := vrc_board(0, 1, true);
-                    when x"2" => ret := vrc_board(2, 3, true);
-                    when x"3" => ret := vrc_board(0, 1, false);
-                    when others => ret := vrc4_ines_board(0, 1, 2, 3);
+                    when x"1" => return vrc_board(0, 1, true);
+                    when x"2" => return vrc_board(2, 3, true);
+                    when x"3" => return vrc_board(0, 1, false);
+                    when others => return vrc4_ines_board(0, 1, 2, 3);
                 end case;
-            -- VRC4b (submapper 1), VRC4d (submapper 2) and VRC2c
+            -- 25: VRC4b (submapper 1), VRC4d (submapper 2) and VRC2c
             -- (submapper 3)
             when others =>
                 case config.submapper_num is
-                    when x"1" => ret := vrc_board(1, 0, true);
-                    when x"2" => ret := vrc_board(3, 2, true);
-                    when x"3" => ret := vrc_board(1, 0, false);
-                    when others => ret := vrc4_ines_board(1, 0, 3, 2);
+                    when x"1" => return vrc_board(1, 0, true);
+                    when x"2" => return vrc_board(3, 2, true);
+                    when x"3" => return vrc_board(1, 0, false);
+                    when others => return vrc4_ines_board(1, 0, 3, 2);
                 end case;
         end case;
-
-        return ret;
     end;
 
     -- The mirroring written to 0x9000. The VRC2 has only bit 0
     function get_mirror(data : data_t; vrc4 : boolean) return mirror_t
     is
-        variable mode : std_logic_vector(1 downto 0);
     begin
-        mode := data(1 downto 0);
         if not vrc4
         then
-            mode(1) := '0';
+            return get_hv_single_screen_mirror('0' & data(0));
         end if;
-
-        return get_hv_single_screen_mirror(mode);
+        return get_hv_single_screen_mirror(data(1 downto 0));
     end;
 
     function write_chr_bank
@@ -241,19 +237,19 @@ package body lib_mapper_vrc4 is
     return mapper_vrc4_reg_t
     is
         variable ret : mapper_vrc4_reg_t;
-        variable lines : vrc4_lines_t;
         variable a0 : boolean;
         variable a1 : boolean;
         variable chr_idx : natural range 0 to 7;
     begin
         ret := reg;
 
-        lines := cart_in.cpu.prg_bus.address(7 downto 0);
-        a0 := not is_zero(lines and board.a0);
-        a1 := not is_zero(lines and board.a1);
-
         if is_rom_write(cart_in.cpu, clk_sync)
         then
+            a0 := not is_zero(cart_in.cpu.prg_bus.address(7 downto 0) and
+                              board.a0);
+            a1 := not is_zero(cart_in.cpu.prg_bus.address(7 downto 0) and
+                              board.a1);
+
             case cart_in.cpu.prg_bus.address(14 downto 12) is
                 when "000" =>
                     ret.prg_bank_0 :=
@@ -289,15 +285,12 @@ package body lib_mapper_vrc4 is
                             ret.irq := acknowledge_vrc_irq(reg.irq);
                         end if;
                     end if;
-                -- 0xB000-0xEFFF: two registers for each CHR bank
+                -- 0xB000-0xEFFF: two registers for each CHR bank, which
+                -- A1 selects
                 when others =>
                     chr_idx :=
-                        (to_integer(cart_in.cpu.prg_bus.address(14 downto 12))
-                         - 3) * 2;
-                    if a1
-                    then
-                        chr_idx := chr_idx + 1;
-                    end if;
+                        to_integer(cart_in.cpu.prg_bus.address(14 downto 12) &
+                                   to_std_logic(a1)) - 6;
                     ret.chr_banks(chr_idx) :=
                         write_chr_bank(reg.chr_banks(chr_idx),
                                        a0,
@@ -317,21 +310,24 @@ package body lib_mapper_vrc4 is
     )
     return prg_bank_8kb_t
     is
-        -- The second to last bank
-        constant FIXED : prg_bank_8kb_t := (0 => '0', others => '1');
     begin
-        if window = "01"
-        then
-            return resize(reg.prg_bank_1, prg_bank_8kb_t'length);
-        elsif window = "11"
-        then
-            return (others => '1');
-        elsif (window = "00") /= reg.prg_swap
-        then
-            return resize(reg.prg_bank_0, prg_bank_8kb_t'length);
-        else
-            return FIXED;
-        end if;
+        case window is
+            -- 0xA000-0xBFFF
+            when "01" =>
+                return resize(reg.prg_bank_1, prg_bank_8kb_t'length);
+            -- 0xE000-0xFFFF is the last bank
+            when "11" =>
+                return x"FF";
+            -- Swap mode swaps 0x8000-0x9FFF and 0xC000-0xDFFF
+            when others =>
+                if (window(1) = '1') = reg.prg_swap
+                then
+                    return resize(reg.prg_bank_0, prg_bank_8kb_t'length);
+                else
+                    -- The second to last bank
+                    return x"FE";
+                end if;
+        end case;
     end;
 
     -- The 1KB CHR bank in the window of the PPU address
@@ -345,7 +341,7 @@ package body lib_mapper_vrc4 is
     is
         variable bank : chr_bank_t;
     begin
-        bank := reg.chr_banks(to_integer(window));
+        bank := reg.chr_banks(to_integer(std_logic_vector(window)));
 
         if board.chr_shift
         then
@@ -370,13 +366,10 @@ package body lib_mapper_vrc4 is
     begin
         ret.reg := reg;
 
-        -- The VRC2 has no IRQ counter. The counter is clocked before the
-        -- write of the CPU cycle, so a write to the IRQ control is not undone
-        -- by the clock
-        if board.vrc4
-        then
-            ret.reg.irq := cycle_vrc_irq(reg.irq, clk_sync);
-        end if;
+        -- The counter is clocked before the write of the CPU cycle, so a write
+        -- to the IRQ control is not undone by the clock. The VRC2 has no IRQ
+        -- registers, so its counter stays disabled
+        ret.reg.irq := cycle_vrc_irq(reg.irq, clk_sync);
         ret.reg := cycle_write(ret.reg, board, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
