@@ -13,10 +13,23 @@ use work.lib_vrc6_audio.all;
 -- tables in 1KB or 2KB banks and the nametables to CIRAM or CHR ROM, the
 -- VRC IRQ counter and three channels of audio. VRC6b (26) has the A0 and A1
 -- inputs of the chip wired to CPU A1 and A0 rather than A0 and A1
+--
+-- To add a board, add it to vrc6_board_t and get_vrc6_board and its mapper
+-- number to is_vrc6_mapper, then give it its wiring in cycle_write
 package lib_mapper_vrc6 is
+
+    type vrc6_board_t is
+    (
+        -- 24: CPU A0 and A1 to the A0 and A1 inputs of the chip
+        VRC6A,
+        -- 26: CPU A1 and A0 to the A0 and A1 inputs of the chip
+        VRC6B
+    );
 
     -- The mapper number is that of a board built around the VRC6
     function is_vrc6_mapper(mapper_num : mapper_num_t) return boolean;
+
+    function get_vrc6_board(config : cart_config_t) return vrc6_board_t;
 
     subtype prg_bank_16kb_t is unsigned(3 downto 0);
     subtype prg_bank_t is unsigned(4 downto 0);
@@ -49,17 +62,6 @@ package lib_mapper_vrc6 is
         NT_R4_R7
     );
 
-    -- Where the low bit of the bank of a nametable comes from. It is also
-    -- CIRAM A10 when the nametables are in CIRAM
-    type nt_lsb_t is
-    (
-        NT_LSB_REG,
-        NT_LSB_A10,
-        NT_LSB_A11,
-        NT_LSB_0,
-        NT_LSB_1
-    );
-
     type mapper_vrc6_reg_t is record
         prg_bank_16kb : prg_bank_16kb_t;
         prg_bank_8kb  : prg_bank_t;
@@ -72,7 +74,11 @@ package lib_mapper_vrc6 is
         -- that of its register
         chr_a10       : boolean;
         nt_regs       : nt_regs_t;
-        nt_lsb        : nt_lsb_t;
+        -- The low bit of the bank of a nametable, which is CIRAM A10 when
+        -- the nametables are in CIRAM, follows nt_mirror rather than its
+        -- register
+        nt_mirrored   : boolean;
+        nt_mirror     : mirror_t;
         -- The nametables are in CHR ROM rather than CIRAM
         nt_chr        : boolean;
         prg_ram       : boolean;
@@ -94,6 +100,7 @@ package lib_mapper_vrc6 is
     function cycle_mapper_vrc6
     (
         reg      : mapper_vrc6_reg_t;
+        board    : vrc6_board_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -111,6 +118,15 @@ package body lib_mapper_vrc6 is
         case mapper_num is
             when x"018" | x"01A" => return true;
             when others => return false;
+        end case;
+    end;
+
+    function get_vrc6_board(config : cart_config_t) return vrc6_board_t
+    is
+    begin
+        case config.mapper_num is
+            when x"01A" => return VRC6B;
+            when others => return VRC6A;
         end case;
     end;
 
@@ -141,34 +157,22 @@ package body lib_mapper_vrc6 is
         ret.nt_chr := data(4) = '1';
         ret.prg_ram := data(7) = '1';
 
-        if data(5) = '1' and (data(1 downto 0) = "00" or
-                              data(1 downto 0) = "11")
-        then
-            -- Mode 3 has the mirroring of mode 0 with bit 2 inverted
-            mirror := data(3 downto 2);
-            if data(1 downto 0) = "11"
-            then
-                mirror(0) := not mirror(0);
-            end if;
+        -- Vertical, horizontal, one screen A and one screen B, in modes 0
+        -- and 3. Mode 3 has the mirroring of mode 0 with bit 2 inverted
+        ret.nt_mirrored := data(5) = '1' and data(1) = data(0);
+        mirror := data(3) & (data(2) xor data(0));
+        ret.nt_mirror := get_hv_single_screen_mirror(mirror);
 
-            -- Vertical, horizontal, one screen A and one screen B, from
-            -- R6 and R7
-            case mirror is
-                when "00" =>
-                    ret.nt_regs := NT_R6_R7_A11;
-                    ret.nt_lsb := NT_LSB_A10;
-                when "01" =>
-                    ret.nt_regs := NT_R6_R7_A10;
-                    ret.nt_lsb := NT_LSB_A11;
-                when "10" =>
-                    ret.nt_regs := NT_R6_R7_A11;
-                    ret.nt_lsb := NT_LSB_0;
-                when others =>
-                    ret.nt_regs := NT_R6_R7_A10;
-                    ret.nt_lsb := NT_LSB_1;
-            end case;
+        if ret.nt_mirrored
+        then
+            -- From R6 and R7
+            if mirror(0) = '0'
+            then
+                ret.nt_regs := NT_R6_R7_A11;
+            else
+                ret.nt_regs := NT_R6_R7_A10;
+            end if;
         else
-            ret.nt_lsb := NT_LSB_REG;
             case data(2 downto 0) is
                 when "001" | "101" =>
                     ret.nt_regs := NT_R4_R7;
@@ -198,7 +202,7 @@ package body lib_mapper_vrc6 is
     function cycle_write
     (
         reg      : mapper_vrc6_reg_t;
-        config   : cart_config_t;
+        board    : vrc6_board_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
@@ -213,15 +217,15 @@ package body lib_mapper_vrc6 is
         ret := reg;
         data := cart_in.cpu.data;
 
-        lines := cart_in.cpu.prg_bus.address(1 downto 0);
-        if config.mapper_num = x"01A"
-        then
-            lines := lines(0) & lines(1);
-        end if;
-        reg_idx := to_integer(lines);
-
         if is_rom_write(cart_in.cpu, clk_sync)
         then
+            lines := cart_in.cpu.prg_bus.address(1 downto 0);
+            if board = VRC6B
+            then
+                lines := lines(0) & lines(1);
+            end if;
+            reg_idx := to_integer(lines);
+
             case cart_in.cpu.prg_bus.address(14 downto 12) is
                 when "000" =>
                     ret.prg_bank_16kb := unsigned(data(prg_bank_16kb_t'range));
@@ -301,16 +305,16 @@ package body lib_mapper_vrc6 is
     -- and PPU A10 when chr_a10 is set, else the register itself
     function get_2kb_half
     (
-        reg  : mapper_vrc6_reg_t;
-        bank : chr_reg_t;
-        a10  : std_logic
+        chr_a10 : boolean;
+        bank    : chr_reg_t;
+        a10     : std_logic
     )
     return chr_reg_t
     is
         variable ret : chr_reg_t;
     begin
         ret := bank;
-        if reg.chr_a10
+        if chr_a10
         then
             ret(0) := a10;
         end if;
@@ -329,19 +333,21 @@ package body lib_mapper_vrc6 is
     is
         variable idx : chr_reg_idx_t;
     begin
-        idx := to_integer(window);
+        idx := to_integer(std_logic_vector(window));
 
         case reg.chr_layout is
             when CHR_1KB =>
                 return reg.chr_regs(idx);
             when CHR_2KB =>
-                return get_2kb_half(reg, reg.chr_regs(idx / 2), window(0));
+                return get_2kb_half(reg.chr_a10,
+                                    reg.chr_regs(idx / 2),
+                                    window(0));
             when CHR_1KB_2KB =>
                 if window(2) = '0'
                 then
                     return reg.chr_regs(idx);
                 else
-                    return get_2kb_half(reg,
+                    return get_2kb_half(reg.chr_a10,
                                         reg.chr_regs(2 + idx / 2),
                                         window(0));
                 end if;
@@ -371,13 +377,10 @@ package body lib_mapper_vrc6 is
 
         ret := reg.chr_regs(idx);
 
-        case reg.nt_lsb is
-            when NT_LSB_REG => null;
-            when NT_LSB_A10 => ret(0) := addr(10);
-            when NT_LSB_A11 => ret(0) := addr(11);
-            when NT_LSB_0 => ret(0) := '0';
-            when NT_LSB_1 => ret(0) := '1';
-        end case;
+        if reg.nt_mirrored
+        then
+            ret(0) := get_ciram_a10(reg.nt_mirror, addr);
+        end if;
 
         return ret;
     end;
@@ -385,6 +388,7 @@ package body lib_mapper_vrc6 is
     function cycle_mapper_vrc6
     (
         reg      : mapper_vrc6_reg_t;
+        board    : vrc6_board_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -401,7 +405,7 @@ package body lib_mapper_vrc6 is
         -- CPU cycle, so a write is not undone by the clock
         ret.reg.irq := cycle_vrc_irq(reg.irq, clk_sync);
         ret.reg.audio := cycle_vrc6_audio(reg.audio, clk_sync);
-        ret.reg := cycle_write(ret.reg, config, clk_sync, cart_in);
+        ret.reg := cycle_write(ret.reg, board, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
         banks := default_banks(config);

@@ -315,6 +315,14 @@ package cart_types is
     )
     return mirror_t;
 
+    -- CIRAM A10 of a nametable access with the mirroring
+    function get_ciram_a10
+    (
+        mirror : mirror_t;
+        addr   : chr_addr_t
+    )
+    return std_logic;
+
     -- The banks of a board before it selects any: no PRG RAM, bank 0 of
     -- PRG ROM and of CHR, CHR RAM if the board has no CHR ROM, and the
     -- nametables in CIRAM with the mirroring of the header. A board sets
@@ -592,6 +600,22 @@ package body cart_types is
         return ret;
     end;
 
+    function get_ciram_a10
+    (
+        mirror : mirror_t;
+        addr   : chr_addr_t
+    )
+    return std_logic
+    is
+    begin
+        case mirror is
+            when MIRROR_HORZ => return addr(11);
+            when MIRROR_VERT | MIRROR_FOUR => return addr(10);
+            when MIRROR_A => return '0';
+            when MIRROR_B => return '1';
+        end case;
+    end;
+
     -- The PPU accesses the nametables in CIRAM
     function map_ciram
     (
@@ -608,21 +632,13 @@ package body cart_types is
         addr := cart_in.ppu.chr_bus.address;
 
         ret.ppu.ciram_ce := true;
-        ret.ppu.ciram_a11 := '0';
-
-        case mirror is
-            when MIRROR_FOUR =>
-                ret.ppu.ciram_a10 := addr(10);
-                ret.ppu.ciram_a11 := addr(11);
-            when MIRROR_HORZ =>
-                ret.ppu.ciram_a10 := addr(11);
-            when MIRROR_VERT =>
-                ret.ppu.ciram_a10 := addr(10);
-            when MIRROR_A =>
-                ret.ppu.ciram_a10 := '0';
-            when MIRROR_B =>
-                ret.ppu.ciram_a10 := '1';
-        end case;
+        ret.ppu.ciram_a10 := get_ciram_a10(mirror, addr);
+        if mirror = MIRROR_FOUR
+        then
+            ret.ppu.ciram_a11 := addr(11);
+        else
+            ret.ppu.ciram_a11 := '0';
+        end if;
 
         return ret;
     end;

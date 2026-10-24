@@ -41,6 +41,7 @@ package lib_cartridge is
         mmc2         : mmc2_board_t;
         mmc3         : mmc3_board_t;
         vrc4         : vrc4_board_t;
+        vrc6         : vrc6_board_t;
     end record;
 
     function get_cart_boards(config : cart_config_t) return cart_boards_t;
@@ -138,7 +139,8 @@ package body lib_cartridge is
             mmc1_prg_ram => get_mmc1_prg_ram(config),
             mmc2 => get_mmc2_board(config),
             mmc3 => get_mmc3_board(config),
-            vrc4 => get_vrc4_board(config)
+            vrc4 => get_vrc4_board(config),
+            vrc6 => get_vrc6_board(config)
         );
     end;
 
@@ -227,6 +229,7 @@ package body lib_cartridge is
                 ret.cart := vrc4_out.cart;
             when BOARD_VRC6 =>
                 vrc6_out := cycle_mapper_vrc6(reg.vrc6,
+                                              boards.vrc6,
                                               config,
                                               clk_sync,
                                               cart_in);

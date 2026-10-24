@@ -12,25 +12,29 @@ package lib_vrc6_audio is
 
     subtype vrc6_period_t is natural range 0 to 2**12-1;
 
+    -- The 16 steps of a pulse channel
+    subtype vrc6_pulse_step_t is natural range 0 to 2**4-1;
+    -- The 14 steps of the sawtooth
+    subtype vrc6_saw_step_t is natural range 0 to 13;
+
     type vrc6_pulse_t is record
         volume      : natural range 0 to 2**4-1;
-        duty        : natural range 0 to 2**3-1;
-        -- The volume is output at every step, whatever the duty
-        ignore_duty : boolean;
+        -- The last step at which the volume is output. The last of all
+        -- steps when the duty is ignored
+        duty        : vrc6_pulse_step_t;
         period      : vrc6_period_t;
         -- When clear, the divider and the steps stop and the output is 0
         enable      : boolean;
         -- The divider wraps after timer reaches 0
         timer       : vrc6_period_t;
         -- The volume is output while step is not above duty
-        step        : natural range 0 to 2**4-1;
+        step        : vrc6_pulse_step_t;
     end record;
 
     constant RESET_VRC6_PULSE : vrc6_pulse_t :=
     (
         volume => 0,
         duty => 0,
-        ignore_duty => false,
         period => 0,
         enable => false,
         timer => 0,
@@ -45,7 +49,7 @@ package lib_vrc6_audio is
         -- When clear, the divider and the steps stop and the output is 0
         enable      : boolean;
         timer       : vrc6_period_t;
-        step        : natural range 0 to 13;
+        step        : vrc6_saw_step_t;
     end record;
 
     constant RESET_VRC6_SAW : vrc6_saw_t :=
@@ -161,7 +165,7 @@ package body lib_vrc6_audio is
             if pulse.timer = 0
             then
                 ret.timer := get_shifted_period(pulse.period, shift);
-                ret.step := wrap(pulse.step + 1, 2**4-1);
+                ret.step := wrap(pulse.step + 1, vrc6_pulse_step_t'high);
             else
                 ret.timer := pulse.timer - 1;
             end if;
@@ -189,7 +193,7 @@ package body lib_vrc6_audio is
 
                 -- The accumulator is cleared on step 0 and the rate added
                 -- on the even steps after it, 6 times in all
-                if saw.step = 13
+                if saw.step = vrc6_saw_step_t'high
                 then
                     ret.step := 0;
                     ret.accumulator := 0;
@@ -267,8 +271,12 @@ package body lib_vrc6_audio is
         case reg is
             when 0 =>
                 ret.volume := to_integer(data(3 downto 0));
-                ret.duty := to_integer(data(6 downto 4));
-                ret.ignore_duty := data(7) = '1';
+                if data(7) = '1'
+                then
+                    ret.duty := vrc6_pulse_step_t'high;
+                else
+                    ret.duty := to_integer(data(6 downto 4));
+                end if;
             when 1 =>
                 ret.period := set_period_low(pulse.period, data);
             when 2 =>
@@ -371,7 +379,7 @@ package body lib_vrc6_audio is
     function get_pulse_level(pulse : vrc6_pulse_t) return natural
     is
     begin
-        if pulse.enable and (pulse.ignore_duty or pulse.step <= pulse.duty)
+        if pulse.enable and pulse.step <= pulse.duty
         then
             return pulse.volume;
         else
@@ -379,16 +387,12 @@ package body lib_vrc6_audio is
         end if;
     end;
 
+    -- The high 5 bits of the accumulator, which is held at 0 while the
+    -- channel is disabled
     function get_saw_level(saw : vrc6_saw_t) return natural
     is
     begin
-        -- The high 5 bits of the accumulator
-        if saw.enable
-        then
-            return saw.accumulator / 2**3;
-        else
-            return 0;
-        end if;
+        return saw.accumulator / 2**3;
     end;
 
     function get_vrc6_audio_level(audio : vrc6_audio_t) return cart_audio_t
