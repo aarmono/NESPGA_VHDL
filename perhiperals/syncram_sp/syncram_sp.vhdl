@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.perhipheral_types.all;
+use work.utilities.all;
 
 entity syncram_sp is
 generic
@@ -35,7 +36,7 @@ architecture behavioral of syncram_sp is
 
 begin
 
-altera_gen : case VENDOR generate
+vendor_gen : case VENDOR generate
     when VENDOR_ALTERA =>
 
         signal ram : ram_t;
@@ -74,6 +75,33 @@ altera_gen : case VENDOR generate
             (others => '-') when is_x(std_logic_vector(reg_address)) else
             -- pragma translate_on
             ram(to_integer(reg_address));
+    end;
+
+    when VENDOR_SIM =>
+    begin
+
+        -- The memory is a variable, since ghdl keeps a signal array as a
+        -- signal per bit, which takes hundreds of bytes each. The output is
+        -- loaded at the clock edge from the address and memory as they are
+        -- after it, which is what the registered address gives above
+        process(clk)
+            variable ram : ram_t;
+        begin
+        if rising_edge(clk)
+        then
+            if write and clk_en
+            then
+                ram(to_integer(address)) := data_in;
+            end if;
+
+            if is_x(address)
+            then
+                data_out <= (others => '-');
+            else
+                data_out <= ram(to_integer(address));
+            end if;
+        end if;
+        end process;
     end;
 
 end generate;

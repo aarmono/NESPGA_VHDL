@@ -3,13 +3,13 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.cpu_bus_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.ciram_bus_types.all;
 use work.nes_types.all;
+use work.perhipheral_types.all;
 
 package soc is
     
@@ -33,8 +33,9 @@ package soc is
         cpu_ram_en : out boolean;
         ppu_ram_en : out boolean;
         
-        file_bus       : out file_bus_t;
-        data_from_file : in data_t;
+        cart_mem_bus       : out cart_mem_bus_t;
+        data_to_cart_mem   : out data_t;
+        data_from_cart_mem : in data_t;
         
         prg_ram_bus       : out ram_bus_t;
         data_to_prg_ram   : out data_t;
@@ -52,10 +53,6 @@ package soc is
         data_to_palette   : out pixel_t;
         data_from_palette : in pixel_t;
         
-        chr_ram_bus       : out sram_bus_t;
-        data_to_chr_ram   : out data_t;
-        data_from_chr_ram : in data_t;
-
         ciram_bus       : out ciram_bus_t;
         data_to_ciram   : out data_t;
         data_from_ciram : in data_t;
@@ -77,10 +74,11 @@ package soc is
     component nes_soc_ocram is
     generic
     (
-        USE_EXT_SRAM : boolean := false;
-        CLK_FREQ     : positive := 50_000_000;
-        CPU_FREQ_NUM : positive := 39_375_000;
-        CPU_FREQ_DEN : positive := 22
+        USE_EXT_CART_RAM : boolean := false;
+        VENDOR           : vendor_t := VENDOR_ALTERA;
+        CLK_FREQ         : positive := 50_000_000;
+        CPU_FREQ_NUM     : positive := 39_375_000;
+        CPU_FREQ_DEN     : positive := 22
     );
     port
     (
@@ -92,14 +90,9 @@ package soc is
         cpu_clk_en : out boolean;
         ppu_clk_en : out boolean;
 
-        cpu_ram_en : out boolean;
-
-        file_bus       : out file_bus_t;
-        data_from_file : in data_t;
-        
-        sram_bus       : out sram_bus_t;
-        data_to_sram   : out data_t;
-        data_from_sram : in data_t := (others => '-');
+        cart_mem_bus       : out cart_mem_bus_t;
+        data_to_cart_mem   : out data_t;
+        data_from_cart_mem : in data_t;
 
         pixel_bus : out pixel_bus_t;
         audio     : out mixed_audio_t;

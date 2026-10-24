@@ -4,7 +4,6 @@ use IEEE.numeric_std.all;
 use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.ppu_bus_types.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
@@ -68,6 +67,7 @@ package nes_core is
         reset             : in boolean;
 
         chr_bus           : out chr_bus_t;
+        chr_ale           : out boolean;
         chr_data_from_ppu : out data_t;
         chr_data_to_ppu   : in  data_t;
         

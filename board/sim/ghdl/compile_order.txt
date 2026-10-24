@@ -7,10 +7,13 @@
 ../../../bus/apu_bus_types.vhdl
 ../../../bus/prg_bus_types.vhdl
 ../../../bus/ram_bus_types.vhdl
-../../../bus/sram_bus_types.vhdl
+../../../bus/prg_ram_bus_types.vhdl
+../../../bus/chr_ram_bus_types.vhdl
+../../../bus/exram_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
 ../../../bus/oam_bus_types.vhdl
 ../../../bus/file_bus_types.vhdl
+../../../bus/cart_mem_bus_types.vhdl
 ../../../bus/ppu_bus_types.vhdl
 ../../../bus/joy_bus_types.vhdl
 
@@ -84,18 +87,24 @@
 ../../../core/apu/lib_apu.vhdl
 ../../../core/apu/apu.vhdl
 
-../../../core/mappers/mapper_types.vhdl
-../../../core/mappers/000/lib_mapper_000.vhdl
-../../../core/mappers/001/lib_mapper_001.vhdl
-../../../core/mappers/002/lib_mapper_002.vhdl
-../../../core/mappers/003/lib_mapper_003.vhdl
-../../../core/mappers/004/lib_mapper_004.vhdl
-../../../core/mappers/066/lib_mapper_066.vhdl
-../../../core/mappers/lib_mapper.vhdl
+../../../core/mappers/cart_types.vhdl
+../../../core/mappers/latch/lib_mapper_latch.vhdl
+../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
+../../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
+../../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
+../../../core/mappers/fme7/lib_mapper_fme7.vhdl
+../../../core/mappers/lib_vrc_irq.vhdl
+../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
+../../../core/mappers/vrc6/lib_vrc6_audio.vhdl
+../../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
+../../../core/mappers/mmc5/lib_mmc5_audio.vhdl
+../../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
+../../../core/mappers/lib_cartridge.vhdl
+../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../soc/nes/lib_nes.vhdl
-../../../soc/nes/file_bus_mux.vhdl
+../../../soc/nes/cart_mem_bus_mux.vhdl
 ../../../soc/nes/nes_soc.vhdl
 ../../../soc/nes/nes_soc_ocram.vhdl
 

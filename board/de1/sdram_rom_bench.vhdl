@@ -3,12 +3,15 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use IEEE.math_real.all;
 use work.nes_types.all;
+use work.cart_mem_bus_types.all;
 use work.file_bus_types.all;
 use work.simulation.all;
 
 -- Copies a file from an SD card model, or a flash model, into the SDRAM
--- model through sdram_rom, then performs random reads paced by the real NES
--- clock enables and checks the data against the file.
+-- model through sdram_rom, then performs random accesses paced by the real
+-- NES clock enables: reads of the file, checked against the file, and
+-- writes and reads of a RAM window above it, checked against what was
+-- written.
 entity sdram_rom_bench is
 generic
 (
@@ -36,9 +39,20 @@ architecture behavioral of sdram_rom_bench is
 
     signal ppu_en : boolean;
 
-    signal file_bus  : file_bus_t := FILE_BUS_IDLE;
-    signal file_data : data_t;
-    signal ref_data  : data_t;
+    signal cart_mem_bus   : cart_mem_bus_t := CART_MEM_BUS_IDLE;
+    signal cart_mem_wdata : data_t := (others => '-');
+    signal cart_mem_data  : data_t;
+    signal ref_bus        : file_bus_t := FILE_BUS_IDLE;
+    signal ref_data       : data_t;
+
+    -- The RAM window is small so that most reads of it are of an address
+    -- that has been written. It is at the start of the upper half of the
+    -- cartridge memory bus, where the cartridge RAMs are
+    constant RAM_BASE  : natural := 2**(cart_mem_addr_t'length - 1);
+    constant RAM_BYTES : positive := 256;
+
+    type ram_t is array(0 to RAM_BYTES - 1) of data_t;
+    type ram_valid_t is array(0 to RAM_BYTES - 1) of boolean;
 
     signal dram_addr  : std_logic_vector(11 downto 0);
     signal dram_ba    : std_logic_vector(1 downto 0);
@@ -66,8 +80,9 @@ begin
         load_ready => load_ready,
 
         ppu_clk_en => ppu_en,
-        file_bus => file_bus,
-        data_from_file => file_data,
+        cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => cart_mem_wdata,
+        data_from_cart_mem => cart_mem_data,
 
         dram_addr => dram_addr,
         dram_ba => dram_ba,
@@ -198,7 +213,7 @@ begin
     )
     port map
     (
-        file_bus_1 => file_bus,
+        file_bus_1 => ref_bus,
         data_from_file_1 => ref_data
     );
 
@@ -219,28 +234,52 @@ begin
         odd_cpu_cycle => open
     );
 
-    -- Like the NES core, change the file bus right after each PPU clock
-    -- enable and consume the data at the next one
+    -- Like the NES core, change the cartridge memory bus right after each PPU
+    -- clock enable and consume the data at the next one
     process(clk_50)
-        variable seed1   : positive := 1;
-        variable seed2   : positive := 2;
-        variable rand    : real;
-        variable windows : natural := 0;
-        variable reads   : natural := 0;
-        variable errors  : natural := 0;
+        variable seed1     : positive := 1;
+        variable seed2     : positive := 2;
+        variable rand      : real;
+        variable rom_addr  : unsigned(cart_mem_addr_t'range);
+        variable ram_idx   : natural range 0 to RAM_BYTES - 1 := 0;
+        variable ram       : ram_t;
+        variable ram_valid : ram_valid_t := (others => false);
+        variable expected  : data_t;
+        variable check     : boolean;
+        variable windows   : natural := 0;
+        variable reads     : natural := 0;
+        variable writes    : natural := 0;
+        variable errors    : natural := 0;
     begin
     if rising_edge(clk_50) and ppu_en
     then
-        if is_bus_read(file_bus)
+        check := false;
+        if is_bus_read(ref_bus)
+        then
+            check := true;
+            expected := ref_data;
+        elsif is_bus_read(cart_mem_bus) and ram_valid(ram_idx)
+        then
+            check := true;
+            expected := ram(ram_idx);
+        elsif is_bus_write(cart_mem_bus)
+        then
+            writes := writes + 1;
+            ram(ram_idx) := cart_mem_wdata;
+            ram_valid(ram_idx) := true;
+        end if;
+
+        if check
         then
             reads := reads + 1;
-            if file_data /= ref_data
+            if cart_mem_data /= expected
             then
                 errors := errors + 1;
                 report "Mismatch at " &
-                       integer'image(to_integer(unsigned(file_bus.address))) &
-                       ": expected " & to_hstring(ref_data) &
-                       " got " & to_hstring(file_data)
+                       integer'image(
+                           to_integer(unsigned(cart_mem_bus.address))) &
+                       ": expected " & to_hstring(expected) &
+                       " got " & to_hstring(cart_mem_data)
                     severity error;
             end if;
         end if;
@@ -251,20 +290,40 @@ begin
             assert errors = 0
                 report integer'image(errors) & " read errors"
                 severity failure;
-            report "PASS: " & integer'image(reads) & " reads in " &
+            report "PASS: " & integer'image(reads) & " reads and " &
+                   integer'image(writes) & " writes in " &
                    integer'image(windows) & " PPU cycles";
             std.env.finish;
         end if;
 
+        cart_mem_bus <= CART_MEM_BUS_IDLE;
+        cart_mem_wdata <= (others => '-');
+        ref_bus <= FILE_BUS_IDLE;
+
         uniform(seed1, seed2, rand);
-        if rand < 0.75
+        if rand < 0.45
         then
             uniform(seed1, seed2, rand);
-            file_bus <= bus_read(to_unsigned(
-                integer(floor(rand * real(NES_FILE_BYTES))),
-                file_addr_t'length));
-        else
-            file_bus <= FILE_BUS_IDLE;
+            rom_addr := to_unsigned(integer(floor(rand * real(NES_FILE_BYTES))),
+                                    cart_mem_addr_t'length);
+            cart_mem_bus <= bus_read(rom_addr);
+            ref_bus <= bus_read(rom_addr(file_addr_t'range));
+        elsif rand < 0.75
+        then
+            uniform(seed1, seed2, rand);
+            ram_idx := integer(floor(rand * real(RAM_BYTES)));
+            uniform(seed1, seed2, rand);
+            if rand < 0.5
+            then
+                cart_mem_bus <= bus_write(to_unsigned(
+                    RAM_BASE + ram_idx, cart_mem_addr_t'length));
+                uniform(seed1, seed2, rand);
+                cart_mem_wdata <= std_logic_vector(to_unsigned(
+                    integer(floor(rand * 256.0)), data_t'length));
+            else
+                cart_mem_bus <= bus_read(to_unsigned(
+                    RAM_BASE + ram_idx, cart_mem_addr_t'length));
+            end if;
         end if;
     end if;
     end process;

@@ -36,7 +36,7 @@ begin
         while not done loop
             wait for 10416 ns;
             
-            aud_out := std_logic_vector("0" & audio & "0000000");
+            aud_out := std_logic_vector("0" & audio & "00000");
             au_fwrite_16(audio_file, aud_out);
         end loop;
         

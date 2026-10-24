@@ -19,6 +19,7 @@ port
     reset             : in boolean;
 
     chr_bus           : out chr_bus_t;
+    chr_ale           : out boolean;
     chr_data_from_ppu : out data_t;
     chr_data_to_ppu   : in  data_t;
     
@@ -95,6 +96,7 @@ begin
         reg_next <= render_out.reg;
         
         chr_bus <= render_out.chr_bus;
+        chr_ale <= render_out.chr_ale;
         chr_data_from_ppu <= render_out.data_to_chr;
         
         oam_bus <= render_out.oam_bus;

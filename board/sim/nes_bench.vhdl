@@ -3,14 +3,14 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.chr_bus_types.all;
 use work.cpu_bus_types.all;
-use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.utilities.all;
+use work.perhipheral_types.all;
 use work.soc.all;
 use work.simulation.all;
 
@@ -36,8 +36,8 @@ architecture behavioral of nes_bench is
     constant CLK_FREQ : positive := 50_000_000 * 6 / 28;
     constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
 
-    signal file_bus       : file_bus_t;
-    signal data_from_file : data_t;
+    signal cart_mem_bus       : cart_mem_bus_t;
+    signal data_from_cart_mem : data_t;
     
     signal audio_out : mixed_audio_t;
     signal pixel_bus : pixel_bus_t;
@@ -64,6 +64,9 @@ begin
     soc : nes_soc_ocram
     generic map
     (
+        -- The bench runs the RAMs built for simulation. nes_de1_bench runs
+        -- the ones synthesized for the DE1
+        VENDOR => VENDOR_SIM,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CLK_FREQ,
         CPU_FREQ_DEN => 6
@@ -78,8 +81,8 @@ begin
         ppu_clk_en => ppu_clk_en,
         cpu_clk_en => cpu_clk_en,
         
-        file_bus => file_bus,
-        data_from_file => data_from_file,
+        cart_mem_bus => cart_mem_bus,
+        data_from_cart_mem => data_from_cart_mem,
         
         pixel_bus => pixel_bus,
         audio => audio_out,
@@ -149,8 +152,8 @@ begin
     )
     port map
     (
-       file_bus_1 => file_bus,
-       data_from_file_1 => data_from_file
+       file_bus_1 => get_file_bus(cart_mem_bus),
+       data_from_file_1 => data_from_cart_mem
     );
     
     clk_gen : clock

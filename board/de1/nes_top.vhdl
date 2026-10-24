@@ -5,8 +5,6 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
-use work.file_bus_types.all;
-use work.sram_bus_types.all;
 use work.soc.all;
 use work.de1_types.all;
 

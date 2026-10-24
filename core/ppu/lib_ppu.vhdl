@@ -606,6 +606,10 @@ package lib_ppu is
         sec_oam_bus     : sec_oam_bus_t;
         data_to_sec_oam : data_t;
         chr_bus         : chr_bus_t;
+        -- ALE: the first dot of an access on chr_bus. A rendering read
+        -- holds chr_bus for 2 dots, and back-to-back reads leave read set,
+        -- so this is what tells them apart
+        chr_ale         : boolean;
         data_to_chr     : data_t;
         palette_bus     : palette_bus_t;
         data_to_palette : pixel_t;
@@ -1356,6 +1360,8 @@ package body lib_ppu is
         variable v_rendering          : boolean;
         -- Whether the PPUDATA state machine reads memory this dot
         variable v_ppu_data_read      : boolean;
+        -- The dot is the second of a rendering read
+        variable v_chr_second_dot     : boolean;
 
         -- background render variables
         variable v_bg_tile_idx_addr      : tile_idx_addr_t;
@@ -1395,6 +1401,7 @@ package body lib_ppu is
         v_rendering := render_in.reg.render_fetch and
                        background_active(render_in.reg.cur_time);
         v_ppu_data_read := false;
+        v_chr_second_dot := false;
         
         v_bg_tile_idx_addr := get_tile_idx_addr(render_in.reg.ppu_addr);
         v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr);
@@ -1932,6 +1939,7 @@ package body lib_ppu is
             then
                 render_out.chr_bus.address(data_t'range) :=
                     render_in.reg.addr_latch;
+                v_chr_second_dot := true;
             end if;
 
             -- Disabling rendering mid-frame corrupts OAM once rendering
@@ -2399,7 +2407,11 @@ package body lib_ppu is
         then
             render_out.chr_bus := render_in.reg.chr_bus;
             render_out.reg.chr_bus := CHR_BUS_IDLE;
+            v_chr_second_dot := false;
         end if;
+
+        render_out.chr_ale := is_bus_active(render_out.chr_bus) and
+                              not v_chr_second_dot;
         
         return render_out;
     end;

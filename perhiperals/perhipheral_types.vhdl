@@ -6,9 +6,12 @@ package perhipheral_types is
 
     subtype wm_audio_t is std_logic_vector(15 downto 0);
 
+    -- VENDOR_SIM is for simulation only. It has the same behavior as the
+    -- other vendors, built in a way that is cheap to simulate
     type vendor_t is
     (
-        VENDOR_ALTERA
+        VENDOR_ALTERA,
+        VENDOR_SIM
     );
     
     type memory_type_t is
@@ -47,6 +50,8 @@ package body perhipheral_types is
                     when others =>
                         return default_val;
                 end case;
+            when VENDOR_SIM =>
+                return default_val;
         end case;
     end;
 

@@ -5,8 +5,14 @@ use work.nes_types.all;
 
 package nes_audio_mixer is
 
-    function mix_audio(audio_in : apu_out_t) return mixed_audio_t;
-    
+    -- The APU output mixed with the audio from the cartridge
+    function mix_audio
+    (
+        audio_in   : apu_out_t;
+        cart_audio : cart_audio_t := 0
+    )
+    return mixed_audio_t;
+
     function mix_audio
     (
         audio_in        : apu_out_t;
@@ -61,7 +67,12 @@ package body nes_audio_mixer is
         return mix_audio(v_audio);
     end;
 
-    function mix_audio(audio_in : apu_out_t) return mixed_audio_t
+    function mix_audio
+    (
+        audio_in   : apu_out_t;
+        cart_audio : cart_audio_t := 0
+    )
+    return mixed_audio_t
     is
         subtype mixed_level_t is natural range 0 to 2**mixed_audio_t'length-1;
 
@@ -362,7 +373,7 @@ package body nes_audio_mixer is
             when 201 => tnd_out := 189;
             when 202 => tnd_out := 189;
         end case;
-        return to_unsigned((square_out + tnd_out) mod 2**mixed_audio_t'length,
+        return to_unsigned(square_out + tnd_out + cart_audio,
                            mixed_audio_t'length);
     end;
 

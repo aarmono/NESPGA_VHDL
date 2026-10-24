@@ -3,42 +3,146 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
+use work.joy_bus_types.all;
 use work.ram_bus_types.all;
-use work.sram_bus_types.all;
 use work.ppu_bus_types.all;
-use work.file_bus_types.all;
+use work.prg_bus_types.all;
 use work.chr_bus_types.all;
+use work.ciram_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
-use work.mapper_types.all;
-use work.lib_mapper.all;
+use work.cart_types.all;
 
+-- The memory maps of the console. Anything the console does not decode
+-- itself is on the cartridge
 package lib_nes_mmap is
+
+    type cpu_mmap_reg_t is record
+        -- Last value driven on the CPU data bus
+        open_bus     : data_t;
+        -- Last value on the data bus internal to the CPU. It is not
+        -- updated by DMA reads
+        internal_bus : data_t;
+    end record;
+
+    constant RESET_CPU_MMAP_REG : cpu_mmap_reg_t :=
+    (
+        open_bus => (others => '0'),
+        internal_bus => (others => '0')
+    );
+
+    -- The complete set of bus inputs for
+    -- NES CPU memory mapping
+    type cpu_mmap_bus_in_t is record
+        cpu_bus : cpu_bus_t;
+
+        clk_sync : boolean;
+        -- A DMA unit, not the CPU, is driving the bus
+        dma_cycle : boolean;
+        -- The CPU's own address bus is in 0x4000-0x401F. The APU and joypad
+        -- registers are selected by the low 5 bits of the bus address only
+        -- when this is true, even during a DMA
+        apu_regs_active : boolean;
+        
+        data_from_cpu  : data_t;
+        data_from_apu  : data_t;
+        data_from_joy  : data_t;
+        data_from_ram  : data_t;
+        data_from_ppu  : data_t;
+    end record;
     
+    -- The complete set of bus outputs for
+    -- NES CPU memory mapping
+    type cpu_mmap_bus_out_t is record
+        apu_bus       : apu_bus_t;
+        joy_bus       : joy_bus_t;
+        ram_bus       : ram_bus_t;
+        ppu_bus       : ppu_bus_t;
+        oam_dma_write : boolean;
+        
+        data_to_cpu     : data_t;
+        data_to_apu     : data_t;
+        data_to_joy     : data_t;
+        data_to_ram     : data_t;
+        data_to_ppu     : data_t;
+    end record;
+    
+    constant CPU_MMAP_BUS_IDLE : cpu_mmap_bus_out_t :=
+    (
+        apu_bus => APU_BUS_IDLE,
+        joy_bus => JOY_BUS_IDLE,
+        ram_bus => RAM_BUS_IDLE,
+        ppu_bus => PPU_BUS_IDLE,
+        oam_dma_write => false,
+        
+        data_to_cpu => (others => '-'),
+        data_to_apu => (others => '-'),
+        data_to_joy => (others => '-'),
+        data_to_ram => (others => '-'),
+        data_to_ppu => (others => '-')
+    );
+
     type cpu_mmap_in_t is record
-        reg    : mapper_reg_t;
+        reg    : cpu_mmap_reg_t;
         bus_in : cpu_mmap_bus_in_t;
+        cart   : cart_cpu_out_t;
     end record;
     
     type cpu_mmap_out_t is record
-        reg     : mapper_reg_t;
+        reg     : cpu_mmap_reg_t;
         bus_out : cpu_mmap_bus_out_t;
     end record;
     
     function mmap_cpu_memory(map_in : cpu_mmap_in_t) return cpu_mmap_out_t;
+
+    -- The complete set of bus inputs for
+    -- NES PPU memory mapping
+    type ppu_mmap_bus_in_t is record
+        chr_bus : chr_bus_t;
+        
+        data_from_ppu   : data_t;
+        data_from_ciram : data_t;
+    end record;
     
-    type ppu_mmap_in_t is record
-        reg    : mapper_reg_t;
+    -- The complete set of bus outputs for
+    -- NES PPU memory mapping
+    type ppu_mmap_bus_out_t is record
+        ciram_bus : ciram_bus_t;
+        
+        data_to_ppu   : data_t;
+        data_to_ciram : data_t;
+    end record;
+    
+    constant PPU_MMAP_BUS_IDLE : ppu_mmap_bus_out_t :=
+    (
+        ciram_bus => CIRAM_BUS_IDLE,
+        
+        data_to_ppu => (others => '-'),
+        data_to_ciram => (others => '-')
+    );
+    
+    function mmap_ppu_memory
+    (
         bus_in : ppu_mmap_bus_in_t;
-    end record;
+        cart   : cart_ppu_out_t
+    )
+    return ppu_mmap_bus_out_t;
+
+    -- The CPU side of the cartridge connector for an access on the CPU bus
+    function get_cart_cpu_in
+    (
+        cpu_bus : cpu_bus_t;
+        data    : data_t
+    )
+    return cart_cpu_in_t;
+
+    function get_ram_addr(addr : cpu_addr_t) return ram_addr_t;
     
-    type ppu_mmap_out_t is record
-        reg     : mapper_reg_t;
-        bus_out : ppu_mmap_bus_out_t;
-        irq     : boolean;
-    end record;
+    function get_ppu_addr(addr : cpu_addr_t) return ppu_addr_t;
     
-    function mmap_ppu_memory(map_in : ppu_mmap_in_t) return ppu_mmap_out_t;
+    function get_apu_addr(addr : cpu_addr_t) return apu_addr_t;
+
+    function get_joy_addr(addr : cpu_addr_t) return joy_addr_t;
 
 end package lib_nes_mmap;
 
@@ -92,8 +196,6 @@ package body lib_nes_mmap is
     function mmap_cpu_memory(map_in : cpu_mmap_in_t) return cpu_mmap_out_t
     is
         variable map_out : cpu_mmap_out_t;
-        variable mapper_in : cpu_mapper_in_t;
-        variable mapper_out : cpu_mapper_out_t;
         variable address : natural range 0 to 16#FFFF#;
         variable v_regs_enabled : boolean;
         variable v_reg_range    : boolean;
@@ -208,18 +310,14 @@ package body lib_nes_mmap is
                 -- CPU test mode registers
                 when 16#4018# to 16#401F# =>
                     map_out.bus_out.data_to_cpu := map_in.reg.open_bus;
+                -- Cartridge
                 when others =>
-                    mapper_in.reg := map_in.reg;
-                    mapper_in.bus_in :=
-                        cpu_mmap_in_to_mapper_in(map_in.bus_in,
-                                                 map_in.reg.write_prev,
-                                                 map_in.reg.open_bus);
-                    
-                    mapper_out := map_cpu_using_mapper(mapper_in);
-                    
-                    map_out.reg := mapper_out.reg;
-                    map_out.bus_out :=
-                        cpu_mapper_out_to_mmap_out(mapper_out.bus_out);
+                    if map_in.cart.data_oe
+                    then
+                        map_out.bus_out.data_to_cpu := map_in.cart.data;
+                    else
+                        map_out.bus_out.data_to_cpu := map_in.reg.open_bus;
+                    end if;
             end case;
 
             v_ext_data := map_out.bus_out.data_to_cpu;
@@ -238,8 +336,6 @@ package body lib_nes_mmap is
         
         if map_in.bus_in.clk_sync
         then
-            map_out.reg.write_prev := map_in.bus_in.cpu_bus.write;
-
             if not map_in.bus_in.dma_cycle
             then
                 if is_bus_write(map_in.bus_in.cpu_bus)
@@ -270,25 +366,77 @@ package body lib_nes_mmap is
         return map_out;
     end;
     
-    function mmap_ppu_memory(map_in : ppu_mmap_in_t) return ppu_mmap_out_t
+    function mmap_ppu_memory
+    (
+        bus_in : ppu_mmap_bus_in_t;
+        cart   : cart_ppu_out_t
+    )
+    return ppu_mmap_bus_out_t
     is
-        variable map_out : ppu_mmap_out_t;
-        variable mapper_in : ppu_mapper_in_t;
-        variable mapper_out : ppu_mapper_out_t;
+        variable ret : ppu_mmap_bus_out_t;
     begin
-        map_out.reg := map_in.reg;
-        map_out.bus_out := PPU_MMAP_BUS_IDLE;
+        ret := PPU_MMAP_BUS_IDLE;
+
+        if cart.ciram_ce
+        then
+            ret.ciram_bus.address :=
+                cart.ciram_a11 &
+                cart.ciram_a10 &
+                bus_in.chr_bus.address(9 downto 0);
+            ret.ciram_bus.read := bus_in.chr_bus.read;
+            ret.ciram_bus.write := bus_in.chr_bus.write;
+
+            ret.data_to_ppu := bus_in.data_from_ciram;
+            ret.data_to_ciram := bus_in.data_from_ppu;
+        elsif cart.data_oe
+        then
+            ret.data_to_ppu := cart.data;
+        end if;
         
-        mapper_in.reg := map_in.reg;
-        mapper_in.bus_in := ppu_mmap_in_to_mapper_in(map_in.bus_in);
-        
-        mapper_out := map_ppu_using_mapper(mapper_in);
-        map_out.bus_out :=
-            ppu_mapper_out_to_mmap_out(mapper_out.bus_out);
-        map_out.reg := mapper_out.reg;
-        map_out.irq := mapper_out.irq;
-        
-        return map_out;
+        return ret;
+    end;
+
+    function get_cart_cpu_in
+    (
+        cpu_bus : cpu_bus_t;
+        data    : data_t
+    )
+    return cart_cpu_in_t
+    is
+        variable ret : cart_cpu_in_t;
+    begin
+        ret.prg_bus.address := cpu_bus.address(prg_addr_t'range);
+        ret.prg_bus.read := cpu_bus.read;
+        ret.prg_bus.write := cpu_bus.write;
+        -- M2 is high for all of an access here, so /ROMSEL is just A15
+        ret.romsel := is_bus_active(cpu_bus) and cpu_bus.address(15) = '1';
+        ret.data := data;
+
+        return ret;
+    end;
+
+    function get_ram_addr(addr : cpu_addr_t) return ram_addr_t
+    is
+    begin
+        return addr(ram_addr_t'RANGE);
+    end;
+    
+    function get_ppu_addr(addr : cpu_addr_t) return ppu_addr_t
+    is
+    begin
+        return addr(ppu_addr_t'RANGE);
+    end;
+    
+    function get_apu_addr(addr : cpu_addr_t) return apu_addr_t
+    is
+    begin
+        return addr(apu_addr_t'RANGE);
+    end;
+
+    function get_joy_addr(addr : cpu_addr_t) return joy_addr_t
+    is
+    begin
+        return addr(joy_addr_t'RANGE);
     end;
 
 end package body;

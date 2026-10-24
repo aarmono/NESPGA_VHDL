@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.apu_bus_types.all;
 use work.file_bus_types.all;
+use work.cart_mem_bus_types.all;
 use work.nes_types.all;
 use work.nes_audio_mixer.all;
 
@@ -88,8 +89,7 @@ package simulation is
     (
         FILEPATH    : string;
         MEM_BYTES   : integer := 131072;
-        READ_DELAY  : time := 0 ns;
-        WRITE_DELAY : time := 0 ns
+        READ_DELAY  : time := 0 ns
     );
     port
     (
@@ -102,6 +102,11 @@ package simulation is
         data_from_file_2 : out data_t
     );
     end component file_memory;
+
+    -- The access to a ROM file in a file_memory for an access to the
+    -- cartridge memory bus. The ROM file is in the lower half of the bus;
+    -- the cartridge RAMs in the upper half are not in the file
+    function get_file_bus(cart_mem_bus : cart_mem_bus_t) return file_bus_t;
     
     component clock is
     generic
@@ -207,5 +212,21 @@ package simulation is
 end simulation;
 
 package body simulation is
+
+    function get_file_bus(cart_mem_bus : cart_mem_bus_t) return file_bus_t
+    is
+    begin
+        assert not is_bus_active(cart_mem_bus) or
+               cart_mem_bus.address(cart_mem_addr_t'high) = '0'
+            report "Cartridge RAM access reached the ROM file"
+            severity failure;
+
+        return
+        (
+            address => cart_mem_bus.address(file_addr_t'range),
+            read => cart_mem_bus.read,
+            write => cart_mem_bus.write
+        );
+    end;
 
 end package body;
