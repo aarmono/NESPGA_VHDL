@@ -117,6 +117,9 @@ package cart_types is
         -- open bus
         data    : data_t;
         data_oe : boolean;
+        -- The bits of data the board leaves floating when it drives the
+        -- others: the console reads open bus there
+        data_float : data_t;
         -- /IRQ, active high
         irq     : boolean;
     end record;
@@ -125,6 +128,7 @@ package cart_types is
     (
         data => (others => '-'),
         data_oe => false,
+        data_float => (others => '0'),
         irq => false
     );
 

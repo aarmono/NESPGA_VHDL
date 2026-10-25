@@ -17,6 +17,11 @@ LATCH_VARIANTS := nrom_128 nrom_256_v uxrom uorom cnrom axrom colordreams \
                   bnrom_ines bnrom_nes2 nina001_ines nina001_nes2 gxrom
 LATCH_CHR_RAM_VARIANTS := cprom unrom512 flash single four hv
 LATCH_ADDR_VARIANTS := 228_a52 228_small
+LATCH_BOARDS_VARIANTS := 70 70_1scr 152 71 71_1 78_1 78_3 78_ines 79 146 87 \
+                         89 93 94 97 101 140 180 184 185_4 185_5 185_6 185_7 \
+                         185_ines 232 232_1 58 61 61_1 61_ram 62 200 200_1 \
+                         201 202 203 212 213 214 225 255 226 227 227_2 \
+                         227_rpg 242 242_rpg 231
 MMC1_VARIANTS := sxrom surom serom 155 105
 MMC1_PRG_RAM_VARIANTS := sorom sxrom szrom ines
 MMC2_VARIANTS := mmc2 mmc4
@@ -32,6 +37,7 @@ FME7_ROMS := $(FME7_VARIANTS:%=$(OUT)/fme7_%.nes)
 LATCH_ROMS := $(LATCH_VARIANTS:%=$(OUT)/latch_%.nes)
 LATCH_CHR_RAM_ROMS := $(LATCH_CHR_RAM_VARIANTS:%=$(OUT)/latch_chr_ram_%.nes)
 LATCH_ADDR_ROMS := $(LATCH_ADDR_VARIANTS:%=$(OUT)/latch_addr_%.nes)
+LATCH_BOARDS_ROMS := $(LATCH_BOARDS_VARIANTS:%=$(OUT)/latch_boards_%.nes)
 MMC1_ROMS := $(MMC1_VARIANTS:%=$(OUT)/mmc1_%.nes)
 MMC1_PRG_RAM_ROMS := $(MMC1_PRG_RAM_VARIANTS:%=$(OUT)/mmc1_prg_ram_%.nes)
 MMC2_ROMS := $(MMC2_VARIANTS:%=$(OUT)/mmc2_%.nes)
@@ -42,6 +48,7 @@ VRC4_ROMS := $(VRC4_VARIANTS:%=$(OUT)/vrc4_%.nes)
 VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 
 ROMS := $(FME7_ROMS) $(LATCH_ROMS) $(LATCH_CHR_RAM_ROMS) $(LATCH_ADDR_ROMS) \
+        $(LATCH_BOARDS_ROMS) \
         $(MMC1_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) \
         $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(VRC4_ROMS) $(VRC6_ROMS) \
         $(OUT)/mmc5_split.nes
@@ -64,6 +71,9 @@ $(LATCH_CHR_RAM_ROMS): $(OUT)/latch_chr_ram_%.nes: latch_chr_ram.py | $(OUT)
 
 $(LATCH_ADDR_ROMS): $(OUT)/latch_addr_%.nes: latch_addr.py | $(OUT)
 	$(PYTHON) latch_addr.py $@ $*
+
+$(LATCH_BOARDS_ROMS): $(OUT)/latch_boards_%.nes: latch_boards.py | $(OUT)
+	$(PYTHON) latch_boards.py $@ $*
 
 $(MMC1_ROMS): $(OUT)/mmc1_%.nes: mmc1.py | $(OUT)
 	$(PYTHON) mmc1.py $@ $*
