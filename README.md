@@ -13,7 +13,8 @@ in that. The NES poses no difficulty for modern FPGA hardware: the main
 constraint is memory which more modern FPGAs have much more of.
 The current status is:
 
-* Games playable from embedded flash memory on the DE1 board
+* Games playable from NES roms flashed onto an SD card using the on-board SD
+  card slot
 * Video using the on-board VGA output (color resolution is 4-bit per channel
   due to the way the VGA hardware is designed, but this does not appear to
   matter significantly)
