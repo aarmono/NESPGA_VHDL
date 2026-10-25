@@ -141,6 +141,22 @@ nes-test-roms/mmc3_test_2/rom_singles/3-A12_clocking.nes            | 434ms     
 nes-test-roms/mmc3_test_2/rom_singles/4-scanline_timing.nes         | 5300ms    | 169ef9bd055742335d415ccd88c83e451e58c109ea55a7d239804ba1131dee36 *frame_00316.bmp
 nes-test-roms/mmc3_test_2/rom_singles/5-MMC3.nes                    | 434ms     | 0271ba3e5515837c7eb972cab807c40877793361bf71ba465012dad55db443e2 *frame_00025.bmp
 
+# VRC2a CHR banks, which drop bit 0 of the bank number. The ROM changes the
+# bank every 8 frames; the hashed frame shows bank 10 (written 0x14), after
+# the first write of the high register
+nes-test-roms/m22chrbankingtest/0-127.nes                           | 2852ms    | 413405d56f2bf2372c53095ee7e26773af76629e561444df7e63e62ed13a37df *frame_00170.bmp
+
+# nes-test-roms copied with an NES 2.0 header by simulation/test_roms/Makefile,
+# for boards an iNES header cannot select. The MMC3 revision A tests run on
+# the NEC MMC3 (submapper 4)
+board/sim/ghdl/generated_roms/nes2_mmc3_rev_a.nes                   | 317ms     | f35a84374f83b8f73e3ae0991452fae678a951fcfad073b51259ab813ab4e38a *frame_00018.bmp
+board/sim/ghdl/generated_roms/nes2_mmc3_alt.nes                     | 434ms     | 44daac2d69cc00730b636ff67af2804f3090b6a41a06b01f2895bc17290da164 *frame_00025.bmp
+# SNROM, which disables PRG RAM with bit 4 of the CHR bank PPU A12 selects.
+# The ROM shows a grey bar of about 16 lines, timed by reading PRG RAM,
+# which is disabled only while the PPU fetches sprites. Without it the ROM
+# hangs before the bar. Where the bar ends repeats every 4 frames
+board/sim/ghdl/generated_roms/nes2_mmc1_a12.nes                     | 684ms     | a49e08017ddb2fd427cf748117608f21294bdad8670849c8da261d74ed114842 *frame_00040.bmp
+
 # MMC5 CHR banks while rendering: extended attributes, and the background and
 # sprite register sets of 8x16 sprites. Matches Mesen
 nes-test-roms/mmc5test_v2/mmc5test.nes                              | 2570ms    | fcb371c468fada935bf4dcdc34333f20f1c96c5ddfd72b269c48758eff31bd5c *frame_00150.bmp | test_inputs/mmc5test_v2/exattr_8x16.fm2

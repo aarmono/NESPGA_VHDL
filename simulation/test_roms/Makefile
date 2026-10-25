@@ -8,6 +8,7 @@
 # mmc5_split.py continue) are left out.
 
 OUT ?= ../../board/sim/ghdl/generated_roms
+NES_TEST_ROMS := ../../nes-test-roms
 # -B: no __pycache__ in the source tree, which would be owned by root when
 # run in the docker container
 PYTHON ?= python3 -B
@@ -47,11 +48,16 @@ MMC5_AUDIO_ROMS := $(MMC5_AUDIO_VARIANTS:%=$(OUT)/mmc5_audio_%.nes)
 VRC4_ROMS := $(VRC4_VARIANTS:%=$(OUT)/vrc4_%.nes)
 VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 
+# Test ROMs of nes-test-roms copied with an NES 2.0 header, for boards an
+# iNES header cannot select
+NES2_ROMS := $(OUT)/nes2_mmc3_alt.nes $(OUT)/nes2_mmc3_rev_a.nes \
+             $(OUT)/nes2_mmc1_a12.nes
+
 ROMS := $(FME7_ROMS) $(LATCH_ROMS) $(LATCH_CHR_RAM_ROMS) $(LATCH_ADDR_ROMS) \
         $(LATCH_BOARDS_ROMS) \
         $(MMC1_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) \
         $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(VRC4_ROMS) $(VRC6_ROMS) \
-        $(OUT)/mmc5_split.nes
+        $(OUT)/mmc5_split.nes $(NES2_ROMS)
 
 .PHONY: all clean
 .DELETE_ON_ERROR:
@@ -101,6 +107,20 @@ $(VRC6_ROMS): $(OUT)/vrc6_%.nes: vrc6.py | $(OUT)
 
 $(OUT)/mmc5_split.nes: mmc5_split.py mmc5.py | $(OUT)
 	$(PYTHON) mmc5_split.py $@
+
+# NEC MMC3
+$(OUT)/nes2_mmc3_alt.nes: $(NES_TEST_ROMS)/mmc3_test_2/rom_singles/6-MMC3_alt.nes \
+                          nes2_header.py | $(OUT)
+	$(PYTHON) nes2_header.py $< $@ submapper=4 prg_ram=8192
+
+$(OUT)/nes2_mmc3_rev_a.nes: $(NES_TEST_ROMS)/mmc3_irq_tests/5.MMC3_rev_A.nes \
+                            nes2_header.py | $(OUT)
+	$(PYTHON) nes2_header.py $< $@ submapper=4 prg_ram=8192 chr_ram=8192
+
+# SNROM
+$(OUT)/nes2_mmc1_a12.nes: $(NES_TEST_ROMS)/MMC1_A12/mmc1_a12.nes \
+                          nes2_header.py | $(OUT)
+	$(PYTHON) nes2_header.py $< $@ prg_ram=8192 chr_ram=8192
 
 $(OUT):
 	mkdir -p $@

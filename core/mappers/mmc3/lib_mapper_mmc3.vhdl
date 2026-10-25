@@ -30,6 +30,11 @@ package lib_mapper_mmc3 is
     (
         -- TxROM (4)
         MMC3_TXROM,
+        -- TxROM with an NEC MMC3 (4, NES 2.0 submapper 4), which raises the
+        -- IRQ only when the counter reaches 0 from 1, or is reloaded after
+        -- 0xC001 was written. A reload value of 0 then gives a single IRQ
+        -- rather than one every scanline
+        MMC3_NEC,
         -- HKROM (4, NES 2.0 submapper 1): the MMC6, which has 1KB of PRG
         -- RAM at 0x7000-0x7FFF, enabled in 512 byte halves
         MMC3_MMC6,
@@ -96,6 +101,8 @@ package lib_mapper_mmc3 is
 
         irq_count  : irq_count_t;
         irq_reload : irq_count_t;
+        -- 0xC001 was written since the counter was last clocked
+        irq_clear  : boolean;
         irq_enable : boolean;
         irq        : boolean;
         irq_delay  : irq_delay_t;
@@ -123,6 +130,7 @@ package lib_mapper_mmc3 is
 
         irq_count => 0,
         irq_reload => 0,
+        irq_clear => false,
         irq_enable => false,
         irq => false,
         irq_delay => (others => false),
@@ -170,6 +178,9 @@ package body lib_mapper_mmc3 is
                 if config.submapper_num = x"1"
                 then
                     return MMC3_MMC6;
+                elsif config.submapper_num = x"4"
+                then
+                    return MMC3_NEC;
                 else
                     return MMC3_TXROM;
                 end if;
@@ -345,6 +356,7 @@ package body lib_mapper_mmc3 is
                             to_integer(unsigned(cart_in.cpu.data));
                     else
                         ret.irq_count := 0;
+                        ret.irq_clear := true;
                     end if;
                 -- 0xE000-0xFFFF
                 when others =>
@@ -372,6 +384,7 @@ package body lib_mapper_mmc3 is
     function cycle_irq
     (
         reg     : mapper_mmc3_reg_t;
+        board   : mmc3_board_t;
         cart_in : cart_in_t
     )
     return mapper_mmc3_reg_t
@@ -397,8 +410,10 @@ package body lib_mapper_mmc3 is
                 else
                     ret.irq_count := reg.irq_count - 1;
                 end if;
+                ret.irq_clear := false;
 
-                if ret.irq_count = 0
+                if ret.irq_count = 0 and
+                   (board /= MMC3_NEC or reg.irq_count /= 0 or reg.irq_clear)
                 then
                     ret.irq := reg.irq_enable;
                 end if;
@@ -540,7 +555,7 @@ package body lib_mapper_mmc3 is
     begin
         -- The PPU sees the registers written by the CPU this cycle
         written := cycle_write(reg, board, config, clk_sync, cart_in);
-        ret.reg := cycle_irq(written, cart_in);
+        ret.reg := cycle_irq(written, board, cart_in);
 
         chr_window := get_chr_window(cart_in.ppu);
 
@@ -560,7 +575,7 @@ package body lib_mapper_mmc3 is
         banks.mirror := get_mirror(written, board, config, chr_bank);
 
         case board is
-            when MMC3_TXROM | MMC3_MMC6 | MMC3_TXSROM =>
+            when MMC3_TXROM | MMC3_NEC | MMC3_MMC6 | MMC3_TXSROM =>
             when MMC3_QJ =>
                 prg_bank := "000" & written.outer & prg_bank(3 downto 0);
                 chr_bank := written.outer & chr_bank(6 downto 0);
