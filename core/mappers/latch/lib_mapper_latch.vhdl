@@ -100,19 +100,13 @@ package lib_mapper_latch is
     (
         -- LATCH_PRG selects a 32KB bank at 0x8000
         PRG_32KB,
-        -- LATCH_PRG selects a 16KB bank at 0x8000. 0xC000 holds it with the
-        -- bits of prg_fixed set: the last bank, or the last of an outer
+        -- LATCH_PRG selects a 16KB bank at 0x8000. 0xC000 holds the fixed
+        -- bank: it with the bits of prg_fixed set and the other bits of
+        -- prg_fixed_clear clear. By default the last bank
+        PRG_16KB_FIXED_HIGH,
+        -- LATCH_PRG selects a 16KB bank at 0xC000. 0x8000 holds the fixed
         -- bank
-        PRG_16KB_FIXED_LAST,
-        -- LATCH_PRG selects a 16KB bank at 0xC000. 0x8000 holds the first
-        -- bank
-        PRG_16KB_HIGH_FIXED_FIRST,
-        -- LATCH_PRG selects a 16KB bank at 0xC000. 0x8000 holds it with
-        -- the bits of prg_fixed set
-        PRG_16KB_HIGH_FIXED_LAST,
-        -- LATCH_PRG selects a 16KB bank at 0xC000. 0x8000 holds it with
-        -- bit 0 clear
-        PRG_16KB_HIGH_EVEN_LOW,
+        PRG_16KB_FIXED_LOW,
         -- LATCH_PRG selects a 16KB bank. When any bit of LATCH_PRG_MODE is
         -- set it is at both 0x8000 and 0xC000, otherwise its bit 0 is
         -- dropped and it selects a 32KB bank at 0x8000
@@ -160,7 +154,7 @@ package lib_mapper_latch is
     type latch_board_t is record
         prg_mode     : latch_prg_mode_t;
         -- The bits of LATCH_PRG set and cleared for the fixed bank of the
-        -- PRG modes that have one
+        -- PRG modes that have one. Set bits take precedence
         prg_fixed       : latch_value_t;
         prg_fixed_clear : latch_value_t;
         chr_mode     : latch_chr_mode_t;
@@ -173,8 +167,8 @@ package lib_mapper_latch is
         prg_no_socket_2 : boolean;
         -- CHR is disabled for the first two reads of it after reset
         chr_reads_disable : boolean;
-        -- The board can disable CHR or write protect CHR RAM. Set from the
-        -- latches, so that the boards that cannot skip the checks
+        -- The board can disable CHR or write protect CHR RAM. Derived from
+        -- the latches, so that the other boards skip the checks
         chr_disable  : boolean;
         chr_protect  : boolean;
         -- Reads at 0x6000-0x7FFF with A4 clear have D7 set, the other bits
@@ -207,7 +201,8 @@ package lib_mapper_latch is
 
     subtype latch_chr_reads_t is natural range 0 to 2;
 
-    subtype latch_nibble_t is unsigned(3 downto 0);
+    -- An integer, which is faster to simulate than a vector
+    subtype latch_nibble_t is natural range 0 to 15;
     type latch_nibble_ram_t is array(0 to 3) of latch_nibble_t;
 
     type mapper_latch_reg_t is record
@@ -221,7 +216,7 @@ package lib_mapper_latch is
     (
         latches => (others => (others => '0')),
         chr_reads => 0,
-        ram => (others => (others => '0'))
+        ram => (others => 0)
     );
 
     -- The latches as a write of 0 to 0x8000 leaves them. The bits that are
@@ -267,28 +262,37 @@ package body lib_mapper_latch is
     -- A latch that is never written
     constant LATCH_NONE : latch_t := (others => BIT_NONE);
 
-    -- The sources of data bits hi downto lo
-    function data_bits(hi : natural; lo : natural) return latch_srcs_t
+    -- The sources of bits hi downto lo of the data or address, whose bit 0
+    -- is bit_0
+    function src_bits
+    (
+        bit_0 : latch_src_t;
+        hi    : natural;
+        lo    : natural
+    )
+    return latch_srcs_t
     is
         variable ret : latch_srcs_t(0 to hi - lo);
     begin
         for i in ret'range
         loop
-            ret(i) := latch_src_t'val(latch_src_t'pos(SRC_D0) + hi - i);
+            ret(i) := latch_src_t'val(latch_src_t'pos(bit_0) + hi - i);
         end loop;
         return ret;
+    end;
+
+    -- The sources of data bits hi downto lo
+    function data_bits(hi : natural; lo : natural) return latch_srcs_t
+    is
+    begin
+        return src_bits(SRC_D0, hi, lo);
     end;
 
     -- The sources of address bits hi downto lo
     function addr_bits(hi : natural; lo : natural) return latch_srcs_t
     is
-        variable ret : latch_srcs_t(0 to hi - lo);
     begin
-        for i in ret'range
-        loop
-            ret(i) := latch_src_t'val(latch_src_t'pos(SRC_A0) + hi - i);
-        end loop;
-        return ret;
+        return src_bits(SRC_A0, hi, lo);
     end;
 
     -- Bits written at addr from srcs, given most significant first. Bits
@@ -320,6 +324,22 @@ package body lib_mapper_latch is
         for i in ret'range
         loop
             ret(i).inv := not ret(i).inv;
+        end loop;
+        return ret;
+    end;
+
+    -- The bits inverted where mask is set, given most significant first
+    function inv(b : latch_bits_t; mask : std_logic_vector) return latch_bits_t
+    is
+        variable m : std_logic_vector(0 to mask'length - 1) := mask;
+        variable ret : latch_bits_t(0 to b'length - 1) := b;
+    begin
+        for i in ret'range
+        loop
+            if m(i) = '1'
+            then
+                ret(i).inv := not ret(i).inv;
+            end if;
         end loop;
         return ret;
     end;
@@ -412,7 +432,8 @@ package body lib_mapper_latch is
     is
         variable ret : latch_board_t;
         variable addr : latch_addr_t;
-        variable no_submapper : boolean;
+        variable ines_four_screen : boolean;
+        variable outer : latch_srcs_t(0 to 1);
     begin
         ret.prg_mode := PRG_32KB;
         ret.prg_fixed := (others => '1');
@@ -429,7 +450,8 @@ package body lib_mapper_latch is
 
         -- Before submappers, the four-screen bit of the header marked the
         -- variant of a few boards
-        no_submapper := config.submapper_num = x"0";
+        ines_four_screen := config.submapper_num = x"0" and
+                            config.mirror_pads(1) = '1';
 
         case config.mapper_num is
             -- NROM
@@ -438,7 +460,7 @@ package body lib_mapper_latch is
                 ret.prg_ram := true;
             -- UxROM
             when x"002" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.latches(LATCH_PRG) := rom_latch(7, 0);
             -- CNROM
             when x"003" =>
@@ -464,7 +486,7 @@ package body lib_mapper_latch is
             -- two and the LEDs of submapper 4, none of which are emulated,
             -- are at 0x8000-0xBFFF
             when x"01E" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.chr_ram_mask := CHR_RAM_32KB_MASK;
                 if (config.submapper_num = x"0" and not config.battery) or
                    config.submapper_num = x"2"
@@ -548,10 +570,9 @@ package body lib_mapper_latch is
             -- which was marked by the four-screen bit before it had a
             -- number of its own
             when x"046" | x"098" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.latches(LATCH_CHR_0) := rom_latch(3, 0);
-                if config.mapper_num = x"098" or
-                   (no_submapper and config.mirror_pads(1) = '1')
+                if config.mapper_num = x"098" or ines_four_screen
                 then
                     ret.mirror_mode := MIRROR_SINGLE;
                     ret.latches(LATCH_PRG) := rom_latch(6, 4);
@@ -565,7 +586,7 @@ package body lib_mapper_latch is
             -- until 0x9000-0x9FFF is written, which only Fire Hawk does:
             -- others write 0x8000 at startup
             when x"047" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.latches(LATCH_PRG) := latch(LATCH_ADDR_C000, 3, 0);
                 if config.submapper_num = x"1"
                 then
@@ -582,12 +603,11 @@ package body lib_mapper_latch is
             -- mirroring on the first and the nametable on the second.
             -- Without a submapper, the four-screen bit marks Holy Diver
             when x"04E" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.latches(LATCH_PRG) := rom_latch(2, 0);
                 ret.latches(LATCH_CHR_0) := rom_latch(7, 4);
                 ret.latches(LATCH_MIRROR) := rom_latch(SRC_D3);
-                if config.submapper_num = x"3" or
-                   (no_submapper and config.mirror_pads(1) = '1')
+                if config.submapper_num = x"3" or ines_four_screen
                 then
                     ret.mirror_mode := MIRROR_HV;
                 else
@@ -603,7 +623,7 @@ package body lib_mapper_latch is
                     latch(LATCH_ADDR_6000, SRC_D0 & SRC_D1);
             -- Sunsoft-2 on the Sunsoft-3 board
             when x"059" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.mirror_mode := MIRROR_SINGLE;
                 ret.latches(LATCH_PRG) := rom_latch(6, 4);
                 ret.latches(LATCH_CHR_0) := rom_latch(SRC_D7 & data_bits(2, 0));
@@ -611,17 +631,17 @@ package body lib_mapper_latch is
             -- Sunsoft-2 on the Sunsoft-3R board. Bit 0 clear disables CHR
             -- RAM
             when x"05D" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.latches(LATCH_PRG) := rom_latch(6, 4);
                 ret.latches(LATCH_CHR_DISABLE) :=
                     to_latch(inv(bits(LATCH_ADDR_ROM, SRC_D0)));
             -- UN1ROM
             when x"05E" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.latches(LATCH_PRG) := rom_latch(4, 2);
             -- Irem TAM-S1
             when x"061" =>
-                ret.prg_mode := PRG_16KB_HIGH_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_LOW;
                 ret.mirror_mode := MIRROR_HV;
                 ret.latches(LATCH_PRG) := latch(LATCH_ADDR_8000, 4, 0);
                 ret.latches(LATCH_MIRROR) := latch(LATCH_ADDR_8000, SRC_D7);
@@ -634,7 +654,9 @@ package body lib_mapper_latch is
                 ret.latches(LATCH_CHR_0) := latch(LATCH_ADDR_6000, 3, 0);
             -- UNROM with the first bank fixed
             when x"0B4" =>
-                ret.prg_mode := PRG_16KB_HIGH_FIXED_FIRST;
+                ret.prg_mode := PRG_16KB_FIXED_LOW;
+                ret.prg_fixed := x"00";
+                ret.prg_fixed_clear := x"FF";
                 ret.latches(LATCH_PRG) := rom_latch(2, 0);
             -- Sunsoft-1: the high bit of the bank at 0x1000 is always set
             when x"0B8" =>
@@ -648,25 +670,14 @@ package body lib_mapper_latch is
             -- CHR ROM is disabled for the first two reads after reset,
             -- which works with all known games
             when x"0B9" =>
-                case config.submapper_num is
-                    when x"4" =>
-                        ret.latches(LATCH_CHR_DISABLE) :=
-                            rom_latch(data_bits(1, 0));
-                    when x"5" =>
-                        ret.latches(LATCH_CHR_DISABLE) :=
-                            to_latch(bits(LATCH_ADDR_ROM, SRC_D1) &
-                                     inv(bits(LATCH_ADDR_ROM, SRC_D0)));
-                    when x"6" =>
-                        ret.latches(LATCH_CHR_DISABLE) :=
-                            to_latch(inv(bits(LATCH_ADDR_ROM, SRC_D1)) &
-                                     bits(LATCH_ADDR_ROM, SRC_D0));
-                    when x"7" =>
-                        ret.latches(LATCH_CHR_DISABLE) :=
-                            to_latch(inv(bits(LATCH_ADDR_ROM,
-                                              data_bits(1, 0))));
-                    when others =>
-                        ret.chr_reads_disable := true;
-                end case;
+                if config.submapper_num(3 downto 2) = "01"
+                then
+                    ret.latches(LATCH_CHR_DISABLE) :=
+                        to_latch(inv(bits(LATCH_ADDR_ROM, data_bits(1, 0)),
+                                     config.submapper_num(1 downto 0)));
+                else
+                    ret.chr_reads_disable := true;
+                end if;
             -- NROM-128 multicarts. Submapper 1 has one bank bit fewer
             when x"0C8" =>
                 ret.prg_mode := PRG_16KB_OR_32KB;
@@ -792,7 +803,9 @@ package body lib_mapper_latch is
                 ret.latches(LATCH_MIRROR) := rom_latch(SRC_A13);
             -- 20-in-1
             when x"0E7" =>
-                ret.prg_mode := PRG_16KB_HIGH_EVEN_LOW;
+                ret.prg_mode := PRG_16KB_FIXED_LOW;
+                ret.prg_fixed := x"00";
+                ret.prg_fixed_clear := x"01";
                 ret.mirror_mode := MIRROR_VH;
                 ret.latches(LATCH_PRG) := rom_latch(addr_bits(4, 1) & SRC_A5);
                 ret.latches(LATCH_MIRROR) := rom_latch(SRC_A7);
@@ -800,18 +813,17 @@ package body lib_mapper_latch is
             -- whose bits are swapped on the Aladdin Deck Enhancer
             -- (submapper 1), and a 16KB inner bank at 0xC000-0xFFFF
             when x"0E8" =>
-                ret.prg_mode := PRG_16KB_FIXED_LAST;
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
                 ret.prg_fixed := x"03";
                 if config.submapper_num = x"1"
                 then
-                    ret.latches(LATCH_PRG) :=
-                        to_latch(bits(LATCH_ADDR_8000, SRC_D3 & SRC_D4) &
-                                 bits(LATCH_ADDR_C000, data_bits(1, 0)));
+                    outer := SRC_D3 & SRC_D4;
                 else
-                    ret.latches(LATCH_PRG) :=
-                        to_latch(bits(LATCH_ADDR_8000, data_bits(4, 3)) &
-                                 bits(LATCH_ADDR_C000, data_bits(1, 0)));
+                    outer := data_bits(4, 3);
                 end if;
+                ret.latches(LATCH_PRG) :=
+                    to_latch(bits(LATCH_ADDR_8000, outer) &
+                             bits(LATCH_ADDR_C000, data_bits(1, 0)));
             when others =>
         end case;
 
@@ -939,9 +951,15 @@ package body lib_mapper_latch is
         return ret;
     end;
 
-    -- The value with the bits of mask set or cleared. Loops, since the
-    -- logical operators of numeric_std are slow to simulate
-    function set_bits(value : latch_value_t; mask : latch_value_t)
+    -- The value with the bits of set_mask set and the other bits of
+    -- clear_mask cleared. Loops, since the logical operators of numeric_std
+    -- are slow to simulate
+    function fix_bits
+    (
+        value      : latch_value_t;
+        set_mask   : latch_value_t;
+        clear_mask : latch_value_t
+    )
     return latch_value_t
     is
         variable ret : latch_value_t;
@@ -949,23 +967,10 @@ package body lib_mapper_latch is
         ret := value;
         for i in ret'range
         loop
-            if mask(i) = '1'
+            if set_mask(i) = '1'
             then
                 ret(i) := '1';
-            end if;
-        end loop;
-        return ret;
-    end;
-
-    function clear_bits(value : latch_value_t; mask : latch_value_t)
-    return latch_value_t
-    is
-        variable ret : latch_value_t;
-    begin
-        ret := value;
-        for i in ret'range
-        loop
-            if mask(i) = '1'
+            elsif clear_mask(i) = '1'
             then
                 ret(i) := '0';
             end if;
@@ -991,23 +996,18 @@ package body lib_mapper_latch is
         case board.prg_mode is
             when PRG_32KB =>
                 return resize(bank & window, prg_bank_8kb_t'length);
-            when PRG_16KB_FIXED_LAST =>
+            when PRG_16KB_FIXED_HIGH =>
                 if window(1) = '1'
                 then
-                    bank := set_bits(bank, board.prg_fixed);
+                    bank := fix_bits(bank, board.prg_fixed,
+                                     board.prg_fixed_clear);
                 end if;
-            when PRG_16KB_HIGH_FIXED_FIRST =>
+            when PRG_16KB_FIXED_LOW =>
                 if window(1) = '0'
                 then
-                    bank := (others => '0');
+                    bank := fix_bits(bank, board.prg_fixed,
+                                     board.prg_fixed_clear);
                 end if;
-            when PRG_16KB_HIGH_FIXED_LAST =>
-                if window(1) = '0'
-                then
-                    bank := set_bits(bank, board.prg_fixed);
-                end if;
-            when PRG_16KB_HIGH_EVEN_LOW =>
-                bank(0) := bank(0) and window(1);
             when PRG_16KB_OR_32KB =>
                 if is_zero(mode)
                 then
@@ -1025,9 +1025,9 @@ package body lib_mapper_latch is
                     bank(0) := bank(0) and not mode(0);
                 elsif mode(2) = '1'
                 then
-                    bank := set_bits(bank, board.prg_fixed);
+                    bank := fix_bits(bank, board.prg_fixed, x"00");
                 else
-                    bank := clear_bits(bank, board.prg_fixed_clear);
+                    bank := fix_bits(bank, x"00", board.prg_fixed_clear);
                 end if;
         end case;
 
@@ -1173,14 +1173,15 @@ package body lib_mapper_latch is
            not cart_in.cpu.romsel and
            cpu_addr(14 downto 11) = "1011"
         then
-            ram_addr := to_integer(unsigned(cpu_addr(1 downto 0)));
+            ram_addr := to_integer(cpu_addr(1 downto 0));
             if is_bus_write(cart_in.cpu.prg_bus) and clk_sync
             then
-                ret.reg.ram(ram_addr) := unsigned(cart_in.cpu.data(3 downto 0));
+                ret.reg.ram(ram_addr) :=
+                    to_integer(cart_in.cpu.data(3 downto 0));
             elsif is_bus_read(cart_in.cpu.prg_bus)
             then
                 ret.cart.cpu.data :=
-                    "0000" & std_logic_vector(reg.ram(ram_addr));
+                    to_std_logic_vector(reg.ram(ram_addr), data_t'length);
                 ret.cart.cpu.data_oe := true;
                 ret.cart.cpu.data_float := x"F0";
             end if;

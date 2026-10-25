@@ -165,6 +165,19 @@ class Board:
     def prg_ram(self):
         return False
 
+    # CHR is disabled for the first two reads after reset
+    def chr_reads_disabled(self):
+        return False
+
+    # Reads at 0x6000-0x7FFF with A4 clear have D7 set, the others are open
+    # bus
+    def d7_6000(self):
+        return False
+
+    # Four 4-bit RAMs at 0x5800-0x5803
+    def nibble_ram(self):
+        return False
+
 
 # Data written at 0x8000-0xFFFF, with values that toggle each bit
 DATA_VALUES = [0x00, 0xFF, 0x55, 0xAA, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20,
@@ -418,6 +431,9 @@ class M185(DataLatch):
             return False
         return bits(self.v, 1, 0) != self.submapper - 4
 
+    def chr_reads_disabled(self):
+        return self.submapper < 4
+
 
 class M232(Board):
     mapper = 232
@@ -587,6 +603,9 @@ class M212(AddrLatch):
     def nametables(self):
         return 'VH'[bit(self.a, 3)]
 
+    def d7_6000(self):
+        return True
+
 
 class M213(M58):
     mapper = 213
@@ -618,6 +637,9 @@ class M225(AddrLatch):
 
     def nametables(self):
         return 'VH'[bit(self.a, 13)]
+
+    def nibble_ram(self):
+        return True
 
 
 class M226(Board):
@@ -873,7 +895,7 @@ def build(board):
 
     # The CHR ROM of iNES mapper 185 is disabled for the first reads, then
     # enabled
-    if board.mapper == 185 and board.submapper < 4:
+    if board.chr_reads_disabled():
         group(6)
         ppu_read(0x0000)
         check(0x01, 0)
@@ -893,7 +915,7 @@ def build(board):
         check(0xA5, 0)
         a.abs(LDA_ABS, 0x7FFF)
         check(0x5A, 1)
-    if board.mapper == 212:
+    if board.d7_6000():
         # D7 is set with A4 clear, the other bits are open bus: the high
         # byte of the address
         a.abs(LDA_ABS, 0x6000)
@@ -902,7 +924,7 @@ def build(board):
         check(0xFF, 3)
         a.abs(LDA_ABS, 0x6010)
         check(0x60, 4)
-    if board.mapper in (225, 255):
+    if board.nibble_ram():
         for i, v in enumerate((0x15, 0x2A, 0x3C, 0x0F)):
             write(0x5800 + i, v)
         for i, v in enumerate((0x5, 0xA, 0xC, 0xF)):
