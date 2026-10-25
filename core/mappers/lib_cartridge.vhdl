@@ -10,6 +10,7 @@ use work.lib_mapper_vrc4.all;
 use work.lib_mapper_vrc6.all;
 use work.lib_mapper_mmc5.all;
 use work.lib_mapper_n163.all;
+use work.lib_mapper_action53.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -31,7 +32,8 @@ package lib_cartridge is
         BOARD_VRC4,
         BOARD_VRC6,
         BOARD_MMC5,
-        BOARD_N163
+        BOARD_N163,
+        BOARD_ACTION53
     );
 
     -- The board in use and how it is wired, decoded from the config
@@ -59,6 +61,7 @@ package lib_cartridge is
         vrc6  : mapper_vrc6_reg_t;
         mmc5  : mapper_mmc5_reg_t;
         n163  : mapper_n163_reg_t;
+        action53 : mapper_action53_reg_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -73,7 +76,8 @@ package lib_cartridge is
         vrc4 => RESET_MAPPER_VRC4_REG,
         vrc6 => get_reset_vrc6_reg,
         mmc5 => RESET_MAPPER_MMC5_REG,
-        n163 => RESET_MAPPER_N163_REG
+        n163 => RESET_MAPPER_N163_REG,
+        action53 => RESET_MAPPER_ACTION53_REG
     );
 
     type cart_cycle_out_t is record
@@ -131,6 +135,9 @@ package body lib_cartridge is
         elsif is_n163_mapper(mapper_num)
         then
             return BOARD_N163;
+        elsif is_action53_mapper(mapper_num)
+        then
+            return BOARD_ACTION53;
         else
             return BOARD_NONE;
         end if;
@@ -186,6 +193,7 @@ package body lib_cartridge is
         variable vrc6_out  : mapper_vrc6_out_t;
         variable mmc5_out  : mapper_mmc5_out_t;
         variable n163_out  : mapper_n163_out_t;
+        variable action53_out : mapper_action53_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -262,6 +270,13 @@ package body lib_cartridge is
                                               cart_in);
                 ret.reg.n163 := n163_out.reg;
                 ret.cart := n163_out.cart;
+            when BOARD_ACTION53 =>
+                action53_out := cycle_mapper_action53(reg.action53,
+                                                      config,
+                                                      clk_sync,
+                                                      cart_in);
+                ret.reg.action53 := action53_out.reg;
+                ret.cart := action53_out.cart;
             when BOARD_NONE =>
         end case;
 
@@ -283,6 +298,9 @@ package body lib_cartridge is
         elsif is_mmc5_mapper(config.mapper_num)
         then
             ret.prg_ram_mask := MMC5_INES_PRG_RAM_MASK;
+        elsif is_action53_mapper(config.mapper_num)
+        then
+            ret.chr_ram_mask := ACTION53_INES_CHR_RAM_MASK;
         end if;
 
         return ret;

@@ -65,6 +65,7 @@ begin
                 when BOARD_VRC6 => reg.vrc6 <= v_out.reg.vrc6;
                 when BOARD_MMC5 => reg.mmc5 <= v_out.reg.mmc5;
                 when BOARD_N163 => reg.n163 <= v_out.reg.n163;
+                when BOARD_ACTION53 => reg.action53 <= v_out.reg.action53;
                 when BOARD_NONE =>
             end case;
         end if;

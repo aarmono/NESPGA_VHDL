@@ -168,6 +168,8 @@ nes-test-roms/mmc5test_v2/mmc5test.nes                              | 2570ms    
 # result is up. The run times leave 3 frames more than usual for ROMs with
 # more than 8KB of cartridge RAM, which is cleared at reset before the
 # first frame
+board/sim/ghdl/generated_roms/action53_ines.nes                     | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/action53_nes2.nes                     | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/fme7_ines.nes                         | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/fme7_nes2.nes                         | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 

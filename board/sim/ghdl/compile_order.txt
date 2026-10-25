@@ -102,6 +102,7 @@
 ../../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
 ../../../core/mappers/n163/lib_n163_audio.vhdl
 ../../../core/mappers/n163/lib_mapper_n163.vhdl
+../../../core/mappers/action53/lib_mapper_action53.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl
