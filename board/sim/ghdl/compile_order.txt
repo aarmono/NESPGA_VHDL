@@ -10,6 +10,7 @@
 ../../../bus/prg_ram_bus_types.vhdl
 ../../../bus/chr_ram_bus_types.vhdl
 ../../../bus/exram_bus_types.vhdl
+../../../bus/chip_ram_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
 ../../../bus/oam_bus_types.vhdl
 ../../../bus/file_bus_types.vhdl
@@ -99,6 +100,8 @@
 ../../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
 ../../../core/mappers/mmc5/lib_mmc5_audio.vhdl
 ../../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
+../../../core/mappers/n163/lib_n163_audio.vhdl
+../../../core/mappers/n163/lib_mapper_n163.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl

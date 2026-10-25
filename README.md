@@ -41,6 +41,7 @@ Mappers currently supported:
 | Konami VRC2 / VRC4 | 21, 22, 23, 25 |
 | Konami VRC6 (including audio) | 24, 26 |
 | Tengen RAMBO-1 | 64, 158 |
+| Namco 163 (including audio) / 175 / 340 | 19, 210 |
 
 Bus conflicts on discrete boards and flash saving on mapper 30 are not
 emulated.

@@ -46,7 +46,7 @@ begin
     if clk_en then
         if reset
         then
-            reg <= get_reset_cart_reg(boards);
+            reg <= get_reset_cart_reg(boards, config);
         else
             v_out := cycle_cartridge(reg, boards, config, clk_sync, cart_in);
 
@@ -59,6 +59,7 @@ begin
                 when BOARD_VRC4 => reg.vrc4 <= v_out.reg.vrc4;
                 when BOARD_VRC6 => reg.vrc6 <= v_out.reg.vrc6;
                 when BOARD_MMC5 => reg.mmc5 <= v_out.reg.mmc5;
+                when BOARD_N163 => reg.n163 <= v_out.reg.n163;
                 when BOARD_NONE =>
             end case;
         end if;

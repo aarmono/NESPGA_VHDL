@@ -9,14 +9,16 @@ use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
 use work.exram_bus_types.all;
+use work.chip_ram_bus_types.all;
 use work.cart_mem_bus_types.all;
 
 -- Types shared by the cartridge and the boards (mappers) it can hold. The
 -- cart_cpu_* and cart_ppu_* records follow the pins of the cartridge
 -- connector. The memories on the board (PRG ROM, CHR ROM, PRG RAM and
 -- CHR RAM) are not on the connector, so they have records of their own.
--- So does RAM inside a mapper chip (the ExRAM of the MMC5), which is kept
--- with the memories of the board rather than in the board
+-- So does RAM inside a mapper chip (the ExRAM of the MMC5 and the chip RAM
+-- of the Namco 163), which is kept with the memories of the board rather than
+-- in the board
 package cart_types is
 
     subtype mapper_num_t is std_logic_vector(11 downto 0);
@@ -178,6 +180,7 @@ package cart_types is
         -- Read data of the CPU and PPU accesses to ExRAM
         data_from_cpu_exram : data_t;
         data_from_ppu_exram : data_t;
+        data_from_chip_ram  : data_t;
     end record;
 
     type cart_mem_out_t is record
@@ -197,6 +200,10 @@ package cart_types is
 
         ppu_exram_bus     : exram_bus_t;
         data_to_ppu_exram : data_t;
+
+        -- The chip RAM is on a bus of its own, with one access per PPU cycle
+        chip_ram_bus      : chip_ram_bus_t;
+        data_to_chip_ram  : data_t;
     end record;
 
     constant CART_MEM_OUT_IDLE : cart_mem_out_t :=
@@ -214,7 +221,10 @@ package cart_types is
         data_to_cpu_exram => (others => '-'),
 
         ppu_exram_bus => EXRAM_BUS_IDLE,
-        data_to_ppu_exram => (others => '-')
+        data_to_ppu_exram => (others => '-'),
+
+        chip_ram_bus => CHIP_RAM_BUS_IDLE,
+        data_to_chip_ram => (others => '-')
     );
 
     type cart_in_t is record
@@ -262,6 +272,9 @@ package cart_types is
         -- The PPU accesses the nametables in CHR, in bank chr like the
         -- pattern tables, rather than in CIRAM. mirror is not used
         nt_chr       : boolean;
+        -- The PPU accesses CIRAM, in the page mirror selects, whatever its
+        -- address, so a board can map CIRAM to the pattern tables as CHR RAM
+        ciram        : boolean;
     end record;
 
     -- The config with the masks for the sizes of the ROMs in its header
@@ -512,7 +525,8 @@ package body cart_types is
             chr_ram => has_chr_ram(config),
             chr => (others => '0'),
             mirror => config.mirror,
-            nt_chr => false
+            nt_chr => false,
+            ciram => false
         );
     end;
 
@@ -681,7 +695,10 @@ package body cart_types is
 
         if is_bus_active(cart_in.ppu.chr_bus)
         then
-            if cart_in.ppu.chr_bus.address(13) = '0' or banks.nt_chr
+            if banks.ciram
+            then
+                ret := map_ciram(cart_in, banks.mirror, ret);
+            elsif cart_in.ppu.chr_bus.address(13) = '0' or banks.nt_chr
             then
                 ret := map_chr(config, cart_in, banks, ret);
             else

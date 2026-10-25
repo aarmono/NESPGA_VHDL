@@ -9,6 +9,7 @@ use work.lib_mapper_fme7.all;
 use work.lib_mapper_vrc4.all;
 use work.lib_mapper_vrc6.all;
 use work.lib_mapper_mmc5.all;
+use work.lib_mapper_n163.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -29,7 +30,8 @@ package lib_cartridge is
         BOARD_FME7,
         BOARD_VRC4,
         BOARD_VRC6,
-        BOARD_MMC5
+        BOARD_MMC5,
+        BOARD_N163
     );
 
     -- The board in use and how it is wired, decoded from the config
@@ -42,6 +44,7 @@ package lib_cartridge is
         mmc3         : mmc3_board_t;
         vrc4         : vrc4_board_t;
         vrc6         : vrc6_board_t;
+        n163         : n163_board_t;
     end record;
 
     function get_cart_boards(config : cart_config_t) return cart_boards_t;
@@ -55,9 +58,15 @@ package lib_cartridge is
         vrc4  : mapper_vrc4_reg_t;
         vrc6  : mapper_vrc6_reg_t;
         mmc5  : mapper_mmc5_reg_t;
+        n163  : mapper_n163_reg_t;
     end record;
 
-    function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
+    function get_reset_cart_reg
+    (
+        boards : cart_boards_t;
+        config : cart_config_t
+    )
+    return cart_reg_t;
 
     constant RESET_CART_REG : cart_reg_t :=
     (
@@ -68,7 +77,8 @@ package lib_cartridge is
         fme7 => RESET_MAPPER_FME7_REG,
         vrc4 => RESET_MAPPER_VRC4_REG,
         vrc6 => get_reset_vrc6_reg,
-        mmc5 => RESET_MAPPER_MMC5_REG
+        mmc5 => RESET_MAPPER_MMC5_REG,
+        n163 => RESET_MAPPER_N163_REG
     );
 
     type cart_cycle_out_t is record
@@ -123,6 +133,9 @@ package body lib_cartridge is
         elsif is_mmc5_mapper(mapper_num)
         then
             return BOARD_MMC5;
+        elsif is_n163_mapper(mapper_num)
+        then
+            return BOARD_N163;
         else
             return BOARD_NONE;
         end if;
@@ -140,17 +153,24 @@ package body lib_cartridge is
             mmc2 => get_mmc2_board(config),
             mmc3 => get_mmc3_board(config),
             vrc4 => get_vrc4_board(config),
-            vrc6 => get_vrc6_board(config)
+            vrc6 => get_vrc6_board(config),
+            n163 => get_n163_board(config)
         );
     end;
 
-    function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t
+    function get_reset_cart_reg
+    (
+        boards : cart_boards_t;
+        config : cart_config_t
+    )
+    return cart_reg_t
     is
         variable ret : cart_reg_t;
     begin
         ret := RESET_CART_REG;
         ret.latch := get_reset_latch_reg(boards.latch);
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
+        ret.n163 := get_reset_n163_reg(boards.n163, config);
 
         return ret;
     end;
@@ -175,6 +195,7 @@ package body lib_cartridge is
         variable vrc4_out  : mapper_vrc4_out_t;
         variable vrc6_out  : mapper_vrc6_out_t;
         variable mmc5_out  : mapper_mmc5_out_t;
+        variable n163_out  : mapper_n163_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -243,6 +264,14 @@ package body lib_cartridge is
                                               cart_in);
                 ret.reg.mmc5 := mmc5_out.reg;
                 ret.cart := mmc5_out.cart;
+            when BOARD_N163 =>
+                n163_out := cycle_mapper_n163(reg.n163,
+                                              boards.n163,
+                                              config,
+                                              clk_sync,
+                                              cart_in);
+                ret.reg.n163 := n163_out.reg;
+                ret.cart := n163_out.cart;
             when BOARD_NONE =>
         end case;
 

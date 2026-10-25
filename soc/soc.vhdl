@@ -8,6 +8,7 @@ use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.ciram_bus_types.all;
+use work.chip_ram_bus_types.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
 
@@ -56,6 +57,11 @@ package soc is
         ciram_bus       : out ciram_bus_t;
         data_to_ciram   : out data_t;
         data_from_ciram : in data_t;
+
+        -- RAM inside the mapper chip
+        chip_ram_bus       : out chip_ram_bus_t;
+        data_to_chip_ram   : out data_t;
+        data_from_chip_ram : in data_t;
         
         pixel_bus : out pixel_bus_t;
         audio     : out mixed_audio_t;

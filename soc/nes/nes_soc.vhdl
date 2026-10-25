@@ -9,6 +9,7 @@ use work.ram_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.chr_bus_types.all;
 use work.ciram_bus_types.all;
+use work.chip_ram_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.ppu_bus_types.all;
@@ -63,6 +64,11 @@ port
     ciram_bus       : out ciram_bus_t;
     data_to_ciram   : out data_t;
     data_from_ciram : in data_t;
+
+    -- RAM inside the mapper chip
+    chip_ram_bus       : out chip_ram_bus_t;
+    data_to_chip_ram   : out data_t;
+    data_from_chip_ram : in data_t;
     
     pixel_bus : out pixel_bus_t;
     audio     : out mixed_audio_t;
@@ -202,7 +208,8 @@ begin
         data_from_prg_ram => data_from_cart_mem_prg,
         data_from_chr_ram => data_from_cart_mem_chr,
         data_from_cpu_exram => data_from_cart_mem_prg,
-        data_from_ppu_exram => data_from_cart_mem_chr
+        data_from_ppu_exram => data_from_cart_mem_chr,
+        data_from_chip_ram => data_from_chip_ram
     );
 
     -- The header is only read while loading, so that otherwise read data
@@ -441,6 +448,8 @@ begin
         cart_mem_bus_chr <= nes_out.chr_cart_mem_bus;
         data_to_cart_mem_chr <= nes_out.data_to_chr_cart_mem;
         ciram_bus <= nes_out.ppu_bus.ciram_bus;
+        chip_ram_bus <= nes_out.chip_ram_bus;
+        data_to_chip_ram <= nes_out.data_to_chip_ram;
         
         chr_data_to_ppu <= nes_out.ppu_bus.data_to_ppu;
         data_to_ciram <= nes_out.ppu_bus.data_to_ciram;

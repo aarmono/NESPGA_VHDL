@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.ciram_bus_types.all;
+use work.chip_ram_bus_types.all;
 use work.cpu_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.oam_bus_types.all;
@@ -79,6 +80,9 @@ architecture behavioral of nes_soc_ocram is
     signal data_from_palette  : pixel_t;
     signal data_from_ciram    : data_t;
     signal data_to_ciram      : data_t;
+    signal chip_ram_bus       : chip_ram_bus_t;
+    signal data_to_chip_ram   : data_t;
+    signal data_from_chip_ram : data_t;
     
 begin
 
@@ -125,6 +129,10 @@ begin
         ciram_bus => ciram_bus,
         data_to_ciram => data_to_ciram,
         data_from_ciram => data_from_ciram,
+
+        chip_ram_bus => chip_ram_bus,
+        data_to_chip_ram => data_to_chip_ram,
+        data_from_chip_ram => data_from_chip_ram,
         
         pixel_bus => pixel_bus,
         audio => audio,
@@ -222,6 +230,28 @@ begin
 
         data_in => data_to_ciram,
         data_out => data_from_ciram
+    );
+
+    -- RAM inside the mapper chip, which has a bus of its own so that the
+    -- chip can access it in every PPU cycle
+    chip_ram : syncram_sp
+    generic map
+    (
+        VENDOR => VENDOR,
+        ADDR_BITS => chip_ram_addr_t'length,
+        DATA_BITS => data_t'length
+    )
+    port map
+    (
+        clk => clk,
+        clk_en => sig_ppu_ram_en,
+
+        address => chip_ram_bus.address,
+        read => chip_ram_bus.read,
+        write => chip_ram_bus.write,
+
+        data_in => data_to_chip_ram,
+        data_out => data_from_chip_ram
     );
 
     oam : syncram_sp

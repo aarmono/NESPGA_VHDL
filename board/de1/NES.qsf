@@ -405,6 +405,8 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_mapper_vrc6.vh
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_vrc6_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc5/lib_mmc5_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/n163/lib_n163_audio.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/n163/lib_mapper_n163.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/latch/lib_mapper_latch.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/cart_types.vhdl
@@ -432,6 +434,7 @@ set_global_assignment -name VHDL_FILE ../../core/lib_nes_mmap.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/prg_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/chr_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/exram_bus_types.vhdl
+set_global_assignment -name VHDL_FILE ../../bus/chip_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/sec_oam_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/prg_bus_types.vhdl
