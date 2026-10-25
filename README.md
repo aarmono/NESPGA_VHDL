@@ -40,6 +40,7 @@ Mappers currently supported:
 | Sunsoft FME-7 (no 5B audio) | 69 |
 | Konami VRC2 / VRC4 | 21, 22, 23, 25 |
 | Konami VRC6 (including audio) | 24, 26 |
+| Tengen RAMBO-1 | 64, 158 |
 
 Bus conflicts on discrete boards and flash saving on mapper 30 are not
 emulated.
