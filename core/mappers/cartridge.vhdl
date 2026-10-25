@@ -19,6 +19,11 @@ port
     cart_in  : in cart_in_t;
     cart_out : out cart_out_t
 );
+    -- Quartus builds the small multipliers of the boards' audio (volume
+    -- and level scaling) from LEs unless told otherwise, and there are
+    -- plenty of multiplier blocks to spare
+    attribute multstyle : string;
+    attribute multstyle of cartridge : entity is "dsp";
 end cartridge;
 
 architecture behavioral of cartridge is
@@ -46,7 +51,7 @@ begin
     if clk_en then
         if reset
         then
-            reg <= get_reset_cart_reg(boards, config);
+            reg <= get_reset_cart_reg(boards);
         else
             v_out := cycle_cartridge(reg, boards, config, clk_sync, cart_in);
 

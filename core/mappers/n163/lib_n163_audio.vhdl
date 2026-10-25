@@ -28,6 +28,9 @@ package lib_n163_audio is
     -- The output of a channel: its sample, biased by -8, times its volume
     subtype n163_output_t is integer range -8 * 15 to 7 * 15;
     type n163_output_arr_t is array(n163_channel_t) of n163_output_t;
+    -- An output offset to be positive
+    subtype n163_level_t is natural range 0 to
+                                          n163_output_t'high - n163_output_t'low;
 
     -- CPU cycles since the last update. A channel is updated in the CPU
     -- cycle that takes the count to 15
@@ -64,13 +67,12 @@ package lib_n163_audio is
         divisor  : n163_divisor_t;
         offset   : natural range 0 to 2**8-1;
         volume   : n163_volume_t;
-        -- The output of the channel being updated, once it has its sample
-        output   : n163_output_t;
 
-        -- The output of each channel when it was last updated
+        -- The output of each channel, from when it has its sample in its
+        -- last update
         outputs  : n163_output_arr_t;
         -- The average of the enabled channels when the last was updated
-        level    : cart_audio_t;
+        level    : n163_level_t;
     end record;
 
     -- Mesen mixes each step of the output at 20, where the APU at its
@@ -91,10 +93,9 @@ package lib_n163_audio is
         divisor => 0,
         offset => 0,
         volume => 0,
-        output => 0,
 
         outputs => (others => 0),
-        level => (-n163_output_t'low * N163_STEP) / 2**8
+        level => -n163_output_t'low
     );
 
     -- Updates the channels for a PPU cycle. data is what the RAM access
@@ -107,22 +108,12 @@ package lib_n163_audio is
     )
     return n163_audio_t;
 
-    -- The access of the RAM by the update in this PPU cycle. It is never in
-    -- the sync cycle, which is the CPU's
-    function get_n163_ram_bus
-    (
-        audio    : n163_audio_t;
-        clk_sync : boolean
-    )
-    return chip_ram_bus_t;
+    -- The access of the RAM by the update in this PPU cycle, which is not
+    -- the sync cycle, the CPU's
+    function get_n163_ram_bus(audio : n163_audio_t) return chip_ram_bus_t;
 
     -- The data of a write by get_n163_ram_bus
-    function get_n163_ram_data
-    (
-        audio    : n163_audio_t;
-        clk_sync : boolean
-    )
-    return data_t;
+    function get_n163_ram_data(audio : n163_audio_t) return data_t;
 
     -- The CPU writes data to the RAM at addr
     function write_n163_ram
@@ -141,37 +132,36 @@ end package lib_n163_audio;
 
 package body lib_n163_audio is
 
-    function scale_level(output : n163_output_t) return cart_audio_t
-    is
-    begin
-        return ((output - n163_output_t'low) * N163_STEP) / 2**8;
-    end;
-
-    -- The steps of an update, each a PPU cycle: 3 * count plus the PPU
-    -- cycle within the CPU cycle, 2 for the sync cycle
-    subtype n163_step_t is natural range 0 to 3 * n163_count_t'high + 2;
+    -- The steps of an update, each a PPU cycle: 4 * count plus the PPU
+    -- cycle within the CPU cycle, 2 for the sync cycle. 4 rather than 3
+    -- makes the step a concatenation instead of an adder; step 3 of each CPU
+    -- cycle never happens
+    subtype n163_step_t is natural range 0 to 4 * n163_count_t'high + 2;
 
     -- The RAM is read and written in the first two PPU cycles of each CPU
     -- cycle: the frequency and length, the phase, the offset and volume, a
     -- sample, then the phase is written back
-    constant STEP_FREQ_LO  : n163_step_t := 3 * 7;
-    constant STEP_FREQ_MID : n163_step_t := 3 * 7 + 1;
-    constant STEP_FREQ_HI  : n163_step_t := 3 * 8;
-    constant STEP_PHASE_LO : n163_step_t := 3 * 8 + 1;
-    constant STEP_PHASE_MID : n163_step_t := 3 * 9;
-    constant STEP_PHASE_HI : n163_step_t := 3 * 9 + 1;
+    constant STEP_FREQ_LO  : n163_step_t := 4 * 7;
+    constant STEP_FREQ_MID : n163_step_t := 4 * 7 + 1;
+    constant STEP_FREQ_HI  : n163_step_t := 4 * 8;
+    constant STEP_PHASE_LO : n163_step_t := 4 * 8 + 1;
+    constant STEP_PHASE_MID : n163_step_t := 4 * 9;
+    constant STEP_PHASE_HI : n163_step_t := 4 * 9 + 1;
     -- The frequency is added to the phase, which is then brought below the
     -- length of the waveform
-    constant STEP_ADD      : n163_step_t := 3 * 9 + 2;
-    constant STEP_OFFSET   : n163_step_t := 3 * 10;
-    constant STEP_VOLUME   : n163_step_t := 3 * 10 + 1;
-    constant STEP_MOD_FIRST : n163_step_t := 3 * 10;
-    constant STEP_MOD_LAST : n163_step_t := 3 * 12;
-    constant STEP_SAMPLE   : n163_step_t := 3 * 12 + 1;
-    constant STEP_WRITE_LO : n163_step_t := 3 * 13;
-    constant STEP_WRITE_MID : n163_step_t := 3 * 13 + 1;
-    constant STEP_WRITE_HI : n163_step_t := 3 * 14;
-    constant STEP_UPDATE   : n163_step_t := 3 * 14 + 2;
+    constant STEP_ADD      : n163_step_t := 4 * 9 + 2;
+    constant STEP_OFFSET   : n163_step_t := 4 * 10;
+    constant STEP_VOLUME   : n163_step_t := 4 * 10 + 1;
+    constant STEP_MOD_FIRST : n163_step_t := 4 * 10;
+    constant STEP_MOD_LAST : n163_step_t := 4 * 12;
+    -- The PPU cycles from STEP_MOD_FIRST to STEP_MOD_LAST, less one: the
+    -- shifts of the length
+    constant MOD_SHIFTS    : natural := 6;
+    constant STEP_SAMPLE   : n163_step_t := 4 * 12 + 1;
+    constant STEP_WRITE_LO : n163_step_t := 4 * 13;
+    constant STEP_WRITE_MID : n163_step_t := 4 * 13 + 1;
+    constant STEP_WRITE_HI : n163_step_t := 4 * 14;
+    constant STEP_UPDATE   : n163_step_t := 4 * 14 + 2;
 
     function get_step
     (
@@ -183,9 +173,9 @@ package body lib_n163_audio is
     begin
         if clk_sync
         then
-            return 3 * audio.count + 2;
+            return 4 * audio.count + 2;
         else
-            return 3 * audio.count + audio.dot;
+            return 4 * audio.count + audio.dot;
         end if;
     end;
 
@@ -207,13 +197,13 @@ package body lib_n163_audio is
     function get_sample_pos(audio : n163_audio_t) return natural
     is
     begin
-        return (audio.phase / 2**16 + audio.offset) mod 2**8;
+        return wrap(audio.phase / 2**16 + audio.offset, 2**8-1);
     end;
 
-    -- The average of the enabled channels, with the channel being updated
-    -- at its new output. The sum is divided by the number of channels by
-    -- multiplying by 2**13 over it, rounded up, which truncates exactly for
-    -- every sum. Like the division in Mesen, it truncates towards zero
+    -- The average of the enabled channels. The sum is divided by the number
+    -- of channels by multiplying by 2**13 over it, rounded up, which
+    -- truncates exactly for every sum. Like the division in Mesen, it
+    -- truncates towards zero, as integer division does
     function get_average(audio : n163_audio_t) return n163_output_t
     is
         type recip_arr_t is array(n163_channel_t) of natural;
@@ -222,29 +212,17 @@ package body lib_n163_audio is
 
         variable sum : integer range 8 * n163_output_t'low to
                                      8 * n163_output_t'high;
-        variable quotient : natural range 0 to -n163_output_t'low;
     begin
         sum := 0;
         for i in n163_channel_t
         loop
             if i >= 7 - audio.channels
             then
-                if i = audio.channel
-                then
-                    sum := sum + audio.output;
-                else
-                    sum := sum + audio.outputs(i);
-                end if;
+                sum := sum + audio.outputs(i);
             end if;
         end loop;
 
-        quotient := (abs(sum) * RECIP(audio.channels)) / 2**13;
-        if sum < 0
-        then
-            return -quotient;
-        else
-            return quotient;
-        end if;
+        return (sum * RECIP(audio.channels)) / 2**13;
     end;
 
     -- The channel updated after the one being updated
@@ -292,7 +270,7 @@ package body lib_n163_audio is
                 when STEP_FREQ_HI =>
                     ret.freq := set_bits(audio.freq, 16, data(1 downto 0));
                     ret.divisor := (256 - 4 * to_integer(data(7 downto 2))) *
-                                   2**(STEP_MOD_LAST - STEP_MOD_FIRST);
+                                   2**MOD_SHIFTS;
                 when STEP_PHASE_LO =>
                     ret.phase := set_bits(audio.phase, 0, data);
                 when STEP_PHASE_MID =>
@@ -301,6 +279,10 @@ package body lib_n163_audio is
                     ret.phase := set_bits(audio.phase, 16, data);
                 when STEP_ADD =>
                     ret.phase := audio.phase + audio.freq;
+                when STEP_OFFSET =>
+                    ret.offset := to_integer(data);
+                when STEP_VOLUME =>
+                    ret.volume := to_integer(data(3 downto 0));
                 when STEP_SAMPLE =>
                     if get_sample_pos(audio) mod 2 = 0
                     then
@@ -308,20 +290,10 @@ package body lib_n163_audio is
                     else
                         sample := to_integer(data(7 downto 4));
                     end if;
-                    ret.output := (sample - 8) * audio.volume;
+                    ret.outputs(audio.channel) := (sample - 8) * audio.volume;
                 when STEP_UPDATE =>
-                    ret.outputs(audio.channel) := audio.output;
-                    ret.level := scale_level(get_average(audio));
+                    ret.level := get_average(audio) - n163_output_t'low;
                     ret.channel := get_next_channel(audio);
-                when others =>
-                    null;
-            end case;
-
-            case step is
-                when STEP_OFFSET =>
-                    ret.offset := to_integer(data);
-                when STEP_VOLUME =>
-                    ret.volume := to_integer(data(3 downto 0));
                 when others =>
                     null;
             end case;
@@ -349,12 +321,7 @@ package body lib_n163_audio is
         return ret;
     end;
 
-    function get_n163_ram_bus
-    (
-        audio    : n163_audio_t;
-        clk_sync : boolean
-    )
-    return chip_ram_bus_t
+    function get_n163_ram_bus(audio : n163_audio_t) return chip_ram_bus_t
     is
     begin
         if audio.disable
@@ -362,7 +329,7 @@ package body lib_n163_audio is
             return CHIP_RAM_BUS_IDLE;
         end if;
 
-        case get_step(audio, clk_sync) is
+        case get_step(audio, false) is
             when STEP_FREQ_LO => return bus_read(get_reg_addr(audio, 0));
             when STEP_FREQ_MID => return bus_read(get_reg_addr(audio, 2));
             when STEP_FREQ_HI => return bus_read(get_reg_addr(audio, 4));
@@ -381,16 +348,11 @@ package body lib_n163_audio is
         end case;
     end;
 
-    function get_n163_ram_data
-    (
-        audio    : n163_audio_t;
-        clk_sync : boolean
-    )
-    return data_t
+    function get_n163_ram_data(audio : n163_audio_t) return data_t
     is
         variable phase_byte : natural range 0 to 2**8-1;
     begin
-        case get_step(audio, clk_sync) is
+        case get_step(audio, false) is
             when STEP_WRITE_LO => phase_byte := get_bits(audio.phase, 7, 0);
             when STEP_WRITE_MID => phase_byte := get_bits(audio.phase, 15, 8);
             when others => phase_byte := get_bits(audio.phase, 23, 16);
@@ -422,7 +384,7 @@ package body lib_n163_audio is
     function get_n163_audio_level(audio : n163_audio_t) return cart_audio_t
     is
     begin
-        return audio.level;
+        return (audio.level * N163_STEP) / 2**8;
     end;
 
 end package body;

@@ -61,12 +61,7 @@ package lib_cartridge is
         n163  : mapper_n163_reg_t;
     end record;
 
-    function get_reset_cart_reg
-    (
-        boards : cart_boards_t;
-        config : cart_config_t
-    )
-    return cart_reg_t;
+    function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
 
     constant RESET_CART_REG : cart_reg_t :=
     (
@@ -158,19 +153,14 @@ package body lib_cartridge is
         );
     end;
 
-    function get_reset_cart_reg
-    (
-        boards : cart_boards_t;
-        config : cart_config_t
-    )
-    return cart_reg_t
+    function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t
     is
         variable ret : cart_reg_t;
     begin
         ret := RESET_CART_REG;
         ret.latch := get_reset_latch_reg(boards.latch);
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
-        ret.n163 := get_reset_n163_reg(boards.n163, config);
+        ret.n163 := get_reset_n163_reg(boards.n163);
 
         return ret;
     end;

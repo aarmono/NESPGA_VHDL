@@ -46,6 +46,9 @@ package lib_mapper_n163 is
         chip   : n163_chip_t;
         -- The chip is told from the registers the game writes
         detect : boolean;
+        -- The mirroring of the header, which the nametable pages give at
+        -- reset
+        mirror : mirror_t;
     end record;
 
     -- The mapper number is that of a board built around one of the chips
@@ -96,12 +99,7 @@ package lib_mapper_n163 is
 
     -- The registers as they are at reset. The nametables are in the pages
     -- of CIRAM that give the mirroring of the header
-    function get_reset_n163_reg
-    (
-        board  : n163_board_t;
-        config : cart_config_t
-    )
-    return mapper_n163_reg_t;
+    function get_reset_n163_reg(board : n163_board_t) return mapper_n163_reg_t;
 
     constant RESET_MAPPER_N163_REG : mapper_n163_reg_t :=
     (
@@ -155,40 +153,44 @@ package body lib_mapper_n163 is
 
     function get_n163_board(config : cart_config_t) return n163_board_t
     is
+        variable ret : n163_board_t;
     begin
+        ret.mirror := config.mirror;
+
         if config.mapper_num = x"013"
         then
-            return (chip => NAMCO_163, detect => not config.nes2);
+            ret.chip := NAMCO_163;
+            ret.detect := not config.nes2;
         elsif config.nes2 and config.submapper_num = x"1"
         then
-            return (chip => NAMCO_175, detect => false);
+            ret.chip := NAMCO_175;
+            ret.detect := false;
         elsif config.nes2 and config.submapper_num = x"2"
         then
-            return (chip => NAMCO_340, detect => false);
+            ret.chip := NAMCO_340;
+            ret.detect := false;
         else
-            return (chip => NAMCO_UNKNOWN, detect => true);
+            ret.chip := NAMCO_UNKNOWN;
+            ret.detect := true;
         end if;
+
+        return ret;
     end;
 
-    function get_reset_n163_reg
-    (
-        board  : n163_board_t;
-        config : cart_config_t
-    )
-    return mapper_n163_reg_t
+    function get_reset_n163_reg(board : n163_board_t) return mapper_n163_reg_t
     is
         variable ret : mapper_n163_reg_t;
         variable addr : chr_addr_t;
     begin
         ret := RESET_MAPPER_N163_REG;
         ret.chip := board.chip;
-        ret.mirror := config.mirror;
+        ret.mirror := board.mirror;
 
         for i in 0 to 3
         loop
             addr := to_std_logic_vector(16#2000# + 16#400# * i,
                                         chr_addr_t'length);
-            ret.chr_regs(8 + i) := "1110000" & get_ciram_a10(config.mirror,
+            ret.chr_regs(8 + i) := "1110000" & get_ciram_a10(board.mirror,
                                                              addr);
         end loop;
 
@@ -325,7 +327,7 @@ package body lib_mapper_n163 is
     begin
         if reg.ram_increment
         then
-            return (reg.ram_addr + 1) mod 2**chip_ram_addr_t'length;
+            return wrap(reg.ram_addr + 1, chip_ram_idx_t'high);
         else
             return reg.ram_addr;
         end if;
@@ -455,11 +457,11 @@ package body lib_mapper_n163 is
 
     -- The banks of a PPU access. On the 163, pages 0xE0-0xFF are the pages
     -- of CIRAM, for the nametables and, unless 0xE800 says otherwise, the
-    -- pattern tables. The 175 and 340 map only the pattern tables
+    -- pattern tables. The 175 and 340 map only the pattern tables, and the
+    -- 175 has the mirroring of the header that banks has
     function get_chr_banks
     (
         reg     : mapper_n163_reg_t;
-        config  : cart_config_t;
         cart_in : cart_in_t;
         banks   : cart_banks_t
     )
@@ -475,7 +477,7 @@ package body lib_mapper_n163 is
 
         if addr(13) = '0'
         then
-            page := reg.chr_regs(to_integer(addr(12 downto 10)));
+            page := reg.chr_regs(to_integer(get_chr_window(cart_in.ppu)));
             if addr(12) = '0'
             then
                 ciram := not reg.chr_rom_low;
@@ -501,7 +503,7 @@ package body lib_mapper_n163 is
             when NAMCO_340 =>
                 ret.mirror := reg.mirror;
             when NAMCO_175 | NAMCO_UNKNOWN =>
-                ret.mirror := config.mirror;
+                null;
         end case;
 
         return ret;
@@ -533,8 +535,7 @@ package body lib_mapper_n163 is
     end;
 
     -- The CPU accesses the chip RAM in the sync cycle, and the audio in the
-    -- other PPU cycles. The CPU reads the registers of the 163 at
-    -- 0x4800-0x5FFF. chip is the chip as told by this cycle's write, which
+    -- other PPU cycles. chip is the chip as told by this cycle's write, which
     -- can be the write to 0x4800 that tells it
     function map_chip_ram
     (
@@ -552,13 +553,14 @@ package body lib_mapper_n163 is
     begin
         ret := cart_out;
         cpu_in := cart_in.cpu;
-        addr := to_std_logic_vector(reg.ram_addr, chip_ram_addr_t'length);
 
         if clk_sync
         then
             if chip = NAMCO_163 and get_low_reg_idx(cpu_in) = 9 and
                is_bus_active(cpu_in.prg_bus)
             then
+                addr := to_std_logic_vector(reg.ram_addr,
+                                            chip_ram_addr_t'length);
                 if is_bus_write(cpu_in.prg_bus)
                 then
                     ret.mem.chip_ram_bus := bus_write(addr);
@@ -569,13 +571,32 @@ package body lib_mapper_n163 is
             end if;
         elsif reg.chip = NAMCO_163
         then
-            ret.mem.chip_ram_bus := get_n163_ram_bus(reg.audio, clk_sync);
-            ret.mem.data_to_chip_ram := get_n163_ram_data(reg.audio, clk_sync);
+            ret.mem.chip_ram_bus := get_n163_ram_bus(reg.audio);
+            if is_bus_write(ret.mem.chip_ram_bus)
+            then
+                ret.mem.data_to_chip_ram := get_n163_ram_data(reg.audio);
+            end if;
         end if;
 
-        if reg.chip = NAMCO_163 and is_bus_read(cpu_in.prg_bus)
+        return ret;
+    end;
+
+    -- The CPU reads the registers of the 163 at 0x4800-0x5FFF
+    function read_reg
+    (
+        reg      : mapper_n163_reg_t;
+        cart_in  : cart_in_t;
+        cart_out : cart_out_t
+    )
+    return cart_out_t
+    is
+        variable ret : cart_out_t;
+    begin
+        ret := cart_out;
+
+        if reg.chip = NAMCO_163 and is_bus_read(cart_in.cpu.prg_bus)
         then
-            case get_low_reg_idx(cpu_in) is
+            case get_low_reg_idx(cart_in.cpu) is
                 when 9 =>
                     ret.cpu.data := cart_in.mem.data_from_chip_ram;
                     ret.cpu.data_oe := true;
@@ -630,11 +651,10 @@ package body lib_mapper_n163 is
             when NAMCO_340 | NAMCO_UNKNOWN =>
                 banks.prg_ram := false;
         end case;
-        banks := get_chr_banks(ret.reg, config, cart_in, banks);
+        banks := get_chr_banks(ret.reg, cart_in, banks);
 
         ret.cart := map_cart(config, cart_in, banks);
-        if ret.reg.chip = NAMCO_163 and
-           is_bus_active(ret.cart.mem.prg_ram_bus)
+        if ret.reg.chip = NAMCO_163
         then
             ret.cart := protect_prg_ram(ret.reg, cart_in, ret.cart);
         end if;
@@ -645,6 +665,7 @@ package body lib_mapper_n163 is
                                  clk_sync,
                                  cart_in,
                                  ret.cart);
+        ret.cart := read_reg(reg, cart_in, ret.cart);
 
         ret.cart.cpu.irq := reg.irq;
         ret.cart.audio := get_n163_audio_level(reg.audio);
