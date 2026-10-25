@@ -141,6 +141,22 @@ nes-test-roms/mmc3_test_2/rom_singles/3-A12_clocking.nes            | 434ms     
 nes-test-roms/mmc3_test_2/rom_singles/4-scanline_timing.nes         | 5300ms    | 169ef9bd055742335d415ccd88c83e451e58c109ea55a7d239804ba1131dee36 *frame_00316.bmp
 nes-test-roms/mmc3_test_2/rom_singles/5-MMC3.nes                    | 434ms     | 0271ba3e5515837c7eb972cab807c40877793361bf71ba465012dad55db443e2 *frame_00025.bmp
 
+# VRC2a CHR banks, which drop bit 0 of the bank number. The ROM changes the
+# bank every 8 frames; the hashed frame shows bank 10 (written 0x14), after
+# the first write of the high register
+nes-test-roms/m22chrbankingtest/0-127.nes                           | 2852ms    | 413405d56f2bf2372c53095ee7e26773af76629e561444df7e63e62ed13a37df *frame_00170.bmp
+
+# nes-test-roms copied with an NES 2.0 header by simulation/test_roms/Makefile,
+# for boards an iNES header cannot select. The MMC3 revision A tests run on
+# the NEC MMC3 (submapper 4)
+board/sim/ghdl/generated_roms/nes2_mmc3_rev_a.nes                   | 317ms     | f35a84374f83b8f73e3ae0991452fae678a951fcfad073b51259ab813ab4e38a *frame_00018.bmp
+board/sim/ghdl/generated_roms/nes2_mmc3_alt.nes                     | 434ms     | 44daac2d69cc00730b636ff67af2804f3090b6a41a06b01f2895bc17290da164 *frame_00025.bmp
+# SNROM, which disables PRG RAM with bit 4 of the CHR bank PPU A12 selects.
+# The ROM shows a grey bar of about 16 lines, timed by reading PRG RAM,
+# which is disabled only while the PPU fetches sprites. Without it the ROM
+# hangs before the bar. Where the bar ends repeats every 4 frames
+board/sim/ghdl/generated_roms/nes2_mmc1_a12.nes                     | 684ms     | a49e08017ddb2fd427cf748117608f21294bdad8670849c8da261d74ed114842 *frame_00040.bmp
+
 # MMC5 CHR banks while rendering: extended attributes, and the background and
 # sprite register sets of 8x16 sprites. Matches Mesen
 nes-test-roms/mmc5test_v2/mmc5test.nes                              | 2570ms    | fcb371c468fada935bf4dcdc34333f20f1c96c5ddfd72b269c48758eff31bd5c *frame_00150.bmp | test_inputs/mmc5test_v2/exattr_8x16.fm2
@@ -174,6 +190,56 @@ board/sim/ghdl/generated_roms/latch_chr_ram_flash.nes               | 234ms     
 board/sim/ghdl/generated_roms/latch_chr_ram_single.nes              | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/latch_chr_ram_four.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/latch_chr_ram_hv.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_addr_228_a52.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_addr_228_small.nes              | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_70.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_70_1scr.nes              | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_152.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_71.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_71_1.nes                 | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_78_1.nes                 | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_78_3.nes                 | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_78_ines.nes              | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_79.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_146.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_87.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_89.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_93.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_94.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_97.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_101.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_140.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_180.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_184.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_185_4.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_185_5.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_185_6.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_185_7.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_185_ines.nes             | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_232.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_232_1.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_58.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_61.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_61_1.nes                 | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_61_ram.nes               | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_62.nes                   | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_200.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_200_1.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_201.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_202.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_203.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_212.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_213.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_214.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_225.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_255.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_226.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_227.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_227_2.nes                | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_227_rpg.nes              | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_242.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_242_rpg.nes              | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/latch_boards_231.nes                  | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 
 board/sim/ghdl/generated_roms/mmc1_sxrom.nes                        | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/mmc1_surom.nes                        | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
@@ -201,6 +267,8 @@ board/sim/ghdl/generated_roms/mmc3_88.nes                           | 234ms     
 board/sim/ghdl/generated_roms/mmc3_76.nes                           | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/mmc3_95.nes                           | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/mmc3_154.nes                          | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
+board/sim/ghdl/generated_roms/rambo1_64.nes                         | 434ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00025.bmp
+board/sim/ghdl/generated_roms/rambo1_158.nes                        | 434ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00025.bmp
 
 board/sim/ghdl/generated_roms/vrc4_21_ines_a.nes                    | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp
 board/sim/ghdl/generated_roms/vrc4_21_ines_c.nes                    | 234ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00010.bmp

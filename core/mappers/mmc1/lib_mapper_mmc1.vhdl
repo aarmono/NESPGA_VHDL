@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.cart_types.all;
 
@@ -17,7 +18,8 @@ package lib_mapper_mmc1 is
     (
         -- SxROM (1): the MMC1B, where bit 4 of the PRG bank disables PRG RAM.
         -- SUROM has 512KB of PRG ROM, and bit 4 of the CHR bank selects the
-        -- 256KB half. SOROM, SZROM and SXROM bank PRG RAM (mmc1_prg_ram_t)
+        -- 256KB half. SOROM, SZROM and SXROM bank PRG RAM, and SNROM
+        -- disables it with a CHR bank bit (mmc1_prg_ram_t)
         MMC1_SXROM,
         -- SEROM, SHROM and SH1ROM (1, NES 2.0 submapper 5): 32KB of PRG ROM,
         -- addressed by the CPU rather than the chip, so it is not banked
@@ -38,12 +40,16 @@ package lib_mapper_mmc1 is
     function get_mmc1_board(config : cart_config_t) return mmc1_board_t;
 
     -- SxROM boards with more than 8KB of PRG RAM select its 8KB bank with
-    -- bits of the CHR bank that they do not need for CHR. Which bits is told
-    -- from the sizes of PRG RAM and CHR in the header
+    -- bits of the CHR bank that they do not need for CHR, and SNROM disables
+    -- its PRG RAM with one. Which bits is told from the sizes of PRG RAM, CHR
+    -- and PRG ROM in the header
     type mmc1_prg_ram_t is
     (
         -- 8KB or less
         PRG_RAM_UNBANKED,
+        -- SNROM: 8KB or less, with 8KB of CHR and at most 256KB of PRG ROM.
+        -- Bit 4 disables it
+        PRG_RAM_SNROM,
         -- SOROM: 16KB, with 8KB of CHR. Bit 3 selects the bank
         PRG_RAM_SOROM,
         -- SZROM: 16KB, with more than 8KB of CHR ROM. Bit 4 selects the bank
@@ -112,6 +118,10 @@ package lib_mapper_mmc1 is
 
         prg_bank : prg_bank_t;
 
+        -- PPU A12 of the last PPU access, which selects the CHR bank that
+        -- drives the CHR lines in 4KB CHR mode
+        ppu_a12 : std_logic;
+
         -- The CPU wrote on the previous cycle. Writes on consecutive cycles
         -- after the first are ignored
         write_prev : boolean;
@@ -134,6 +144,8 @@ package lib_mapper_mmc1 is
         chr_bank_1 => (others => '0'),
 
         prg_bank => (others => '0'),
+
+        ppu_a12 => '0',
 
         write_prev => false,
 
@@ -199,7 +211,13 @@ package body lib_mapper_mmc1 is
                     return PRG_RAM_SXROM;
                 elsif config.prg_ram_mask(13) = '0'
                 then
-                    return PRG_RAM_UNBANKED;
+                    if config.chr_rom_8kb_blocks <= 1 and
+                       config.prg_rom_mask(5) = '0'
+                    then
+                        return PRG_RAM_SNROM;
+                    else
+                        return PRG_RAM_UNBANKED;
+                    end if;
                 elsif config.chr_rom_8kb_blocks > 1
                 then
                     return PRG_RAM_SZROM;
@@ -370,6 +388,21 @@ package body lib_mapper_mmc1 is
         return ret;
     end;
 
+    -- The CHR bank driving the CHR lines of the chip. In 4KB CHR mode PPU A12
+    -- selects it, so the boards that wire CHR lines to PRG ROM or RAM have
+    -- them change as the PPU renders, unless the bits are set the same in
+    -- both CHR banks
+    function get_outer_bank(reg : mapper_mmc1_reg_t) return chr_bank_t
+    is
+    begin
+        if reg.chr_bank_mode = '1' and reg.ppu_a12 = '1'
+        then
+            return reg.chr_bank_1;
+        else
+            return reg.chr_bank_0;
+        end if;
+    end;
+
     -- The 16KB PRG ROM bank at 0x8000 or 0xC000
     function get_prg_bank_16kb
     (
@@ -413,8 +446,10 @@ package body lib_mapper_mmc1 is
     return prg_bank_8kb_t
     is
         variable bank : prg_bank_16kb_t;
+        variable outer : chr_bank_t;
     begin
         bank := get_prg_bank_16kb(reg, window(1));
+        outer := get_outer_bank(reg);
 
         case board is
             when MMC1_SEROM =>
@@ -440,19 +475,15 @@ package body lib_mapper_mmc1 is
                 end if;
 
                 -- SUROM has 512KB of PRG ROM, and bit 4 of the CHR bank
-                -- selects the 256KB half. In 4KB CHR mode the chip takes it
-                -- from the CHR bank that PPU A12 selects, but the SUROM
-                -- games use 8KB CHR mode, so CHR bank 0 is used. With a
-                -- smaller PRG ROM, the bit is masked off
-                return resize(reg.chr_bank_0(4) & bank & window(0),
+                -- selects the 256KB half. With a smaller PRG ROM, the bit is
+                -- masked off
+                return resize(outer(4) & bank & window(0),
                               prg_bank_8kb_t'length);
         end case;
     end;
 
     -- The 8KB PRG RAM bank. Like the 256KB half of PRG ROM on SUROM, it
-    -- comes from CHR bank 0. In 4KB CHR mode the chip takes it from the CHR
-    -- bank that PPU A12 selects, so games either use 8KB CHR mode or set the
-    -- bits the same in both CHR banks
+    -- comes from the CHR bank driving the CHR lines
     function get_prg_ram_bank
     (
         reg     : mapper_mmc1_reg_t;
@@ -460,17 +491,39 @@ package body lib_mapper_mmc1 is
     )
     return prg_ram_bank_8kb_t
     is
+        variable outer : chr_bank_t;
     begin
+        outer := get_outer_bank(reg);
+
         case prg_ram is
-            when PRG_RAM_UNBANKED =>
+            when PRG_RAM_UNBANKED | PRG_RAM_SNROM =>
                 return "000";
             when PRG_RAM_SOROM =>
-                return "00" & reg.chr_bank_0(3);
+                return "00" & outer(3);
             when PRG_RAM_SZROM =>
-                return "00" & reg.chr_bank_0(4);
+                return "00" & outer(4);
             when PRG_RAM_SXROM =>
-                return '0' & reg.chr_bank_0(3 downto 2);
+                return '0' & outer(3 downto 2);
         end case;
+    end;
+
+    -- PRG RAM is enabled by bit 4 of the PRG bank on the MMC1B, and on SNROM
+    -- by bit 4 of the CHR bank driving the CHR lines as well
+    function is_prg_ram_enabled
+    (
+        reg     : mapper_mmc1_reg_t;
+        board   : mmc1_board_t;
+        prg_ram : mmc1_prg_ram_t
+    )
+    return boolean
+    is
+    begin
+        if prg_ram = PRG_RAM_SNROM and get_outer_bank(reg)(4) = '1'
+        then
+            return false;
+        else
+            return board = MMC1A_SXROM or reg.prg_bank(4) = '0';
+        end if;
     end;
 
     -- The 1KB CHR bank in the window of the PPU address
@@ -515,13 +568,18 @@ package body lib_mapper_mmc1 is
         ret.reg := cycle_write(reg, clk_sync, cart_in);
         banks := default_banks(config);
 
+        if is_bus_active(cart_in.ppu.chr_bus)
+        then
+            ret.reg.ppu_a12 := cart_in.ppu.chr_bus.address(12);
+        end if;
+
         if board = MMC1_EVENT
         then
             ret.reg := cycle_event(ret.reg, clk_sync);
         end if;
 
         -- The PPU sees the registers written by the CPU this cycle
-        banks.prg_ram := board = MMC1A_SXROM or ret.reg.prg_bank(4) = '0';
+        banks.prg_ram := is_prg_ram_enabled(ret.reg, board, prg_ram);
         banks.prg_ram_bank := get_prg_ram_bank(ret.reg, prg_ram);
         banks.prg := get_prg_bank(ret.reg, board, get_prg_window(cart_in.cpu));
         banks.chr := get_chr_bank(ret.reg, get_chr_window(cart_in.ppu));

@@ -315,6 +315,16 @@ package body lib_nes_mmap is
                     if map_in.cart.data_oe
                     then
                         map_out.bus_out.data_to_cpu := map_in.cart.data;
+                        -- Compared first, since it is rare and the merge is
+                        -- slow to simulate
+                        if map_in.cart.data_float /= x"00"
+                        then
+                            map_out.bus_out.data_to_cpu :=
+                                (map_in.cart.data and
+                                 not map_in.cart.data_float) or
+                                (map_in.reg.open_bus and
+                                 map_in.cart.data_float);
+                        end if;
                     else
                         map_out.bus_out.data_to_cpu := map_in.reg.open_bus;
                     end if;

@@ -8,9 +8,10 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
 
--- Boards built around the MMC3, the MMC6 or the Namco 108, which came before
--- the MMC3. They differ in how the outputs of the chip are wired, so the
--- board is chosen by the mapper number at run time.
+-- Boards built around the MMC3, the MMC6, the Namco 108, which came before
+-- the MMC3, or the Tengen RAMBO-1, which extends it. They differ in how the
+-- outputs of the chip are wired, so the board is chosen by the mapper number
+-- at run time.
 --
 -- The Namco 108 has only the bank select and bank data registers of the
 -- MMC3, at 0x8000-0x9FFF. Its PRG and CHR modes are always 0, and it has no
@@ -20,16 +21,28 @@ use work.cart_types.all;
 -- an iNES header becomes an MMC6 once the CPU sets bit 5 of 0x8000, which
 -- enables the PRG RAM of the MMC6 and does nothing on the MMC3
 --
+-- The RAMBO-1 adds R8 and R9, which with bit 5 of 0x8000 set split the 2KB
+-- CHR banks of R0 and R1 into 1KB banks, and RF, which selects the PRG ROM
+-- bank the MMC3 fixes to the second last. It has no PRG RAM. Its IRQ
+-- counter is clocked either by PPU A12, filtered on M2 rather than on PPU
+-- clocks, or every 4 CPU cycles, and follows the rules nesdev gives as
+-- demonstrated on hardware rather than those of Mesen
+--
 -- To add a board, add it to mmc3_board_t, get_mmc3_board and the case of
 -- cycle_mapper_mmc3 and its mapper number to is_mmc3_mapper. A Namco 108
--- board also goes in is_namco_108, and a board that wires its own CIRAM A10
--- in get_mirror
+-- board also goes in is_namco_108, a RAMBO-1 board in is_rambo1, and a board
+-- that wires its own CIRAM A10 in get_mirror
 package lib_mapper_mmc3 is
 
     type mmc3_board_t is
     (
         -- TxROM (4)
         MMC3_TXROM,
+        -- TxROM with an NEC MMC3 (4, NES 2.0 submapper 4), which raises the
+        -- IRQ only when the counter reaches 0 from 1, or is reloaded after
+        -- 0xC001 was written. A reload value of 0 then gives a single IRQ
+        -- rather than one every scanline
+        MMC3_NEC,
         -- HKROM (4, NES 2.0 submapper 1): the MMC6, which has 1KB of PRG
         -- RAM at 0x7000-0x7FFF, enabled in 512 byte halves
         MMC3_MMC6,
@@ -51,26 +64,50 @@ package lib_mapper_mmc3 is
         NAMCO_3446,
         -- NAMCOT-3453 (154): NAMCOT-3433 with single screen mirroring,
         -- selected by bit 6 of every write to 0x8000-0xFFFF
-        NAMCO_3453
+        NAMCO_3453,
+        -- Tengen 800032 (64)
+        RAMBO1,
+        -- Tengen 800037 (158): bit 7 of the CHR bank drives CIRAM A10, as on
+        -- TxSROM, in place of 0xA000
+        RAMBO1_158
     );
 
-    -- The mapper number is that of a board built around the MMC3, the MMC6
-    -- or the Namco 108
+    -- The mapper number is that of a board built around the MMC3, the MMC6,
+    -- the Namco 108 or the RAMBO-1
     function is_mmc3_mapper(mapper_num : mapper_num_t) return boolean;
 
     function get_mmc3_board(config : cart_config_t) return mmc3_board_t;
 
-    subtype bank_idx_t is unsigned(2 downto 0);
+    -- Bit 3 selects R8, R9 and RF on the RAMBO-1
+    subtype bank_idx_t is unsigned(3 downto 0);
 
     subtype bank_t is unsigned(7 downto 0);
     type bank_arr_t is array(0 to 7) of bank_t;
+
+    -- R8, R9 and RF of the RAMBO-1
+    type rambo1_bank_arr_t is array(0 to 2) of bank_t;
+    constant RAMBO1_R8 : natural := 0;
+    constant RAMBO1_R9 : natural := 1;
+    constant RAMBO1_RF : natural := 2;
 
     subtype irq_count_t is natural range 0 to 2**8-1;
 
     subtype irq_delay_t is boolean_array(1 downto 0);
 
+    -- The MMC3 counts PPU clocks with A12 low, and clocks the IRQ counter
+    -- when A12 rises after A12_MAX of them
     constant A12_MAX : natural := 10;
-    subtype a12_count_t is natural range 0 to A12_MAX;
+    -- The RAMBO-1 counts falls of M2 with A12 low, and clocks the IRQ
+    -- counter on a fall of M2 with A12 high after RAMBO1_A12_MAX of them.
+    -- Writing 0xC001 sets the count to RAMBO1_A12_RELOAD, which is never
+    -- reached by counting, so the next rise of A12 does not clock it
+    constant RAMBO1_A12_MAX : natural := 16;
+    constant RAMBO1_A12_RELOAD : natural := 17;
+    subtype a12_count_t is natural range 0 to RAMBO1_A12_RELOAD;
+
+    -- The RAMBO-1 in CPU cycle mode clocks the IRQ counter every 4 CPU
+    -- cycles
+    subtype irq_prescaler_t is natural range 0 to 3;
 
     -- Bits 7-4 of 0xA001
     subtype prg_ram_bits_t is std_logic_vector(7 downto 4);
@@ -79,9 +116,13 @@ package lib_mapper_mmc3 is
         bank_idx : bank_idx_t;
 
         banks : bank_arr_t;
+        rambo1_banks : rambo1_bank_arr_t;
 
         chr_mode : std_logic;
         prg_mode : std_logic;
+        -- Bit 5 of 0x8000 on the RAMBO-1: R8 and R9 select the odd 1KB
+        -- halves of the 2KB banks of R0 and R1
+        chr_1kb : boolean;
 
         mirroring : std_logic;
 
@@ -96,9 +137,19 @@ package lib_mapper_mmc3 is
 
         irq_count  : irq_count_t;
         irq_reload : irq_count_t;
+        -- 0xC001 was written since the counter was last clocked
+        irq_clear  : boolean;
         irq_enable : boolean;
         irq        : boolean;
         irq_delay  : irq_delay_t;
+
+        -- The RAMBO-1 clocks its IRQ counter every 4 CPU cycles rather than
+        -- on PPU A12
+        irq_cpu_mode  : boolean;
+        irq_prescaler : irq_prescaler_t;
+        -- The RAMBO-1 raises the IRQ one CPU cycle after the clock that
+        -- triggers it
+        irq_pending   : boolean;
 
         a12_count : a12_count_t;
 
@@ -111,9 +162,11 @@ package lib_mapper_mmc3 is
         bank_idx => (others => '0'),
 
         banks => (others => (others => '0')),
+        rambo1_banks => (others => (others => '0')),
 
         chr_mode => '0',
         prg_mode => '0',
+        chr_1kb => false,
 
         mirroring => '0',
 
@@ -123,9 +176,14 @@ package lib_mapper_mmc3 is
 
         irq_count => 0,
         irq_reload => 0,
+        irq_clear => false,
         irq_enable => false,
         irq => false,
         irq_delay => (others => false),
+
+        irq_cpu_mode => false,
+        irq_prescaler => 0,
+        irq_pending => false,
 
         a12_count => 0,
 
@@ -157,7 +215,7 @@ package body lib_mapper_mmc3 is
     begin
         case mapper_num is
             when x"004" | x"02F" | x"04C" | x"058" | x"05F" | x"076" |
-                 x"077" | x"09A" | x"0CE" => return true;
+                 x"077" | x"09A" | x"0CE" | x"040" | x"09E" => return true;
             when others => return false;
         end case;
     end;
@@ -170,6 +228,9 @@ package body lib_mapper_mmc3 is
                 if config.submapper_num = x"1"
                 then
                     return MMC3_MMC6;
+                elsif config.submapper_num = x"4"
+                then
+                    return MMC3_NEC;
                 else
                     return MMC3_TXROM;
                 end if;
@@ -180,6 +241,8 @@ package body lib_mapper_mmc3 is
             when x"05F" => return NAMCO_3425;
             when x"04C" => return NAMCO_3446;
             when x"09A" => return NAMCO_3453;
+            when x"040" => return RAMBO1;
+            when x"09E" => return RAMBO1_158;
             when others => return MMC3_TXROM;
         end case;
     end;
@@ -204,10 +267,17 @@ package body lib_mapper_mmc3 is
                board = NAMCO_3453;
     end;
 
+    function is_rambo1(board : mmc3_board_t) return boolean
+    is
+    begin
+        return board = RAMBO1 or board = RAMBO1_158;
+    end;
+
     -- The 8KB PRG ROM bank in the window of the CPU address
     function get_prg_bank
     (
         reg    : mapper_mmc3_reg_t;
+        board  : mmc3_board_t;
         window : prg_window_t
     )
     return bank_t
@@ -221,11 +291,15 @@ package body lib_mapper_mmc3 is
             -- 0xE000-0xFFFF is the last bank
             when "11" =>
                 bank := x"FF";
-            -- PRG mode 1 swaps 0x8000-0x9FFF and 0xC000-0xDFFF
+            -- PRG mode 1 swaps 0x8000-0x9FFF and 0xC000-0xDFFF. The second
+            -- last bank is RF on the RAMBO-1
             when others =>
                 if (window(1) xor reg.prg_mode) = '0'
                 then
                     bank := reg.banks(6);
+                elsif is_rambo1(board)
+                then
+                    bank := reg.rambo1_banks(RAMBO1_RF);
                 else
                     bank := x"FE";
                 end if;
@@ -252,10 +326,8 @@ package body lib_mapper_mmc3 is
         case swapped is
             when "000" | "001" =>
                 bank := reg.banks(0);
-                bank(0) := swapped(0);
             when "010" | "011" =>
                 bank := reg.banks(1);
-                bank(0) := swapped(0);
             when "100" =>
                 bank := reg.banks(2);
             when "101" =>
@@ -265,6 +337,24 @@ package body lib_mapper_mmc3 is
             when others =>
                 bank := reg.banks(5);
         end case;
+
+        -- R0 and R1 select 2KB banks, unless the RAMBO-1 has R8 and R9
+        -- select their odd 1KB halves
+        if swapped(2) = '0'
+        then
+            if not reg.chr_1kb
+            then
+                bank(0) := swapped(0);
+            elsif swapped(0) = '1'
+            then
+                if swapped(1) = '0'
+                then
+                    bank := reg.rambo1_banks(RAMBO1_R8);
+                else
+                    bank := reg.rambo1_banks(RAMBO1_R9);
+                end if;
+            end if;
+        end if;
 
         return bank;
     end;
@@ -299,13 +389,18 @@ package body lib_mapper_mmc3 is
                 when "00" =>
                     if cart_in.cpu.prg_bus.address(0) = '0'
                     then
-                        ret.bank_idx := unsigned(cart_in.cpu.data(2 downto 0));
+                        ret.bank_idx := unsigned(cart_in.cpu.data(3 downto 0));
 
                         if not is_namco_108(board)
                         then
                             ret.chr_mode := cart_in.cpu.data(7);
                             ret.prg_mode := cart_in.cpu.data(6);
                             ret.mmc6_ram_enable := cart_in.cpu.data(5) = '1';
+                        end if;
+
+                        if is_rambo1(board)
+                        then
+                            ret.chr_1kb := cart_in.cpu.data(5) = '1';
                         end if;
 
                         if board = MMC3_TXROM and
@@ -323,9 +418,25 @@ package body lib_mapper_mmc3 is
                         then
                             ret.prg_ram_bits := (others => '0');
                         end if;
-                    else
-                        ret.banks(to_integer(reg.bank_idx)) :=
+                    -- Bit 3 of the index is only decoded by the RAMBO-1, which
+                    -- has no register at 0xA-0xE
+                    elsif reg.bank_idx(3) = '0' or not is_rambo1(board)
+                    then
+                        ret.banks(to_integer(reg.bank_idx(2 downto 0))) :=
                             unsigned(cart_in.cpu.data);
+                    else
+                        case reg.bank_idx(2 downto 0) is
+                            when "000" =>
+                                ret.rambo1_banks(RAMBO1_R8) :=
+                                    unsigned(cart_in.cpu.data);
+                            when "001" =>
+                                ret.rambo1_banks(RAMBO1_R9) :=
+                                    unsigned(cart_in.cpu.data);
+                            when "111" =>
+                                ret.rambo1_banks(RAMBO1_RF) :=
+                                    unsigned(cart_in.cpu.data);
+                            when others =>
+                        end case;
                     end if;
                 -- 0xA000-0xBFFF
                 when "01" =>
@@ -343,13 +454,24 @@ package body lib_mapper_mmc3 is
                     then
                         ret.irq_reload :=
                             to_integer(unsigned(cart_in.cpu.data));
+                    -- The RAMBO-1 reloads the counter at once, selects the
+                    -- source of its clock and restarts the prescaler and
+                    -- the A12 filter
+                    elsif is_rambo1(board)
+                    then
+                        ret.irq_count := reg.irq_reload;
+                        ret.irq_cpu_mode := cart_in.cpu.data(0) = '1';
+                        ret.irq_prescaler := 0;
+                        ret.a12_count := RAMBO1_A12_RELOAD;
                     else
                         ret.irq_count := 0;
+                        ret.irq_clear := true;
                     end if;
                 -- 0xE000-0xFFFF
                 when others =>
                     ret.irq_enable := cart_in.cpu.prg_bus.address(0) = '1';
                     ret.irq := reg.irq and ret.irq_enable;
+                    ret.irq_pending := reg.irq_pending and ret.irq_enable;
             end case;
         end if;
 
@@ -372,6 +494,7 @@ package body lib_mapper_mmc3 is
     function cycle_irq
     (
         reg     : mapper_mmc3_reg_t;
+        board   : mmc3_board_t;
         cart_in : cart_in_t
     )
     return mapper_mmc3_reg_t
@@ -397,8 +520,10 @@ package body lib_mapper_mmc3 is
                 else
                     ret.irq_count := reg.irq_count - 1;
                 end if;
+                ret.irq_clear := false;
 
-                if ret.irq_count = 0
+                if ret.irq_count = 0 and
+                   (board /= MMC3_NEC or reg.irq_count /= 0 or reg.irq_clear)
                 then
                     ret.irq := reg.irq_enable;
                 end if;
@@ -416,6 +541,63 @@ package body lib_mapper_mmc3 is
         return ret;
     end;
 
+    -- The IRQ counter of the RAMBO-1 is clocked on the falls of M2, which
+    -- are at clk_sync. On a clock, a counter of 0 is reloaded and raises the
+    -- IRQ a CPU cycle later, if IRQs are enabled. Any other count is
+    -- decremented
+    function cycle_rambo1_irq
+    (
+        reg      : mapper_mmc3_reg_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return mapper_mmc3_reg_t
+    is
+        variable ret : mapper_mmc3_reg_t;
+        variable clock : boolean;
+    begin
+        ret := reg;
+
+        if clk_sync
+        then
+            ret.irq := reg.irq or reg.irq_pending;
+            ret.irq_pending := false;
+
+            clock := false;
+            if reg.irq_cpu_mode
+            then
+                if reg.irq_prescaler = irq_prescaler_t'high
+                then
+                    ret.irq_prescaler := 0;
+                    clock := true;
+                else
+                    ret.irq_prescaler := reg.irq_prescaler + 1;
+                end if;
+            elsif is_bus_active(cart_in.ppu.chr_bus) and
+                  cart_in.ppu.chr_bus.address(12) = '1'
+            then
+                ret.a12_count := 0;
+                clock := reg.a12_count = RAMBO1_A12_MAX;
+            elsif reg.a12_count < RAMBO1_A12_MAX
+            then
+                ret.a12_count := reg.a12_count + 1;
+            end if;
+
+            if clock
+            then
+                if reg.irq_count = 0
+                then
+                    ret.irq_count := reg.irq_reload;
+                    ret.irq_pending := reg.irq_enable;
+                else
+                    ret.irq_count := reg.irq_count - 1;
+                end if;
+            end if;
+        end if;
+
+        return ret;
+    end;
+
     -- The CPU accesses PRG RAM at 0x6000-0x7FFF
     function is_prg_ram_enabled
     (
@@ -426,7 +608,7 @@ package body lib_mapper_mmc3 is
     return boolean
     is
     begin
-        if board = MMC3_QJ or is_namco_108(board)
+        if board = MMC3_QJ or is_namco_108(board) or is_rambo1(board)
         then
             return false;
         elsif is_mmc6(reg, board)
@@ -502,7 +684,7 @@ package body lib_mapper_mmc3 is
         -- the boards that wire a bit of it to CIRAM A10, each 1KB nametable
         -- window has its own CIRAM A10
         case board is
-            when MMC3_TXSROM =>
+            when MMC3_TXSROM | RAMBO1_158 =>
                 return get_single_screen_mirror(chr_bank(7));
             when NAMCO_3425 =>
                 return get_single_screen_mirror(chr_bank(5));
@@ -538,9 +720,23 @@ package body lib_mapper_mmc3 is
         variable bank_window : chr_window_t;
         variable chr_bank : bank_t;
     begin
-        -- The PPU sees the registers written by the CPU this cycle
-        written := cycle_write(reg, board, config, clk_sync, cart_in);
-        ret.reg := cycle_irq(written, cart_in);
+        -- The PPU sees the registers written by the CPU this cycle. The
+        -- RAMBO-1 clocks its IRQ counter before the write of the CPU cycle,
+        -- so a write to 0xC001 restarts the prescaler and the A12 filter;
+        -- the MMC3 after it
+        if is_rambo1(board)
+        then
+            written := cycle_rambo1_irq(reg, clk_sync, cart_in);
+        else
+            written := reg;
+        end if;
+        written := cycle_write(written, board, config, clk_sync, cart_in);
+        if is_rambo1(board)
+        then
+            ret.reg := written;
+        else
+            ret.reg := cycle_irq(written, board, cart_in);
+        end if;
 
         chr_window := get_chr_window(cart_in.ppu);
 
@@ -552,7 +748,9 @@ package body lib_mapper_mmc3 is
             bank_window := "1" & chr_window(2 downto 1);
         end if;
 
-        prg_bank := get_prg_bank(written, get_prg_window(cart_in.cpu));
+        prg_bank := get_prg_bank(written,
+                                 board,
+                                 get_prg_window(cart_in.cpu));
         chr_bank := get_chr_bank(written, bank_window);
 
         banks := default_banks(config);
@@ -560,7 +758,8 @@ package body lib_mapper_mmc3 is
         banks.mirror := get_mirror(written, board, config, chr_bank);
 
         case board is
-            when MMC3_TXROM | MMC3_MMC6 | MMC3_TXSROM =>
+            when MMC3_TXROM | MMC3_NEC | MMC3_MMC6 | MMC3_TXSROM |
+                 RAMBO1 | RAMBO1_158 =>
             when MMC3_QJ =>
                 prg_bank := "000" & written.outer & prg_bank(3 downto 0);
                 chr_bank := written.outer & chr_bank(6 downto 0);
@@ -583,8 +782,16 @@ package body lib_mapper_mmc3 is
         then
             ret.cart := protect_prg_ram(written, board, cart_in, ret.cart);
         end if;
-        ret.cart.cpu.irq := ret.reg.irq and
-                            reg.irq_delay(reg.irq_delay'high);
+        -- The IRQ of the MMC3 is set by the PPU in the middle of a CPU
+        -- cycle, which the CPU sees about 2 PPU clocks later. That of the
+        -- RAMBO-1 is set on M2
+        if is_rambo1(board)
+        then
+            ret.cart.cpu.irq := reg.irq;
+        else
+            ret.cart.cpu.irq := ret.reg.irq and
+                                reg.irq_delay(reg.irq_delay'high);
+        end if;
 
         return ret;
     end;

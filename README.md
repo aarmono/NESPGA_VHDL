@@ -13,7 +13,8 @@ in that. The NES poses no difficulty for modern FPGA hardware: the main
 constraint is memory which more modern FPGAs have much more of.
 The current status is:
 
-* Games playable from embedded flash memory on the DE1 board
+* Games playable from NES roms flashed onto an SD card using the on-board SD
+  card slot
 * Video using the on-board VGA output (color resolution is 4-bit per channel
   due to the way the VGA hardware is designed, but this does not appear to
   matter significantly)
@@ -28,14 +29,21 @@ Joystick keymap
 * i = Start
 
 Mappers currently supported:
-* 000
-* 001
-* 002
-* 003
-* 004
 
-So very much a work in progress still. However my emphasis to date has been on
-emulation accuracy of the CPU, PPU, and APU to make sure that's solid.
+| Family | Mappers |
+|---|---|
+| Discrete latch boards (NROM, UxROM, CNROM, AxROM, multicarts, ...) | 0, 2, 3, 7, 11, 13, 30, 34, 58, 61, 62, 66, 70, 71, 78, 79, 87, 89, 93, 94, 97, 101, 140, 146, 152, 180, 184, 185, 200, 201, 202, 203, 212, 213, 214, 225, 226, 227, 228, 231, 232, 242, 255 |
+| MMC1 | 1, 105, 155 |
+| MMC2 / MMC4 | 9, 10 |
+| MMC3 / MMC6 / Namco 108 | 4, 47, 76, 88, 95, 118, 119, 154, 206 |
+| MMC5 (including audio) | 5 |
+| Sunsoft FME-7 (no 5B audio) | 69 |
+| Konami VRC2 / VRC4 | 21, 22, 23, 25 |
+| Konami VRC6 (including audio) | 24, 26 |
+| Tengen RAMBO-1 | 64, 158 |
+
+Bus conflicts on discrete boards and flash saving on mapper 30 are not
+emulated.
 
 The design is synthesized using Quartus 13.0.1 Web Edition, the last version
 to support the Cyclone II.

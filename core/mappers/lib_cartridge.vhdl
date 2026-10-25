@@ -149,6 +149,7 @@ package body lib_cartridge is
         variable ret : cart_reg_t;
     begin
         ret := RESET_CART_REG;
+        ret.latch := get_reset_latch_reg(boards.latch);
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
 
         return ret;

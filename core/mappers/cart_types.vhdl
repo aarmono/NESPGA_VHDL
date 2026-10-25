@@ -117,6 +117,9 @@ package cart_types is
         -- open bus
         data    : data_t;
         data_oe : boolean;
+        -- The bits of data the board leaves floating when it drives the
+        -- others: the console reads open bus there
+        data_float : data_t;
         -- /IRQ, active high
         irq     : boolean;
     end record;
@@ -125,6 +128,7 @@ package cart_types is
     (
         data => (others => '-'),
         data_oe => false,
+        data_float => (others => '0'),
         irq => false
     );
 
@@ -552,8 +556,9 @@ package body cart_types is
     begin
         ret := cart_out;
 
-        address := (bank and config.prg_rom_mask) &
-                   unsigned(cart_in.cpu.prg_bus.address(12 downto 0));
+        address := resize((bank and config.prg_rom_mask) &
+                          unsigned(cart_in.cpu.prg_bus.address(12 downto 0)),
+                          address'length);
         ret.mem.prg_rom_bus := bus_read(address);
 
         ret.cpu.data := cart_in.mem.data_from_prg_rom;
@@ -579,8 +584,10 @@ package body cart_types is
 
         if not banks.chr_ram
         then
-            address := (banks.chr and config.chr_rom_mask) &
-                       unsigned(cart_in.ppu.chr_bus.address(9 downto 0));
+            address :=
+                resize((banks.chr and config.chr_rom_mask) &
+                       unsigned(cart_in.ppu.chr_bus.address(9 downto 0)),
+                       address'length);
             ret.mem.chr_rom_bus := bus_read(address);
             ret.ppu.data := cart_in.mem.data_from_chr_rom;
         else

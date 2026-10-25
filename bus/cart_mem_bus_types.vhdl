@@ -4,7 +4,7 @@ use IEEE.numeric_std.all;
 
 package cart_mem_bus_types is
    
-    subtype cart_mem_addr_t is std_logic_vector(20 downto 0);
+    subtype cart_mem_addr_t is std_logic_vector(22 downto 0);
     type cart_mem_bus_t is record
         address  : cart_mem_addr_t;
         read     : boolean;
