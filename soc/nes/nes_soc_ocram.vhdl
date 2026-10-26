@@ -233,7 +233,8 @@ begin
     );
 
     -- RAM inside the mapper chip, which has a bus of its own so that the
-    -- chip can access it in every PPU cycle
+    -- chip can access it in every PPU cycle. It also holds the contents of
+    -- the serial EEPROMs of the Bandai FCG boards
     chip_ram : syncram_sp
     generic map
     (

@@ -63,7 +63,8 @@ package lib_mapper_n163 is
     -- The 1KB pages of the pattern tables (0-7) and nametables (8-11)
     type chr_reg_arr_t is array(0 to 11) of data_t;
 
-    subtype chip_ram_idx_t is natural range 0 to 2**chip_ram_addr_t'length-1;
+    -- The 128 bytes of the chip RAM the 163 has, at the bottom of the bus
+    subtype chip_ram_idx_t is natural range 0 to 127;
 
     -- The IRQ counter, with the enable in bit 15
     subtype irq_count_t is natural range 0 to 2**16-1;

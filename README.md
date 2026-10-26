@@ -43,6 +43,7 @@ Mappers currently supported:
 | Tengen RAMBO-1 | 64, 158 |
 | Namco 163 (including audio) / 175 / 340 | 19, 210 |
 | Action 53 | 28 |
+| Bandai FCG-1/2 / LZ93D50 (with serial EEPROMs; no Datach barcode reader) | 16, 153, 157, 159 |
 
 Bus conflicts on discrete boards and flash saving on mapper 30 are not
 emulated.

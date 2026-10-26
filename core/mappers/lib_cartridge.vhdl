@@ -1,5 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
+use work.nes_types.all;
 use work.cart_types.all;
 use work.lib_mapper_latch.all;
 use work.lib_mapper_mmc1.all;
@@ -11,6 +12,7 @@ use work.lib_mapper_vrc6.all;
 use work.lib_mapper_mmc5.all;
 use work.lib_mapper_n163.all;
 use work.lib_mapper_action53.all;
+use work.lib_mapper_bandai.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -33,7 +35,8 @@ package lib_cartridge is
         BOARD_VRC6,
         BOARD_MMC5,
         BOARD_N163,
-        BOARD_ACTION53
+        BOARD_ACTION53,
+        BOARD_BANDAI
     );
 
     -- The board in use and how it is wired, decoded from the config
@@ -47,6 +50,7 @@ package lib_cartridge is
         vrc4         : vrc4_board_t;
         vrc6         : vrc6_board_t;
         n163         : n163_board_t;
+        bandai       : bandai_board_t;
     end record;
 
     function get_cart_boards(config : cart_config_t) return cart_boards_t;
@@ -62,6 +66,7 @@ package lib_cartridge is
         mmc5  : mapper_mmc5_reg_t;
         n163  : mapper_n163_reg_t;
         action53 : mapper_action53_reg_t;
+        bandai : mapper_bandai_reg_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -77,7 +82,8 @@ package lib_cartridge is
         vrc6 => get_reset_vrc6_reg,
         mmc5 => RESET_MAPPER_MMC5_REG,
         n163 => RESET_MAPPER_N163_REG,
-        action53 => RESET_MAPPER_ACTION53_REG
+        action53 => RESET_MAPPER_ACTION53_REG,
+        bandai => RESET_MAPPER_BANDAI_REG
     );
 
     type cart_cycle_out_t is record
@@ -99,6 +105,10 @@ package lib_cartridge is
     -- which gives none. Boards that need more than the default size say how
     -- much here
     function set_ines_ram_masks(config : cart_config_t) return cart_config_t;
+
+    -- What the PRG RAM and chip RAM of the board hold at power on. The
+    -- console zeroes them unless the board needs otherwise
+    function get_save_ram_fill(config : cart_config_t) return data_t;
 
 end package lib_cartridge;
 
@@ -138,6 +148,9 @@ package body lib_cartridge is
         elsif is_action53_mapper(mapper_num)
         then
             return BOARD_ACTION53;
+        elsif is_bandai_mapper(mapper_num)
+        then
+            return BOARD_BANDAI;
         else
             return BOARD_NONE;
         end if;
@@ -156,7 +169,8 @@ package body lib_cartridge is
             mmc3 => get_mmc3_board(config),
             vrc4 => get_vrc4_board(config),
             vrc6 => get_vrc6_board(config),
-            n163 => get_n163_board(config)
+            n163 => get_n163_board(config),
+            bandai => get_bandai_board(config)
         );
     end;
 
@@ -194,6 +208,7 @@ package body lib_cartridge is
         variable mmc5_out  : mapper_mmc5_out_t;
         variable n163_out  : mapper_n163_out_t;
         variable action53_out : mapper_action53_out_t;
+        variable bandai_out : mapper_bandai_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -277,6 +292,14 @@ package body lib_cartridge is
                                                       cart_in);
                 ret.reg.action53 := action53_out.reg;
                 ret.cart := action53_out.cart;
+            when BOARD_BANDAI =>
+                bandai_out := cycle_mapper_bandai(reg.bandai,
+                                                  boards.bandai,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                ret.reg.bandai := bandai_out.reg;
+                ret.cart := bandai_out.cart;
             when BOARD_NONE =>
         end case;
 
@@ -304,6 +327,20 @@ package body lib_cartridge is
         end if;
 
         return ret;
+    end;
+
+    -- Famicom Jump II (153) hangs if its PRG RAM holds zeroes, and the
+    -- EEPROMs of the other Bandai boards are blank, so these are filled
+    -- with ones, as a blank EEPROM is
+    function get_save_ram_fill(config : cart_config_t) return data_t
+    is
+    begin
+        if is_bandai_mapper(config.mapper_num)
+        then
+            return x"FF";
+        else
+            return x"00";
+        end if;
     end;
 
 end package body;

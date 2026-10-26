@@ -18,7 +18,8 @@ use work.cart_mem_bus_types.all;
 -- CHR RAM) are not on the connector, so they have records of their own.
 -- So does RAM inside a mapper chip (the ExRAM of the MMC5 and the chip RAM
 -- of the Namco 163), which is kept with the memories of the board rather than
--- in the board
+-- in the board, as are the contents of the serial EEPROMs of the Bandai FCG
+-- boards, on the chip RAM bus
 package cart_types is
 
     subtype mapper_num_t is std_logic_vector(11 downto 0);

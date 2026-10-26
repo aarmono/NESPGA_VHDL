@@ -373,7 +373,7 @@ package body lib_n163_audio is
     begin
         ret := audio;
 
-        if addr = "1111111"
+        if to_integer(unsigned(addr)) = 16#7F#
         then
             ret.channels := to_integer(data(6 downto 4));
         end if;

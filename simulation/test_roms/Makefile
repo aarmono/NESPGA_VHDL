@@ -14,6 +14,7 @@ NES_TEST_ROMS := ../../nes-test-roms
 PYTHON ?= python3 -B
 
 ACTION53_VARIANTS := ines nes2
+BANDAI_VARIANTS := 16_4 16_5 16_ines 153 157 159
 FME7_VARIANTS := ines nes2
 LATCH_VARIANTS := nrom_128 nrom_256_v uxrom uorom cnrom axrom colordreams \
                   bnrom_ines bnrom_nes2 nina001_ines nina001_nes2 gxrom
@@ -38,6 +39,7 @@ VRC4_VARIANTS := 21_ines_a 21_ines_c 21_1 21_2 22 23_ines_f 23_ines_e 23_1 \
 VRC6_VARIANTS := 24 26 24_nes2
 
 ACTION53_ROMS := $(ACTION53_VARIANTS:%=$(OUT)/action53_%.nes)
+BANDAI_ROMS := $(BANDAI_VARIANTS:%=$(OUT)/bandai_%.nes)
 FME7_ROMS := $(FME7_VARIANTS:%=$(OUT)/fme7_%.nes)
 LATCH_ROMS := $(LATCH_VARIANTS:%=$(OUT)/latch_%.nes)
 LATCH_CHR_RAM_ROMS := $(LATCH_CHR_RAM_VARIANTS:%=$(OUT)/latch_chr_ram_%.nes)
@@ -59,7 +61,8 @@ VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 NES2_ROMS := $(OUT)/nes2_mmc3_alt.nes $(OUT)/nes2_mmc3_rev_a.nes \
              $(OUT)/nes2_mmc1_a12.nes
 
-ROMS := $(ACTION53_ROMS) $(FME7_ROMS) $(LATCH_ROMS) $(LATCH_CHR_RAM_ROMS) \
+ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(LATCH_ROMS) \
+        $(LATCH_CHR_RAM_ROMS) \
         $(LATCH_ADDR_ROMS) $(LATCH_BOARDS_ROMS) \
         $(MMC1_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) \
         $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(N163_ROMS) $(RAMBO1_ROMS) \
@@ -75,6 +78,9 @@ all: $(ROMS)
 # mmc5_audio_%, and likewise latch_% and mmc1_%
 $(ACTION53_ROMS): $(OUT)/action53_%.nes: action53.py | $(OUT)
 	$(PYTHON) action53.py $@ $*
+
+$(BANDAI_ROMS): $(OUT)/bandai_%.nes: bandai.py | $(OUT)
+	$(PYTHON) bandai.py $@ $*
 
 $(FME7_ROMS): $(OUT)/fme7_%.nes: fme7.py | $(OUT)
 	$(PYTHON) fme7.py $@ $*

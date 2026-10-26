@@ -4,7 +4,7 @@ use IEEE.numeric_std.all;
 
 package chip_ram_bus_types is
    
-    subtype chip_ram_addr_t is std_logic_vector(6 downto 0);
+    subtype chip_ram_addr_t is std_logic_vector(8 downto 0);
     type chip_ram_bus_t is record
         address  : chip_ram_addr_t;
         read     : boolean;
