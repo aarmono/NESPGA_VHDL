@@ -18,26 +18,11 @@ use work.lib_mapper_bandai.all;
 -- file. The registers of every supported board are kept and the board in use
 -- is selected at run time. Boards that are not in use hold their registers.
 --
--- To add a board, add it to board_t, get_board, cart_reg_t and, if it has
--- a board type of its own, cart_boards_t. Then cycle it in cycle_cartridge
--- and write its registers in the cartridge entity
+-- To add a board, add it to board_t (and NES_BOARDS, if it was not sold on
+-- NES carts), get_board, cart_reg_t and, if it has a board type of its own,
+-- cart_boards_t. Then cycle it in cycle_cartridge and write its registers in
+-- the cartridge entity
 package lib_cartridge is
-
-    type board_t is
-    (
-        BOARD_NONE,
-        BOARD_LATCH,
-        BOARD_MMC1,
-        BOARD_MMC2,
-        BOARD_MMC3,
-        BOARD_FME7,
-        BOARD_VRC4,
-        BOARD_VRC6,
-        BOARD_MMC5,
-        BOARD_N163,
-        BOARD_ACTION53,
-        BOARD_BANDAI
-    );
 
     -- The board in use and how it is wired, decoded from the config
     type cart_boards_t is record
@@ -91,10 +76,12 @@ package lib_cartridge is
         cart : cart_out_t;
     end record;
 
+    -- Only the boards in built are cycled
     function cycle_cartridge
     (
         reg      : cart_reg_t;
         boards   : cart_boards_t;
+        built    : board_set_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -190,6 +177,7 @@ package body lib_cartridge is
     (
         reg      : cart_reg_t;
         boards   : cart_boards_t;
+        built    : board_set_t;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -213,93 +201,128 @@ package body lib_cartridge is
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
 
+        -- A board left out of the build is never cycled, so neither its
+        -- logic nor its registers are built
         case boards.board is
             when BOARD_LATCH =>
-                latch_out := cycle_mapper_latch(reg.latch,
-                                                boards.latch,
-                                                config,
-                                                clk_sync,
-                                                cart_in);
-                ret.reg.latch := latch_out.reg;
-                ret.cart := latch_out.cart;
+                if built(BOARD_LATCH)
+                then
+                    latch_out := cycle_mapper_latch(reg.latch,
+                                                    boards.latch,
+                                                    config,
+                                                    clk_sync,
+                                                    cart_in);
+                    ret.reg.latch := latch_out.reg;
+                    ret.cart := latch_out.cart;
+                end if;
             when BOARD_MMC1 =>
-                mmc1_out := cycle_mapper_mmc1(reg.mmc1,
-                                              boards.mmc1,
-                                              boards.mmc1_prg_ram,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.mmc1 := mmc1_out.reg;
-                ret.cart := mmc1_out.cart;
-            when BOARD_MMC2 =>
-                mmc2_out := cycle_mapper_mmc2(reg.mmc2,
-                                              boards.mmc2,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.mmc2 := mmc2_out.reg;
-                ret.cart := mmc2_out.cart;
-            when BOARD_MMC3 =>
-                mmc3_out := cycle_mapper_mmc3(reg.mmc3,
-                                              boards.mmc3,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.mmc3 := mmc3_out.reg;
-                ret.cart := mmc3_out.cart;
-            when BOARD_FME7 =>
-                fme7_out := cycle_mapper_fme7(reg.fme7,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.fme7 := fme7_out.reg;
-                ret.cart := fme7_out.cart;
-            when BOARD_VRC4 =>
-                vrc4_out := cycle_mapper_vrc4(reg.vrc4,
-                                              boards.vrc4,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.vrc4 := vrc4_out.reg;
-                ret.cart := vrc4_out.cart;
-            when BOARD_VRC6 =>
-                vrc6_out := cycle_mapper_vrc6(reg.vrc6,
-                                              boards.vrc6,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.vrc6 := vrc6_out.reg;
-                ret.cart := vrc6_out.cart;
-            when BOARD_MMC5 =>
-                mmc5_out := cycle_mapper_mmc5(reg.mmc5,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.mmc5 := mmc5_out.reg;
-                ret.cart := mmc5_out.cart;
-            when BOARD_N163 =>
-                n163_out := cycle_mapper_n163(reg.n163,
-                                              boards.n163,
-                                              config,
-                                              clk_sync,
-                                              cart_in);
-                ret.reg.n163 := n163_out.reg;
-                ret.cart := n163_out.cart;
-            when BOARD_ACTION53 =>
-                action53_out := cycle_mapper_action53(reg.action53,
-                                                      config,
-                                                      clk_sync,
-                                                      cart_in);
-                ret.reg.action53 := action53_out.reg;
-                ret.cart := action53_out.cart;
-            when BOARD_BANDAI =>
-                bandai_out := cycle_mapper_bandai(reg.bandai,
-                                                  boards.bandai,
+                if built(BOARD_MMC1)
+                then
+                    mmc1_out := cycle_mapper_mmc1(reg.mmc1,
+                                                  boards.mmc1,
+                                                  boards.mmc1_prg_ram,
                                                   config,
                                                   clk_sync,
                                                   cart_in);
-                ret.reg.bandai := bandai_out.reg;
-                ret.cart := bandai_out.cart;
+                    ret.reg.mmc1 := mmc1_out.reg;
+                    ret.cart := mmc1_out.cart;
+                end if;
+            when BOARD_MMC2 =>
+                if built(BOARD_MMC2)
+                then
+                    mmc2_out := cycle_mapper_mmc2(reg.mmc2,
+                                                  boards.mmc2,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.mmc2 := mmc2_out.reg;
+                    ret.cart := mmc2_out.cart;
+                end if;
+            when BOARD_MMC3 =>
+                if built(BOARD_MMC3)
+                then
+                    mmc3_out := cycle_mapper_mmc3(reg.mmc3,
+                                                  boards.mmc3,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.mmc3 := mmc3_out.reg;
+                    ret.cart := mmc3_out.cart;
+                end if;
+            when BOARD_FME7 =>
+                if built(BOARD_FME7)
+                then
+                    fme7_out := cycle_mapper_fme7(reg.fme7,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.fme7 := fme7_out.reg;
+                    ret.cart := fme7_out.cart;
+                end if;
+            when BOARD_VRC4 =>
+                if built(BOARD_VRC4)
+                then
+                    vrc4_out := cycle_mapper_vrc4(reg.vrc4,
+                                                  boards.vrc4,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.vrc4 := vrc4_out.reg;
+                    ret.cart := vrc4_out.cart;
+                end if;
+            when BOARD_VRC6 =>
+                if built(BOARD_VRC6)
+                then
+                    vrc6_out := cycle_mapper_vrc6(reg.vrc6,
+                                                  boards.vrc6,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.vrc6 := vrc6_out.reg;
+                    ret.cart := vrc6_out.cart;
+                end if;
+            when BOARD_MMC5 =>
+                if built(BOARD_MMC5)
+                then
+                    mmc5_out := cycle_mapper_mmc5(reg.mmc5,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.mmc5 := mmc5_out.reg;
+                    ret.cart := mmc5_out.cart;
+                end if;
+            when BOARD_N163 =>
+                if built(BOARD_N163)
+                then
+                    n163_out := cycle_mapper_n163(reg.n163,
+                                                  boards.n163,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.n163 := n163_out.reg;
+                    ret.cart := n163_out.cart;
+                end if;
+            when BOARD_ACTION53 =>
+                if built(BOARD_ACTION53)
+                then
+                    action53_out := cycle_mapper_action53(reg.action53,
+                                                          config,
+                                                          clk_sync,
+                                                          cart_in);
+                    ret.reg.action53 := action53_out.reg;
+                    ret.cart := action53_out.cart;
+                end if;
+            when BOARD_BANDAI =>
+                if built(BOARD_BANDAI)
+                then
+                    bandai_out := cycle_mapper_bandai(reg.bandai,
+                                                      boards.bandai,
+                                                      config,
+                                                      clk_sync,
+                                                      cart_in);
+                    ret.reg.bandai := bandai_out.reg;
+                    ret.cart := bandai_out.cart;
+                end if;
             when BOARD_NONE =>
         end case;
 

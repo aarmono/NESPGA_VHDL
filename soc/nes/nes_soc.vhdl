@@ -23,6 +23,8 @@ use work.lib_nes.all;
 entity nes_soc is
 generic
 (
+    -- The boards the cartridge is built as. See board_set_t
+    CART_BOARDS  : board_set_t := ALL_BOARDS;
     -- See clk_en
     CLK_FREQ     : positive := 50_000_000;
     CPU_FREQ_NUM : positive := 39_375_000;
@@ -218,6 +220,10 @@ begin
                    (others => '-');
 
     nes_cart : entity work.cartridge(behavioral)
+    generic map
+    (
+        CART_BOARDS => CART_BOARDS
+    )
     port map
     (
         clk => clk,

@@ -11,12 +11,14 @@ use work.ciram_bus_types.all;
 use work.chip_ram_bus_types.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
+use work.cart_types.all;
 
 package soc is
     
     component nes_soc is
     generic
     (
+        CART_BOARDS  : board_set_t := ALL_BOARDS;
         CLK_FREQ     : positive := 50_000_000;
         CPU_FREQ_NUM : positive := 39_375_000;
         CPU_FREQ_DEN : positive := 22
@@ -84,7 +86,8 @@ package soc is
         VENDOR           : vendor_t := VENDOR_ALTERA;
         CLK_FREQ         : positive := 50_000_000;
         CPU_FREQ_NUM     : positive := 39_375_000;
-        CPU_FREQ_DEN     : positive := 22
+        CPU_FREQ_DEN     : positive := 22;
+        CART_BOARDS      : board_set_t := ALL_BOARDS
     );
     port
     (

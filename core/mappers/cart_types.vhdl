@@ -26,6 +26,43 @@ package cart_types is
     subtype submapper_num_t is std_logic_vector(3 downto 0);
     subtype rom_blocks_t is unsigned(7 downto 0);
 
+    -- The boards the cartridge can be built as, each one a mapper chip and
+    -- the mapper numbers of the boards built with it
+    type board_t is
+    (
+        BOARD_NONE,
+        BOARD_LATCH,
+        BOARD_MMC1,
+        BOARD_MMC2,
+        BOARD_MMC3,
+        BOARD_FME7,
+        BOARD_VRC4,
+        BOARD_VRC6,
+        BOARD_MMC5,
+        BOARD_N163,
+        BOARD_ACTION53,
+        BOARD_BANDAI
+    );
+
+    -- The boards a build of the cartridge supports. The logic of the others
+    -- is left out, and a ROM file that needs one is not supported
+    type board_set_t is array (board_t) of boolean;
+
+    constant ALL_BOARDS : board_set_t :=
+    (
+        BOARD_NONE => false,
+        others => true
+    );
+
+    -- The boards that were sold on NES carts. The others were only sold on
+    -- Famicom carts
+    constant NES_BOARDS : board_set_t :=
+    (
+        BOARD_NONE | BOARD_VRC4 | BOARD_VRC6 | BOARD_N163 | BOARD_BANDAI =>
+            false,
+        others => true
+    );
+
     -- The boards map PRG ROM in 8KB banks to the four windows at 0x8000,
     -- 0xA000, 0xC000 and 0xE000, and CHR ROM in 1KB banks to the eight
     -- windows at 0x0000-0x1FFF. A board with larger banks maps one to

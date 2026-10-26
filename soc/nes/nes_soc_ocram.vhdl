@@ -14,6 +14,7 @@ use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.lib_nes.all;
+use work.cart_types.all;
 
 entity nes_soc_ocram is
 generic
@@ -26,7 +27,9 @@ generic
     -- See clk_en
     CLK_FREQ         : positive := 50_000_000;
     CPU_FREQ_NUM     : positive := 39_375_000;
-    CPU_FREQ_DEN     : positive := 22
+    CPU_FREQ_DEN     : positive := 22;
+    -- See nes_soc
+    CART_BOARDS      : board_set_t := ALL_BOARDS
 );
 port
 (
@@ -89,6 +92,7 @@ begin
     soc : entity work.nes_soc(behavioral)
     generic map
     (
+        CART_BOARDS => CART_BOARDS,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
         CPU_FREQ_DEN => CPU_FREQ_DEN

@@ -7,6 +7,11 @@ use work.lib_cartridge.all;
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The boards are cycled by lib_cartridge
 entity cartridge is
+generic
+(
+    -- The boards to build. See board_set_t
+    CART_BOARDS : board_set_t := ALL_BOARDS
+);
 port
 (
     clk      : in std_logic;
@@ -36,7 +41,7 @@ begin
 
     boards <= get_cart_boards(config);
 
-    assert reset or boards.board /= BOARD_NONE
+    assert reset or CART_BOARDS(boards.board)
         report "Mapper not supported: " &
                integer'image(to_integer(unsigned(config.mapper_num)))
         severity failure;
@@ -53,7 +58,12 @@ begin
         then
             reg <= get_reset_cart_reg(boards);
         else
-            v_out := cycle_cartridge(reg, boards, config, clk_sync, cart_in);
+            v_out := cycle_cartridge(reg,
+                                     boards,
+                                     CART_BOARDS,
+                                     config,
+                                     clk_sync,
+                                     cart_in);
 
             case boards.board is
                 when BOARD_LATCH => reg.latch <= v_out.reg.latch;
@@ -77,7 +87,12 @@ begin
     process(all)
         variable v_out : cart_cycle_out_t;
     begin
-        v_out := cycle_cartridge(reg, boards, config, clk_sync, cart_in);
+        v_out := cycle_cartridge(reg,
+                                 boards,
+                                 CART_BOARDS,
+                                 config,
+                                 clk_sync,
+                                 cart_in);
 
         cart_out <= v_out.cart;
     end process;
