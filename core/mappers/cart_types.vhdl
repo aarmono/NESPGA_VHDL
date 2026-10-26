@@ -9,19 +9,68 @@ use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
 use work.exram_bus_types.all;
+use work.chip_ram_bus_types.all;
 use work.cart_mem_bus_types.all;
 
 -- Types shared by the cartridge and the boards (mappers) it can hold. The
 -- cart_cpu_* and cart_ppu_* records follow the pins of the cartridge
 -- connector. The memories on the board (PRG ROM, CHR ROM, PRG RAM and
 -- CHR RAM) are not on the connector, so they have records of their own.
--- So does RAM inside a mapper chip (the ExRAM of the MMC5), which is kept
--- with the memories of the board rather than in the board
+-- So does RAM inside a mapper chip (the ExRAM of the MMC5 and the chip RAM
+-- of the Namco 163), which is kept with the memories of the board rather than
+-- in the board, as are the contents of the serial EEPROMs of the Bandai FCG
+-- boards, on the chip RAM bus
 package cart_types is
 
     subtype mapper_num_t is std_logic_vector(11 downto 0);
     subtype submapper_num_t is std_logic_vector(3 downto 0);
     subtype rom_blocks_t is unsigned(7 downto 0);
+
+    -- The boards the cartridge can be built as, each one a mapper chip and
+    -- the mapper numbers of the boards built with it
+    type board_t is
+    (
+        BOARD_NONE,
+        BOARD_LATCH,
+        BOARD_MMC1,
+        BOARD_MMC2,
+        BOARD_MMC3,
+        BOARD_FME7,
+        -- The audio of the Sunsoft 5B, on the FME-7 boards. Not a board of
+        -- its own: get_board never gives it, and the FME-7 boards are built
+        -- with the audio when it is in the set
+        BOARD_SUNSOFT_5B,
+        BOARD_VRC4,
+        BOARD_VRC6,
+        BOARD_MMC5,
+        -- The audio of the MMC5, as with BOARD_SUNSOFT_5B. Its registers,
+        -- status and IRQ are part of BOARD_MMC5, only its output is left out
+        BOARD_MMC5_AUDIO,
+        BOARD_N163,
+        BOARD_ACTION53,
+        BOARD_BANDAI,
+        BOARD_SS88006
+    );
+
+    -- The boards a build of the cartridge supports. The logic of the others
+    -- is left out, and a ROM file that needs one is not supported
+    type board_set_t is array (board_t) of boolean;
+
+    constant ALL_BOARDS : board_set_t :=
+    (
+        BOARD_NONE => false,
+        others => true
+    );
+
+    -- The boards that were sold on NES carts. The others were only sold on
+    -- Famicom carts
+    constant NES_BOARDS : board_set_t :=
+    (
+        BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_VRC4 | BOARD_VRC6 |
+        BOARD_MMC5_AUDIO | BOARD_N163 | BOARD_BANDAI | BOARD_SS88006 =>
+            false,
+        others => true
+    );
 
     -- The boards map PRG ROM in 8KB banks to the four windows at 0x8000,
     -- 0xA000, 0xC000 and 0xE000, and CHR ROM in 1KB banks to the eight
@@ -178,6 +227,7 @@ package cart_types is
         -- Read data of the CPU and PPU accesses to ExRAM
         data_from_cpu_exram : data_t;
         data_from_ppu_exram : data_t;
+        data_from_chip_ram  : data_t;
     end record;
 
     type cart_mem_out_t is record
@@ -197,6 +247,10 @@ package cart_types is
 
         ppu_exram_bus     : exram_bus_t;
         data_to_ppu_exram : data_t;
+
+        -- The chip RAM is on a bus of its own, with one access per PPU cycle
+        chip_ram_bus      : chip_ram_bus_t;
+        data_to_chip_ram  : data_t;
     end record;
 
     constant CART_MEM_OUT_IDLE : cart_mem_out_t :=
@@ -214,7 +268,10 @@ package cart_types is
         data_to_cpu_exram => (others => '-'),
 
         ppu_exram_bus => EXRAM_BUS_IDLE,
-        data_to_ppu_exram => (others => '-')
+        data_to_ppu_exram => (others => '-'),
+
+        chip_ram_bus => CHIP_RAM_BUS_IDLE,
+        data_to_chip_ram => (others => '-')
     );
 
     type cart_in_t is record
@@ -262,6 +319,9 @@ package cart_types is
         -- The PPU accesses the nametables in CHR, in bank chr like the
         -- pattern tables, rather than in CIRAM. mirror is not used
         nt_chr       : boolean;
+        -- The PPU accesses CIRAM, in the page mirror selects, whatever its
+        -- address, so a board can map CIRAM to the pattern tables as CHR RAM
+        ciram        : boolean;
     end record;
 
     -- The config with the masks for the sizes of the ROMs in its header
@@ -512,7 +572,8 @@ package body cart_types is
             chr_ram => has_chr_ram(config),
             chr => (others => '0'),
             mirror => config.mirror,
-            nt_chr => false
+            nt_chr => false,
+            ciram => false
         );
     end;
 
@@ -681,7 +742,10 @@ package body cart_types is
 
         if is_bus_active(cart_in.ppu.chr_bus)
         then
-            if cart_in.ppu.chr_bus.address(13) = '0' or banks.nt_chr
+            if banks.ciram
+            then
+                ret := map_ciram(cart_in, banks.mirror, ret);
+            elsif cart_in.ppu.chr_bus.address(13) = '0' or banks.nt_chr
             then
                 ret := map_chr(config, cart_in, banks, ret);
             else

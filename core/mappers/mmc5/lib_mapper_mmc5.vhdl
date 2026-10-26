@@ -22,7 +22,9 @@ use work.lib_mmc5_audio.all;
 -- IRQ, and to tell sprite fetches from background fetches. In the vertical
 -- split, the tiles on one side of a column come from ExRAM with their own
 -- vertical scroll. The audio (lib_mmc5_audio) is two pulses and a PCM DAC,
--- which can raise an IRQ of its own
+-- which can raise an IRQ of its own. NES carts have no audio pins, so the
+-- output of the audio is only built when told to. Its registers, status
+-- and IRQ are always there, as on an NES cart
 package lib_mapper_mmc5 is
 
     -- The mapper number is that of a board built around the MMC5
@@ -232,9 +234,11 @@ package lib_mapper_mmc5 is
         cart : cart_out_t;
     end record;
 
+    -- The output of the audio is built when audio is set
     function cycle_mapper_mmc5
     (
         reg      : mapper_mmc5_reg_t;
+        audio    : boolean;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -1165,6 +1169,7 @@ package body lib_mapper_mmc5 is
     function cycle_mapper_mmc5
     (
         reg      : mapper_mmc5_reg_t;
+        audio    : boolean;
         config   : cart_config_t;
         clk_sync : boolean;
         cart_in  : cart_in_t
@@ -1260,7 +1265,10 @@ package body lib_mapper_mmc5 is
 
         ret.cart.cpu.irq := (reg.irq_pending and reg.irq_enable) or
                             get_mmc5_pcm_irq(reg.audio);
-        ret.cart.audio := get_mmc5_audio_level(reg.audio);
+        if audio
+        then
+            ret.cart.audio := get_mmc5_audio_level(reg.audio);
+        end if;
 
         return ret;
     end;

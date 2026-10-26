@@ -4,12 +4,15 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
+use work.lib_sunsoft_5b_audio.all;
 
 -- Boards built around the Sunsoft FME-7, 5A or 5B (69): JLROM and JSROM.
 -- The CPU writes a command number to 0x8000 and its parameter to 0xA000.
 -- There are eight 1KB CHR ROM banks and four 8KB PRG banks, the first of
 -- which is at 0x6000 and holds PRG ROM or PRG RAM, and a 16-bit counter of
--- CPU cycles that raises an IRQ. The audio of the 5B is not emulated
+-- CPU cycles that raises an IRQ. The 5B adds audio, whose registers are
+-- selected at 0xC000 and written at 0xE000. It is built only with
+-- BOARD_SUNSOFT_5B, since the boards cannot tell the chips apart
 package lib_mapper_fme7 is
 
     -- The mapper number is that of a board built around the FME-7
@@ -49,6 +52,8 @@ package lib_mapper_fme7 is
         irq_count_enable : boolean;
         irq_count        : irq_count_t;
         irq              : boolean;
+
+        audio            : s5b_audio_t;
     end record;
 
     constant RESET_MAPPER_FME7_REG : mapper_fme7_reg_t :=
@@ -66,7 +71,9 @@ package lib_mapper_fme7 is
         irq_enable => false,
         irq_count_enable => false,
         irq_count => 0,
-        irq => false
+        irq => false,
+
+        audio => RESET_S5B_AUDIO
     );
 
     type mapper_fme7_out_t is record
@@ -74,12 +81,14 @@ package lib_mapper_fme7 is
         cart : cart_out_t;
     end record;
 
+    -- The audio of the 5B is built when sunsoft_5b is set
     function cycle_mapper_fme7
     (
-        reg      : mapper_fme7_reg_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg        : mapper_fme7_reg_t;
+        sunsoft_5b : boolean;
+        config     : cart_config_t;
+        clk_sync   : boolean;
+        cart_in    : cart_in_t
     )
     return mapper_fme7_out_t;
 
@@ -136,9 +145,10 @@ package body lib_mapper_fme7 is
 
     function cycle_write
     (
-        reg      : mapper_fme7_reg_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg        : mapper_fme7_reg_t;
+        sunsoft_5b : boolean;
+        clk_sync   : boolean;
+        cart_in    : cart_in_t
     )
     return mapper_fme7_reg_t
     is
@@ -153,9 +163,18 @@ package body lib_mapper_fme7 is
                     ret.command := to_integer(cart_in.cpu.data(3 downto 0));
                 when "01" =>
                     ret := write_parameter(reg, cart_in.cpu.data);
-                -- The audio registers of the 5B
+                when "10" =>
+                    if sunsoft_5b
+                    then
+                        ret.audio := write_s5b_select(reg.audio,
+                                                      cart_in.cpu.data);
+                    end if;
                 when others =>
-                    null;
+                    if sunsoft_5b
+                    then
+                        ret.audio := write_s5b_data(reg.audio,
+                                                    cart_in.cpu.data);
+                    end if;
             end case;
         end if;
 
@@ -228,19 +247,26 @@ package body lib_mapper_fme7 is
 
     function cycle_mapper_fme7
     (
-        reg      : mapper_fme7_reg_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg        : mapper_fme7_reg_t;
+        sunsoft_5b : boolean;
+        config     : cart_config_t;
+        clk_sync   : boolean;
+        cart_in    : cart_in_t
     )
     return mapper_fme7_out_t
     is
         variable ret : mapper_fme7_out_t;
         variable banks : cart_banks_t;
     begin
-        -- The counter is clocked before the write of the CPU cycle, so a
-        -- write to it or to the IRQ control is not undone by the clock
-        ret.reg := cycle_write(cycle_irq(reg, clk_sync), clk_sync, cart_in);
+        -- The counter and the audio are clocked before the write of the CPU
+        -- cycle, so a write to them or to the IRQ control is not undone by
+        -- the clock
+        ret.reg := cycle_irq(reg, clk_sync);
+        if sunsoft_5b
+        then
+            ret.reg.audio := cycle_s5b_audio(reg.audio, clk_sync);
+        end if;
+        ret.reg := cycle_write(ret.reg, sunsoft_5b, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
         banks := default_banks(config);
@@ -259,6 +285,10 @@ package body lib_mapper_fme7 is
         ret.cart := map_cart(config, cart_in, banks);
 
         ret.cart.cpu.irq := reg.irq;
+        if sunsoft_5b
+        then
+            ret.cart.audio := get_s5b_audio_level(reg.audio);
+        end if;
 
         return ret;
     end;

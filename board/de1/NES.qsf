@@ -399,12 +399,19 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_mapper_fme7.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_sunsoft_5b_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/lib_vrc_irq.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_vrc6_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc5/lib_mmc5_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/n163/lib_n163_audio.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/n163/lib_mapper_n163.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/action53/lib_mapper_action53.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/bandai/lib_bandai_eeprom.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/bandai/lib_mapper_bandai.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/latch/lib_mapper_latch.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/cart_types.vhdl
@@ -432,6 +439,7 @@ set_global_assignment -name VHDL_FILE ../../core/lib_nes_mmap.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/prg_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/chr_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/exram_bus_types.vhdl
+set_global_assignment -name VHDL_FILE ../../bus/chip_ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/sec_oam_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/ram_bus_types.vhdl
 set_global_assignment -name VHDL_FILE ../../bus/prg_bus_types.vhdl

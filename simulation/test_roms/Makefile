@@ -4,8 +4,9 @@
 # scripts. run_nes_tests.sh runs this before the tests.
 #
 # The ROMs checked by ear or against Mesen (apu_timers.py, the audio variants
-# of mmc5_audio.py and vrc6.py) and the debugging variants (mmc5.py ines_dump,
-# mmc5_split.py continue, rambo1.py dump/continue) are left out.
+# of fme7.py, mmc5_audio.py, n163.py and vrc6.py) and the debugging variants
+# (mmc5.py ines_dump, mmc5_split.py continue, rambo1.py dump/continue) are
+# left out.
 
 OUT ?= ../../board/sim/ghdl/generated_roms
 NES_TEST_ROMS := ../../nes-test-roms
@@ -13,6 +14,8 @@ NES_TEST_ROMS := ../../nes-test-roms
 # run in the docker container
 PYTHON ?= python3 -B
 
+ACTION53_VARIANTS := ines nes2
+BANDAI_VARIANTS := 16_4 16_5 16_ines 153 157 159
 FME7_VARIANTS := ines nes2
 LATCH_VARIANTS := nrom_128 nrom_256_v uxrom uorom cnrom axrom colordreams \
                   bnrom_ines bnrom_nes2 nina001_ines nina001_nes2 gxrom
@@ -30,11 +33,15 @@ MMC3_VARIANTS := mmc3 mmc3_big qj txsrom tqrom mmc6_nes2 mmc6_ines 206 88 76 \
                  95 154
 MMC5_VARIANTS := ines ekrom etrom ewrom
 MMC5_AUDIO_VARIANTS := check
+N163_VARIANTS := 163_ines 163_nes2 175 340 detect_19 detect_210
 RAMBO1_VARIANTS := 64 158
+SS88006_VARIANTS := ines nes2
 VRC4_VARIANTS := 21_ines_a 21_ines_c 21_1 21_2 22 23_ines_f 23_ines_e 23_1 \
                  23_2 23_3 25_ines_b 25_ines_d 25_1 25_2 25_3
 VRC6_VARIANTS := 24 26 24_nes2
 
+ACTION53_ROMS := $(ACTION53_VARIANTS:%=$(OUT)/action53_%.nes)
+BANDAI_ROMS := $(BANDAI_VARIANTS:%=$(OUT)/bandai_%.nes)
 FME7_ROMS := $(FME7_VARIANTS:%=$(OUT)/fme7_%.nes)
 LATCH_ROMS := $(LATCH_VARIANTS:%=$(OUT)/latch_%.nes)
 LATCH_CHR_RAM_ROMS := $(LATCH_CHR_RAM_VARIANTS:%=$(OUT)/latch_chr_ram_%.nes)
@@ -46,7 +53,9 @@ MMC2_ROMS := $(MMC2_VARIANTS:%=$(OUT)/mmc2_%.nes)
 MMC3_ROMS := $(MMC3_VARIANTS:%=$(OUT)/mmc3_%.nes)
 MMC5_ROMS := $(MMC5_VARIANTS:%=$(OUT)/mmc5_%.nes)
 MMC5_AUDIO_ROMS := $(MMC5_AUDIO_VARIANTS:%=$(OUT)/mmc5_audio_%.nes)
+N163_ROMS := $(N163_VARIANTS:%=$(OUT)/n163_%.nes)
 RAMBO1_ROMS := $(RAMBO1_VARIANTS:%=$(OUT)/rambo1_%.nes)
+SS88006_ROMS := $(SS88006_VARIANTS:%=$(OUT)/ss88006_%.nes)
 VRC4_ROMS := $(VRC4_VARIANTS:%=$(OUT)/vrc4_%.nes)
 VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 
@@ -55,11 +64,12 @@ VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 NES2_ROMS := $(OUT)/nes2_mmc3_alt.nes $(OUT)/nes2_mmc3_rev_a.nes \
              $(OUT)/nes2_mmc1_a12.nes
 
-ROMS := $(FME7_ROMS) $(LATCH_ROMS) $(LATCH_CHR_RAM_ROMS) $(LATCH_ADDR_ROMS) \
-        $(LATCH_BOARDS_ROMS) \
+ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(LATCH_ROMS) \
+        $(LATCH_CHR_RAM_ROMS) \
+        $(LATCH_ADDR_ROMS) $(LATCH_BOARDS_ROMS) \
         $(MMC1_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) \
-        $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(RAMBO1_ROMS) $(VRC4_ROMS) \
-        $(VRC6_ROMS) \
+        $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(N163_ROMS) $(RAMBO1_ROMS) \
+        $(SS88006_ROMS) $(VRC4_ROMS) $(VRC6_ROMS) \
         $(OUT)/mmc5_split.nes $(NES2_ROMS)
 
 .PHONY: all clean
@@ -69,6 +79,12 @@ all: $(ROMS)
 
 # Static pattern rules, since mmc5_% would also match mmc5_split and
 # mmc5_audio_%, and likewise latch_% and mmc1_%
+$(ACTION53_ROMS): $(OUT)/action53_%.nes: action53.py | $(OUT)
+	$(PYTHON) action53.py $@ $*
+
+$(BANDAI_ROMS): $(OUT)/bandai_%.nes: bandai.py | $(OUT)
+	$(PYTHON) bandai.py $@ $*
+
 $(FME7_ROMS): $(OUT)/fme7_%.nes: fme7.py | $(OUT)
 	$(PYTHON) fme7.py $@ $*
 
@@ -102,8 +118,14 @@ $(MMC5_ROMS): $(OUT)/mmc5_%.nes: mmc5.py | $(OUT)
 $(MMC5_AUDIO_ROMS): $(OUT)/mmc5_audio_%.nes: mmc5_audio.py | $(OUT)
 	$(PYTHON) mmc5_audio.py $@ $*
 
+$(N163_ROMS): $(OUT)/n163_%.nes: n163.py | $(OUT)
+	$(PYTHON) n163.py $@ $*
+
 $(RAMBO1_ROMS): $(OUT)/rambo1_%.nes: rambo1.py | $(OUT)
 	$(PYTHON) rambo1.py $@ $*
+
+$(SS88006_ROMS): $(OUT)/ss88006_%.nes: ss88006.py | $(OUT)
+	$(PYTHON) ss88006.py $@ $*
 
 $(VRC4_ROMS): $(OUT)/vrc4_%.nes: vrc4.py | $(OUT)
 	$(PYTHON) vrc4.py $@ $*

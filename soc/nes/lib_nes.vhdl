@@ -7,6 +7,7 @@ use work.ram_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
 use work.exram_bus_types.all;
+use work.chip_ram_bus_types.all;
 use work.chr_bus_types.all;
 use work.ciram_bus_types.all;
 use work.oam_bus_types.all;
@@ -95,6 +96,9 @@ package lib_nes is
         data_to_prg_cart_mem : data_t;
         chr_cart_mem_bus     : cart_mem_bus_t;
         data_to_chr_cart_mem : data_t;
+        -- RAM inside the mapper chip that is on a bus of its own
+        chip_ram_bus         : chip_ram_bus_t;
+        data_to_chip_ram     : data_t;
         oam_bus              : oam_bus_t;
         data_to_oam          : data_t;
         sec_oam_bus          : sec_oam_bus_t;
@@ -277,6 +281,9 @@ package body lib_nes is
         ret.data_to_prg_cart_mem := (others => '-');
         ret.chr_cart_mem_bus := CART_MEM_BUS_IDLE;
         ret.data_to_chr_cart_mem := (others => '-');
+
+        ret.chip_ram_bus := nes_in.cart.mem.chip_ram_bus;
+        ret.data_to_chip_ram := nes_in.cart.mem.data_to_chip_ram;
         
         ret.oam_bus := OAM_BUS_IDLE;
         ret.sec_oam_bus := SEC_OAM_BUS_IDLE;
@@ -305,6 +312,8 @@ package body lib_nes is
                 
                 ret.ppu_bus.ciram_bus :=
                     bus_write(nes_in.reg.cur_cycle(ciram_addr_t'range));
+                ret.chip_ram_bus :=
+                    bus_write(nes_in.reg.cur_cycle(chip_ram_addr_t'range));
                 
                 ret.cpu_bus.data_to_ram := x"00";
                 
@@ -317,6 +326,7 @@ package body lib_nes is
                     );
                 
                 ret.ppu_bus.data_to_ciram := x"00";
+                ret.data_to_chip_ram := x"00";
 
                 -- PRG RAM and CHR RAM share the cartridge memory bus, so their
                 -- first 8KB are zeroed on alternate CPU cycles. A write that
@@ -427,7 +437,13 @@ package body lib_nes is
                             set_ines_ram_masks(ret.reg.cart_config);
                     end if;
 
-                    if needs_ram_clear(ret.reg.cart_config)
+                    -- A board whose RAMs do not power on zeroed has them
+                    -- filled from the start
+                    if get_save_ram_fill(ret.reg.cart_config) /= x"00"
+                    then
+                        ret.reg.cur_cycle := x"0000";
+                        ret.reg.cur_state := STATE_CLEAR;
+                    elsif needs_ram_clear(ret.reg.cart_config)
                     then
                         ret.reg.cur_cycle := unsigned(DEFAULT_RAM_MASK) + 1;
                         ret.reg.cur_state := STATE_CLEAR;
@@ -443,13 +459,25 @@ package body lib_nes is
 
                 -- Zeroes PRG RAM and CHR RAM past the first 8KB, both in the
                 -- same CPU cycle. The mux serves the CHR write first, then
-                -- the PRG write once the CHR write hits in its cache
+                -- the PRG write once the CHR write hits in its cache. A
+                -- board with a save RAM fill has PRG RAM and the chip RAM
+                -- filled from the start instead
                 if is_zero(std_logic_vector(nes_in.reg.cur_cycle) and
                            not nes_in.reg.cart_config.prg_ram_mask)
                 then
                     ret.prg_cart_mem_bus :=
                         get_prg_ram_bus(bus_write(nes_in.reg.cur_cycle));
-                    ret.data_to_prg_cart_mem := x"00";
+                    ret.data_to_prg_cart_mem :=
+                        get_save_ram_fill(nes_in.reg.cart_config);
+                end if;
+
+                if is_zero(nes_in.reg.cur_cycle(cpu_addr_t'high
+                                                downto chip_ram_addr_t'length))
+                then
+                    ret.chip_ram_bus :=
+                        bus_write(nes_in.reg.cur_cycle(chip_ram_addr_t'range));
+                    ret.data_to_chip_ram :=
+                        get_save_ram_fill(nes_in.reg.cart_config);
                 end if;
 
                 if is_zero(std_logic_vector(nes_in.reg.cur_cycle) and
