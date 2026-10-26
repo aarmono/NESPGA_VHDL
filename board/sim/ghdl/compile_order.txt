@@ -93,6 +93,7 @@
 ../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 ../../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
 ../../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
+../../../core/mappers/fme7/lib_sunsoft_5b_audio.vhdl
 ../../../core/mappers/fme7/lib_mapper_fme7.vhdl
 ../../../core/mappers/lib_vrc_irq.vhdl
 ../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl

@@ -253,6 +253,7 @@ package body lib_cartridge is
                 if built(BOARD_FME7)
                 then
                     fme7_out := cycle_mapper_fme7(reg.fme7,
+                                                  built(BOARD_SUNSOFT_5B),
                                                   config,
                                                   clk_sync,
                                                   cart_in);
@@ -323,7 +324,7 @@ package body lib_cartridge is
                     ret.reg.bandai := bandai_out.reg;
                     ret.cart := bandai_out.cart;
                 end if;
-            when BOARD_NONE =>
+            when BOARD_NONE | BOARD_SUNSOFT_5B =>
         end case;
 
         return ret;

@@ -36,6 +36,10 @@ package cart_types is
         BOARD_MMC2,
         BOARD_MMC3,
         BOARD_FME7,
+        -- The audio of the Sunsoft 5B, on the FME-7 boards. Not a board of
+        -- its own: get_board never gives it, and the FME-7 boards are built
+        -- with the audio when it is in the set
+        BOARD_SUNSOFT_5B,
         BOARD_VRC4,
         BOARD_VRC6,
         BOARD_MMC5,
@@ -58,7 +62,8 @@ package cart_types is
     -- Famicom carts
     constant NES_BOARDS : board_set_t :=
     (
-        BOARD_NONE | BOARD_VRC4 | BOARD_VRC6 | BOARD_N163 | BOARD_BANDAI =>
+        BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_VRC4 | BOARD_VRC6 | BOARD_N163 |
+        BOARD_BANDAI =>
             false,
         others => true
     );

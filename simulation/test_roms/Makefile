@@ -4,8 +4,9 @@
 # scripts. run_nes_tests.sh runs this before the tests.
 #
 # The ROMs checked by ear or against Mesen (apu_timers.py, the audio variants
-# of mmc5_audio.py, n163.py and vrc6.py) and the debugging variants (mmc5.py
-# ines_dump, mmc5_split.py continue, rambo1.py dump/continue) are left out.
+# of fme7.py, mmc5_audio.py, n163.py and vrc6.py) and the debugging variants
+# (mmc5.py ines_dump, mmc5_split.py continue, rambo1.py dump/continue) are
+# left out.
 
 OUT ?= ../../board/sim/ghdl/generated_roms
 NES_TEST_ROMS := ../../nes-test-roms

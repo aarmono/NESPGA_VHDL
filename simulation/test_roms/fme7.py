@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate test ROMs for the Sunsoft FME-7 (mapper 69).
+"""Generate test ROMs for the Sunsoft FME-7 and 5B (mapper 69).
 
-Usage: fme7.py OUT.nes {ines,nes2}
+Usage: fme7.py OUT.nes {ines,nes2,audio,audio_ext}
 
 The ROM checks, in order:
   - PRG ROM banks at 0x6000 (command 8), 0x8000, 0xA000 and 0xC000
@@ -35,6 +35,15 @@ Variants:
 
 Mesen passes both.
 
+The audio ROMs play the segments of the 5B audio, each for SEGMENT_FRAMES
+frames with a frame of silence before it, with the backdrop green:
+  audio      TONE_SEGMENTS: the tone channels, which Mesen has, so the
+             audio can be compared with Mesen's WAV
+  audio_ext  EXT_SEGMENTS: the noise, the envelope and a channel with both
+             tone and noise off, which Mesen does not have
+s5b_audio_check.py checks the audio of nes_bench against what nesdev
+describes, and compares the audio ROM with Mesen.
+
 There is no assembler on the build machine, so the 6502 code is assembled
 here from opcodes.
 """
@@ -42,8 +51,10 @@ here from opcodes.
 import sys
 
 VARIANTS = {
-    'ines': dict(nes2=False, ram_banks=1),
-    'nes2': dict(nes2=True, ram_banks=4),
+    'ines': dict(nes2=False, ram_banks=1, audio=None),
+    'nes2': dict(nes2=True, ram_banks=4, audio=None),
+    'audio': dict(nes2=False, ram_banks=1, audio='tone'),
+    'audio_ext': dict(nes2=False, ram_banks=1, audio='ext'),
 }
 
 PASS_COLOR = 0x2A
@@ -72,6 +83,109 @@ SLED_NOPS = 160
 # The low bytes of the return addresses Mesen gives for TRIALS, or None to
 # only record them
 EXPECTED = [0x00, 0x00, 0x01, 0x01, 0x0A, 0x0A, 0x80]
+FRAMES = 0x04
+
+# The audio segments: writes, (register, value) for a register of the 5B or
+# (address, value) for an address of 0x4000 or more, and what
+# s5b_audio_check.py expects of them:
+#   ('tone', period, volume)     a square wave of a tone channel
+#   ('apu',)                     the APU pulse 1, which levels are measured
+#                                against when comparing with Mesen
+#   ('mixed', levels)            more than one channel, of 5-bit levels
+#   ('const', level)             a constant 5-bit level
+#   ('noise', period, level)     the noise
+#   ('tone_noise', period, level)  a tone channel ANDed with the noise
+#   ('env', shape, period)       the envelope on a constant channel
+#   ('env_freq', period)         the sawtooth envelope, too fast for its
+#                                steps to be sampled, so only its frequency
+#   ('env_tone', period)         a tone channel at the envelope's volume
+# Each plays for SEGMENT_FRAMES frames after a frame of silence
+SEGMENT_FRAMES = 20
+SILENCE = [(0x07, 0x3F), (0x08, 0x00), (0x09, 0x00), (0x0A, 0x00),
+           (0x4015, 0x00)]
+
+
+def tone_a(period, volume):
+    return [(0x00, period & 0xFF), (0x01, period >> 8), (0x08, volume)]
+
+
+TONE_SEGMENTS = [
+    # A, volume 15, period 0x100: 218.5 Hz
+    (tone_a(0x100, 15) + [(0x07, 0x3E)], ('tone', 0x100, 15)),
+    # The APU pulse 1, volume 15, 50%, at the same frequency
+    ([(0x4015, 0x01), (0x4000, 0xBF), (0x4001, 0x08), (0x4002, 0xFF),
+      (0x4003, 0x01)], ('apu',)),
+    # A, volume 9, period 0x080
+    (tone_a(0x080, 9) + [(0x07, 0x3E)], ('tone', 0x080, 9)),
+    # A, volume 4
+    (tone_a(0x080, 4) + [(0x07, 0x3E)], ('tone', 0x080, 4)),
+    # A, the high bits of the period: 0x3FF, 54.6 Hz. A lower tone would
+    # have half periods as long as the silence between segments
+    (tone_a(0x3FF, 15) + [(0x07, 0x3E)], ('tone', 0x3FF, 15)),
+    # B, volume 15, period 0x0C0
+    ([(0x02, 0xC0), (0x03, 0x00), (0x09, 0x0F), (0x07, 0x3D)],
+     ('tone', 0x0C0, 15)),
+    # C, volume 12, period 0x200
+    ([(0x04, 0x00), (0x05, 0x02), (0x0A, 0x0C), (0x07, 0x3B)],
+     ('tone', 0x200, 12)),
+    # All three at volume 15
+    (tone_a(0x100, 15) +
+     [(0x02, 0xC0), (0x03, 0x00), (0x09, 0x0F),
+      (0x04, 0x80), (0x05, 0x00), (0x0A, 0x0F), (0x07, 0x38)],
+     ('mixed', [31, 31, 31])),
+    # A, volume 15, then a write of volume 0 to register 8 that is ignored,
+    # since the high 4 bits of the select are not 0
+    (tone_a(0x100, 15) + [(0x07, 0x3E), (0xC000, 0x18), (0xE000, 0x00)],
+     ('tone', 0x100, 15)),
+    # A and the APU pulse 1 together
+    (tone_a(0x100, 15) + [(0x07, 0x3E),
+      (0x4015, 0x01), (0x4000, 0xBF), (0x4001, 0x08), (0x4002, 0xFF),
+      (0x4003, 0x01)], ('mixed', [31])),
+]
+
+
+# The shape is written before the channel is set to the envelope, which
+# would otherwise put out the envelope of the segment before until then
+def envelope(shape, period, tone=False):
+    return [(0x0B, period & 0xFF), (0x0C, period >> 8), (0x0D, shape),
+            (0x08, 0x10)] + ([(0x07, 0x3E)] if tone else [])
+
+
+EXT_SEGMENTS = [
+    # A with both tone and noise off: the constant level of volume 15
+    ([(0x08, 0x0F)], ('const', 31)),
+    # Volume 6
+    ([(0x08, 0x06)], ('const', 13)),
+    # The noise on A, volume 15, period 0x10: a bit every 512 CPU cycles
+    ([(0x06, 0x10), (0x08, 0x0F), (0x07, 0x37)], ('noise', 0x10, 31)),
+    # Period 0x04
+    ([(0x06, 0x04), (0x08, 0x0F), (0x07, 0x37)], ('noise', 0x04, 31)),
+    # Period 0x1F, volume 10
+    ([(0x06, 0x1F), (0x08, 0x0A), (0x07, 0x37)], ('noise', 0x1F, 21)),
+    # The tone of A at period 0x8FF, which has the top bit: 24.3 Hz
+    (tone_a(0x8FF, 15) + [(0x07, 0x3E)], ('tone', 0x8FF, 15)),
+    # The tone of A, period 0x040, ANDed with the noise, period 0x10
+    (tone_a(0x040, 15) + [(0x06, 0x10), (0x07, 0x36)],
+     ('tone_noise', 0x040, 31)),
+    # The envelope shapes that repeat, period 0x040: 1024 CPU cycles a step
+    (envelope(0x08, 0x040), ('env', 0x08, 0x040)),
+    (envelope(0x0A, 0x040), ('env', 0x0A, 0x040)),
+    (envelope(0x0C, 0x040), ('env', 0x0C, 0x040)),
+    (envelope(0x0E, 0x040), ('env', 0x0E, 0x040)),
+    # The shapes that hold, period 0x120, which has the high byte
+    (envelope(0x00, 0x120), ('env', 0x00, 0x120)),
+    (envelope(0x04, 0x120), ('env', 0x04, 0x120)),
+    (envelope(0x09, 0x120), ('env', 0x09, 0x120)),
+    (envelope(0x0B, 0x120), ('env', 0x0B, 0x120)),
+    (envelope(0x0D, 0x120), ('env', 0x0D, 0x120)),
+    (envelope(0x0F, 0x120), ('env', 0x0F, 0x120)),
+    # The sawtooth at period 1 and at period 0, which is the same
+    (envelope(0x08, 0x001), ('env_freq', 0x001)),
+    (envelope(0x08, 0x000), ('env_freq', 0x000)),
+    # A tone at the volume of the triangle envelope, period 0x100
+    (tone_a(0x100, 0) + envelope(0x0E, 0x100, tone=True),
+     ('env_tone', 0x100)),
+]
 
 
 class Assembler:
@@ -120,6 +234,7 @@ LDA_ZP, STA_ZP, LDX_ZP, LDY_ZP, INC_ZP = 0xA5, 0x85, 0xA6, 0xA4, 0xE6
 LDA_ABS_X, STA_ZP_X, CMP_ABS_X = 0xBD, 0x95, 0xDD
 BPL, BMI, BEQ, BNE, JMP_ABS, RTI = 0x10, 0x30, 0xF0, 0xD0, 0x4C, 0x40
 SEI, CLI, CLD, TXS, TSX, NOP, DEX = 0x78, 0x58, 0xD8, 0x9A, 0xBA, 0xEA, 0xCA
+DEC_ZP = 0xC6
 
 
 def build(v):
@@ -183,6 +298,39 @@ def build(v):
         a.emit(DEX)
         a.emit(BNE, 0xFD)
 
+    # A register of the 5B is selected at 0xC000 and written at 0xE000
+    def write(addr, value):
+        if addr < 0x10:
+            a.emit(LDA_IMM, addr)
+            a.abs(STA_ABS, 0xC000)
+            addr = 0xE000
+        a.emit(LDA_IMM, value)
+        a.abs(STA_ABS, addr)
+
+    def wait_frames(n):
+        a.emit(LDA_IMM, n)
+        a.emit(STA_ZP, FRAMES)
+        name = 'frames_%d' % len(a.code)
+        a.label(name)
+        wait_vblank(name + '_vbl')
+        a.emit(DEC_ZP, FRAMES)
+        a.branch(BNE, name)
+
+    def build_audio(segments):
+        ppu_write(0x3F00, PASS_COLOR)
+        ppu_addr(0x0000)
+        for writes, _ in segments:
+            for addr, value in SILENCE:
+                write(addr, value)
+            wait_frames(1)
+            for addr, value in writes:
+                write(addr, value)
+            wait_frames(SEGMENT_FRAMES)
+        for addr, value in SILENCE:
+            write(addr, value)
+        a.label('done')
+        a.abs_label(JMP_ABS, 'done')
+
     a.label('reset')
     a.emit(SEI, CLD, LDX_IMM, 0xFF, TXS)
     a.emit(LDA_IMM, 0x00)
@@ -196,6 +344,10 @@ def build(v):
     a.emit(STA_ZP, MODE)
     wait_vblank('vblank_1')
     wait_vblank('vblank_2')
+
+    # The checks below are left in the audio ROMs but not reached
+    if v['audio'] is not None:
+        build_audio(TONE_SEGMENTS if v['audio'] == 'tone' else EXT_SEGMENTS)
 
     # PRG ROM banks
     for b in range(PRG_BANKS - 1):

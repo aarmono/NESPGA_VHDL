@@ -399,6 +399,7 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_mapper_fme7.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_sunsoft_5b_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/lib_vrc_irq.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
