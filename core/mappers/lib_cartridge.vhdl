@@ -15,6 +15,8 @@ use work.lib_mapper_action53.all;
 use work.lib_mapper_bandai.all;
 use work.lib_mapper_ss88006.all;
 use work.lib_mapper_taito.all;
+use work.lib_mapper_sunsoft.all;
+use work.lib_mapper_irem.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -39,6 +41,8 @@ package lib_cartridge is
         n163         : n163_board_t;
         bandai       : bandai_board_t;
         taito        : taito_board_t;
+        sunsoft      : sunsoft_board_t;
+        irem         : irem_board_t;
     end record;
 
     function get_cart_boards(config : cart_config_t) return cart_boards_t;
@@ -57,6 +61,8 @@ package lib_cartridge is
         bandai : mapper_bandai_reg_t;
         ss88006 : mapper_ss88006_reg_t;
         taito : mapper_taito_reg_t;
+        sunsoft : mapper_sunsoft_reg_t;
+        irem : mapper_irem_reg_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -75,7 +81,9 @@ package lib_cartridge is
         action53 => RESET_MAPPER_ACTION53_REG,
         bandai => RESET_MAPPER_BANDAI_REG,
         ss88006 => RESET_MAPPER_SS88006_REG,
-        taito => RESET_MAPPER_TAITO_REG
+        taito => RESET_MAPPER_TAITO_REG,
+        sunsoft => RESET_MAPPER_SUNSOFT_REG,
+        irem => RESET_MAPPER_IREM_REG
     );
 
     type cart_cycle_out_t is record
@@ -151,6 +159,12 @@ package body lib_cartridge is
         elsif is_taito_mapper(mapper_num)
         then
             return BOARD_TAITO;
+        elsif is_sunsoft_mapper(mapper_num)
+        then
+            return BOARD_SUNSOFT;
+        elsif is_irem_mapper(mapper_num)
+        then
+            return BOARD_IREM;
         else
             return BOARD_NONE;
         end if;
@@ -171,7 +185,9 @@ package body lib_cartridge is
             vrc6 => get_vrc6_board(config),
             n163 => get_n163_board(config),
             bandai => get_bandai_board(config),
-            taito => get_taito_board(config)
+            taito => get_taito_board(config),
+            sunsoft => get_sunsoft_board(config),
+            irem => get_irem_board(config)
         );
     end;
 
@@ -213,6 +229,8 @@ package body lib_cartridge is
         variable bandai_out : mapper_bandai_out_t;
         variable ss88006_out : mapper_ss88006_out_t;
         variable taito_out : mapper_taito_out_t;
+        variable sunsoft_out : mapper_sunsoft_out_t;
+        variable irem_out : mapper_irem_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -361,6 +379,28 @@ package body lib_cartridge is
                                                     cart_in);
                     ret.reg.taito := taito_out.reg;
                     ret.cart := taito_out.cart;
+                end if;
+            when BOARD_SUNSOFT =>
+                if built(BOARD_SUNSOFT)
+                then
+                    sunsoft_out := cycle_mapper_sunsoft(reg.sunsoft,
+                                                        boards.sunsoft,
+                                                        config,
+                                                        clk_sync,
+                                                        cart_in);
+                    ret.reg.sunsoft := sunsoft_out.reg;
+                    ret.cart := sunsoft_out.cart;
+                end if;
+            when BOARD_IREM =>
+                if built(BOARD_IREM)
+                then
+                    irem_out := cycle_mapper_irem(reg.irem,
+                                                  boards.irem,
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in);
+                    ret.reg.irem := irem_out.reg;
+                    ret.cart := irem_out.cart;
                 end if;
             when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
         end case;

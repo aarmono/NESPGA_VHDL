@@ -108,6 +108,8 @@
 ../../../core/mappers/bandai/lib_mapper_bandai.vhdl
 ../../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
 ../../../core/mappers/taito/lib_mapper_taito.vhdl
+../../../core/mappers/sunsoft/lib_mapper_sunsoft.vhdl
+../../../core/mappers/irem/lib_mapper_irem.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl

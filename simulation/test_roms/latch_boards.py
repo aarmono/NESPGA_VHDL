@@ -352,6 +352,54 @@ class M89(DataLatch):
         return 'AB'[bit(self.v, 3)]
 
 
+class M72(Board):
+    """Jaleco JF-17: a write that sets D7 (PRG) or D6 (CHR) after one that
+    cleared it loads the bank from the low bits"""
+    mapper = 72
+    prg = 8
+    chr = 16
+    bus_conflicts = True
+    prg_bits = 3
+
+    def reset(self):
+        self.p = 0
+        self.c = 0
+        self.strobe = 0
+
+    def write(self, addr, value):
+        if addr < 0x8000:
+            return
+        strobe = bits(value, 7, 6)
+        if bit(strobe, 1) and not bit(self.strobe, 1):
+            self.p = bits(value, self.prg_bits - 1, 0)
+        if bit(strobe, 0) and not bit(self.strobe, 0):
+            self.c = bits(value, 3, 0)
+        self.strobe = strobe
+
+    def prg_banks(self):
+        return prg16(self.p, LAST)
+
+    def chr_banks(self):
+        return chr8(self.c)
+
+    def writes(self):
+        return rom_writes(values=[0x83, 0x03, 0x45, 0x05, 0xC6, 0x0A, 0x87,
+                                  0x85, 0x01, 0x42, 0x43, 0xFF, 0x00, 0xC0,
+                                  0x80, 0x5A, 0x9B, 0x00, 0xCD, 0x4E, 0x8F,
+                                  0x00])
+
+
+class M92(M72):
+    """Jaleco JF-19: JF-17 with the PRG bank at 0xC000 and the first bank
+    fixed at 0x8000"""
+    mapper = 92
+    prg = 16
+    prg_bits = 4
+
+    def prg_banks(self):
+        return prg16(0, self.p)
+
+
 class M93(DataLatch):
     mapper = 93
     prg = 8
@@ -740,6 +788,7 @@ VARIANTS = {
     '152':        lambda: M152(),
     '71':         lambda: M71(mirror='H'),
     '71_1':       lambda: M71(submapper=1, nes2=True, prg=8),
+    '72':         lambda: M72(),
     '78_1':       lambda: M78(submapper=1, nes2=True),
     '78_3':       lambda: M78(submapper=3, nes2=True),
     '78_ines':    lambda: M78(four=True),
@@ -747,6 +796,7 @@ VARIANTS = {
     '146':        lambda: M79(mapper=146, mirror='H'),
     '87':         lambda: M87(),
     '89':         lambda: M89(),
+    '92':         lambda: M92(mirror='H'),
     '93':         lambda: M93(),
     '94':         lambda: M94(mirror='H'),
     '97':         lambda: M97(),

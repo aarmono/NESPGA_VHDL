@@ -79,6 +79,8 @@ begin
                 when BOARD_BANDAI => reg.bandai <= v_out.reg.bandai;
                 when BOARD_SS88006 => reg.ss88006 <= v_out.reg.ss88006;
                 when BOARD_TAITO => reg.taito <= v_out.reg.taito;
+                when BOARD_SUNSOFT => reg.sunsoft <= v_out.reg.sunsoft;
+                when BOARD_IREM => reg.irem <= v_out.reg.irem;
                 when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
             end case;
         end if;

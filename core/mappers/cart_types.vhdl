@@ -50,7 +50,9 @@ package cart_types is
         BOARD_ACTION53,
         BOARD_BANDAI,
         BOARD_SS88006,
-        BOARD_TAITO
+        BOARD_TAITO,
+        BOARD_SUNSOFT,
+        BOARD_IREM
     );
 
     -- The boards a build of the cartridge supports. The logic of the others
@@ -69,7 +71,7 @@ package cart_types is
     (
         BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_VRC4 | BOARD_VRC6 |
         BOARD_MMC5_AUDIO | BOARD_N163 | BOARD_BANDAI | BOARD_SS88006 |
-        BOARD_TAITO =>
+        BOARD_TAITO | BOARD_IREM =>
             false,
         others => true
     );

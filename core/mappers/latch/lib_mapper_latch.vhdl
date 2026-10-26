@@ -19,7 +19,8 @@ use work.cart_types.all;
 -- Each bit of a latch is wired on its own: it is written at one of a few
 -- shared address regions with a bit of the data or of the address, or holds
 -- a constant. Bits of the same latch can be written at different regions,
--- for a bank number split over two registers
+-- for a bank number split over two registers. A latch can also be clocked by
+-- the outputs of another, so that only some writes load it
 --
 -- To add a board, add its mapper number to is_latch_mapper and its row to
 -- get_latch_board
@@ -91,10 +92,17 @@ package lib_mapper_latch is
         -- its writes are ignored
         LATCH_CHR_DISABLE,
         -- CHR RAM ignores writes while any bit is set
-        LATCH_CHR_PROTECT
+        LATCH_CHR_PROTECT,
+        -- Bits that clock other latches, which are written only by a write
+        -- that sets their bit of this latch while it is clear
+        LATCH_STROBE
     );
 
     type latches_t is array(latch_id_t) of latch_t;
+
+    -- The bits of LATCH_STROBE that clock each latch. A latch with none set
+    -- is written by every write to its address
+    type latch_strobes_t is array(latch_id_t) of latch_value_t;
 
     type latch_prg_mode_t is
     (
@@ -181,6 +189,10 @@ package lib_mapper_latch is
         -- gives no size. Some boards have more than the default 8KB
         chr_ram_mask : chr_ram_addr_t;
         latches      : latches_t;
+        strobes      : latch_strobes_t;
+        -- Some latch is clocked by LATCH_STROBE. Derived from strobes, so
+        -- that the other boards skip the check
+        strobed      : boolean;
     end record;
 
     -- The mapper number is that of a board in the table
@@ -418,8 +430,9 @@ package body lib_mapper_latch is
         case mapper_num is
             when x"000" | x"002" | x"003" | x"007" | x"00B" | x"00D" |
                  x"01E" | x"022" | x"03A" | x"03D" | x"03E" | x"042" |
-                 x"046" | x"047" | x"04E" | x"04F" | x"057" | x"059" |
-                 x"05D" | x"05E" | x"061" | x"065" | x"08C" | x"092" |
+                 x"046" | x"047" | x"048" | x"04E" | x"04F" | x"057" |
+                 x"059" | x"05C" | x"05D" | x"05E" | x"061" | x"065" |
+                 x"08C" | x"092" |
                  x"098" | x"0B4" | x"0B8" | x"0B9" | x"0C8" | x"0C9" |
                  x"0CA" | x"0CB" | x"0D4" | x"0D5" | x"0D6" | x"0E1" |
                  x"0E2" | x"0E3" | x"0E4" | x"0E7" | x"0E8" | x"0F2" |
@@ -447,6 +460,7 @@ package body lib_mapper_latch is
         ret.nibble_ram := false;
         ret.chr_ram_mask := DEFAULT_RAM_MASK;
         ret.latches := (others => LATCH_NONE);
+        ret.strobes := (others => (others => '0'));
 
         -- Before submappers, the four-screen bit of the header marked the
         -- variant of a few boards
@@ -613,6 +627,18 @@ package body lib_mapper_latch is
                 else
                     ret.mirror_mode := MIRROR_SINGLE;
                 end if;
+            -- Jaleco JF-17. A 74161 latches D7-D4 of every write, and its
+            -- outputs for D7 and D6 clock the PRG and CHR bank registers,
+            -- so a bank is loaded by a write that sets its bit after one
+            -- that cleared it. The uPD7756C ADPCM chip of D5-D4 is not
+            -- emulated
+            when x"048" =>
+                ret.prg_mode := PRG_16KB_FIXED_HIGH;
+                ret.latches(LATCH_PRG) := rom_latch(2, 0);
+                ret.latches(LATCH_CHR_0) := rom_latch(3, 0);
+                ret.latches(LATCH_STROBE) := rom_latch(SRC_D7 & SRC_D6);
+                ret.strobes(LATCH_PRG) := x"02";
+                ret.strobes(LATCH_CHR_0) := x"01";
             -- NINA-03/06 (79) and Sachen 3015 (146)
             when x"04F" | x"092" =>
                 ret.latches(LATCH_PRG) := latch(LATCH_ADDR_4100, SRC_D3);
@@ -628,6 +654,17 @@ package body lib_mapper_latch is
                 ret.latches(LATCH_PRG) := rom_latch(6, 4);
                 ret.latches(LATCH_CHR_0) := rom_latch(SRC_D7 & data_bits(2, 0));
                 ret.latches(LATCH_MIRROR) := rom_latch(SRC_D3);
+            -- Jaleco JF-19: JF-17 with the PRG bank at 0xC000 and the first
+            -- bank fixed at 0x8000
+            when x"05C" =>
+                ret.prg_mode := PRG_16KB_FIXED_LOW;
+                ret.prg_fixed := x"00";
+                ret.prg_fixed_clear := x"FF";
+                ret.latches(LATCH_PRG) := rom_latch(3, 0);
+                ret.latches(LATCH_CHR_0) := rom_latch(3, 0);
+                ret.latches(LATCH_STROBE) := rom_latch(SRC_D7 & SRC_D6);
+                ret.strobes(LATCH_PRG) := x"02";
+                ret.strobes(LATCH_CHR_0) := x"01";
             -- Sunsoft-2 on the Sunsoft-3R board. Bit 0 clear disables CHR
             -- RAM
             when x"05D" =>
@@ -830,6 +867,7 @@ package body lib_mapper_latch is
         ret.chr_disable := ret.chr_reads_disable or
                            ret.latches(LATCH_CHR_DISABLE) /= LATCH_NONE;
         ret.chr_protect := ret.latches(LATCH_CHR_PROTECT) /= LATCH_NONE;
+        ret.strobed := ret.latches(LATCH_STROBE) /= LATCH_NONE;
 
         return ret;
     end;
@@ -931,6 +969,7 @@ package body lib_mapper_latch is
         variable addrs : latch_addrs_active_t;
         variable srcs : latch_src_values_t;
         variable wiring : latch_bit_t;
+        variable clocked : boolean;
     begin
         ret := regs;
         addrs := get_latch_addrs(cpu_in);
@@ -947,6 +986,28 @@ package body lib_mapper_latch is
                 end if;
             end loop;
         end loop;
+
+        -- A latch with strobes is written only when one of them rises
+        if board.strobed
+        then
+            for i in latch_id_t
+            loop
+                clocked := is_zero(board.strobes(i));
+                for b in latch_value_t'range
+                loop
+                    if board.strobes(i)(b) = '1' and
+                       regs(LATCH_STROBE)(b) = '0' and
+                       ret(LATCH_STROBE)(b) = '1'
+                    then
+                        clocked := true;
+                    end if;
+                end loop;
+                if not clocked
+                then
+                    ret(i) := regs(i);
+                end if;
+            end loop;
+        end if;
 
         return ret;
     end;
