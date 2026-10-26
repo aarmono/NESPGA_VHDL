@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
+use work.utilities.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
@@ -62,9 +63,10 @@ package lib_mapper_taito is
 
     function get_taito_board(config : cart_config_t) return taito_board_t;
 
-    -- The 128 bytes of RAM of the X1-005, for a ROM file whose header gives
-    -- no RAM size
-    constant TAITO_X1_005_INES_PRG_RAM_MASK : prg_ram_addr_t := x"007F";
+    -- The RAM mask of a ROM file of the board whose header gives no RAM
+    -- size
+    function get_taito_ines_prg_ram_mask(config : cart_config_t)
+        return prg_ram_addr_t;
 
     subtype bank_t is unsigned(7 downto 0);
     -- The PRG ROM banks at 0x8000, 0xA000 and 0xC000. The TC0190 and TC0690
@@ -86,10 +88,12 @@ package lib_mapper_taito is
     constant A12_MAX : natural := 10;
     subtype a12_count_t is natural range 0 to A12_MAX;
 
-    -- The X1-017 counts down from at most (0xFF + 2) * 16 CPU cycles
-    constant X1_017_IRQ_COUNT_MAX : natural := (16#FF# + 2) * 16;
-    subtype irq_count_t is natural range 0 to X1_017_IRQ_COUNT_MAX;
-    subtype irq_reload_t is natural range 0 to 16#FF#;
+    subtype irq_count_t is natural range 0 to 16#FF#;
+    -- The X1-017 counts CPU cycles down from at most (0xFF + 2) * 16, kept
+    -- as X1_017_PRESCALE times an 8-bit count plus a prescaler, which runs
+    -- from up to 2 * X1_017_PRESCALE - 1 down to 0 for each step of the count
+    constant X1_017_PRESCALE : natural := 16;
+    subtype irq_prescaler_t is natural range 0 to 2 * X1_017_PRESCALE - 1;
 
     type mapper_taito_reg_t is record
         prg_banks : prg_bank_arr_t;
@@ -98,13 +102,16 @@ package lib_mapper_taito is
         -- 0x1000
         chr_invert : boolean;
 
-        mirror : mirror_t;
+        -- The mirroring bit is set: bit 6 of 0x8000 or 0xE000 on the TC0190
+        -- and TC0690, horizontal when set, and bit 0 of 0x7EF6 on the X1
+        -- chips, vertical when set
+        mirroring : boolean;
 
         ram_enable : ram_enable_arr_t;
 
-        -- The reload value of the TC0690 (as written, inverted) or the latch
-        -- of the X1-017
-        irq_reload : irq_reload_t;
+        -- The reload value of the TC0690, which is written inverted, or the
+        -- latch of the X1-017
+        irq_reload : irq_count_t;
         irq_count  : irq_count_t;
         -- TC0690: a clock of the counter that leaves it at 0 raises the IRQ.
         -- X1-017: the IRQ drives /IRQ
@@ -118,24 +125,25 @@ package lib_mapper_taito is
         -- TC0690: the CPU cycles until the IRQ is raised, or 0 for none
         irq_delay : tc0690_irq_delay_t;
 
-        -- X1-017: bit 0 of 0x7EFE, the counter counts, and bit 2, which
-        -- stops it when set
-        irq_count_enable : boolean;
-        irq_count_stop   : boolean;
+        -- X1-017: bit 0 of 0x7EFE is set and bit 2, which stops the counter,
+        -- is clear
+        irq_counting  : boolean;
+        -- X1-017: the counter has not reached 0 since it was reloaded. The
+        -- CPU cycles left are
+        -- irq_count * X1_017_PRESCALE + irq_prescaler + 1
+        irq_running   : boolean;
+        irq_prescaler : irq_prescaler_t;
     end record;
 
     -- The power on state is not known. The mirroring is that of a mirroring
-    -- register of 0, which differs between the chips
-    function get_reset_taito_reg(board : taito_board_t)
-        return mapper_taito_reg_t;
-
+    -- register of 0
     constant RESET_MAPPER_TAITO_REG : mapper_taito_reg_t :=
     (
         prg_banks => (others => (others => '0')),
         chr_banks => (others => (others => '0')),
         chr_invert => false,
 
-        mirror => MIRROR_HORZ,
+        mirroring => false,
 
         ram_enable => (others => false),
 
@@ -148,8 +156,9 @@ package lib_mapper_taito is
         a12_count => 0,
         irq_delay => 0,
 
-        irq_count_enable => false,
-        irq_count_stop => false
+        irq_counting => false,
+        irq_running => false,
+        irq_prescaler => 0
     );
 
     type mapper_taito_out_t is record
@@ -208,18 +217,23 @@ package body lib_mapper_taito is
         return board = TAITO_X1_017 or board = TAITO_X1_017_552;
     end;
 
-    function get_reset_taito_reg(board : taito_board_t)
-        return mapper_taito_reg_t
+    function is_x1_005(board : taito_board_t) return boolean
     is
-        variable ret : mapper_taito_reg_t;
     begin
-        ret := RESET_MAPPER_TAITO_REG;
-        if is_tc0x90(board)
-        then
-            ret.mirror := MIRROR_VERT;
-        end if;
+        return board = TAITO_X1_005 or board = TAITO_X1_005_CIRAM;
+    end;
 
-        return ret;
+    function get_taito_ines_prg_ram_mask(config : cart_config_t)
+        return prg_ram_addr_t
+    is
+    begin
+        -- The 128 bytes of RAM of the X1-005
+        if get_taito_board(config) = TAITO_X1_005
+        then
+            return x"007F";
+        else
+            return config.prg_ram_mask;
+        end if;
     end;
 
     -- The PRG ROM bank of a write to a PRG bank register of the X1-017
@@ -235,10 +249,7 @@ package body lib_mapper_taito is
         ret := (others => '0');
         if board = TAITO_X1_017_552
         then
-            for i in 0 to 5
-            loop
-                ret(i) := data(5 - i);
-            end loop;
+            ret(5 downto 0) := unsigned(reverse_vector(data(5 downto 0)));
         else
             ret(3 downto 0) := unsigned(data(5 downto 2));
         end if;
@@ -246,30 +257,40 @@ package body lib_mapper_taito is
         return ret;
     end;
 
-    -- The count the X1-017 reloads when 0x7EFF is written, or with control
-    -- set when 0x7EFE is written with bit 0 clear
-    function get_x1_017_reload
+    -- Reloads the counter of the X1-017 when 0x7EFF is written, or with
+    -- control set when 0x7EFE is written with bit 0 clear. It then raises
+    -- the IRQ after (latch + 1) * 16 CPU cycles, or (latch + 2) * 16 with
+    -- control set, but 1 or 17 for a latch of 0
+    function reload_x1_017_irq
     (
-        latch   : irq_reload_t;
+        reg     : mapper_taito_reg_t;
         control : boolean
     )
-    return irq_count_t
+    return mapper_taito_reg_t
     is
+        variable ret : mapper_taito_reg_t;
     begin
-        if latch = 0
+        ret := reg;
+        ret.irq_running := true;
+        ret.irq_count := reg.irq_reload;
+        -- The count steps take X1_017_PRESCALE cycles each, and the
+        -- prescaler running out one more
+        if reg.irq_reload = 0
         then
             if control
             then
-                return 17;
+                ret.irq_prescaler := X1_017_PRESCALE;
             else
-                return 1;
+                ret.irq_prescaler := 0;
             end if;
         elsif control
         then
-            return (latch + 2) * 16;
+            ret.irq_prescaler := 2 * X1_017_PRESCALE - 1;
         else
-            return (latch + 1) * 16;
+            ret.irq_prescaler := X1_017_PRESCALE - 1;
         end if;
+
+        return ret;
     end;
 
     -- The registers of the TC0190 and TC0690 at 0x8000-0xFFFF. The TC0190
@@ -306,7 +327,7 @@ package body lib_mapper_taito is
                                        prg_bank_8kb_t'length);
                             if board = TAITO_TC0190 and idx = 0
                             then
-                                ret.mirror := get_hv_mirror(data(6));
+                                ret.mirroring := data(6) = '1';
                             end if;
                         when others =>
                             ret.chr_banks(idx - 2) := unsigned(data);
@@ -319,8 +340,7 @@ package body lib_mapper_taito is
                 when "10" =>
                     case idx is
                         when 0 =>
-                            ret.irq_reload :=
-                                to_integer(unsigned(not data));
+                            ret.irq_reload := to_integer(unsigned(data));
                         when 1 =>
                             ret.irq_count := 0;
                             ret.irq_clear := true;
@@ -335,7 +355,7 @@ package body lib_mapper_taito is
                     end if;
                 -- 0xE000-0xFFFF
                 when others =>
-                    ret.mirror := get_hv_mirror(data(6));
+                    ret.mirroring := data(6) = '1';
             end case;
         end if;
 
@@ -378,7 +398,7 @@ package body lib_mapper_taito is
             then
                 case idx is
                     when 6 =>
-                        ret.mirror := get_hv_mirror(not data(0));
+                        ret.mirroring := data(0) = '1';
                         ret.chr_invert := data(1) = '1';
                     when 7 =>
                         ret.ram_enable(0) := data = x"CA";
@@ -392,24 +412,21 @@ package body lib_mapper_taito is
                     when 13 =>
                         ret.irq_reload := to_integer(unsigned(data));
                     when 14 =>
-                        ret.irq_count_enable := data(0) = '1';
+                        ret.irq_counting := data(0) = '1' and data(2) = '0';
                         ret.irq_enable := data(1) = '1';
-                        ret.irq_count_stop := data(2) = '1';
                         if data(0) = '0'
                         then
-                            ret.irq_count :=
-                                get_x1_017_reload(reg.irq_reload, true);
+                            ret := reload_x1_017_irq(ret, true);
                         end if;
                     when others =>
                         ret.irq := false;
-                        ret.irq_count :=
-                            get_x1_017_reload(reg.irq_reload, false);
+                        ret := reload_x1_017_irq(ret, false);
                 end case;
             else
                 case idx is
                     when 6 | 7 =>
                         -- 207 wires CIRAM A10 to CHR A17 instead
-                        ret.mirror := get_hv_mirror(not data(0));
+                        ret.mirroring := data(0) = '1';
                     when 8 | 9 =>
                         ret.ram_enable(0) := data = x"A3";
                     when others =>
@@ -459,7 +476,7 @@ package body lib_mapper_taito is
             then
                 if reg.irq_count = 0 or reg.irq_clear
                 then
-                    ret.irq_count := reg.irq_reload;
+                    ret.irq_count := invert(reg.irq_reload, irq_count_t'high);
                 else
                     ret.irq_count := reg.irq_count - 1;
                 end if;
@@ -490,14 +507,17 @@ package body lib_mapper_taito is
     begin
         ret := reg;
 
-        if clk_sync and
-           reg.irq_count_enable and
-           not reg.irq_count_stop and
-           reg.irq_count /= 0
+        if clk_sync and reg.irq_counting and reg.irq_running
         then
-            ret.irq_count := reg.irq_count - 1;
-            if reg.irq_count = 1
+            if reg.irq_prescaler /= 0
             then
+                ret.irq_prescaler := reg.irq_prescaler - 1;
+            elsif reg.irq_count /= 0
+            then
+                ret.irq_prescaler := X1_017_PRESCALE - 1;
+                ret.irq_count := reg.irq_count - 1;
+            else
+                ret.irq_running := false;
                 ret.irq := true;
             end if;
         end if;
@@ -562,11 +582,6 @@ package body lib_mapper_taito is
             return resize(bank & swapped(0), chr_bank_1kb_t'length);
         else
             bank(0) := swapped(0);
-            -- CHR A17 drives CIRAM A10 instead on 207
-            if board = TAITO_X1_005_CIRAM
-            then
-                bank(7) := '0';
-            end if;
             return resize(bank, chr_bank_1kb_t'length);
         end if;
     end;
@@ -593,12 +608,28 @@ package body lib_mapper_taito is
                 when "100" => return reg.ram_enable(2);
                 when others => return false;
             end case;
-        elsif not is_tc0x90(board)
+        elsif is_x1_005(board)
         then
             -- 0x7F00-0x7FFF
             return reg.ram_enable(0) and addr(12 downto 8) = "11111";
         else
             return false;
+        end if;
+    end;
+
+    function get_mirror
+    (
+        reg   : mapper_taito_reg_t;
+        board : taito_board_t
+    )
+    return mirror_t
+    is
+    begin
+        if reg.mirroring = is_tc0x90(board)
+        then
+            return MIRROR_HORZ;
+        else
+            return MIRROR_VERT;
         end if;
     end;
 
@@ -614,8 +645,6 @@ package body lib_mapper_taito is
     is
         variable ret : mapper_taito_out_t;
         variable banks : cart_banks_t;
-        variable chr_window : chr_window_t;
-        variable nt_bank : bank_t;
     begin
         -- The X1-017 clocks its counter before the write of the CPU cycle,
         -- so a write to it is not undone by the clock; the TC0690 after it,
@@ -636,31 +665,35 @@ package body lib_mapper_taito is
             ret.reg := cycle_tc0690_irq(ret.reg, clk_sync, cart_in);
         end if;
 
-        -- The PPU sees the registers written by the CPU this cycle
-        chr_window := get_chr_window(cart_in.ppu);
-
+        -- The PPU sees the registers written by the CPU this cycle. The CPU
+        -- does not: a register write is not a read of PRG ROM, and none of
+        -- the registers are in the RAM. Not forwarding the write keeps the
+        -- CPU data bus out of the PRG ROM address
         banks := default_banks(config);
-        banks.prg_ram := is_ram_enabled(ret.reg, board, cart_in);
-        banks.prg := get_prg_bank(ret.reg,
+        banks.prg_ram := is_ram_enabled(reg, board, cart_in);
+        banks.prg := get_prg_bank(reg,
                                   board,
                                   get_prg_window(cart_in.cpu));
-        banks.chr := get_chr_bank(ret.reg, board, chr_window);
-        -- On 207 the nametables at 0x2000 and 0x2400 have the CIRAM page of
-        -- the first 2KB CHR bank, and those at 0x2800 and 0x2C00 that of the
-        -- second, as their addresses select those banks
+        banks.chr := get_chr_bank(ret.reg,
+                                  board,
+                                  get_chr_window(cart_in.ppu));
+        -- On 207 CHR A17 drives CIRAM A10 instead, so the nametables at
+        -- 0x2000 and 0x2400 have the CIRAM page of the first 2KB CHR bank,
+        -- and those at 0x2800 and 0x2C00 that of the second, as their
+        -- addresses select those banks
         if board = TAITO_X1_005_CIRAM
         then
-            nt_bank := ret.reg.chr_banks(to_integer(chr_window(1 downto 1)));
-            banks.mirror := get_single_screen_mirror(nt_bank(7));
+            banks.mirror := get_single_screen_mirror(banks.chr(7));
+            banks.chr(7) := '0';
         else
-            banks.mirror := ret.reg.mirror;
+            banks.mirror := get_mirror(ret.reg, board);
         end if;
 
         ret.cart := map_cart(config, cart_in, banks);
 
         -- The X1-005 does not see CPU A7, so its 128 bytes of RAM are
         -- mirrored at 0x7F80
-        if not is_tc0x90(board) and not is_x1_017(board)
+        if is_x1_005(board)
         then
             ret.cart.mem.prg_ram_bus.address(prg_ram_addr_t'high downto 7) :=
                 (others => '0');

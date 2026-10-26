@@ -183,7 +183,6 @@ package body lib_cartridge is
         ret.latch := get_reset_latch_reg(boards.latch);
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
         ret.n163 := get_reset_n163_reg(boards.n163);
-        ret.taito := get_reset_taito_reg(boards.taito);
 
         return ret;
     end;
@@ -387,10 +386,9 @@ package body lib_cartridge is
         elsif is_action53_mapper(config.mapper_num)
         then
             ret.chr_ram_mask := ACTION53_INES_CHR_RAM_MASK;
-        elsif is_taito_mapper(config.mapper_num) and
-              get_taito_board(config) = TAITO_X1_005
+        elsif is_taito_mapper(config.mapper_num)
         then
-            ret.prg_ram_mask := TAITO_X1_005_INES_PRG_RAM_MASK;
+            ret.prg_ram_mask := get_taito_ines_prg_ram_mask(config);
         end if;
 
         return ret;
