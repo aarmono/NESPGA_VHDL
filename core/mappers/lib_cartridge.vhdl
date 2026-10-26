@@ -293,6 +293,7 @@ package body lib_cartridge is
                 if built(BOARD_MMC5)
                 then
                     mmc5_out := cycle_mapper_mmc5(reg.mmc5,
+                                                  built(BOARD_MMC5_AUDIO),
                                                   config,
                                                   clk_sync,
                                                   cart_in);
@@ -341,7 +342,7 @@ package body lib_cartridge is
                     ret.reg.ss88006 := ss88006_out.reg;
                     ret.cart := ss88006_out.cart;
                 end if;
-            when BOARD_NONE | BOARD_SUNSOFT_5B =>
+            when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
         end case;
 
         return ret;

@@ -43,6 +43,9 @@ package cart_types is
         BOARD_VRC4,
         BOARD_VRC6,
         BOARD_MMC5,
+        -- The audio of the MMC5, as with BOARD_SUNSOFT_5B. Its registers,
+        -- status and IRQ are part of BOARD_MMC5, only its output is left out
+        BOARD_MMC5_AUDIO,
         BOARD_N163,
         BOARD_ACTION53,
         BOARD_BANDAI,
@@ -63,8 +66,8 @@ package cart_types is
     -- Famicom carts
     constant NES_BOARDS : board_set_t :=
     (
-        BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_VRC4 | BOARD_VRC6 | BOARD_N163 |
-        BOARD_BANDAI | BOARD_SS88006 =>
+        BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_VRC4 | BOARD_VRC6 |
+        BOARD_MMC5_AUDIO | BOARD_N163 | BOARD_BANDAI | BOARD_SS88006 =>
             false,
         others => true
     );
