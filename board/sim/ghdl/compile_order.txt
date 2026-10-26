@@ -106,6 +106,7 @@
 ../../../core/mappers/action53/lib_mapper_action53.vhdl
 ../../../core/mappers/bandai/lib_bandai_eeprom.vhdl
 ../../../core/mappers/bandai/lib_mapper_bandai.vhdl
+../../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl

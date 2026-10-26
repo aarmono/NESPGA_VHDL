@@ -37,13 +37,14 @@ Mappers currently supported:
 | MMC2 / MMC4 | 9, 10 |
 | MMC3 / MMC6 / Namco 108 | 4, 47, 76, 88, 95, 118, 119, 154, 206 |
 | MMC5 (including audio) | 5 |
-| Sunsoft FME-7 (no 5B audio) | 69 |
+| Sunsoft FME-7 / 5B (including audio) | 69 |
 | Konami VRC2 / VRC4 | 21, 22, 23, 25 |
 | Konami VRC6 (including audio) | 24, 26 |
 | Tengen RAMBO-1 | 64, 158 |
 | Namco 163 (including audio) / 175 / 340 | 19, 210 |
 | Action 53 | 28 |
 | Bandai FCG-1/2 / LZ93D50 (with serial EEPROMs; no Datach barcode reader) | 16, 153, 157, 159 |
+| Jaleco SS 88006 (no ADPCM audio) | 18 |
 
 Bus conflicts on discrete boards and flash saving on mapper 30 are not
 emulated.

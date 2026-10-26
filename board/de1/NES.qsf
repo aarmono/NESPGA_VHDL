@@ -411,6 +411,7 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/n163/lib_mapper_n163.vh
 set_global_assignment -name VHDL_FILE ../../core/mappers/action53/lib_mapper_action53.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/bandai/lib_bandai_eeprom.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/bandai/lib_mapper_bandai.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/latch/lib_mapper_latch.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/cart_types.vhdl

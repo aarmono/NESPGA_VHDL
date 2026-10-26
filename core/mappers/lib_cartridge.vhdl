@@ -13,6 +13,7 @@ use work.lib_mapper_mmc5.all;
 use work.lib_mapper_n163.all;
 use work.lib_mapper_action53.all;
 use work.lib_mapper_bandai.all;
+use work.lib_mapper_ss88006.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -52,6 +53,7 @@ package lib_cartridge is
         n163  : mapper_n163_reg_t;
         action53 : mapper_action53_reg_t;
         bandai : mapper_bandai_reg_t;
+        ss88006 : mapper_ss88006_reg_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -68,7 +70,8 @@ package lib_cartridge is
         mmc5 => RESET_MAPPER_MMC5_REG,
         n163 => RESET_MAPPER_N163_REG,
         action53 => RESET_MAPPER_ACTION53_REG,
-        bandai => RESET_MAPPER_BANDAI_REG
+        bandai => RESET_MAPPER_BANDAI_REG,
+        ss88006 => RESET_MAPPER_SS88006_REG
     );
 
     type cart_cycle_out_t is record
@@ -138,6 +141,9 @@ package body lib_cartridge is
         elsif is_bandai_mapper(mapper_num)
         then
             return BOARD_BANDAI;
+        elsif is_ss88006_mapper(mapper_num)
+        then
+            return BOARD_SS88006;
         else
             return BOARD_NONE;
         end if;
@@ -197,6 +203,7 @@ package body lib_cartridge is
         variable n163_out  : mapper_n163_out_t;
         variable action53_out : mapper_action53_out_t;
         variable bandai_out : mapper_bandai_out_t;
+        variable ss88006_out : mapper_ss88006_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -323,6 +330,16 @@ package body lib_cartridge is
                                                       cart_in);
                     ret.reg.bandai := bandai_out.reg;
                     ret.cart := bandai_out.cart;
+                end if;
+            when BOARD_SS88006 =>
+                if built(BOARD_SS88006)
+                then
+                    ss88006_out := cycle_mapper_ss88006(reg.ss88006,
+                                                        config,
+                                                        clk_sync,
+                                                        cart_in);
+                    ret.reg.ss88006 := ss88006_out.reg;
+                    ret.cart := ss88006_out.cart;
                 end if;
             when BOARD_NONE | BOARD_SUNSOFT_5B =>
         end case;
