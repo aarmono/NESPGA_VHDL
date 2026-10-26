@@ -49,7 +49,8 @@ package cart_types is
         BOARD_N163,
         BOARD_ACTION53,
         BOARD_BANDAI,
-        BOARD_SS88006
+        BOARD_SS88006,
+        BOARD_TAITO
     );
 
     -- The boards a build of the cartridge supports. The logic of the others
@@ -67,7 +68,8 @@ package cart_types is
     constant NES_BOARDS : board_set_t :=
     (
         BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_VRC4 | BOARD_VRC6 |
-        BOARD_MMC5_AUDIO | BOARD_N163 | BOARD_BANDAI | BOARD_SS88006 =>
+        BOARD_MMC5_AUDIO | BOARD_N163 | BOARD_BANDAI | BOARD_SS88006 |
+        BOARD_TAITO =>
             false,
         others => true
     );

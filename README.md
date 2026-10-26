@@ -45,6 +45,7 @@ Mappers currently supported:
 | Action 53 | 28 |
 | Bandai FCG-1/2 / LZ93D50 (with serial EEPROMs; no Datach barcode reader) | 16, 153, 157, 159 |
 | Jaleco SS 88006 (no ADPCM audio) | 18 |
+| Taito TC0190 / TC0690 / X1-005 / X1-017 | 33, 48, 80, 82, 207, 552 |
 
 Bus conflicts on discrete boards and flash saving on mapper 30 are not
 emulated.

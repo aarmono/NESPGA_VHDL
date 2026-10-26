@@ -14,6 +14,7 @@ use work.lib_mapper_n163.all;
 use work.lib_mapper_action53.all;
 use work.lib_mapper_bandai.all;
 use work.lib_mapper_ss88006.all;
+use work.lib_mapper_taito.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -37,6 +38,7 @@ package lib_cartridge is
         vrc6         : vrc6_board_t;
         n163         : n163_board_t;
         bandai       : bandai_board_t;
+        taito        : taito_board_t;
     end record;
 
     function get_cart_boards(config : cart_config_t) return cart_boards_t;
@@ -54,6 +56,7 @@ package lib_cartridge is
         action53 : mapper_action53_reg_t;
         bandai : mapper_bandai_reg_t;
         ss88006 : mapper_ss88006_reg_t;
+        taito : mapper_taito_reg_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -71,7 +74,8 @@ package lib_cartridge is
         n163 => RESET_MAPPER_N163_REG,
         action53 => RESET_MAPPER_ACTION53_REG,
         bandai => RESET_MAPPER_BANDAI_REG,
-        ss88006 => RESET_MAPPER_SS88006_REG
+        ss88006 => RESET_MAPPER_SS88006_REG,
+        taito => RESET_MAPPER_TAITO_REG
     );
 
     type cart_cycle_out_t is record
@@ -144,6 +148,9 @@ package body lib_cartridge is
         elsif is_ss88006_mapper(mapper_num)
         then
             return BOARD_SS88006;
+        elsif is_taito_mapper(mapper_num)
+        then
+            return BOARD_TAITO;
         else
             return BOARD_NONE;
         end if;
@@ -163,7 +170,8 @@ package body lib_cartridge is
             vrc4 => get_vrc4_board(config),
             vrc6 => get_vrc6_board(config),
             n163 => get_n163_board(config),
-            bandai => get_bandai_board(config)
+            bandai => get_bandai_board(config),
+            taito => get_taito_board(config)
         );
     end;
 
@@ -175,6 +183,7 @@ package body lib_cartridge is
         ret.latch := get_reset_latch_reg(boards.latch);
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
         ret.n163 := get_reset_n163_reg(boards.n163);
+        ret.taito := get_reset_taito_reg(boards.taito);
 
         return ret;
     end;
@@ -204,6 +213,7 @@ package body lib_cartridge is
         variable action53_out : mapper_action53_out_t;
         variable bandai_out : mapper_bandai_out_t;
         variable ss88006_out : mapper_ss88006_out_t;
+        variable taito_out : mapper_taito_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -342,6 +352,17 @@ package body lib_cartridge is
                     ret.reg.ss88006 := ss88006_out.reg;
                     ret.cart := ss88006_out.cart;
                 end if;
+            when BOARD_TAITO =>
+                if built(BOARD_TAITO)
+                then
+                    taito_out := cycle_mapper_taito(reg.taito,
+                                                    boards.taito,
+                                                    config,
+                                                    clk_sync,
+                                                    cart_in);
+                    ret.reg.taito := taito_out.reg;
+                    ret.cart := taito_out.cart;
+                end if;
             when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
         end case;
 
@@ -366,6 +387,10 @@ package body lib_cartridge is
         elsif is_action53_mapper(config.mapper_num)
         then
             ret.chr_ram_mask := ACTION53_INES_CHR_RAM_MASK;
+        elsif is_taito_mapper(config.mapper_num) and
+              get_taito_board(config) = TAITO_X1_005
+        then
+            ret.prg_ram_mask := TAITO_X1_005_INES_PRG_RAM_MASK;
         end if;
 
         return ret;

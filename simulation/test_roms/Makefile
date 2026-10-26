@@ -36,6 +36,7 @@ MMC5_AUDIO_VARIANTS := check
 N163_VARIANTS := 163_ines 163_nes2 175 340 detect_19 detect_210
 RAMBO1_VARIANTS := 64 158
 SS88006_VARIANTS := ines nes2
+TAITO_VARIANTS := 33 48 80 80_nes2 207 82 552
 VRC4_VARIANTS := 21_ines_a 21_ines_c 21_1 21_2 22 23_ines_f 23_ines_e 23_1 \
                  23_2 23_3 25_ines_b 25_ines_d 25_1 25_2 25_3
 VRC6_VARIANTS := 24 26 24_nes2
@@ -56,6 +57,7 @@ MMC5_AUDIO_ROMS := $(MMC5_AUDIO_VARIANTS:%=$(OUT)/mmc5_audio_%.nes)
 N163_ROMS := $(N163_VARIANTS:%=$(OUT)/n163_%.nes)
 RAMBO1_ROMS := $(RAMBO1_VARIANTS:%=$(OUT)/rambo1_%.nes)
 SS88006_ROMS := $(SS88006_VARIANTS:%=$(OUT)/ss88006_%.nes)
+TAITO_ROMS := $(TAITO_VARIANTS:%=$(OUT)/taito_%.nes)
 VRC4_ROMS := $(VRC4_VARIANTS:%=$(OUT)/vrc4_%.nes)
 VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
 
@@ -69,7 +71,7 @@ ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(LATCH_ROMS) \
         $(LATCH_ADDR_ROMS) $(LATCH_BOARDS_ROMS) \
         $(MMC1_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) \
         $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(N163_ROMS) $(RAMBO1_ROMS) \
-        $(SS88006_ROMS) $(VRC4_ROMS) $(VRC6_ROMS) \
+        $(SS88006_ROMS) $(TAITO_ROMS) $(VRC4_ROMS) $(VRC6_ROMS) \
         $(OUT)/mmc5_split.nes $(NES2_ROMS)
 
 .PHONY: all clean
@@ -126,6 +128,9 @@ $(RAMBO1_ROMS): $(OUT)/rambo1_%.nes: rambo1.py | $(OUT)
 
 $(SS88006_ROMS): $(OUT)/ss88006_%.nes: ss88006.py | $(OUT)
 	$(PYTHON) ss88006.py $@ $*
+
+$(TAITO_ROMS): $(OUT)/taito_%.nes: taito.py | $(OUT)
+	$(PYTHON) taito.py $@ $*
 
 $(VRC4_ROMS): $(OUT)/vrc4_%.nes: vrc4.py | $(OUT)
 	$(PYTHON) vrc4.py $@ $*
