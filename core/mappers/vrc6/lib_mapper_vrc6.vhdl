@@ -83,14 +83,15 @@ package lib_mapper_vrc6 is
         nt_chr        : boolean;
         prg_ram       : boolean;
 
-        irq           : vrc_irq_t;
-
         audio         : vrc6_audio_t;
     end record;
 
+    -- The IRQ counter is shared with the VRC4 and VRC7 and kept by the
+    -- cartridge, which makes irq_write to it
     type mapper_vrc6_out_t is record
-        reg  : mapper_vrc6_reg_t;
-        cart : cart_out_t;
+        reg       : mapper_vrc6_reg_t;
+        cart      : cart_out_t;
+        irq_write : vrc_irq_write_t;
     end record;
 
     -- The registers as they are at reset, which is as though 0 had been
@@ -193,10 +194,28 @@ package body lib_mapper_vrc6 is
         ret.prg_bank_16kb := (others => '0');
         ret.prg_bank_8kb := (others => '0');
         ret.chr_regs := (others => (others => '0'));
-        ret.irq := RESET_VRC_IRQ;
         ret.audio := RESET_VRC6_AUDIO;
 
         return write_banking_style(ret, (others => '0'));
+    end;
+
+    -- The register written within its page, from the A1 and A0 inputs of
+    -- the chip
+    function get_reg_idx
+    (
+        board  : vrc6_board_t;
+        cpu_in : cart_cpu_in_t
+    )
+    return natural
+    is
+        variable lines : std_logic_vector(1 downto 0);
+    begin
+        lines := cpu_in.prg_bus.address(1 downto 0);
+        if board = VRC6B
+        then
+            lines := lines(0) & lines(1);
+        end if;
+        return to_integer(lines);
     end;
 
     function cycle_write
@@ -210,8 +229,6 @@ package body lib_mapper_vrc6 is
     is
         variable ret : mapper_vrc6_reg_t;
         variable data : data_t;
-        -- The A1 and A0 inputs of the chip
-        variable lines : std_logic_vector(1 downto 0);
         variable reg_idx : natural range 0 to 3;
     begin
         ret := reg;
@@ -219,12 +236,7 @@ package body lib_mapper_vrc6 is
 
         if is_rom_write(cart_in.cpu, clk_sync)
         then
-            lines := cart_in.cpu.prg_bus.address(1 downto 0);
-            if board = VRC6B
-            then
-                lines := lines(0) & lines(1);
-            end if;
-            reg_idx := to_integer(lines);
+            reg_idx := get_reg_idx(board, cart_in.cpu);
 
             case cart_in.cpu.prg_bus.address(14 downto 12) is
                 when "000" =>
@@ -264,17 +276,8 @@ package body lib_mapper_vrc6 is
                     ret.chr_regs(reg_idx) := unsigned(data);
                 when "110" =>
                     ret.chr_regs(4 + reg_idx) := unsigned(data);
+                -- The IRQ registers. See get_irq_write
                 when others =>
-                    case reg_idx is
-                        when 0 =>
-                            ret.irq := write_vrc_irq_latch(reg.irq, data);
-                        when 1 =>
-                            ret.irq := write_vrc_irq_control(reg.irq, data);
-                        when 2 =>
-                            ret.irq := acknowledge_vrc_irq(reg.irq);
-                        when 3 =>
-                            null;
-                    end case;
             end case;
         end if;
 
@@ -385,6 +388,30 @@ package body lib_mapper_vrc6 is
         return ret;
     end;
 
+    -- 0xF000-0xF002: the latch, the control and the acknowledge
+    function get_irq_write
+    (
+        board    : vrc6_board_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return vrc_irq_write_t
+    is
+    begin
+        if is_rom_write(cart_in.cpu, clk_sync) and
+           cart_in.cpu.prg_bus.address(14 downto 12) = "111"
+        then
+            case get_reg_idx(board, cart_in.cpu) is
+                when 0 => return VRC_IRQ_LATCH;
+                when 1 => return VRC_IRQ_CONTROL;
+                when 2 => return VRC_IRQ_ACK;
+                when others => null;
+            end case;
+        end if;
+
+        return VRC_IRQ_NO_WRITE;
+    end;
+
     function cycle_mapper_vrc6
     (
         reg      : mapper_vrc6_reg_t;
@@ -401,11 +428,11 @@ package body lib_mapper_vrc6 is
     begin
         ret.reg := reg;
 
-        -- The IRQ counter and the audio are clocked before the write of the
-        -- CPU cycle, so a write is not undone by the clock
-        ret.reg.irq := cycle_vrc_irq(reg.irq, clk_sync);
+        -- The audio is clocked before the write of the CPU cycle, so a write
+        -- is not undone by the clock
         ret.reg.audio := cycle_vrc6_audio(reg.audio, clk_sync);
         ret.reg := cycle_write(ret.reg, board, clk_sync, cart_in);
+        ret.irq_write := get_irq_write(board, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
         banks := default_banks(config);
@@ -425,7 +452,6 @@ package body lib_mapper_vrc6 is
 
         ret.cart := map_cart(config, cart_in, banks);
 
-        ret.cart.cpu.irq := reg.irq.irq;
         ret.cart.audio := get_vrc6_audio_level(reg.audio);
 
         return ret;

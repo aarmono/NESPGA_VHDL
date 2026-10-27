@@ -9,6 +9,7 @@ use work.palette_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.ciram_bus_types.all;
 use work.chip_ram_bus_types.all;
+use work.opll_bus_types.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
 use work.cart_types.all;
@@ -64,6 +65,10 @@ package soc is
         chip_ram_bus       : out chip_ram_bus_t;
         data_to_chip_ram   : out data_t;
         data_from_chip_ram : in data_t;
+
+        opll_ram_bus       : out opll_ram_bus_t;
+        data_to_opll_ram   : out opll_ram_data_t;
+        data_from_opll_ram : in opll_ram_data_t;
         
         pixel_bus : out pixel_bus_t;
         audio     : out mixed_audio_t;

@@ -5,6 +5,7 @@ use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.ciram_bus_types.all;
 use work.chip_ram_bus_types.all;
+use work.opll_bus_types.all;
 use work.cpu_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.oam_bus_types.all;
@@ -86,6 +87,10 @@ architecture behavioral of nes_soc_ocram is
     signal chip_ram_bus       : chip_ram_bus_t;
     signal data_to_chip_ram   : data_t;
     signal data_from_chip_ram : data_t;
+
+    signal opll_ram_bus       : opll_ram_bus_t;
+    signal data_to_opll_ram   : opll_ram_data_t;
+    signal data_from_opll_ram : opll_ram_data_t;
     
 begin
 
@@ -137,6 +142,10 @@ begin
         chip_ram_bus => chip_ram_bus,
         data_to_chip_ram => data_to_chip_ram,
         data_from_chip_ram => data_from_chip_ram,
+
+        opll_ram_bus => opll_ram_bus,
+        data_to_opll_ram => data_to_opll_ram,
+        data_from_opll_ram => data_from_opll_ram,
         
         pixel_bus => pixel_bus,
         audio => audio,
@@ -239,25 +248,60 @@ begin
     -- RAM inside the mapper chip, which has a bus of its own so that the
     -- chip can access it in every PPU cycle. It also holds the contents of
     -- the serial EEPROMs of the Bandai FCG boards
-    chip_ram : syncram_sp
-    generic map
-    (
-        VENDOR => VENDOR,
-        ADDR_BITS => chip_ram_addr_t'length,
-        DATA_BITS => data_t'length
-    )
-    port map
-    (
-        clk => clk,
-        clk_en => sig_ppu_ram_en,
+    gen_chip_ram : if CART_BOARDS(BOARD_N163) or CART_BOARDS(BOARD_BANDAI)
+    generate
+    begin
+        chip_ram : syncram_sp
+        generic map
+        (
+            VENDOR => VENDOR,
+            ADDR_BITS => chip_ram_addr_t'length,
+            DATA_BITS => data_t'length
+        )
+        port map
+        (
+            clk => clk,
+            clk_en => sig_ppu_ram_en,
 
-        address => chip_ram_bus.address,
-        read => chip_ram_bus.read,
-        write => chip_ram_bus.write,
+            address => chip_ram_bus.address,
+            read => chip_ram_bus.read,
+            write => chip_ram_bus.write,
 
-        data_in => data_to_chip_ram,
-        data_out => data_from_chip_ram
-    );
+            data_in => data_to_chip_ram,
+            data_out => data_from_chip_ram
+        );
+    else generate
+    begin
+        data_from_chip_ram <= (others => '-');
+    end generate;
+
+    -- The state of the FM synthesizer of the VRC7, which the cartridge
+    -- accesses once per PPU cycle
+    gen_opll_ram : if CART_BOARDS(BOARD_VRC7_AUDIO) generate
+    begin
+        opll_ram : syncram_sp
+        generic map
+        (
+            VENDOR => VENDOR,
+            ADDR_BITS => opll_ram_addr_t'length,
+            DATA_BITS => opll_ram_data_t'length
+        )
+        port map
+        (
+            clk => clk,
+            clk_en => sig_ppu_ram_en,
+
+            address => opll_ram_bus.address,
+            read => opll_ram_bus.read,
+            write => opll_ram_bus.write,
+
+            data_in => data_to_opll_ram,
+            data_out => data_from_opll_ram
+        );
+    else generate
+    begin
+        data_from_opll_ram <= (others => '-');
+    end generate;
 
     oam : syncram_sp
     generic map

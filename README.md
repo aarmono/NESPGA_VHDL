@@ -32,22 +32,27 @@ Mappers currently supported:
 
 | Family | Mappers |
 |---|---|
-| Discrete latch boards (NROM, UxROM, CNROM, AxROM, multicarts, ...) | 0, 2, 3, 7, 11, 13, 30, 34, 58, 61, 62, 66, 70, 71, 78, 79, 87, 89, 93, 94, 97, 101, 140, 146, 152, 180, 184, 185, 200, 201, 202, 203, 212, 213, 214, 225, 226, 227, 228, 231, 232, 242, 255 |
+| Discrete latch boards (NROM, UxROM, CNROM, AxROM, multicarts, ...) | 0, 2, 3, 7, 11, 13, 30, 34, 58, 61, 62, 66, 70, 71, 72, 77, 78, 79, 86, 87, 89, 92, 93, 94, 97, 101, 140, 146, 152, 180, 184, 185, 200, 201, 202, 203, 212, 213, 214, 218, 225, 226, 227, 228, 231, 232, 242, 255 |
 | MMC1 | 1, 105, 155 |
 | MMC2 / MMC4 | 9, 10 |
-| MMC3 / MMC6 / Namco 108 | 4, 47, 76, 88, 95, 118, 119, 154, 206 |
+| MMC3 / MMC6 / Namco 108 (and MMC3 multicarts) | 4, 37, 44, 45, 47, 49, 52, 76, 88, 95, 118, 119, 154, 206 |
 | MMC5 (including audio) | 5 |
 | Sunsoft FME-7 / 5B (including audio) | 69 |
 | Konami VRC2 / VRC4 | 21, 22, 23, 25 |
 | Konami VRC6 (including audio) | 24, 26 |
+| Konami VRC7 (including audio) | 85 |
 | Tengen RAMBO-1 | 64, 158 |
 | Namco 163 (including audio) / 175 / 340 | 19, 210 |
 | Action 53 | 28 |
 | Bandai FCG-1/2 / LZ93D50 (with serial EEPROMs; no Datach barcode reader) | 16, 153, 157, 159 |
 | Jaleco SS 88006 (no ADPCM audio) | 18 |
+| Taito TC0190 / TC0690 / X1-005 / X1-017 | 33, 48, 80, 82, 207, 552 |
+| Sunsoft-3 / Sunsoft-4 (including the Dual Cartridge System) / Konami VRC3 | 67, 68, 73 |
+| Irem G-101 / H3001 / Konami VRC1 | 32, 65, 75 |
+| NSF subset | 31 |
 
-Bus conflicts on discrete boards and flash saving on mapper 30 are not
-emulated.
+Bus conflicts on discrete boards, flash saving on mapper 30 and the ADPCM
+audio of the Jaleco boards (72, 86, 92) are not emulated.
 
 The design is synthesized using Quartus 13.0.1 Web Edition, the last version
 to support the Cyclone II.

@@ -66,8 +66,6 @@ package lib_mapper_vrc4 is
         chr_banks  : chr_bank_arr_t;
 
         mirror     : mirror_t;
-
-        irq        : vrc_irq_t;
     end record;
 
     constant RESET_MAPPER_VRC4_REG : mapper_vrc4_reg_t :=
@@ -78,14 +76,15 @@ package lib_mapper_vrc4 is
 
         chr_banks => (others => (others => '0')),
 
-        mirror => MIRROR_VERT,
-
-        irq => RESET_VRC_IRQ
+        mirror => MIRROR_VERT
     );
 
+    -- The IRQ counter is shared with the VRC6 and VRC7 and kept by the
+    -- cartridge, which makes irq_write to it
     type mapper_vrc4_out_t is record
-        reg  : mapper_vrc4_reg_t;
-        cart : cart_out_t;
+        reg       : mapper_vrc4_reg_t;
+        cart      : cart_out_t;
+        irq_write : vrc_irq_write_t;
     end record;
 
     function cycle_mapper_vrc4
@@ -268,23 +267,8 @@ package body lib_mapper_vrc4 is
                 when "010" =>
                     ret.prg_bank_1 :=
                         unsigned(cart_in.cpu.data(prg_bank_t'range));
+                -- The IRQ registers. See get_irq_write
                 when "111" =>
-                    if board.vrc4
-                    then
-                        if not a1
-                        then
-                            ret.irq :=
-                                write_vrc_irq_latch_nibble(reg.irq,
-                                                           a0,
-                                                           cart_in.cpu.data);
-                        elsif not a0
-                        then
-                            ret.irq := write_vrc_irq_control(reg.irq,
-                                                             cart_in.cpu.data);
-                        else
-                            ret.irq := acknowledge_vrc_irq(reg.irq);
-                        end if;
-                    end if;
                 -- 0xB000-0xEFFF: two registers for each CHR bank, which
                 -- A1 selects
                 when others =>
@@ -351,6 +335,48 @@ package body lib_mapper_vrc4 is
         end if;
     end;
 
+    -- 0xF000-0xF003: the low and high nibbles of the latch, the control
+    -- and the acknowledge. The VRC2 has no IRQ registers, so its counter
+    -- stays disabled
+    function get_irq_write
+    (
+        board    : vrc4_board_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return vrc_irq_write_t
+    is
+        variable a0 : boolean;
+        variable a1 : boolean;
+    begin
+        if board.vrc4 and
+           is_rom_write(cart_in.cpu, clk_sync) and
+           cart_in.cpu.prg_bus.address(14 downto 12) = "111"
+        then
+            a0 := not is_zero(cart_in.cpu.prg_bus.address(7 downto 0) and
+                              board.a0);
+            a1 := not is_zero(cart_in.cpu.prg_bus.address(7 downto 0) and
+                              board.a1);
+
+            if not a1
+            then
+                if a0
+                then
+                    return VRC_IRQ_LATCH_HIGH;
+                else
+                    return VRC_IRQ_LATCH_LOW;
+                end if;
+            elsif not a0
+            then
+                return VRC_IRQ_CONTROL;
+            else
+                return VRC_IRQ_ACK;
+            end if;
+        end if;
+
+        return VRC_IRQ_NO_WRITE;
+    end;
+
     function cycle_mapper_vrc4
     (
         reg      : mapper_vrc4_reg_t;
@@ -364,13 +390,8 @@ package body lib_mapper_vrc4 is
         variable ret : mapper_vrc4_out_t;
         variable banks : cart_banks_t;
     begin
-        ret.reg := reg;
-
-        -- The counter is clocked before the write of the CPU cycle, so a write
-        -- to the IRQ control is not undone by the clock. The VRC2 has no IRQ
-        -- registers, so its counter stays disabled
-        ret.reg.irq := cycle_vrc_irq(reg.irq, clk_sync);
-        ret.reg := cycle_write(ret.reg, board, clk_sync, cart_in);
+        ret.reg := cycle_write(reg, board, clk_sync, cart_in);
+        ret.irq_write := get_irq_write(board, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
         banks := default_banks(config);
@@ -380,8 +401,6 @@ package body lib_mapper_vrc4 is
         banks.mirror := ret.reg.mirror;
 
         ret.cart := map_cart(config, cart_in, banks);
-
-        ret.cart.cpu.irq := reg.irq.irq;
 
         return ret;
     end;

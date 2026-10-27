@@ -5,6 +5,7 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.cart_types.all;
 use work.lib_sunsoft_5b_audio.all;
+use work.lib_irq_counter.all;
 
 -- Boards built around the Sunsoft FME-7, 5A or 5B (69): JLROM and JSROM.
 -- The CPU writes a command number to 0x8000 and its parameter to 0xA000.
@@ -30,8 +31,6 @@ package lib_mapper_fme7 is
     subtype chr_bank_t is unsigned(7 downto 0);
     type chr_bank_arr_t is array(0 to 7) of chr_bank_t;
 
-    subtype irq_count_t is natural range 0 to 2**16-1;
-
     type mapper_fme7_reg_t is record
         command   : command_t;
 
@@ -50,7 +49,6 @@ package lib_mapper_fme7 is
         irq_enable       : boolean;
         -- The counter is decremented every CPU cycle
         irq_count_enable : boolean;
-        irq_count        : irq_count_t;
         irq              : boolean;
 
         audio            : s5b_audio_t;
@@ -70,21 +68,25 @@ package lib_mapper_fme7 is
 
         irq_enable => false,
         irq_count_enable => false,
-        irq_count => 0,
         irq => false,
 
         audio => RESET_S5B_AUDIO
     );
 
+    -- The counter is kept by the cartridge, and irq_counter is what the
+    -- board does to it
     type mapper_fme7_out_t is record
-        reg  : mapper_fme7_reg_t;
-        cart : cart_out_t;
+        reg         : mapper_fme7_reg_t;
+        cart        : cart_out_t;
+        irq_counter : irq_counter_op_t;
     end record;
 
-    -- The audio of the 5B is built when sunsoft_5b is set
+    -- The audio of the 5B is built when sunsoft_5b is set. irq_count is the
+    -- count of the counter
     function cycle_mapper_fme7
     (
         reg        : mapper_fme7_reg_t;
+        irq_count  : irq_counter_value_t;
         sunsoft_5b : boolean;
         config     : cart_config_t;
         clk_sync   : boolean;
@@ -134,10 +136,8 @@ package body lib_mapper_fme7 is
                 ret.irq_count_enable := data(7) = '1';
                 -- Acknowledges the IRQ
                 ret.irq := false;
-            when 14 =>
-                ret.irq_count := set_bits(reg.irq_count, 0, data);
-            when 15 =>
-                ret.irq_count := set_bits(reg.irq_count, 8, data);
+            -- The counter. See get_irq_counter_op
+            when 14 to 15 =>
         end case;
 
         return ret;
@@ -186,8 +186,9 @@ package body lib_mapper_fme7 is
     -- until it is acknowledged
     function cycle_irq
     (
-        reg      : mapper_fme7_reg_t;
-        clk_sync : boolean
+        reg       : mapper_fme7_reg_t;
+        irq_count : irq_counter_value_t;
+        clk_sync  : boolean
     )
     return mapper_fme7_reg_t
     is
@@ -195,15 +196,37 @@ package body lib_mapper_fme7 is
     begin
         ret := reg;
 
-        if clk_sync and reg.irq_count_enable
+        if clk_sync and reg.irq_count_enable and irq_count = 0
         then
-            if reg.irq_count = 0
-            then
-                ret.irq_count := irq_count_t'high;
-                ret.irq := reg.irq or reg.irq_enable;
-            else
-                ret.irq_count := reg.irq_count - 1;
-            end if;
+            ret.irq := reg.irq or reg.irq_enable;
+        end if;
+
+        return ret;
+    end;
+
+    -- The clock of the counter, and the parameters of commands 0xE and 0xF,
+    -- its low and high bytes
+    function get_irq_counter_op
+    (
+        reg      : mapper_fme7_reg_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return irq_counter_op_t
+    is
+        variable ret : irq_counter_op_t;
+    begin
+        ret := IRQ_COUNTER_IDLE;
+        ret.clock := clk_sync and reg.irq_count_enable;
+
+        if is_rom_write(cart_in.cpu, clk_sync) and
+           cart_in.cpu.prg_bus.address(14 downto 13) = "01"
+        then
+            case reg.command is
+                when 14 => ret.write := IRQ_COUNTER_COUNT_LOW;
+                when 15 => ret.write := IRQ_COUNTER_COUNT_HIGH;
+                when others =>
+            end case;
         end if;
 
         return ret;
@@ -248,6 +271,7 @@ package body lib_mapper_fme7 is
     function cycle_mapper_fme7
     (
         reg        : mapper_fme7_reg_t;
+        irq_count  : irq_counter_value_t;
         sunsoft_5b : boolean;
         config     : cart_config_t;
         clk_sync   : boolean;
@@ -261,7 +285,8 @@ package body lib_mapper_fme7 is
         -- The counter and the audio are clocked before the write of the CPU
         -- cycle, so a write to them or to the IRQ control is not undone by
         -- the clock
-        ret.reg := cycle_irq(reg, clk_sync);
+        ret.reg := cycle_irq(reg, irq_count, clk_sync);
+        ret.irq_counter := get_irq_counter_op(reg, clk_sync, cart_in);
         if sunsoft_5b
         then
             ret.reg.audio := cycle_s5b_audio(reg.audio, clk_sync);

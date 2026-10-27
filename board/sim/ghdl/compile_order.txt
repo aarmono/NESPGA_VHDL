@@ -11,6 +11,7 @@
 ../../../bus/chr_ram_bus_types.vhdl
 ../../../bus/exram_bus_types.vhdl
 ../../../bus/chip_ram_bus_types.vhdl
+../../../bus/opll_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
 ../../../bus/oam_bus_types.vhdl
 ../../../bus/file_bus_types.vhdl
@@ -88,6 +89,7 @@
 ../../../core/apu/lib_apu.vhdl
 ../../../core/apu/apu.vhdl
 
+../../../core/mappers/lib_irq_counter.vhdl
 ../../../core/mappers/cart_types.vhdl
 ../../../core/mappers/latch/lib_mapper_latch.vhdl
 ../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
@@ -99,6 +101,8 @@
 ../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
 ../../../core/mappers/vrc6/lib_vrc6_audio.vhdl
 ../../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
+../../../core/mappers/vrc7/lib_vrc7_audio.vhdl
+../../../core/mappers/vrc7/lib_mapper_vrc7.vhdl
 ../../../core/mappers/mmc5/lib_mmc5_audio.vhdl
 ../../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
 ../../../core/mappers/n163/lib_n163_audio.vhdl
@@ -107,6 +111,10 @@
 ../../../core/mappers/bandai/lib_bandai_eeprom.vhdl
 ../../../core/mappers/bandai/lib_mapper_bandai.vhdl
 ../../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
+../../../core/mappers/taito/lib_mapper_taito.vhdl
+../../../core/mappers/sunsoft/lib_mapper_sunsoft.vhdl
+../../../core/mappers/irem/lib_mapper_irem.vhdl
+../../../core/mappers/nsf/lib_mapper_nsf.vhdl
 ../../../core/mappers/lib_cartridge.vhdl
 ../../../core/mappers/cartridge.vhdl
 ../../../core/lib_nes_mmap.vhdl

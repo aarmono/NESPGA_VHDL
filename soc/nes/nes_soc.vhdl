@@ -10,6 +10,7 @@ use work.cart_mem_bus_types.all;
 use work.chr_bus_types.all;
 use work.ciram_bus_types.all;
 use work.chip_ram_bus_types.all;
+use work.opll_bus_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.ppu_bus_types.all;
@@ -71,6 +72,11 @@ port
     chip_ram_bus       : out chip_ram_bus_t;
     data_to_chip_ram   : out data_t;
     data_from_chip_ram : in data_t;
+
+    -- RAM of the FM synthesizer of the VRC7
+    opll_ram_bus       : out opll_ram_bus_t;
+    data_to_opll_ram   : out opll_ram_data_t;
+    data_from_opll_ram : in opll_ram_data_t;
     
     pixel_bus : out pixel_bus_t;
     audio     : out mixed_audio_t;
@@ -103,6 +109,8 @@ is
 
     signal cart_in  : cart_in_t;
     signal cart_out : cart_out_t;
+    -- The memories of the VRC7 audio are only accessed by the cartridge
+    signal opll_mem_out : opll_mem_out_t;
     signal apu_bus           : apu_bus_t;
     signal joy_bus           : joy_bus_t;
     signal ppu_bus           : ppu_bus_t;
@@ -214,6 +222,9 @@ begin
         data_from_chip_ram => data_from_chip_ram
     );
 
+    opll_ram_bus <= opll_mem_out.ram_bus;
+    data_to_opll_ram <= opll_mem_out.data_to_ram;
+
     -- The header is only read while loading, so that otherwise read data
     -- from the cartridge memory bus does not run cycle_nes again
     header_data <= data_from_cart_mem_prg when reg.cur_state = STATE_LOAD else
@@ -234,7 +245,10 @@ begin
         config => reg.cart_config,
 
         cart_in => cart_in,
-        cart_out => cart_out
+        cart_out => cart_out,
+
+        opll_mem_out => opll_mem_out,
+        data_from_opll_ram => data_from_opll_ram
     );
 
     nes_clk_en : clk_en

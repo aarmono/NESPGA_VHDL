@@ -64,6 +64,8 @@ package utilities is
     return natural;
 
     function max(a, b : integer) return integer;
+    -- Not min, which is a unit of time in std.standard
+    function min_int(a, b : integer) return integer;
     -- Greatest common divisor
     function gcd(a, b : positive) return positive;
 
@@ -253,14 +255,27 @@ package body utilities is
         constant SCALE : positive := 2**lo;
         constant WIDTH : positive := 2**field'length;
     begin
-        return val - ((val / SCALE) mod WIDTH) * SCALE +
-               to_integer(field) * SCALE;
+        -- A sum of the bits above, the field and the bits below, which
+        -- don't overlap, so synthesis builds it without adders
+        return (val / (SCALE * WIDTH)) * (SCALE * WIDTH) +
+               to_integer(field) * SCALE + val mod SCALE;
     end;
 
     function max(a, b : integer) return integer
     is
     begin
         if a > b
+        then
+            return a;
+        else
+            return b;
+        end if;
+    end;
+
+    function min_int(a, b : integer) return integer
+    is
+    begin
+        if a < b
         then
             return a;
         else
