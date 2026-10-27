@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use work.nes_types.all;
 use work.cart_types.all;
+use work.opll_bus_types.all;
 use work.lib_mapper_latch.all;
 use work.lib_mapper_mmc1.all;
 use work.lib_mapper_mmc2.all;
@@ -9,6 +10,8 @@ use work.lib_mapper_mmc3.all;
 use work.lib_mapper_fme7.all;
 use work.lib_mapper_vrc4.all;
 use work.lib_mapper_vrc6.all;
+use work.lib_mapper_vrc7.all;
+use work.lib_vrc7_audio.all;
 use work.lib_mapper_mmc5.all;
 use work.lib_mapper_n163.all;
 use work.lib_mapper_action53.all;
@@ -39,6 +42,7 @@ package lib_cartridge is
         mmc3         : mmc3_board_t;
         vrc4         : vrc4_board_t;
         vrc6         : vrc6_board_t;
+        vrc7         : vrc7_board_t;
         n163         : n163_board_t;
         bandai       : bandai_board_t;
         taito        : taito_board_t;
@@ -56,6 +60,7 @@ package lib_cartridge is
         fme7  : mapper_fme7_reg_t;
         vrc4  : mapper_vrc4_reg_t;
         vrc6  : mapper_vrc6_reg_t;
+        vrc7  : mapper_vrc7_reg_t;
         mmc5  : mapper_mmc5_reg_t;
         n163  : mapper_n163_reg_t;
         action53 : mapper_action53_reg_t;
@@ -78,6 +83,7 @@ package lib_cartridge is
         fme7 => RESET_MAPPER_FME7_REG,
         vrc4 => RESET_MAPPER_VRC4_REG,
         vrc6 => get_reset_vrc6_reg,
+        vrc7 => RESET_MAPPER_VRC7_REG,
         mmc5 => RESET_MAPPER_MMC5_REG,
         n163 => RESET_MAPPER_N163_REG,
         action53 => RESET_MAPPER_ACTION53_REG,
@@ -94,17 +100,35 @@ package lib_cartridge is
         cart : cart_out_t;
     end record;
 
-    -- Only the boards in built are cycled
+    -- Only the boards in built are cycled. opll_ram_data is what the access
+    -- of get_opll_mem_out reads, and opll_tables what get_opll_tables looked
+    -- up the PPU cycle before
     function cycle_cartridge
+    (
+        reg           : cart_reg_t;
+        boards        : cart_boards_t;
+        built         : board_set_t;
+        config        : cart_config_t;
+        clk_sync      : boolean;
+        cart_in       : cart_in_t;
+        opll_ram_data : opll_ram_data_t;
+        opll_tables   : vrc7_tables_t
+    )
+    return cart_cycle_out_t;
+
+    -- The accesses of the VRC7 audio to its memories
+    function get_opll_mem_out
     (
         reg      : cart_reg_t;
         boards   : cart_boards_t;
         built    : board_set_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        clk_sync : boolean
     )
-    return cart_cycle_out_t;
+    return opll_mem_out_t;
+
+    -- The lookups in the tables of the VRC7 audio, to be registered and
+    -- passed to cycle_cartridge the next PPU cycle
+    function get_opll_tables(reg : cart_reg_t) return vrc7_tables_t;
 
     -- The config with the RAM sizes of its board when the header is iNES,
     -- which gives none. Boards that need more than the default size say how
@@ -144,6 +168,9 @@ package body lib_cartridge is
         elsif is_vrc6_mapper(mapper_num)
         then
             return BOARD_VRC6;
+        elsif is_vrc7_mapper(mapper_num)
+        then
+            return BOARD_VRC7;
         elsif is_mmc5_mapper(mapper_num)
         then
             return BOARD_MMC5;
@@ -189,6 +216,7 @@ package body lib_cartridge is
             mmc3 => get_mmc3_board(config),
             vrc4 => get_vrc4_board(config),
             vrc6 => get_vrc6_board(config),
+            vrc7 => get_vrc7_board(config),
             n163 => get_n163_board(config),
             bandai => get_bandai_board(config),
             taito => get_taito_board(config),
@@ -211,12 +239,14 @@ package body lib_cartridge is
 
     function cycle_cartridge
     (
-        reg      : cart_reg_t;
-        boards   : cart_boards_t;
-        built    : board_set_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg           : cart_reg_t;
+        boards        : cart_boards_t;
+        built         : board_set_t;
+        config        : cart_config_t;
+        clk_sync      : boolean;
+        cart_in       : cart_in_t;
+        opll_ram_data : opll_ram_data_t;
+        opll_tables   : vrc7_tables_t
     )
     return cart_cycle_out_t
     is
@@ -229,6 +259,7 @@ package body lib_cartridge is
         variable fme7_out  : mapper_fme7_out_t;
         variable vrc4_out  : mapper_vrc4_out_t;
         variable vrc6_out  : mapper_vrc6_out_t;
+        variable vrc7_out  : mapper_vrc7_out_t;
         variable mmc5_out  : mapper_mmc5_out_t;
         variable n163_out  : mapper_n163_out_t;
         variable action53_out : mapper_action53_out_t;
@@ -322,6 +353,20 @@ package body lib_cartridge is
                                                   cart_in);
                     ret.reg.vrc6 := vrc6_out.reg;
                     ret.cart := vrc6_out.cart;
+                end if;
+            when BOARD_VRC7 =>
+                if built(BOARD_VRC7)
+                then
+                    vrc7_out := cycle_mapper_vrc7(reg.vrc7,
+                                                  boards.vrc7,
+                                                  built(BOARD_VRC7_AUDIO),
+                                                  config,
+                                                  clk_sync,
+                                                  cart_in,
+                                                  opll_ram_data,
+                                                  opll_tables);
+                    ret.reg.vrc7 := vrc7_out.reg;
+                    ret.cart := vrc7_out.cart;
                 end if;
             when BOARD_MMC5 =>
                 if built(BOARD_MMC5)
@@ -419,7 +464,8 @@ package body lib_cartridge is
                     ret.reg.nsf := nsf_out.reg;
                     ret.cart := nsf_out.cart;
                 end if;
-            when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
+            when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO |
+                 BOARD_VRC7_AUDIO =>
         end case;
 
         return ret;
@@ -463,6 +509,30 @@ package body lib_cartridge is
         else
             return x"00";
         end if;
+    end;
+
+    function get_opll_mem_out
+    (
+        reg      : cart_reg_t;
+        boards   : cart_boards_t;
+        built    : board_set_t;
+        clk_sync : boolean
+    )
+    return opll_mem_out_t
+    is
+    begin
+        return get_vrc7_mem_out(reg.vrc7,
+                                boards.vrc7,
+                                boards.board = BOARD_VRC7 and
+                                    built(BOARD_VRC7) and
+                                    built(BOARD_VRC7_AUDIO),
+                                clk_sync);
+    end;
+
+    function get_opll_tables(reg : cart_reg_t) return vrc7_tables_t
+    is
+    begin
+        return get_vrc7_tables(reg.vrc7.audio);
     end;
 
 end package body;

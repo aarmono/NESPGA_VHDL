@@ -64,6 +64,8 @@ package utilities is
     return natural;
 
     function max(a, b : integer) return integer;
+    -- Not min, which is a unit of time in std.standard
+    function min_int(a, b : integer) return integer;
     -- Greatest common divisor
     function gcd(a, b : positive) return positive;
 
@@ -263,6 +265,17 @@ package body utilities is
     is
     begin
         if a > b
+        then
+            return a;
+        else
+            return b;
+        end if;
+    end;
+
+    function min_int(a, b : integer) return integer
+    is
+    begin
+        if a < b
         then
             return a;
         else

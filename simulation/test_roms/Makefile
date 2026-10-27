@@ -3,8 +3,9 @@
 # are generated rather than checked in so that they stay in step with the
 # scripts. run_nes_tests.sh runs this before the tests.
 #
-# The ROMs checked by ear or against Mesen (apu_timers.py, the audio variants
-# of fme7.py, mmc5_audio.py, n163.py and vrc6.py) and the debugging variants
+# The ROMs checked by ear, against Mesen or against a model (apu_timers.py,
+# the audio variants of fme7.py, mmc5_audio.py, n163.py, vrc6.py and
+# vrc7_audio.py, which is compared with Nuked-OPLL) and the debugging variants
 # (mmc5.py ines_dump, mmc5_split.py continue, rambo1.py dump/continue) are
 # left out.
 
@@ -45,6 +46,7 @@ TAITO_VARIANTS := 33 48 80 80_nes2 207 82 552
 VRC4_VARIANTS := 21_ines_a 21_ines_c 21_1 21_2 22 23_ines_f 23_ines_e 23_1 \
                  23_2 23_3 25_ines_b 25_ines_d 25_1 25_2 25_3
 VRC6_VARIANTS := 24 26 24_nes2
+VRC7_VARIANTS := 85_ines_a4 85_ines_a3 85_1 85_2 85_chr_ram
 
 ACTION53_ROMS := $(ACTION53_VARIANTS:%=$(OUT)/action53_%.nes)
 BANDAI_ROMS := $(BANDAI_VARIANTS:%=$(OUT)/bandai_%.nes)
@@ -69,6 +71,7 @@ SUNSOFT_ROMS := $(SUNSOFT_VARIANTS:%=$(OUT)/sunsoft_%.nes)
 TAITO_ROMS := $(TAITO_VARIANTS:%=$(OUT)/taito_%.nes)
 VRC4_ROMS := $(VRC4_VARIANTS:%=$(OUT)/vrc4_%.nes)
 VRC6_ROMS := $(VRC6_VARIANTS:%=$(OUT)/vrc6_%.nes)
+VRC7_ROMS := $(VRC7_VARIANTS:%=$(OUT)/vrc7_%.nes)
 
 # Test ROMs of nes-test-roms copied with an NES 2.0 header, for boards an
 # iNES header cannot select
@@ -83,6 +86,7 @@ ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(IREM_ROMS) \
         $(NSF_ROMS) $(RAMBO1_ROMS) \
         $(SS88006_ROMS) $(SUNSOFT_ROMS) $(TAITO_ROMS) $(VRC4_ROMS) \
         $(VRC6_ROMS) \
+        $(VRC7_ROMS) \
         $(OUT)/mmc5_split.nes $(NES2_ROMS)
 
 .PHONY: all clean
@@ -160,6 +164,9 @@ $(VRC4_ROMS): $(OUT)/vrc4_%.nes: vrc4.py | $(OUT)
 
 $(VRC6_ROMS): $(OUT)/vrc6_%.nes: vrc6.py | $(OUT)
 	$(PYTHON) vrc6.py $@ $*
+
+$(VRC7_ROMS): $(OUT)/vrc7_%.nes: vrc7.py | $(OUT)
+	$(PYTHON) vrc7.py $@ $*
 
 $(OUT)/mmc5_split.nes: mmc5_split.py mmc5.py | $(OUT)
 	$(PYTHON) mmc5_split.py $@
