@@ -49,6 +49,8 @@ package lib_mapper_latch is
         LATCH_ADDR_C000,
         -- 0x6000-0x7FFF
         LATCH_ADDR_6000,
+        -- 0x6000-0x6FFF
+        LATCH_ADDR_6000_6FFF,
         -- 0x4100-0x5FFF with A8 set: 0x4100-0x41FF, 0x4300-0x43FF, ...
         LATCH_ADDR_4100,
         LATCH_ADDR_7FFD,
@@ -134,7 +136,10 @@ package lib_mapper_latch is
         -- LATCH_CHR_0 selects an 8KB bank at 0x0000
         CHR_8KB,
         -- LATCH_CHR_0 and LATCH_CHR_1 select 4KB banks at 0x0000 and 0x1000
-        CHR_4KB
+        CHR_4KB,
+        -- LATCH_CHR_0 selects a 2KB bank of CHR ROM at 0x0000.
+        -- 0x0800-0x1FFF is CHR RAM, which is not banked
+        CHR_2KB_RAM
     );
 
     type latch_mirror_mode_t is
@@ -156,7 +161,14 @@ package lib_mapper_latch is
         MIRROR_VH,
         -- The four nametables are in the last 8KB of CHR RAM, which is
         -- not banked
-        MIRROR_CHR_RAM
+        MIRROR_CHR_RAM,
+        -- Four nametables, two of them in RAM on the board
+        MIRROR_FOUR_SCREEN,
+        -- CIRAM is enabled for every PPU access, so it is CHR RAM as well
+        -- as the nametables. Bits 3 and 0 of byte 6 of the header give the
+        -- PPU address line wired to CIRAM A10: A11 ("00"), A10 ("01"), A12
+        -- ("10") or A13 ("11")
+        MIRROR_CIRAM
     );
 
     type latch_board_t is record
@@ -430,13 +442,13 @@ package body lib_mapper_latch is
         case mapper_num is
             when x"000" | x"002" | x"003" | x"007" | x"00B" | x"00D" |
                  x"01E" | x"022" | x"03A" | x"03D" | x"03E" | x"042" |
-                 x"046" | x"047" | x"048" | x"04E" | x"04F" | x"057" |
-                 x"059" | x"05C" | x"05D" | x"05E" | x"061" | x"065" |
-                 x"08C" | x"092" |
+                 x"046" | x"047" | x"048" | x"04D" | x"04E" | x"04F" |
+                 x"056" | x"057" | x"059" | x"05C" | x"05D" | x"05E" |
+                 x"061" | x"065" | x"08C" | x"092" |
                  x"098" | x"0B4" | x"0B8" | x"0B9" | x"0C8" | x"0C9" |
-                 x"0CA" | x"0CB" | x"0D4" | x"0D5" | x"0D6" | x"0E1" |
-                 x"0E2" | x"0E3" | x"0E4" | x"0E7" | x"0E8" | x"0F2" |
-                 x"0FF" => return true;
+                 x"0CA" | x"0CB" | x"0D4" | x"0D5" | x"0D6" | x"0DA" |
+                 x"0E1" | x"0E2" | x"0E3" | x"0E4" | x"0E7" | x"0E8" |
+                 x"0F2" | x"0FF" => return true;
             when others => return false;
         end case;
     end;
@@ -612,6 +624,14 @@ package body lib_mapper_latch is
                     ret.latches(LATCH_MIRROR) :=
                         latch(LATCH_ADDR_9000, SRC_1 & SRC_D4);
                 end if;
+            -- Irem LROG017 (Napoleon Senki): a 2KB bank of CHR ROM at
+            -- 0x0000, CHR RAM at 0x0800-0x1FFF and RAM for two of the four
+            -- nametables
+            when x"04D" =>
+                ret.chr_mode := CHR_2KB_RAM;
+                ret.mirror_mode := MIRROR_FOUR_SCREEN;
+                ret.latches(LATCH_PRG) := rom_latch(3, 0);
+                ret.latches(LATCH_CHR_0) := rom_latch(7, 4);
             -- Holy Diver (submapper 3) and Uchuusen - Cosmo Carrier
             -- (submapper 1). Bit 3 selects horizontal or vertical
             -- mirroring on the first and the nametable on the second.
@@ -643,6 +663,15 @@ package body lib_mapper_latch is
             when x"04F" | x"092" =>
                 ret.latches(LATCH_PRG) := latch(LATCH_ADDR_4100, SRC_D3);
                 ret.latches(LATCH_CHR_0) := latch(LATCH_ADDR_4100, 2, 0);
+            -- Jaleco JF-13. The latch is at 0x6000-0x6FFF; 0x7000-0x7FFF
+            -- controls the uPD7756C ADPCM chip, which is not emulated. The
+            -- copies of the registers at 0xE000-0xFFFF, from a flaw in the
+            -- address decoding, latch whatever is on the data bus before
+            -- the CPU drives it, so they are left out
+            when x"056" =>
+                ret.latches(LATCH_PRG) := latch(LATCH_ADDR_6000_6FFF, 5, 4);
+                ret.latches(LATCH_CHR_0) :=
+                    latch(LATCH_ADDR_6000_6FFF, SRC_D6 & data_bits(1, 0));
             -- J87: the CHR bank has its bits swapped
             when x"057" =>
                 ret.latches(LATCH_CHR_0) :=
@@ -765,6 +794,9 @@ package body lib_mapper_latch is
                 ret.latches(LATCH_PRG) := rom_addr_latch(3, 2);
                 ret.latches(LATCH_PRG_MODE) := LATCH_ONE;
                 ret.latches(LATCH_CHR_0) := rom_addr_latch(1, 0);
+            -- Magic Floor: no CHR on the board, CIRAM instead
+            when x"0DA" =>
+                ret.mirror_mode := MIRROR_CIRAM;
             -- ET-4310 and K-1010 multicarts (225, and its duplicate 255).
             -- A14 is the high bit of both banks
             when x"0E1" | x"0FF" =>
@@ -925,6 +957,8 @@ package body lib_mapper_latch is
         ret(LATCH_ADDR_9000) := cpu_in.romsel and addr(14 downto 12) = "001";
         ret(LATCH_ADDR_C000) := cpu_in.romsel and addr(14) = '1';
         ret(LATCH_ADDR_6000) := is_prg_ram_window(cpu_in);
+        ret(LATCH_ADDR_6000_6FFF) := is_prg_ram_window(cpu_in) and
+                                     addr(12) = '0';
         ret(LATCH_ADDR_4100) := not cpu_in.romsel and
                                 addr(14 downto 13) = "10" and addr(8) = '1';
         ret(LATCH_ADDR_7FFD) := is_low_addr(cpu_in, "111" & x"FFD");
@@ -1119,20 +1153,32 @@ package body lib_mapper_latch is
                 end if;
                 return resize(bank & window(1 downto 0),
                               chr_bank_1kb_t'length);
+            -- The CHR RAM is addressed by the PPU address
+            when CHR_2KB_RAM =>
+                if window(2 downto 1) = "00"
+                then
+                    return resize(regs(LATCH_CHR_0) & window(0),
+                                  chr_bank_1kb_t'length);
+                else
+                    return resize(window, chr_bank_1kb_t'length);
+                end if;
         end case;
     end;
 
     function get_mirror
     (
-        regs   : latch_regs_t;
-        mode   : latch_mirror_mode_t;
-        config : cart_config_t
+        regs    : latch_regs_t;
+        mode    : latch_mirror_mode_t;
+        config  : cart_config_t;
+        ppu_in  : cart_ppu_in_t
     )
     return mirror_t
     is
         variable reg : latch_value_t;
+        variable addr : chr_addr_t;
     begin
         reg := regs(LATCH_MIRROR);
+        addr := ppu_in.chr_bus.address;
 
         case mode is
             when MIRROR_FIXED | MIRROR_CHR_RAM =>
@@ -1150,6 +1196,16 @@ package body lib_mapper_latch is
                 return get_hv_mirror(not reg(0));
             when MIRROR_VH =>
                 return get_hv_mirror(reg(0));
+            when MIRROR_FOUR_SCREEN =>
+                return MIRROR_FOUR;
+            -- With A12 or A13, the page is chosen for each access
+            when MIRROR_CIRAM =>
+                case config.mirror_pads is
+                    when "00" => return MIRROR_HORZ;
+                    when "01" => return MIRROR_VERT;
+                    when "10" => return get_single_screen_mirror(addr(12));
+                    when others => return get_single_screen_mirror(addr(13));
+                end case;
         end case;
     end;
 
@@ -1208,7 +1264,13 @@ package body lib_mapper_latch is
                                       chr_window);
         end if;
 
-        banks.mirror := get_mirror(ret.reg.latches, board.mirror_mode, config);
+        banks.mirror := get_mirror(ret.reg.latches, board.mirror_mode, config,
+                                   cart_in.ppu);
+        banks.ciram := board.mirror_mode = MIRROR_CIRAM;
+        if board.chr_mode = CHR_2KB_RAM
+        then
+            banks.chr_ram := chr_window(2 downto 1) /= "00";
+        end if;
 
         banks.prg_ram := board.prg_ram;
 

@@ -14,12 +14,15 @@ checks everything the board selects against the model, in groups:
   2 CHR ROM banks: the first byte of each 1KB bank holds the number of its
     8KB bank, the second its number in the 8KB bank, read back through
     $2006/$2007 at each 1KB window. A disabled CHR ROM reads the low byte
-    of the address with bit 0 set
+    of the address with bit 0 set. The windows of a board with CHR RAM
+    beside its CHR ROM (77) read the bytes written there after reset
   3 Nametables: each is read, then written with a byte of its own and read
     again, so the reads show which share CIRAM and, against the bytes left
     by earlier writes, which half of CIRAM is used
   4 CHR RAM: 0x0000 is read, written and read again, showing whether CHR
-    RAM is disabled or write protected
+    RAM is disabled or write protected. Where CIRAM is the CHR RAM (218),
+    the same at 0x0000, 0x0400, 0x0800, 0x1000 and 0x1C00, which with the
+    nametables shows the address line on CIRAM A10
   5 Other registers: PRG RAM, reads at 0x6000-0x7FFF, the 4-bit RAM of
     mapper 225
   6 The CHR ROM of iNES mapper 185 is disabled for the first reads after
@@ -50,6 +53,9 @@ model), 212 (reads at 0x6000 return its RAM with D7 set), 213 (only the
 NROM-256 mode), 225 and 255 (no 4-bit RAM), 226, 227 and 242 (no CHR RAM
 write protect; 242 is a 32KB-only board there), 227_2, 227_rpg and 242_rpg
 (no submapper 2 or RPG variant), 61 and 61_1 (CHR not banked).
+
+Not covered: the ADPCM chip of 86 at 0x7000-0x7FFF (written, and must not
+change the banks), and the open bus of 77 at PPU 0x3000-0x3FFF.
 
 Variants are listed in VARIANTS.
 
@@ -148,9 +154,18 @@ class Board:
     def chr_banks(self):
         return chr8(0)
 
-    # 'V', 'H', 'A' (lower half of CIRAM) or 'B'
+    # 'V', 'H', 'A' (lower half of CIRAM), 'B' or 'F' (four screen)
     def nametables(self):
         return self.mirror
+
+    # The 1KB CHR windows that are CHR RAM beside CHR ROM, not banked.
+    # chr_banks gives None for them
+    def chr_ram_windows(self):
+        return []
+
+    # CIRAM is the CHR RAM: the PPU address line on CIRAM A10, or None
+    def ciram_a10(self):
+        return None
 
     def chr_disabled(self):
         return False
@@ -312,6 +327,66 @@ class M79(DataLatch):
     def writes(self):
         return rom_writes((0x4100, 0x5FFF, 0x4300, 0x5D80, 0x4200, 0x8000,
                            0x6100, 0x41FF))
+
+
+class M77(DataLatch):
+    """Irem LROG017: a 2KB CHR ROM bank at 0x0000, CHR RAM at
+    0x0800-0x1FFF and four nametables"""
+    mapper = 77
+    prg = 32
+    chr = 4
+    bus_conflicts = True
+
+    def prg_banks(self):
+        return prg32(bits(self.v, 3, 0))
+
+    def chr_banks(self):
+        b = bits(self.v, 7, 4)
+        return [2 * b, 2 * b + 1] + [None] * 6
+
+    def chr_ram_windows(self):
+        return list(range(2, 8))
+
+    def nametables(self):
+        return 'F'
+
+
+class M86(DataLatch):
+    """Jaleco JF-13: the latch at 0x6000-0x6FFF"""
+    mapper = 86
+    prg = 8
+    chr = 8
+
+    def region(self, addr):
+        return 0x6000 <= addr < 0x7000
+
+    def prg_banks(self):
+        return prg32(bits(self.v, 5, 4))
+
+    def chr_banks(self):
+        return chr8(bit(self.v, 6) << 2 | bits(self.v, 1, 0))
+
+    def writes(self):
+        return rom_writes((0x6000, 0x6FFF, 0x7000, 0x8000, 0x6ABC, 0x7FFF))
+
+
+class M218(Board):
+    """Magic Floor: CIRAM is the CHR RAM, with CIRAM A10 on the PPU address
+    line given by the header"""
+    mapper = 218
+    prg = 2
+    chr = 0
+
+    def ciram_a10(self):
+        return {('H', False): 11, ('V', False): 10, ('H', True): 12,
+                ('V', True): 13}[(self.mirror, self.four)]
+
+    def nametables(self):
+        return {10: 'V', 11: 'H', 12: 'A', 13: 'B'}[self.ciram_a10()]
+
+    def writes(self):
+        return [(0x8000, 0x00), (0xFFFF, 0xFF), (0x6000, 0x55),
+                (0xC000, 0xAA)]
 
 
 class M87(DataLatch):
@@ -789,11 +864,13 @@ VARIANTS = {
     '71':         lambda: M71(mirror='H'),
     '71_1':       lambda: M71(submapper=1, nes2=True, prg=8),
     '72':         lambda: M72(),
+    '77':         lambda: M77(four=True),
     '78_1':       lambda: M78(submapper=1, nes2=True),
     '78_3':       lambda: M78(submapper=3, nes2=True),
     '78_ines':    lambda: M78(four=True),
     '79':         lambda: M79(),
     '146':        lambda: M79(mapper=146, mirror='H'),
+    '86':         lambda: M86(),
     '87':         lambda: M87(),
     '89':         lambda: M89(),
     '92':         lambda: M92(mirror='H'),
@@ -833,7 +910,15 @@ VARIANTS = {
     '242':        lambda: M242(),
     '242_rpg':    lambda: M242(battery=True),
     '231':        lambda: M231(),
+    '218_h':      lambda: M218(mirror='H'),
+    '218_v':      lambda: M218(mirror='V'),
+    '218_a12':    lambda: M218(mirror='H', four=True),
+    '218_a13':    lambda: M218(mirror='V', four=True),
 }
+
+# The CHR addresses written and read on boards whose CHR RAM is CIRAM, each
+# at offset 0 of its 1KB, as are the nametable bytes
+CIRAM_CHR_ADDRS = (0x0000, 0x0400, 0x0800, 0x1000, 0x1C00)
 
 
 class Assembler:
@@ -893,7 +978,7 @@ BPL, BEQ, BNE, JMP_ABS, JSR, RTS, RTI = 0x10, 0xF0, 0xD0, 0x4C, 0x20, 0x60, \
 
 # Which half of CIRAM each nametable uses
 NT_PAGES = {'V': [0, 1, 0, 1], 'H': [0, 0, 1, 1], 'A': [0, 0, 0, 0],
-            'B': [1, 1, 1, 1]}
+            'B': [1, 1, 1, 1], 'F': [0, 1, 2, 3]}
 
 
 def build(board):
@@ -983,10 +1068,17 @@ def build(board):
             a.abs(LDA_ABS, 0x5FFC + i)
             check(0x50 | v, 9 + i)
 
+    # Marks the CHR RAM windows beside CHR ROM, which are not banked
+    for k in board.chr_ram_windows():
+        ppu_addr(0x400 * k)
+        write(0x2007, 0x80 | k)
+        write(0x2007, 0x90 | k)
+
     # The writes, each with the table of the checks after it
     tables = []
-    ciram = [None, None]
+    ciram = [None] * 4
     chr_ram = None
+    ciram_a10 = board.ciram_a10()
     states = board.writes()
     assert len(states) < NONE
     for n, (addr, value) in enumerate(states):
@@ -1009,7 +1101,9 @@ def build(board):
         t.append((banks[0] & 0xFF) ^ 0xFF)
         if chr_rom:
             for k, b in enumerate(board.chr_banks()):
-                if board.chr_disabled():
+                if b is None:
+                    t += bytes([0x80 | k, 0x90 | k])
+                elif board.chr_disabled():
                     t += bytes([0x01, 0x01])
                 else:
                     b %= chr_1kb
@@ -1021,7 +1115,13 @@ def build(board):
         for i in range(4):
             ciram[pages[i]] = vals[i]
         t += bytes(ciram[p] for p in pages)
-        if not chr_rom:
+        if ciram_a10 is not None:
+            for j, addr in enumerate(CIRAM_CHR_ADDRS):
+                p = bit(addr, ciram_a10)
+                v = 0xC0 + (5 * n + j) % 0x3F
+                t += bytes([NONE if ciram[p] is None else ciram[p], v, v])
+                ciram[p] = v
+        elif not chr_rom:
             v = 0x40 + n % 0x80
             if board.chr_disabled():
                 t += bytes([0x01, v, 0x01])
@@ -1063,7 +1163,18 @@ def build(board):
     for i in range(4):
         ppu_read(0x2000 + 0x400 * i)
         a.abs_label(JSR, 'cmp_next')
-    if not chr_rom:
+    if board.ciram_a10() is not None:
+        group(4)
+        for addr in CIRAM_CHR_ADDRS:
+            ppu_read(addr)
+            a.abs_label(JSR, 'cmp_opt')
+            ppu_addr(addr)
+            a.emit(LDA_IND_Y, PTR)
+            a.abs(STA_ABS, 0x2007)
+            a.emit(INY)
+            ppu_read(addr)
+            a.abs_label(JSR, 'cmp_next')
+    elif not chr_rom:
         group(4)
         ppu_read(0x0000)
         a.abs_label(JSR, 'cmp_opt')

@@ -17,6 +17,7 @@ use work.lib_mapper_ss88006.all;
 use work.lib_mapper_taito.all;
 use work.lib_mapper_sunsoft.all;
 use work.lib_mapper_irem.all;
+use work.lib_mapper_nsf.all;
 
 -- The cartridge, built as the board given by the mapper number of the ROM
 -- file. The registers of every supported board are kept and the board in use
@@ -63,6 +64,7 @@ package lib_cartridge is
         taito : mapper_taito_reg_t;
         sunsoft : mapper_sunsoft_reg_t;
         irem : mapper_irem_reg_t;
+        nsf : mapper_nsf_reg_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -83,7 +85,8 @@ package lib_cartridge is
         ss88006 => RESET_MAPPER_SS88006_REG,
         taito => RESET_MAPPER_TAITO_REG,
         sunsoft => RESET_MAPPER_SUNSOFT_REG,
-        irem => RESET_MAPPER_IREM_REG
+        irem => RESET_MAPPER_IREM_REG,
+        nsf => RESET_MAPPER_NSF_REG
     );
 
     type cart_cycle_out_t is record
@@ -165,6 +168,9 @@ package body lib_cartridge is
         elsif is_irem_mapper(mapper_num)
         then
             return BOARD_IREM;
+        elsif is_nsf_mapper(mapper_num)
+        then
+            return BOARD_NSF;
         else
             return BOARD_NONE;
         end if;
@@ -231,6 +237,7 @@ package body lib_cartridge is
         variable taito_out : mapper_taito_out_t;
         variable sunsoft_out : mapper_sunsoft_out_t;
         variable irem_out : mapper_irem_out_t;
+        variable nsf_out : mapper_nsf_out_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
@@ -401,6 +408,16 @@ package body lib_cartridge is
                                                   cart_in);
                     ret.reg.irem := irem_out.reg;
                     ret.cart := irem_out.cart;
+                end if;
+            when BOARD_NSF =>
+                if built(BOARD_NSF)
+                then
+                    nsf_out := cycle_mapper_nsf(reg.nsf,
+                                                config,
+                                                clk_sync,
+                                                cart_in);
+                    ret.reg.nsf := nsf_out.reg;
+                    ret.cart := nsf_out.cart;
                 end if;
             when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
         end case;

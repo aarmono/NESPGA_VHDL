@@ -52,7 +52,8 @@ package cart_types is
         BOARD_SS88006,
         BOARD_TAITO,
         BOARD_SUNSOFT,
-        BOARD_IREM
+        BOARD_IREM,
+        BOARD_NSF
     );
 
     -- The boards a build of the cartridge supports. The logic of the others

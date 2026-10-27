@@ -81,6 +81,7 @@ begin
                 when BOARD_TAITO => reg.taito <= v_out.reg.taito;
                 when BOARD_SUNSOFT => reg.sunsoft <= v_out.reg.sunsoft;
                 when BOARD_IREM => reg.irem <= v_out.reg.irem;
+                when BOARD_NSF => reg.nsf <= v_out.reg.nsf;
                 when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO =>
             end case;
         end if;

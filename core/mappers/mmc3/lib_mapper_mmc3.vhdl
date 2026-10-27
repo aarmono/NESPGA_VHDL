@@ -28,8 +28,15 @@ use work.cart_types.all;
 -- clocks, or every 4 CPU cycles, and follows the rules nesdev gives as
 -- demonstrated on hardware rather than those of Mesen
 --
+-- The multicart boards add outer bank registers, which select the part of
+-- PRG ROM and CHR ROM the MMC3 banks within. Those written at 0x6000-0x7FFF
+-- in place of PRG RAM are written only while 0xA001 enables PRG RAM without
+-- write protection, unless the board says otherwise
+--
 -- To add a board, add it to mmc3_board_t, get_mmc3_board and the case of
--- cycle_mapper_mmc3 and its mapper number to is_mmc3_mapper. A Namco 108
+-- cycle_mapper_mmc3 and its mapper number to is_mmc3_mapper. A multicart
+-- board also goes in is_multicart, write_outer and the get_multicart_*
+-- functions. A Namco 108
 -- board also goes in is_namco_108, a RAMBO-1 board in is_rambo1, and a board
 -- that wires its own CIRAM A10 in get_mirror
 package lib_mapper_mmc3 is
@@ -49,6 +56,26 @@ package lib_mapper_mmc3 is
         -- NES-QJ (47): two 128KB PRG ROM and CHR ROM sets, selected by a
         -- latch at 0x6000-0x7FFF in place of PRG RAM
         MMC3_QJ,
+        -- PAL-ZZ (37): a latch at 0x6000-0x7FFF in place of PRG RAM, whose
+        -- bits Q2-Q0 drive PRG A17 and CHR A17 (Q2) and PRG A16 (Q0 and
+        -- Q1, or Q2 and the A16 of the MMC3)
+        MMC3_ZZ,
+        -- Super Big 7-in-1 (44): bits 2-0 of 0xA001 select a block of
+        -- 128KB of PRG ROM and CHR ROM, or of 256KB for blocks 6 and 7
+        MMC3_SUPER_BIG_7,
+        -- GA23C (45): four outer registers, written in turn at 0x6000
+        -- whatever 0xA001 holds, give the bits of the PRG and CHR banks
+        -- that are set (OR) and those that the MMC3 gives (AND). See
+        -- write_outer
+        MMC3_GA23C,
+        -- Super HiK 4-in-1 (49): a register at 0x6000-0x7FFF in place of
+        -- PRG RAM selects a block of 128KB of PRG ROM and CHR ROM and
+        -- either a 32KB PRG bank or the PRG banks of the MMC3
+        MMC3_SUPER_HIK_4,
+        -- Realtec 8213 (52): a register at 0x6000-0x7FFF, over the PRG RAM,
+        -- selects blocks of 128KB or 256KB of PRG ROM and CHR ROM, and can
+        -- lock itself until reset
+        MMC3_REALTEC_8213,
         -- TxSROM (118): bit 7 of the CHR bank drives CIRAM A10
         MMC3_TXSROM,
         -- TQROM (119): bit 6 of the CHR bank selects CHR RAM
@@ -112,6 +139,17 @@ package lib_mapper_mmc3 is
     -- Bits 7-4 of 0xA001
     subtype prg_ram_bits_t is std_logic_vector(7 downto 4);
 
+    -- The four registers of the GA23C. The other multicart boards have one,
+    -- outer(0). On reset the GA23C takes all 8 bits of the CHR bank from
+    -- the MMC3
+    type outer_regs_t is array(0 to 3) of data_t;
+    subtype outer_idx_t is natural range outer_regs_t'range;
+    constant RESET_OUTER_REGS : outer_regs_t :=
+    (
+        2 => x"0F",
+        others => x"00"
+    );
+
     type mapper_mmc3_reg_t is record
         bank_idx : bank_idx_t;
 
@@ -153,8 +191,10 @@ package lib_mapper_mmc3 is
 
         a12_count : a12_count_t;
 
-        -- The 128KB set of NES-QJ
-        outer : std_logic;
+        -- The outer bank registers of the multicart boards, and the next
+        -- one the GA23C writes
+        outer     : outer_regs_t;
+        outer_idx : outer_idx_t;
     end record;
 
     constant RESET_MAPPER_MMC3_REG : mapper_mmc3_reg_t :=
@@ -187,7 +227,8 @@ package lib_mapper_mmc3 is
 
         a12_count => 0,
 
-        outer => '0'
+        outer => RESET_OUTER_REGS,
+        outer_idx => 0
     );
 
     type mapper_mmc3_out_t is record
@@ -214,8 +255,9 @@ package body lib_mapper_mmc3 is
     is
     begin
         case mapper_num is
-            when x"004" | x"02F" | x"04C" | x"058" | x"05F" | x"076" |
-                 x"077" | x"09A" | x"0CE" | x"040" | x"09E" => return true;
+            when x"004" | x"025" | x"02C" | x"02D" | x"02F" | x"031" |
+                 x"034" | x"04C" | x"058" | x"05F" | x"076" | x"077" |
+                 x"09A" | x"0CE" | x"040" | x"09E" => return true;
             when others => return false;
         end case;
     end;
@@ -235,6 +277,11 @@ package body lib_mapper_mmc3 is
                     return MMC3_TXROM;
                 end if;
             when x"02F" => return MMC3_QJ;
+            when x"025" => return MMC3_ZZ;
+            when x"02C" => return MMC3_SUPER_BIG_7;
+            when x"02D" => return MMC3_GA23C;
+            when x"031" => return MMC3_SUPER_HIK_4;
+            when x"034" => return MMC3_REALTEC_8213;
             when x"076" => return MMC3_TXSROM;
             when x"077" => return MMC3_TQROM;
             when x"0CE" | x"058" => return NAMCO_108;
@@ -271,6 +318,210 @@ package body lib_mapper_mmc3 is
     is
     begin
         return board = RAMBO1 or board = RAMBO1_158;
+    end;
+
+    function is_multicart(board : mmc3_board_t) return boolean
+    is
+    begin
+        return board = MMC3_QJ or
+               board = MMC3_ZZ or
+               board = MMC3_SUPER_BIG_7 or
+               board = MMC3_GA23C or
+               board = MMC3_SUPER_HIK_4 or
+               board = MMC3_REALTEC_8213;
+    end;
+
+    -- The outer bank registers with the CPU write of this cycle
+    function write_outer
+    (
+        reg      : mapper_mmc3_reg_t;
+        board    : mmc3_board_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return mapper_mmc3_reg_t
+    is
+        variable ret : mapper_mmc3_reg_t;
+        variable addr : prg_addr_t;
+        variable data : data_t;
+        variable prg_ram_write : boolean;
+    begin
+        ret := reg;
+        addr := cart_in.cpu.prg_bus.address;
+        data := cart_in.cpu.data;
+
+        if not is_bus_write(cart_in.cpu.prg_bus) or not clk_sync
+        then
+            return ret;
+        end if;
+
+        -- A write to PRG RAM, as the MMC3 sees it
+        prg_ram_write := is_prg_ram_window(cart_in.cpu) and
+                         reg.prg_ram_bits(7 downto 6) = "10";
+
+        case board is
+            when MMC3_QJ | MMC3_ZZ | MMC3_SUPER_HIK_4 =>
+                if prg_ram_write
+                then
+                    ret.outer(0) := data;
+                end if;
+            -- Until bit 7 locks it
+            when MMC3_REALTEC_8213 =>
+                if prg_ram_write and reg.outer(0)(7) = '0'
+                then
+                    ret.outer(0) := data;
+                end if;
+            -- The block is written with 0xA001, and block 7 is block 6
+            when MMC3_SUPER_BIG_7 =>
+                if cart_in.cpu.romsel and
+                   addr(14 downto 13) = "01" and
+                   addr(0) = '1'
+                then
+                    ret.outer(0) := "00000" & data(2 downto 0);
+                    if data(2 downto 0) = "111"
+                    then
+                        ret.outer(0)(0) := '0';
+                    end if;
+                end if;
+            -- The registers are at 0x6000-0x6FFF with A0 clear, until bit 6
+            -- of register 3 locks them. A write with A0 set resets them and
+            -- releases the lock
+            when MMC3_GA23C =>
+                if is_prg_ram_window(cart_in.cpu) and addr(12) = '0'
+                then
+                    if addr(0) = '1'
+                    then
+                        ret.outer := RESET_OUTER_REGS;
+                        ret.outer_idx := 0;
+                    elsif reg.outer(3)(6) = '0'
+                    then
+                        ret.outer(reg.outer_idx) := data;
+                        if reg.outer_idx = outer_idx_t'high
+                        then
+                            ret.outer_idx := 0;
+                        else
+                            ret.outer_idx := reg.outer_idx + 1;
+                        end if;
+                    end if;
+                end if;
+            when others =>
+        end case;
+
+        return ret;
+    end;
+
+    -- The PRG ROM bank of a multicart board, from the bank the MMC3 selects
+    function get_multicart_prg_bank
+    (
+        reg    : mapper_mmc3_reg_t;
+        board  : mmc3_board_t;
+        inner  : bank_t;
+        window : prg_window_t
+    )
+    return prg_bank_8kb_t
+    is
+        variable outer : data_t;
+        variable ret : prg_bank_8kb_t;
+    begin
+        outer := reg.outer(0);
+        ret := inner;
+
+        case board is
+            when MMC3_QJ =>
+                ret := "000" & outer(0) & inner(3 downto 0);
+            when MMC3_ZZ =>
+                ret := "000" & outer(2) &
+                       ((outer(0) and outer(1)) or (outer(2) and inner(3))) &
+                       inner(2 downto 0);
+            -- Block 6 takes PRG A17 from the MMC3 as well
+            when MMC3_SUPER_BIG_7 =>
+                ret := "0" & unsigned(outer(2 downto 1)) &
+                       (outer(0) or (outer(2) and outer(1) and inner(4))) &
+                       inner(3 downto 0);
+            -- PRG A21 and A22 are beyond the 2MB of PRG ROM banks
+            when MMC3_GA23C =>
+                outer := reg.outer(1);
+                ret(5 downto 0) := (inner(5 downto 0) and
+                                    not unsigned(reg.outer(3)(5 downto 0))) or
+                                   unsigned(outer(5 downto 0));
+                ret(7 downto 6) := unsigned(outer(7 downto 6));
+            -- Bit 0 clear selects the 32KB bank of bits 5-4, from the
+            -- first 128KB whatever the block
+            when MMC3_SUPER_HIK_4 =>
+                if outer(0) = '0'
+                then
+                    ret := "0000" & unsigned(outer(5 downto 4)) & window;
+                else
+                    ret := "00" & unsigned(outer(7 downto 6)) &
+                           inner(3 downto 0);
+                end if;
+            -- Bit 3 set takes PRG A17 from bit 0 rather than the MMC3
+            when MMC3_REALTEC_8213 =>
+                ret := "0" & unsigned(outer(2 downto 1)) & inner(4 downto 0);
+                if outer(3) = '1'
+                then
+                    ret(4) := outer(0);
+                end if;
+            when others =>
+        end case;
+
+        return ret;
+    end;
+
+    -- The 1KB CHR bank of a multicart board, from the bank the MMC3 selects
+    function get_multicart_chr_bank
+    (
+        reg    : mapper_mmc3_reg_t;
+        board  : mmc3_board_t;
+        config : cart_config_t;
+        inner  : bank_t
+    )
+    return chr_bank_1kb_t
+    is
+        variable outer : data_t;
+        variable mask_bits : natural range 0 to 15;
+        variable ret : chr_bank_1kb_t;
+    begin
+        outer := reg.outer(0);
+        ret := resize(inner, ret'length);
+
+        case board is
+            when MMC3_QJ =>
+                ret(7) := outer(0);
+            when MMC3_ZZ =>
+                ret(7) := outer(2);
+            when MMC3_SUPER_BIG_7 =>
+                ret(9 downto 7) := unsigned(outer(2 downto 0));
+                ret(7) := outer(0) or (outer(2) and outer(1) and inner(7));
+            -- Register 2 gives the number of bits taken from the MMC3, from
+            -- 8 ($F) down to none ($7 and below), and CHR A18-A20. CHR A21
+            -- is beyond the 2MB of CHR ROM banks. A board with CHR RAM
+            -- takes its banks from the MMC3 alone, as in Mesen
+            when MMC3_GA23C =>
+                if not has_chr_ram(config)
+                then
+                    mask_bits := to_integer(reg.outer(2)(3 downto 0));
+                    for i in inner'range
+                    loop
+                        ret(i) := (inner(i) and to_std_logic(i + 8 <= mask_bits))
+                                  or reg.outer(0)(i);
+                    end loop;
+                    ret(10 downto 8) := unsigned(reg.outer(2)(6 downto 4));
+                end if;
+            when MMC3_SUPER_HIK_4 =>
+                ret(8 downto 7) := unsigned(outer(7 downto 6));
+            -- Bit 6 set takes CHR A17 from bit 4 rather than the MMC3
+            when MMC3_REALTEC_8213 =>
+                ret(9) := outer(2);
+                ret(8) := outer(5);
+                if outer(6) = '1'
+                then
+                    ret(7) := outer(4);
+                end if;
+            when others =>
+        end case;
+
+        return ret;
     end;
 
     -- The 8KB PRG ROM bank in the window of the CPU address
@@ -475,15 +726,9 @@ package body lib_mapper_mmc3 is
             end case;
         end if;
 
-        -- The NES-QJ latch is written through the PRG RAM enables of the
-        -- MMC3
-        if board = MMC3_QJ and
-           is_prg_ram_window(cart_in.cpu) and
-           is_bus_write(cart_in.cpu.prg_bus) and
-           clk_sync and
-           reg.prg_ram_bits(7 downto 6) = "10"
+        if is_multicart(board)
         then
-            ret.outer := cart_in.cpu.data(0);
+            ret := write_outer(ret, board, clk_sync, cart_in);
         end if;
 
         return ret;
@@ -608,7 +853,8 @@ package body lib_mapper_mmc3 is
     return boolean
     is
     begin
-        if board = MMC3_QJ or is_namco_108(board) or is_rambo1(board)
+        if board = MMC3_QJ or board = MMC3_ZZ or board = MMC3_SUPER_HIK_4 or
+           is_namco_108(board) or is_rambo1(board)
         then
             return false;
         elsif is_mmc6(reg, board)
@@ -760,9 +1006,8 @@ package body lib_mapper_mmc3 is
         case board is
             when MMC3_TXROM | MMC3_NEC | MMC3_MMC6 | MMC3_TXSROM |
                  RAMBO1 | RAMBO1_158 =>
-            when MMC3_QJ =>
-                prg_bank := "000" & written.outer & prg_bank(3 downto 0);
-                chr_bank := written.outer & chr_bank(6 downto 0);
+            when MMC3_QJ | MMC3_ZZ | MMC3_SUPER_BIG_7 | MMC3_GA23C |
+                 MMC3_SUPER_HIK_4 | MMC3_REALTEC_8213 =>
             when MMC3_TQROM =>
                 banks.chr_ram := chr_bank(6) = '1';
             when NAMCO_108 | NAMCO_3425 | NAMCO_3453 =>
@@ -774,8 +1019,16 @@ package body lib_mapper_mmc3 is
                 chr_bank := "0" & chr_bank(5 downto 0) & chr_window(0);
         end case;
 
-        banks.prg := prg_bank;
-        banks.chr := resize(chr_bank, chr_bank_1kb_t'length);
+        if is_multicart(board)
+        then
+            banks.prg := get_multicart_prg_bank(written, board, prg_bank,
+                                                get_prg_window(cart_in.cpu));
+            banks.chr := get_multicart_chr_bank(written, board, config,
+                                                chr_bank);
+        else
+            banks.prg := prg_bank;
+            banks.chr := resize(chr_bank, chr_bank_1kb_t'length);
+        end if;
 
         ret.cart := map_cart(config, cart_in, banks);
         if is_bus_active(ret.cart.mem.prg_ram_bus)

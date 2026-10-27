@@ -415,6 +415,7 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/ss88006/lib_mapper_ss88
 set_global_assignment -name VHDL_FILE ../../core/mappers/taito/lib_mapper_taito.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/sunsoft/lib_mapper_sunsoft.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/irem/lib_mapper_irem.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/nsf/lib_mapper_nsf.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/latch/lib_mapper_latch.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/cart_types.vhdl

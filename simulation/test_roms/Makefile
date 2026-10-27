@@ -22,19 +22,22 @@ LATCH_VARIANTS := nrom_128 nrom_256_v uxrom uorom cnrom axrom colordreams \
                   bnrom_ines bnrom_nes2 nina001_ines nina001_nes2 gxrom
 LATCH_CHR_RAM_VARIANTS := cprom unrom512 flash single four hv
 LATCH_ADDR_VARIANTS := 228_a52 228_small
-LATCH_BOARDS_VARIANTS := 70 70_1scr 152 71 71_1 72 78_1 78_3 78_ines 79 146 87 \
-                         89 92 93 94 97 101 140 180 184 185_4 185_5 185_6 \
-                         185_7 185_ines 232 232_1 58 61 61_1 61_ram 62 200 \
-                         200_1 201 202 203 212 213 214 225 255 226 227 227_2 \
-                         227_rpg 242 242_rpg 231
+LATCH_BOARDS_VARIANTS := 70 70_1scr 152 71 71_1 72 77 78_1 78_3 78_ines 79 \
+                         146 86 87 89 92 93 94 97 101 140 180 184 185_4 \
+                         185_5 185_6 185_7 185_ines 232 232_1 58 61 61_1 \
+                         61_ram 62 200 200_1 201 202 203 212 213 214 225 255 \
+                         226 227 227_2 227_rpg 242 242_rpg 231 218_h 218_v \
+                         218_a12 218_a13
 MMC1_VARIANTS := sxrom surom serom 155 105
 MMC1_PRG_RAM_VARIANTS := sorom sxrom szrom ines
 MMC2_VARIANTS := mmc2 mmc4
 MMC3_VARIANTS := mmc3 mmc3_big qj txsrom tqrom mmc6_nes2 mmc6_ines 206 88 76 \
                  95 154
+MMC3_MULTICART_VARIANTS := 37 44 45 49 52
 MMC5_VARIANTS := ines ekrom etrom ewrom
 MMC5_AUDIO_VARIANTS := check
 N163_VARIANTS := 163_ines 163_nes2 175 340 detect_19 detect_210
+NSF_VARIANTS := 31
 RAMBO1_VARIANTS := 64 158
 SS88006_VARIANTS := ines nes2
 SUNSOFT_VARIANTS := 67 68 68_nes2 68_dcs 68_dcs_nes2 73
@@ -55,9 +58,11 @@ MMC1_ROMS := $(MMC1_VARIANTS:%=$(OUT)/mmc1_%.nes)
 MMC1_PRG_RAM_ROMS := $(MMC1_PRG_RAM_VARIANTS:%=$(OUT)/mmc1_prg_ram_%.nes)
 MMC2_ROMS := $(MMC2_VARIANTS:%=$(OUT)/mmc2_%.nes)
 MMC3_ROMS := $(MMC3_VARIANTS:%=$(OUT)/mmc3_%.nes)
+MMC3_MULTICART_ROMS := $(MMC3_MULTICART_VARIANTS:%=$(OUT)/mmc3_multicart_%.nes)
 MMC5_ROMS := $(MMC5_VARIANTS:%=$(OUT)/mmc5_%.nes)
 MMC5_AUDIO_ROMS := $(MMC5_AUDIO_VARIANTS:%=$(OUT)/mmc5_audio_%.nes)
 N163_ROMS := $(N163_VARIANTS:%=$(OUT)/n163_%.nes)
+NSF_ROMS := $(NSF_VARIANTS:%=$(OUT)/nsf_%.nes)
 RAMBO1_ROMS := $(RAMBO1_VARIANTS:%=$(OUT)/rambo1_%.nes)
 SS88006_ROMS := $(SS88006_VARIANTS:%=$(OUT)/ss88006_%.nes)
 SUNSOFT_ROMS := $(SUNSOFT_VARIANTS:%=$(OUT)/sunsoft_%.nes)
@@ -74,7 +79,8 @@ ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(IREM_ROMS) \
         $(LATCH_ROMS) $(LATCH_CHR_RAM_ROMS) \
         $(LATCH_ADDR_ROMS) $(LATCH_BOARDS_ROMS) \
         $(MMC1_ROMS) $(MMC1_PRG_RAM_ROMS) $(MMC2_ROMS) $(MMC3_ROMS) \
-        $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(N163_ROMS) $(RAMBO1_ROMS) \
+        $(MMC3_MULTICART_ROMS) $(MMC5_ROMS) $(MMC5_AUDIO_ROMS) $(N163_ROMS) \
+        $(NSF_ROMS) $(RAMBO1_ROMS) \
         $(SS88006_ROMS) $(SUNSOFT_ROMS) $(TAITO_ROMS) $(VRC4_ROMS) \
         $(VRC6_ROMS) \
         $(OUT)/mmc5_split.nes $(NES2_ROMS)
@@ -85,7 +91,7 @@ ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(IREM_ROMS) \
 all: $(ROMS)
 
 # Static pattern rules, since mmc5_% would also match mmc5_split and
-# mmc5_audio_%, and likewise latch_% and mmc1_%
+# mmc5_audio_%, and likewise latch_%, mmc1_% and mmc3_%
 $(ACTION53_ROMS): $(OUT)/action53_%.nes: action53.py | $(OUT)
 	$(PYTHON) action53.py $@ $*
 
@@ -122,6 +128,9 @@ $(MMC2_ROMS): $(OUT)/mmc2_%.nes: mmc2.py | $(OUT)
 $(MMC3_ROMS): $(OUT)/mmc3_%.nes: mmc3.py | $(OUT)
 	$(PYTHON) mmc3.py $@ $*
 
+$(MMC3_MULTICART_ROMS): $(OUT)/mmc3_multicart_%.nes: mmc3_multicart.py | $(OUT)
+	$(PYTHON) mmc3_multicart.py $@ $*
+
 $(MMC5_ROMS): $(OUT)/mmc5_%.nes: mmc5.py | $(OUT)
 	$(PYTHON) mmc5.py $@ $*
 
@@ -130,6 +139,9 @@ $(MMC5_AUDIO_ROMS): $(OUT)/mmc5_audio_%.nes: mmc5_audio.py | $(OUT)
 
 $(N163_ROMS): $(OUT)/n163_%.nes: n163.py | $(OUT)
 	$(PYTHON) n163.py $@ $*
+
+$(NSF_ROMS): $(OUT)/nsf_%.nes: nsf.py | $(OUT)
+	$(PYTHON) nsf.py $@ $*
 
 $(RAMBO1_ROMS): $(OUT)/rambo1_%.nes: rambo1.py | $(OUT)
 	$(PYTHON) rambo1.py $@ $*
