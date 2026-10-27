@@ -6,6 +6,7 @@ use work.utilities.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.cart_types.all;
+use work.lib_irq_counter.all;
 
 -- Boards with 8KB PRG ROM banks, the last fixed at 0xE000, and registers at
 -- 0x8000-0xFFFF selected by CPU A14-A12: the PRG banks of 0x8000 and 0xA000
@@ -55,8 +56,6 @@ package lib_mapper_irem is
     subtype chr_bank_t is unsigned(7 downto 0);
     type chr_bank_arr_t is array(0 to 7) of chr_bank_t;
 
-    subtype irq_count_t is natural range 0 to 16#FFFF#;
-
     type mapper_irem_reg_t is record
         prg_banks : prg_bank_arr_t;
         -- The bank of the first PRG register is at 0xC000 and the second
@@ -68,8 +67,6 @@ package lib_mapper_irem is
         mirror    : std_logic_vector(1 downto 0);
 
         -- H3001
-        irq_reload : irq_count_t;
-        irq_count  : irq_count_t;
         irq_enable : boolean;
         irq        : boolean;
     end record;
@@ -83,24 +80,27 @@ package lib_mapper_irem is
         chr_banks => (others => (others => '0')),
         mirror => "00",
 
-        irq_reload => 0,
-        irq_count => 0,
         irq_enable => false,
         irq => false
     );
 
+    -- The counter of the H3001 and its reload value, the latch, are kept by
+    -- the cartridge, and irq_counter is what the board does to them
     type mapper_irem_out_t is record
-        reg  : mapper_irem_reg_t;
-        cart : cart_out_t;
+        reg         : mapper_irem_reg_t;
+        cart        : cart_out_t;
+        irq_counter : irq_counter_op_t;
     end record;
 
+    -- irq_count is the count of the counter
     function cycle_mapper_irem
     (
-        reg      : mapper_irem_reg_t;
-        board    : irem_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_irem_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : irem_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_irem_out_t;
 
@@ -171,13 +171,10 @@ package body lib_mapper_irem is
             when "011" =>
                 ret.irq_enable := data(7) = '1';
                 ret.irq := false;
+            -- Reloads the counter. The reload value is written at 0x9005
+            -- and 0x9006. See get_h3001_irq_counter_op
             when "100" =>
-                ret.irq_count := reg.irq_reload;
                 ret.irq := false;
-            when "101" =>
-                ret.irq_reload := set_bits(reg.irq_reload, 8, data);
-            when "110" =>
-                ret.irq_reload := set_bits(reg.irq_reload, 0, data);
             when others =>
         end case;
 
@@ -269,8 +266,9 @@ package body lib_mapper_irem is
     -- raises the IRQ and disables it, as in Mesen, Nestopia and puNES
     function cycle_h3001_irq
     (
-        reg      : mapper_irem_reg_t;
-        clk_sync : boolean
+        reg       : mapper_irem_reg_t;
+        irq_count : irq_counter_value_t;
+        clk_sync  : boolean
     )
     return mapper_irem_reg_t
     is
@@ -278,14 +276,41 @@ package body lib_mapper_irem is
     begin
         ret := reg;
 
-        if clk_sync and reg.irq_enable and reg.irq_count /= 0
+        if clk_sync and reg.irq_enable and irq_count = 1
         then
-            ret.irq_count := reg.irq_count - 1;
-            if reg.irq_count = 1
-            then
-                ret.irq_enable := false;
-                ret.irq := true;
-            end if;
+            ret.irq_enable := false;
+            ret.irq := true;
+        end if;
+
+        return ret;
+    end;
+
+    -- The clock of the counter of the H3001, and the writes to 0x9004-0x9006:
+    -- the reload of the counter and the high and low bytes of the reload
+    -- value
+    function get_h3001_irq_counter_op
+    (
+        reg       : mapper_irem_reg_t;
+        irq_count : irq_counter_value_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
+    )
+    return irq_counter_op_t
+    is
+        variable ret : irq_counter_op_t;
+    begin
+        ret := IRQ_COUNTER_IDLE;
+        ret.clock := clk_sync and reg.irq_enable and irq_count /= 0;
+
+        if is_rom_write(cart_in.cpu, clk_sync) and
+           cart_in.cpu.prg_bus.address(14 downto 12) = "001"
+        then
+            case cart_in.cpu.prg_bus.address(2 downto 0) is
+                when "100" => ret.write := IRQ_COUNTER_LOAD;
+                when "101" => ret.write := IRQ_COUNTER_LATCH_HIGH;
+                when "110" => ret.write := IRQ_COUNTER_LATCH_LOW;
+                when others =>
+            end case;
         end if;
 
         return ret;
@@ -350,11 +375,12 @@ package body lib_mapper_irem is
 
     function cycle_mapper_irem
     (
-        reg      : mapper_irem_reg_t;
-        board    : irem_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_irem_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : irem_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_irem_out_t
     is
@@ -364,9 +390,14 @@ package body lib_mapper_irem is
         -- The counter is clocked before the write of the CPU cycle, so a
         -- write to it is not undone by the clock
         ret.reg := reg;
+        ret.irq_counter := IRQ_COUNTER_IDLE;
         if board = H3001
         then
-            ret.reg := cycle_h3001_irq(ret.reg, clk_sync);
+            ret.reg := cycle_h3001_irq(ret.reg, irq_count, clk_sync);
+            ret.irq_counter := get_h3001_irq_counter_op(reg,
+                                                        irq_count,
+                                                        clk_sync,
+                                                        cart_in);
         end if;
         ret.reg := cycle_write(ret.reg, board, clk_sync, cart_in);
 

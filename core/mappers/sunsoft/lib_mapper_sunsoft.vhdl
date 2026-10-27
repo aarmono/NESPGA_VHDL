@@ -7,6 +7,7 @@ use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.cart_types.all;
+use work.lib_irq_counter.all;
 
 -- Boards with a 16KB PRG ROM bank at 0x8000, the last bank fixed at 0xC000,
 -- and eight registers at 0x8000-0xFFFF selected by CPU A14-A12, the last of
@@ -63,8 +64,6 @@ package lib_mapper_sunsoft is
     subtype nt_bank_t is unsigned(6 downto 0);
     type nt_bank_arr_t is array(0 to 1) of nt_bank_t;
 
-    subtype irq_count_t is natural range 0 to 16#FFFF#;
-
     -- The CPU cycles the sub-cartridge ROM of the Sunsoft Dual Cartridge
     -- System can be read after a write to 0x6000-0x7FFF. Nantettatte!!
     -- Baseball checks that it is between 107516 and 107575 (nesdev)
@@ -86,15 +85,13 @@ package lib_mapper_sunsoft is
         -- sub-cartridge ROM reads open bus
         dcs_timer : dcs_timer_t;
 
-        irq_count  : irq_count_t;
         -- Sunsoft-3: the counter counts. VRC3: the E bit of 0xC000
         irq_enable : boolean;
         irq        : boolean;
         -- Sunsoft-3: the next write to 0xC800 sets the low byte of the count
         irq_low    : boolean;
-        -- VRC3: the reload value, the A bit of 0xC000, which 0xD000 copies
-        -- to irq_enable, and the M bit, with which only the low 8 bits count
-        irq_reload : irq_count_t;
+        -- VRC3: the A bit of 0xC000, which 0xD000 copies to irq_enable, and
+        -- the M bit, with which only the low 8 bits count
         irq_enable_on_ack : boolean;
         irq_8bit   : boolean;
     end record;
@@ -113,27 +110,31 @@ package lib_mapper_sunsoft is
         prg_ram_enable => false,
         dcs_timer => 0,
 
-        irq_count => 0,
         irq_enable => false,
         irq => false,
         irq_low => false,
-        irq_reload => 0,
         irq_enable_on_ack => false,
         irq_8bit => false
     );
 
+    -- The counter, and the reload value of the VRC3 as the latch, are kept
+    -- by the cartridge, and irq_counter is what the board does to them. The
+    -- VRC3 keeps them inverted, so they count down
     type mapper_sunsoft_out_t is record
-        reg  : mapper_sunsoft_reg_t;
-        cart : cart_out_t;
+        reg         : mapper_sunsoft_reg_t;
+        cart        : cart_out_t;
+        irq_counter : irq_counter_op_t;
     end record;
 
+    -- irq_count is the count of the counter
     function cycle_mapper_sunsoft
     (
-        reg      : mapper_sunsoft_reg_t;
-        board    : sunsoft_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_sunsoft_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : sunsoft_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_sunsoft_out_t;
 
@@ -168,19 +169,6 @@ package body lib_mapper_sunsoft is
                     return SUNSOFT_4;
                 end if;
         end case;
-    end;
-
-    -- Mirroring 0 is vertical, 1 horizontal, 2 one screen A and 3 one
-    -- screen B
-    function get_mirror(mode : std_logic_vector(1 downto 0)) return mirror_t
-    is
-    begin
-        if mode(1) = '0'
-        then
-            return get_hv_mirror(mode(0));
-        else
-            return get_single_screen_mirror(mode(0));
-        end if;
     end;
 
     function is_sunsoft_4(board : sunsoft_board_t) return boolean
@@ -232,45 +220,22 @@ package body lib_mapper_sunsoft is
         end if;
 
         case idx is
+            -- VRC3: the nibbles of the reload value. See get_irq_counter_op
             when 0 to 3 =>
-                if board = VRC3
+                if board /= VRC3
                 then
-                    -- The nibbles of the reload value, low first
-                    case idx is
-                        when 0 =>
-                            ret.irq_reload :=
-                                set_bits(reg.irq_reload, 0, data(3 downto 0));
-                        when 1 =>
-                            ret.irq_reload :=
-                                set_bits(reg.irq_reload, 4, data(3 downto 0));
-                        when 2 =>
-                            ret.irq_reload :=
-                                set_bits(reg.irq_reload, 8, data(3 downto 0));
-                        when others =>
-                            ret.irq_reload :=
-                                set_bits(reg.irq_reload, 12, data(3 downto 0));
-                    end case;
-                else
                     ret.chr_banks(idx) := unsigned(data);
                 end if;
+            -- Sunsoft-3: the count. VRC3: the control, which reloads the
+            -- counter when it enables it
             when 4 =>
                 case board is
                     when SUNSOFT_3 =>
-                        if reg.irq_low
-                        then
-                            ret.irq_count := set_bits(reg.irq_count, 0, data);
-                        else
-                            ret.irq_count := set_bits(reg.irq_count, 8, data);
-                        end if;
                         ret.irq_low := not reg.irq_low;
                     when VRC3 =>
                         ret.irq_enable_on_ack := data(0) = '1';
                         ret.irq_enable := data(1) = '1';
                         ret.irq_8bit := data(2) = '1';
-                        if data(1) = '1'
-                        then
-                            ret.irq_count := reg.irq_reload;
-                        end if;
                         ret.irq := false;
                     when others =>
                         ret.nt_banks(0) := unsigned(data(6 downto 0));
@@ -288,7 +253,7 @@ package body lib_mapper_sunsoft is
                         ret.nt_banks(1) := unsigned(data(6 downto 0));
                 end case;
             when 6 =>
-                ret.mirror := get_mirror(data(1 downto 0));
+                ret.mirror := get_hv_single_screen_mirror(data(1 downto 0));
                 ret.nt_chr := is_sunsoft_4(board) and data(4) = '1';
             when 7 =>
                 if board = VRC3
@@ -304,68 +269,95 @@ package body lib_mapper_sunsoft is
     end;
 
     -- The counter of the Sunsoft-3 counts down while enabled. When it wraps
-    -- from 0 it raises the IRQ and stops
-    function cycle_sunsoft_3_irq
+    -- from 0 it raises the IRQ and stops. The counter of the VRC3 counts up
+    -- while enabled. When it wraps it raises the IRQ and is reloaded. With
+    -- only the low 8 bits counting, only they wrap and are reloaded. Its
+    -- count is kept inverted, so it wraps from 0
+    function cycle_irq
     (
-        reg      : mapper_sunsoft_reg_t;
-        clk_sync : boolean
+        reg       : mapper_sunsoft_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : sunsoft_board_t;
+        clk_sync  : boolean
     )
     return mapper_sunsoft_reg_t
     is
         variable ret : mapper_sunsoft_reg_t;
+        variable wraps : boolean;
     begin
         ret := reg;
 
-        if clk_sync and reg.irq_enable
+        if reg.irq_8bit
         then
-            if reg.irq_count = 0
+            wraps := get_bits(irq_count, 7, 0) = 0;
+        else
+            wraps := irq_count = 0;
+        end if;
+
+        if clk_sync and reg.irq_enable and wraps
+        then
+            ret.irq := true;
+            if board = SUNSOFT_3
             then
-                ret.irq_count := irq_count_t'high;
                 ret.irq_enable := false;
-                ret.irq := true;
-            else
-                ret.irq_count := reg.irq_count - 1;
             end if;
         end if;
 
         return ret;
     end;
 
-    -- The counter of the VRC3 counts up while enabled. When it wraps it
-    -- raises the IRQ and is reloaded. With only the low 8 bits counting,
-    -- only they wrap and are reloaded
-    function cycle_vrc3_irq
+    -- The clock of the counter, and the writes to it: the Sunsoft-3 writes
+    -- the high and low bytes of the count in turn at 0xC800, and the VRC3
+    -- the nibbles of the reload value at 0x8000-0xB000 and reloads the
+    -- counter with a write to 0xC000 that enables it
+    function get_irq_counter_op
     (
         reg      : mapper_sunsoft_reg_t;
-        clk_sync : boolean
+        board    : sunsoft_board_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
     )
-    return mapper_sunsoft_reg_t
+    return irq_counter_op_t
     is
-        variable ret : mapper_sunsoft_reg_t;
-        variable low : natural range 0 to 16#FF#;
+        variable ret : irq_counter_op_t;
+        variable addr : prg_addr_t;
     begin
-        ret := reg;
+        addr := cart_in.cpu.prg_bus.address;
 
-        if clk_sync and reg.irq_enable
+        ret := IRQ_COUNTER_IDLE;
+        ret.clock := clk_sync and reg.irq_enable;
+        ret.reload := board = VRC3;
+        ret.low_byte := board = VRC3 and reg.irq_8bit;
+        ret.invert := board = VRC3;
+
+        if is_rom_write(cart_in.cpu, clk_sync)
         then
-            if reg.irq_8bit
-            then
-                low := get_bits(reg.irq_count, 7, 0);
-                if low = 16#FF#
-                then
-                    ret.irq_count := reg.irq_count - low +
-                                     get_bits(reg.irq_reload, 7, 0);
-                    ret.irq := true;
-                else
-                    ret.irq_count := reg.irq_count + 1;
-                end if;
-            elsif reg.irq_count = irq_count_t'high
-            then
-                ret.irq_count := reg.irq_reload;
-                ret.irq := true;
-            else
-                ret.irq_count := reg.irq_count + 1;
-            end if;
+            case board is
+                when SUNSOFT_3 =>
+                    if addr(14 downto 11) = "1001"
+                    then
+                        if reg.irq_low
+                        then
+                            ret.write := IRQ_COUNTER_COUNT_LOW;
+                        else
+                            ret.write := IRQ_COUNTER_COUNT_HIGH;
+                        end if;
+                    end if;
+                when VRC3 =>
+                    case addr(14 downto 12) is
+                        when "000" => ret.write := IRQ_COUNTER_LATCH_0;
+                        when "001" => ret.write := IRQ_COUNTER_LATCH_1;
+                        when "010" => ret.write := IRQ_COUNTER_LATCH_2;
+                        when "011" => ret.write := IRQ_COUNTER_LATCH_3;
+                        when "100" =>
+                            if cart_in.cpu.data(1) = '1'
+                            then
+                                ret.write := IRQ_COUNTER_LOAD;
+                            end if;
+                        when others =>
+                    end case;
+                when SUNSOFT_4 | SUNSOFT_4_DCS =>
+            end case;
         end if;
 
         return ret;
@@ -461,11 +453,12 @@ package body lib_mapper_sunsoft is
 
     function cycle_mapper_sunsoft
     (
-        reg      : mapper_sunsoft_reg_t;
-        board    : sunsoft_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_sunsoft_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : sunsoft_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_sunsoft_out_t
     is
@@ -476,11 +469,14 @@ package body lib_mapper_sunsoft is
         -- The counters are clocked before the write of the CPU cycle, so a
         -- write to them is not undone by the clock
         ret.reg := reg;
+        ret.irq_counter := IRQ_COUNTER_IDLE;
         case board is
-            when SUNSOFT_3 =>
-                ret.reg := cycle_sunsoft_3_irq(ret.reg, clk_sync);
-            when VRC3 =>
-                ret.reg := cycle_vrc3_irq(ret.reg, clk_sync);
+            when SUNSOFT_3 | VRC3 =>
+                ret.reg := cycle_irq(ret.reg, irq_count, board, clk_sync);
+                ret.irq_counter := get_irq_counter_op(reg,
+                                                      board,
+                                                      clk_sync,
+                                                      cart_in);
             when SUNSOFT_4_DCS =>
                 if clk_sync and reg.dcs_timer /= 0
                 then

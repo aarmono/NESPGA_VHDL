@@ -9,6 +9,7 @@ use work.prg_ram_bus_types.all;
 use work.chip_ram_bus_types.all;
 use work.cart_types.all;
 use work.lib_n163_audio.all;
+use work.lib_irq_counter.all;
 
 -- Boards built around the Namco 163 (19) and the Namco 175 and 340 (210),
 -- which are cut-down versions of it. Each register takes 0x800 bytes of the
@@ -67,7 +68,6 @@ package lib_mapper_n163 is
     subtype chip_ram_idx_t is natural range 0 to 127;
 
     -- The IRQ counter, with the enable in bit 15
-    subtype irq_count_t is natural range 0 to 2**16-1;
 
     type mapper_n163_reg_t is record
         chip           : n163_chip_t;
@@ -92,7 +92,6 @@ package lib_mapper_n163 is
         ram_addr       : chip_ram_idx_t;
         ram_increment  : boolean;
 
-        irq_count      : irq_count_t;
         irq            : boolean;
 
         audio          : n163_audio_t;
@@ -117,24 +116,28 @@ package lib_mapper_n163 is
         ram_addr => 0,
         ram_increment => false,
 
-        irq_count => 0,
         irq => false,
 
         audio => RESET_N163_AUDIO
     );
 
+    -- The counter is kept by the cartridge, and irq_counter is what the
+    -- board does to it. It is kept inverted, so it counts down
     type mapper_n163_out_t is record
-        reg  : mapper_n163_reg_t;
-        cart : cart_out_t;
+        reg         : mapper_n163_reg_t;
+        cart        : cart_out_t;
+        irq_counter : irq_counter_op_t;
     end record;
 
+    -- irq_count is the count of the counter
     function cycle_mapper_n163
     (
-        reg      : mapper_n163_reg_t;
-        board    : n163_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_n163_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : n163_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_n163_out_t;
 
@@ -391,12 +394,9 @@ package body lib_mapper_n163 is
                                                                             chip_ram_addr_t'length),
                                                         data);
                             ret.ram_addr := next_ram_addr(reg);
-                        -- Writing the counter acknowledges the IRQ
-                        when 10 =>
-                            ret.irq_count := set_bits(reg.irq_count, 0, data);
-                            ret.irq := false;
-                        when 11 =>
-                            ret.irq_count := set_bits(reg.irq_count, 8, data);
+                        -- Writing the counter acknowledges the IRQ. See
+                        -- get_irq_counter_op
+                        when 10 | 11 =>
                             ret.irq := false;
                         when others =>
                             null;
@@ -411,12 +411,20 @@ package body lib_mapper_n163 is
         return ret;
     end;
 
-    -- While enabled, the counter counts CPU cycles up to 0x7FFF, where it
-    -- raises an IRQ and stops
+    -- While enabled by bit 15, the counter counts CPU cycles up to 0x7FFF,
+    -- where it raises an IRQ and stops. Kept inverted, it is enabled by
+    -- bit 15 clear and counts down to 0
+    function is_irq_counting(irq_count : irq_counter_value_t) return boolean
+    is
+    begin
+        return irq_count < 16#8000# and irq_count /= 0;
+    end;
+
     function cycle_irq
     (
-        reg      : mapper_n163_reg_t;
-        clk_sync : boolean
+        reg       : mapper_n163_reg_t;
+        irq_count : irq_counter_value_t;
+        clk_sync  : boolean
     )
     return mapper_n163_reg_t
     is
@@ -424,14 +432,41 @@ package body lib_mapper_n163 is
     begin
         ret := reg;
 
-        if clk_sync and reg.irq_count >= 16#8000# and
-           reg.irq_count /= irq_count_t'high
+        if clk_sync and irq_count = 1
         then
-            ret.irq_count := reg.irq_count + 1;
-            if ret.irq_count = irq_count_t'high
-            then
-                ret.irq := true;
-            end if;
+            ret.irq := true;
+        end if;
+
+        return ret;
+    end;
+
+    -- The clock of the counter, and the writes of its low and high bytes to
+    -- 0x5000 and 0x5800, inverted
+    function get_irq_counter_op
+    (
+        reg       : mapper_n163_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : n163_board_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
+    )
+    return irq_counter_op_t
+    is
+        variable ret : irq_counter_op_t;
+    begin
+        ret := IRQ_COUNTER_IDLE;
+        ret.clock := clk_sync and is_irq_counting(irq_count);
+        ret.invert := true;
+
+        if clk_sync and
+           is_bus_write(cart_in.cpu.prg_bus) and
+           detect_chip(reg, board, NAMCO_163).chip = NAMCO_163
+        then
+            case get_low_reg_idx(cart_in.cpu) is
+                when 10 => ret.write := IRQ_COUNTER_COUNT_LOW;
+                when 11 => ret.write := IRQ_COUNTER_COUNT_HIGH;
+                when others =>
+            end case;
         end if;
 
         return ret;
@@ -585,9 +620,10 @@ package body lib_mapper_n163 is
     -- The CPU reads the registers of the 163 at 0x4800-0x5FFF
     function read_reg
     (
-        reg      : mapper_n163_reg_t;
-        cart_in  : cart_in_t;
-        cart_out : cart_out_t
+        reg       : mapper_n163_reg_t;
+        irq_count : irq_counter_value_t;
+        cart_in   : cart_in_t;
+        cart_out  : cart_out_t
     )
     return cart_out_t
     is
@@ -601,13 +637,14 @@ package body lib_mapper_n163 is
                 when 9 =>
                     ret.cpu.data := cart_in.mem.data_from_chip_ram;
                     ret.cpu.data_oe := true;
+                -- The counter, which is kept inverted
                 when 10 =>
-                    ret.cpu.data := to_std_logic_vector(get_bits(reg.irq_count, 7, 0),
-                                                        data_t'length);
+                    ret.cpu.data := not to_std_logic_vector(
+                        get_bits(irq_count, 7, 0), data_t'length);
                     ret.cpu.data_oe := true;
                 when 11 =>
-                    ret.cpu.data := to_std_logic_vector(get_bits(reg.irq_count, 15, 8),
-                                                        data_t'length);
+                    ret.cpu.data := not to_std_logic_vector(
+                        get_bits(irq_count, 15, 8), data_t'length);
                     ret.cpu.data_oe := true;
                 when others =>
                     null;
@@ -619,11 +656,12 @@ package body lib_mapper_n163 is
 
     function cycle_mapper_n163
     (
-        reg      : mapper_n163_reg_t;
-        board    : n163_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_n163_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : n163_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_n163_out_t
     is
@@ -632,7 +670,12 @@ package body lib_mapper_n163 is
     begin
         -- The IRQ counter and the audio are clocked before the write of the
         -- CPU cycle, so a write is not undone by the clock
-        ret.reg := cycle_irq(reg, clk_sync);
+        ret.reg := cycle_irq(reg, irq_count, clk_sync);
+        ret.irq_counter := get_irq_counter_op(reg,
+                                              irq_count,
+                                              board,
+                                              clk_sync,
+                                              cart_in);
         if reg.chip = NAMCO_163
         then
             ret.reg.audio := cycle_n163_audio(reg.audio,
@@ -666,7 +709,7 @@ package body lib_mapper_n163 is
                                  clk_sync,
                                  cart_in,
                                  ret.cart);
-        ret.cart := read_reg(reg, cart_in, ret.cart);
+        ret.cart := read_reg(reg, irq_count, cart_in, ret.cart);
 
         ret.cart.cpu.irq := reg.irq;
         ret.cart.audio := get_n163_audio_level(reg.audio);

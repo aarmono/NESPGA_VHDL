@@ -89,6 +89,7 @@
 ../../../core/apu/lib_apu.vhdl
 ../../../core/apu/apu.vhdl
 
+../../../core/mappers/lib_irq_counter.vhdl
 ../../../core/mappers/cart_types.vhdl
 ../../../core/mappers/latch/lib_mapper_latch.vhdl
 ../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl

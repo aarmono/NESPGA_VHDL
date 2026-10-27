@@ -402,6 +402,7 @@ set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_mapper_fme7.vh
 set_global_assignment -name VHDL_FILE ../../core/mappers/fme7/lib_sunsoft_5b_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/lib_vrc_irq.vhdl
+set_global_assignment -name VHDL_FILE ../../core/mappers/lib_irq_counter.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc6/lib_vrc6_audio.vhdl
 set_global_assignment -name VHDL_FILE ../../core/mappers/vrc7/lib_vrc7_audio.vhdl

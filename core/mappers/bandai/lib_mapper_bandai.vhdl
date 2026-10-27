@@ -8,6 +8,7 @@ use work.chr_bus_types.all;
 use work.chip_ram_bus_types.all;
 use work.cart_types.all;
 use work.lib_bandai_eeprom.all;
+use work.lib_irq_counter.all;
 
 -- Boards built around the Bandai FCG-1, FCG-2 or LZ93D50 (16, 153, 157,
 -- 159). Registers 0-7 are 1KB CHR ROM banks, 8 the 16KB PRG ROM bank at
@@ -57,7 +58,6 @@ package lib_mapper_bandai is
     type chr_reg_arr_t is array(0 to 7) of data_t;
 
     subtype prg_bank_t is unsigned(3 downto 0);
-    subtype irq_count_t is natural range 0 to 2**16-1;
     subtype chr_reg_idx_t is natural range 0 to 3;
 
     type mapper_bandai_reg_t is record
@@ -66,8 +66,6 @@ package lib_mapper_bandai is
         mirror     : mirror_t;
 
         irq_enable : boolean;
-        irq_count  : irq_count_t;
-        irq_latch  : irq_count_t;
         irq        : boolean;
 
         prg_ram_enable : boolean;
@@ -88,8 +86,6 @@ package lib_mapper_bandai is
         mirror => MIRROR_VERT,
 
         irq_enable => false,
-        irq_count => 0,
-        irq_latch => 0,
         irq => false,
 
         prg_ram_enable => true,
@@ -100,18 +96,23 @@ package lib_mapper_bandai is
         x24c01 => RESET_EEPROM
     );
 
+    -- The counter and its latch are kept by the cartridge, and irq_counter
+    -- is what the board does to them
     type mapper_bandai_out_t is record
-        reg  : mapper_bandai_reg_t;
-        cart : cart_out_t;
+        reg         : mapper_bandai_reg_t;
+        cart        : cart_out_t;
+        irq_counter : irq_counter_op_t;
     end record;
 
+    -- irq_count is the count of the counter
     function cycle_mapper_bandai
     (
-        reg      : mapper_bandai_reg_t;
-        board    : bandai_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_bandai_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : bandai_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_bandai_out_t;
 
@@ -248,28 +249,11 @@ package body lib_mapper_bandai is
                 ret.prg_bank := unsigned(data(prg_bank_t'range));
             when 9 =>
                 ret.mirror := get_hv_single_screen_mirror(data(1 downto 0));
-            -- Acknowledges the IRQ
+            -- Acknowledges the IRQ. The counter is written by
+            -- get_irq_counter_op
             when 10 =>
                 ret.irq_enable := data(0) = '1';
                 ret.irq := false;
-                if lz
-                then
-                    ret.irq_count := reg.irq_latch;
-                end if;
-            when 11 =>
-                if lz
-                then
-                    ret.irq_latch := set_bits(reg.irq_latch, 0, data);
-                else
-                    ret.irq_count := set_bits(reg.irq_count, 0, data);
-                end if;
-            when 12 =>
-                if lz
-                then
-                    ret.irq_latch := set_bits(reg.irq_latch, 8, data);
-                else
-                    ret.irq_count := set_bits(reg.irq_count, 8, data);
-                end if;
             -- The EEPROM lines are stepped by cycle_eeproms
             when 13 =>
                 if lz
@@ -309,8 +293,9 @@ package body lib_mapper_bandai is
     -- stays raised until it is acknowledged
     function cycle_irq
     (
-        reg      : mapper_bandai_reg_t;
-        clk_sync : boolean
+        reg       : mapper_bandai_reg_t;
+        irq_count : irq_counter_value_t;
+        clk_sync  : boolean
     )
     return mapper_bandai_reg_t
     is
@@ -318,15 +303,57 @@ package body lib_mapper_bandai is
     begin
         ret := reg;
 
-        if clk_sync and reg.irq_enable
+        if clk_sync and reg.irq_enable and irq_count = 0
         then
-            if reg.irq_count = 0
-            then
-                ret.irq_count := irq_count_t'high;
-                ret.irq := true;
-            else
-                ret.irq_count := reg.irq_count - 1;
-            end if;
+            ret.irq := true;
+        end if;
+
+        return ret;
+    end;
+
+    -- The clock of the counter, and the writes to it. The LZ93D50 writes
+    -- the latch at registers B and C and loads the counter from it at
+    -- register A. The FCG writes the counter at registers B and C
+    function get_irq_counter_op
+    (
+        reg      : mapper_bandai_reg_t;
+        board    : bandai_board_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return irq_counter_op_t
+    is
+        variable ret : irq_counter_op_t;
+        variable lz : boolean;
+    begin
+        ret := IRQ_COUNTER_IDLE;
+        ret.clock := clk_sync and reg.irq_enable;
+
+        lz := cart_in.cpu.romsel;
+        if clk_sync and is_bus_write(cart_in.cpu.prg_bus)
+        then
+            case get_reg_idx(board, cart_in.cpu) is
+                when 10 =>
+                    if lz
+                    then
+                        ret.write := IRQ_COUNTER_LOAD;
+                    end if;
+                when 11 =>
+                    if lz
+                    then
+                        ret.write := IRQ_COUNTER_LATCH_LOW;
+                    else
+                        ret.write := IRQ_COUNTER_COUNT_LOW;
+                    end if;
+                when 12 =>
+                    if lz
+                    then
+                        ret.write := IRQ_COUNTER_LATCH_HIGH;
+                    else
+                        ret.write := IRQ_COUNTER_COUNT_HIGH;
+                    end if;
+                when others =>
+            end case;
         end if;
 
         return ret;
@@ -515,11 +542,12 @@ package body lib_mapper_bandai is
 
     function cycle_mapper_bandai
     (
-        reg      : mapper_bandai_reg_t;
-        board    : bandai_board_t;
-        config   : cart_config_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_bandai_reg_t;
+        irq_count : irq_counter_value_t;
+        board     : bandai_board_t;
+        config    : cart_config_t;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_bandai_out_t
     is
@@ -530,10 +558,11 @@ package body lib_mapper_bandai is
     begin
         -- The counter is clocked before the write of the CPU cycle, so a
         -- write to it or to the IRQ control is not undone by the clock
-        ret.reg := cycle_write(cycle_irq(reg, clk_sync),
+        ret.reg := cycle_write(cycle_irq(reg, irq_count, clk_sync),
                                board,
                                clk_sync,
                                cart_in);
+        ret.irq_counter := get_irq_counter_op(reg, board, clk_sync, cart_in);
 
         if is_bus_active(cart_in.ppu.chr_bus)
         then

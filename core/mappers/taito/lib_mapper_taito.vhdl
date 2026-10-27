@@ -118,9 +118,6 @@ package lib_mapper_taito is
         irq_enable : boolean;
         irq        : boolean;
 
-        -- TC0690: 0xC001 was written since the counter was last clocked, so
-        -- the next clock reloads it
-        irq_clear : boolean;
         a12_count : a12_count_t;
         -- TC0690: the CPU cycles until the IRQ is raised, or 0 for none
         irq_delay : tc0690_irq_delay_t;
@@ -152,7 +149,6 @@ package lib_mapper_taito is
         irq_enable => false,
         irq => false,
 
-        irq_clear => false,
         a12_count => 0,
         irq_delay => 0,
 
@@ -341,9 +337,9 @@ package body lib_mapper_taito is
                     case idx is
                         when 0 =>
                             ret.irq_reload := to_integer(unsigned(data));
+                        -- The next clock reloads the counter
                         when 1 =>
                             ret.irq_count := 0;
-                            ret.irq_clear := true;
                         when 2 =>
                             ret.irq_enable := true;
                         when 3 =>
@@ -474,13 +470,12 @@ package body lib_mapper_taito is
             ret.a12_count := 0;
             if reg.a12_count = A12_MAX
             then
-                if reg.irq_count = 0 or reg.irq_clear
+                if reg.irq_count = 0
                 then
                     ret.irq_count := invert(reg.irq_reload, irq_count_t'high);
                 else
                     ret.irq_count := reg.irq_count - 1;
                 end if;
-                ret.irq_clear := false;
 
                 if ret.irq_count = 0 and reg.irq_enable
                 then

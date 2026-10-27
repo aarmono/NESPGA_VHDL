@@ -80,18 +80,34 @@ begin
                 when BOARD_MMC1 => reg.mmc1 <= v_out.reg.mmc1;
                 when BOARD_MMC2 => reg.mmc2 <= v_out.reg.mmc2;
                 when BOARD_MMC3 => reg.mmc3 <= v_out.reg.mmc3;
-                when BOARD_FME7 => reg.fme7 <= v_out.reg.fme7;
-                when BOARD_VRC4 => reg.vrc4 <= v_out.reg.vrc4;
-                when BOARD_VRC6 => reg.vrc6 <= v_out.reg.vrc6;
-                when BOARD_VRC7 => reg.vrc7 <= v_out.reg.vrc7;
+                when BOARD_FME7 =>
+                    reg.fme7 <= v_out.reg.fme7;
+                    reg.irq_counter <= v_out.reg.irq_counter;
+                when BOARD_VRC4 =>
+                    reg.vrc4 <= v_out.reg.vrc4;
+                    reg.vrc_irq <= v_out.reg.vrc_irq;
+                when BOARD_VRC6 =>
+                    reg.vrc6 <= v_out.reg.vrc6;
+                    reg.vrc_irq <= v_out.reg.vrc_irq;
+                when BOARD_VRC7 =>
+                    reg.vrc7 <= v_out.reg.vrc7;
+                    reg.vrc_irq <= v_out.reg.vrc_irq;
                 when BOARD_MMC5 => reg.mmc5 <= v_out.reg.mmc5;
-                when BOARD_N163 => reg.n163 <= v_out.reg.n163;
+                when BOARD_N163 =>
+                    reg.n163 <= v_out.reg.n163;
+                    reg.irq_counter <= v_out.reg.irq_counter;
                 when BOARD_ACTION53 => reg.action53 <= v_out.reg.action53;
-                when BOARD_BANDAI => reg.bandai <= v_out.reg.bandai;
+                when BOARD_BANDAI =>
+                    reg.bandai <= v_out.reg.bandai;
+                    reg.irq_counter <= v_out.reg.irq_counter;
                 when BOARD_SS88006 => reg.ss88006 <= v_out.reg.ss88006;
                 when BOARD_TAITO => reg.taito <= v_out.reg.taito;
-                when BOARD_SUNSOFT => reg.sunsoft <= v_out.reg.sunsoft;
-                when BOARD_IREM => reg.irem <= v_out.reg.irem;
+                when BOARD_SUNSOFT =>
+                    reg.sunsoft <= v_out.reg.sunsoft;
+                    reg.irq_counter <= v_out.reg.irq_counter;
+                when BOARD_IREM =>
+                    reg.irem <= v_out.reg.irem;
+                    reg.irq_counter <= v_out.reg.irq_counter;
                 when BOARD_NSF => reg.nsf <= v_out.reg.nsf;
                 when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO |
                      BOARD_VRC7_AUDIO =>

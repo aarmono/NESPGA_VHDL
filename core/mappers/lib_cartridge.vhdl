@@ -8,6 +8,8 @@ use work.lib_mapper_mmc1.all;
 use work.lib_mapper_mmc2.all;
 use work.lib_mapper_mmc3.all;
 use work.lib_mapper_fme7.all;
+use work.lib_vrc_irq.all;
+use work.lib_irq_counter.all;
 use work.lib_mapper_vrc4.all;
 use work.lib_mapper_vrc6.all;
 use work.lib_mapper_vrc7.all;
@@ -70,6 +72,10 @@ package lib_cartridge is
         sunsoft : mapper_sunsoft_reg_t;
         irem : mapper_irem_reg_t;
         nsf : mapper_nsf_reg_t;
+        -- The IRQ counter of the VRC4, VRC6 and VRC7, which they share
+        vrc_irq : vrc_irq_t;
+        -- The 16-bit IRQ counter of CPU cycles that several boards share
+        irq_counter : irq_counter_t;
     end record;
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t;
@@ -92,7 +98,9 @@ package lib_cartridge is
         taito => RESET_MAPPER_TAITO_REG,
         sunsoft => RESET_MAPPER_SUNSOFT_REG,
         irem => RESET_MAPPER_IREM_REG,
-        nsf => RESET_MAPPER_NSF_REG
+        nsf => RESET_MAPPER_NSF_REG,
+        vrc_irq => RESET_VRC_IRQ,
+        irq_counter => RESET_IRQ_COUNTER
     );
 
     type cart_cycle_out_t is record
@@ -234,6 +242,13 @@ package body lib_cartridge is
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
         ret.n163 := get_reset_n163_reg(boards.n163);
 
+        -- The VRC3 and N163 keep the counter inverted
+        if boards.board = BOARD_N163 or
+           (boards.board = BOARD_SUNSOFT and boards.sunsoft = VRC3)
+        then
+            ret.irq_counter := RESET_INVERTED_IRQ_COUNTER;
+        end if;
+
         return ret;
     end;
 
@@ -269,9 +284,20 @@ package body lib_cartridge is
         variable sunsoft_out : mapper_sunsoft_out_t;
         variable irem_out : mapper_irem_out_t;
         variable nsf_out : mapper_nsf_out_t;
+
+        -- The board uses the VRC IRQ counter and its write this cycle
+        variable vrc_irq : boolean;
+        variable vrc_irq_write : vrc_irq_write_t;
+        -- The board uses the 16-bit IRQ counter, and what it does to it
+        variable irq_counter : boolean;
+        variable irq_counter_op : irq_counter_op_t;
     begin
         ret.reg := reg;
         ret.cart := CART_OUT_IDLE;
+        vrc_irq := false;
+        vrc_irq_write := VRC_IRQ_NO_WRITE;
+        irq_counter := false;
+        irq_counter_op := IRQ_COUNTER_IDLE;
 
         -- A board left out of the build is never cycled, so neither its
         -- logic nor its registers are built
@@ -325,12 +351,15 @@ package body lib_cartridge is
                 if built(BOARD_FME7)
                 then
                     fme7_out := cycle_mapper_fme7(reg.fme7,
+                                                  reg.irq_counter.count,
                                                   built(BOARD_SUNSOFT_5B),
                                                   config,
                                                   clk_sync,
                                                   cart_in);
                     ret.reg.fme7 := fme7_out.reg;
                     ret.cart := fme7_out.cart;
+                    irq_counter := true;
+                    irq_counter_op := fme7_out.irq_counter;
                 end if;
             when BOARD_VRC4 =>
                 if built(BOARD_VRC4)
@@ -342,6 +371,8 @@ package body lib_cartridge is
                                                   cart_in);
                     ret.reg.vrc4 := vrc4_out.reg;
                     ret.cart := vrc4_out.cart;
+                    vrc_irq := true;
+                    vrc_irq_write := vrc4_out.irq_write;
                 end if;
             when BOARD_VRC6 =>
                 if built(BOARD_VRC6)
@@ -353,6 +384,8 @@ package body lib_cartridge is
                                                   cart_in);
                     ret.reg.vrc6 := vrc6_out.reg;
                     ret.cart := vrc6_out.cart;
+                    vrc_irq := true;
+                    vrc_irq_write := vrc6_out.irq_write;
                 end if;
             when BOARD_VRC7 =>
                 if built(BOARD_VRC7)
@@ -367,6 +400,8 @@ package body lib_cartridge is
                                                   opll_tables);
                     ret.reg.vrc7 := vrc7_out.reg;
                     ret.cart := vrc7_out.cart;
+                    vrc_irq := true;
+                    vrc_irq_write := vrc7_out.irq_write;
                 end if;
             when BOARD_MMC5 =>
                 if built(BOARD_MMC5)
@@ -383,12 +418,15 @@ package body lib_cartridge is
                 if built(BOARD_N163)
                 then
                     n163_out := cycle_mapper_n163(reg.n163,
+                                                  reg.irq_counter.count,
                                                   boards.n163,
                                                   config,
                                                   clk_sync,
                                                   cart_in);
                     ret.reg.n163 := n163_out.reg;
                     ret.cart := n163_out.cart;
+                    irq_counter := true;
+                    irq_counter_op := n163_out.irq_counter;
                 end if;
             when BOARD_ACTION53 =>
                 if built(BOARD_ACTION53)
@@ -404,12 +442,15 @@ package body lib_cartridge is
                 if built(BOARD_BANDAI)
                 then
                     bandai_out := cycle_mapper_bandai(reg.bandai,
+                                                      reg.irq_counter.count,
                                                       boards.bandai,
                                                       config,
                                                       clk_sync,
                                                       cart_in);
                     ret.reg.bandai := bandai_out.reg;
                     ret.cart := bandai_out.cart;
+                    irq_counter := true;
+                    irq_counter_op := bandai_out.irq_counter;
                 end if;
             when BOARD_SS88006 =>
                 if built(BOARD_SS88006)
@@ -436,23 +477,29 @@ package body lib_cartridge is
                 if built(BOARD_SUNSOFT)
                 then
                     sunsoft_out := cycle_mapper_sunsoft(reg.sunsoft,
+                                                        reg.irq_counter.count,
                                                         boards.sunsoft,
                                                         config,
                                                         clk_sync,
                                                         cart_in);
                     ret.reg.sunsoft := sunsoft_out.reg;
                     ret.cart := sunsoft_out.cart;
+                    irq_counter := true;
+                    irq_counter_op := sunsoft_out.irq_counter;
                 end if;
             when BOARD_IREM =>
                 if built(BOARD_IREM)
                 then
                     irem_out := cycle_mapper_irem(reg.irem,
+                                                  reg.irq_counter.count,
                                                   boards.irem,
                                                   config,
                                                   clk_sync,
                                                   cart_in);
                     ret.reg.irem := irem_out.reg;
                     ret.cart := irem_out.cart;
+                    irq_counter := true;
+                    irq_counter_op := irem_out.irq_counter;
                 end if;
             when BOARD_NSF =>
                 if built(BOARD_NSF)
@@ -467,6 +514,24 @@ package body lib_cartridge is
             when BOARD_NONE | BOARD_SUNSOFT_5B | BOARD_MMC5_AUDIO |
                  BOARD_VRC7_AUDIO =>
         end case;
+
+        -- One counter is clocked for whichever VRC board is in use, rather
+        -- than one for each
+        if vrc_irq
+        then
+            ret.reg.vrc_irq := cycle_vrc_irq(reg.vrc_irq,
+                                             clk_sync,
+                                             vrc_irq_write,
+                                             cart_in.cpu.data);
+            ret.cart.cpu.irq := reg.vrc_irq.irq;
+        end if;
+
+        if irq_counter
+        then
+            ret.reg.irq_counter := cycle_irq_counter(reg.irq_counter,
+                                                     irq_counter_op,
+                                                     cart_in.cpu.data);
+        end if;
 
         return ret;
     end;
