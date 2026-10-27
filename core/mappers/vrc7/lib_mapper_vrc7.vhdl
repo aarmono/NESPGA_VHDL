@@ -242,14 +242,7 @@ package body lib_mapper_vrc7 is
         variable level : integer;
     begin
         level := MID + (get_vrc7_audio_sum(audio) * 209) / 2**9;
-        if level < 0
-        then
-            return 0;
-        elsif level > cart_audio_t'high
-        then
-            return cart_audio_t'high;
-        end if;
-        return level;
+        return min_int(max(level, 0), cart_audio_t'high);
     end;
 
     function cycle_mapper_vrc7

@@ -113,7 +113,7 @@ begin
                                  clk_sync,
                                  cart_in,
                                  (others => '-'),
-                                 (logsin => 0, exp => 0));
+                                 VRC7_TABLES_UNUSED);
 
         cart_out <= v_out.cart;
     end process;

@@ -118,7 +118,6 @@ package lib_vrc7_audio is
         eg_dokon              : natural range 0 to 2**16-1;
         eg_off                : natural range 0 to 3;
         eg_rate               : natural range 0 to 63;
-        eg_maxrate            : boolean;
         eg_zerorate           : boolean;
         eg_inc_lo             : natural range 0 to 1;
         eg_inc_hi             : natural range 0 to 1;
@@ -220,6 +219,9 @@ package lib_vrc7_audio is
         logsin : natural range 0 to 2**12-1;
         exp    : natural range 0 to 2**11-1;
     end record;
+
+    -- For a cycle_vrc7_audio whose result is not kept
+    constant VRC7_TABLES_UNUSED : vrc7_tables_t := (logsin => 0, exp => 0);
 
     function get_reset_vrc7_audio return vrc7_audio_t;
 
@@ -553,7 +555,6 @@ package body lib_vrc7_audio is
         ret.eg_dokon := 0;
         ret.eg_off := 0;
         ret.eg_rate := 0;
-        ret.eg_maxrate := false;
         ret.eg_zerorate := false;
         ret.eg_inc_lo := 0;
         ret.eg_inc_hi := 0;
@@ -707,12 +708,6 @@ package body lib_vrc7_audio is
         end case;
     end;
 
-    function is_mod(val : natural) return boolean
-    is
-    begin
-        return (val / 3) mod 2 = 1;
-    end;
-
     -- A bit of a natural
     function bit_set(val : natural; idx : natural) return boolean
     is
@@ -732,15 +727,60 @@ package body lib_vrc7_audio is
         return to_integer(patch(idx)(hi downto lo));
     end;
 
-    function get_rm_select(cycle : opll_cycle_t) return rm_select_t
+    -- What depends on the step alone. The divisions by 3 and 18 of the step
+    -- would synthesize as dividers, so they are worked out once here
+    type cycle_info_t is record
+        -- The operator of the output (mod1), the phase (mod2) and the
+        -- modulation (mod3) of the step is a modulator. The drums but the
+        -- bass drum have no modulator
+        mod1       : boolean;
+        mod2       : boolean;
+        mod3       : boolean;
+        -- The operator after the step's is a carrier
+        mcsel      : natural range 0 to 1;
+        -- The output of the step is that of a carrier of channels 0-5
+        heard      : boolean;
+        -- The drum of the operator after the step's
+        rm         : rm_select_t;
+        -- The operator of three steps before, and the channel of the step
+        slot_3     : opll_cycle_t;
+        channel    : natural range 0 to 8;
+        next_cycle : opll_cycle_t;
+    end record;
+
+    type cycle_info_arr_t is array(opll_cycle_t) of cycle_info_t;
+
+    function get_cycle_info return cycle_info_arr_t
     is
+        function is_mod(val : natural) return boolean
+        is
+        begin
+            return (val / 3) mod 2 = 1;
+        end;
+
+        variable ret : cycle_info_arr_t;
     begin
-        if cycle >= 11 and cycle <= 16
-        then
-            return cycle - 11;
-        end if;
-        return RM_NONE;
+        for c in opll_cycle_t loop
+            ret(c).mod1 := c /= 15 and c /= 16 and is_mod(c + 1);
+            ret(c).mod2 := c /= 13 and c /= 14 and is_mod(c + 3);
+            ret(c).mod3 := c /= 16 and c /= 17 and is_mod(c);
+            ret(c).mcsel := boolean'pos(is_mod(c + 1));
+            ret(c).heard := not is_mod(c) and (c + 15) mod 18 < 12;
+            if c >= 11 and c <= 16
+            then
+                ret(c).rm := c - 11;
+            else
+                ret(c).rm := RM_NONE;
+            end if;
+            ret(c).slot_3 := (c + 15) mod 18;
+            ret(c).channel := c mod 9;
+            ret(c).next_cycle := (c + 1) mod 18;
+        end loop;
+
+        return ret;
     end;
+
+    constant CYCLE_INFO : cycle_info_arr_t := get_cycle_info;
 
     -- The patch of the operator after the step's
     function get_patch
@@ -752,7 +792,7 @@ package body lib_vrc7_audio is
     is
         variable rm : rm_select_t;
     begin
-        rm := get_rm_select(audio.cycle);
+        rm := CYCLE_INFO(audio.cycle).rm;
         if rm /= RM_NONE
         then
             return DRUM_ROM(rm);
@@ -771,30 +811,6 @@ package body lib_vrc7_audio is
         return audio.fm_data and not audio.write_a_en and
                audio.address mod 16 = audio.cycle and audio.cycle < 16 and
                audio.address / 16 >= 1 and audio.address / 16 <= 3;
-    end;
-
-    -- The phase of the operator of the step, after modulation and feedback,
-    -- 10 bits. The log-sin of its low 8 bits, mirrored in the odd quarters
-    -- of the wave, is looked up
-    -- The operator of the output (ismod1), the phase (ismod2) and the
-    -- modulation (ismod3) of the step is a modulator. The drums but the bass
-    -- drum have no modulator
-    function is_mod1(cycle : opll_cycle_t) return boolean
-    is
-    begin
-        return cycle /= 15 and cycle /= 16 and is_mod(cycle + 1);
-    end;
-
-    function is_mod2(cycle : opll_cycle_t) return boolean
-    is
-    begin
-        return cycle /= 13 and cycle /= 14 and is_mod(cycle + 3);
-    end;
-
-    function is_mod3(cycle : opll_cycle_t) return boolean
-    is
-    begin
-        return cycle /= 16 and cycle /= 17 and is_mod(cycle);
     end;
 
     -- The phase bits of the hi-hat and top cymbal, taken in steps 13 and 17
@@ -851,30 +867,34 @@ package body lib_vrc7_audio is
         end case;
     end;
 
+    -- The phase of the operator of the step, after modulation and feedback,
+    -- 10 bits. The log-sin of its low 8 bits, mirrored in the odd quarters
+    -- of the wave, is looked up
     function get_op_phase(audio : vrc7_audio_t) return natural
     is
-        variable op_mod : integer;
-        variable fbsum : integer;
+        variable op_mod : natural;
     begin
         op_mod := 0;
-        if is_mod3(audio.cycle)
+        if CYCLE_INFO(audio.cycle).mod3
         then
             op_mod := audio.op_mod * 2;
         end if;
-        if is_mod2(audio.cycle) and audio.c_fb /= 0
+        if CYCLE_INFO(audio.cycle).mod2 and audio.c_fb /= 0
         then
-            fbsum := sar(audio.rd_slot.fb1 + audio.rd_slot.fb2, 1);
-            op_mod := sar(fbsum, 7 - audio.c_fb);
+            -- ((fb1 + fb2) >> 1) >> (7 - fb), of which only the low 10 bits
+            -- are used: those of the sum shifted as a natural
+            op_mod := shift_right(wrap(audio.rd_slot.fb1 + audio.rd_slot.fb2,
+                                       2**17-1),
+                                  8 - audio.c_fb);
         end if;
 
         return wrap(op_mod + get_pg_out(audio), 2**10-1);
     end;
 
-    function get_logsin_addr(audio : vrc7_audio_t) return natural
+    -- The address in the log-sin table of a phase from get_op_phase
+    function get_logsin_addr(phase : natural) return natural
     is
-        variable phase : natural range 0 to 2**10-1;
     begin
-        phase := get_op_phase(audio);
         if bit_set(phase, 8)
         then
             return 255 - phase mod 256;
@@ -932,10 +952,10 @@ package body lib_vrc7_audio is
         variable mcsel : natural range 0 to 1;
     begin
         ret := audio;
-        mcsel := ((audio.cycle + 1) / 3) mod 2;
+        mcsel := CYCLE_INFO(audio.cycle).mcsel;
 
-        if get_rm_select(audio.cycle) = RM_HH or
-           get_rm_select(audio.cycle) = RM_TOM
+        if CYCLE_INFO(audio.cycle).rm = RM_HH or
+           CYCLE_INFO(audio.cycle).rm = RM_TOM
         then
             ret.c_tl := ch.inst * 4;
         elsif mcsel = 1
@@ -971,7 +991,7 @@ package body lib_vrc7_audio is
         variable mcsel : natural range 0 to 1;
     begin
         ret := audio;
-        mcsel := ((audio.cycle + 1) / 3) mod 2;
+        mcsel := CYCLE_INFO(audio.cycle).mcsel;
 
         ret.c_fnum := ch.fnum;
         ret.c_block := ch.octave;
@@ -1052,7 +1072,7 @@ package body lib_vrc7_audio is
         variable off_1 : boolean;
     begin
         ret := audio;
-        mcsel := ((audio.cycle + 1) / 3) mod 2;
+        mcsel := CYCLE_INFO(audio.cycle).mcsel;
 
         -- The timer
         if audio.eg_counter_state /= 3
@@ -1115,7 +1135,7 @@ package body lib_vrc7_audio is
         then
             next_level := opll_level_t'high;
         end if;
-        if audio.eg_maxrate and bit_set(audio.eg_dokon, 1)
+        if audio.eg_rate_hi = 15 and bit_set(audio.eg_dokon, 1)
         then
             next_level := 0;
         end if;
@@ -1125,7 +1145,7 @@ package body lib_vrc7_audio is
 
         case state is
             when EG_ATTACK =>
-                if not audio.eg_maxrate and bit_set(audio.eg_kon, 1) and
+                if audio.eg_rate_hi /= 15 and bit_set(audio.eg_kon, 1) and
                    not zero
                 then
                     if audio.eg_rate_hi < 12
@@ -1214,10 +1234,9 @@ package body lib_vrc7_audio is
                 when others => null;
             end case;
         end if;
-        ret.eg_maxrate := rate_hi = 15;
         ret.eg_rate_hi := rate_hi;
 
-        case get_rm_select(audio.cycle) is
+        case CYCLE_INFO(audio.cycle).rm is
             when RM_BD0 | RM_BD1 => kon_1 := ch.kon or bit_set(audio.rhythm, 4);
             when RM_SD => kon_1 := ch.kon or bit_set(audio.rhythm, 3);
             when RM_TOM => kon_1 := ch.kon or bit_set(audio.rhythm, 2);
@@ -1264,8 +1283,8 @@ package body lib_vrc7_audio is
                 end if;
         end case;
         if not kon_1 and mcsel = 0 and
-           get_rm_select(audio.cycle) /= RM_TOM and
-           get_rm_select(audio.cycle) /= RM_HH
+           CYCLE_INFO(audio.cycle).rm /= RM_TOM and
+           CYCLE_INFO(audio.cycle).rm /= RM_HH
         then
             rate := 0;
         end if;
@@ -1413,9 +1432,9 @@ package body lib_vrc7_audio is
         variable slot : opll_slot_t;
         variable ismod : boolean;
         variable ismod1 : boolean;
-        variable exp_shift : opll_nibble_t;
         variable output : opll_out_t;
         variable freq : natural range 0 to 2**19-1;
+        variable vib : natural range 0 to 7;
         variable ksl : integer range -64 to 128;
         variable ksl_level : natural range 0 to 128;
         variable eg_level : natural range 0 to 511;
@@ -1442,7 +1461,7 @@ package body lib_vrc7_audio is
         then
             ret.output_m := audio.ch_out + 1;
         end if;
-        if is_mod(c) or (c + 15) mod 18 >= 12
+        if not CYCLE_INFO(c).heard
         then
             ret.output_m := 0;
         end if;
@@ -1451,7 +1470,7 @@ package body lib_vrc7_audio is
         -- is written in the next step, with its state
         ret.phase_wr := wrap(audio.pg_phase_next + audio.pg_inc, 2**19-1);
         ret.slot_wr.phase := audio.phase_wr;
-        ismod := is_mod2(c);
+        ismod := CYCLE_INFO(c).mod2;
         if bit_set(ret.testmode, 2) or
            (ismod and bit_set(audio.eg_dokon, 15)) or
            (not ismod and bit_set(audio.eg_dokon, 0))
@@ -1464,16 +1483,18 @@ package body lib_vrc7_audio is
 
         -- OPLL_Operator: the output of the operator of two steps before, the
         -- exponent of the step before and the log-sin of this step
-        ismod1 := is_mod1(c);
-        exp_shift := audio.op_exp_s;
+        ismod1 := CYCLE_INFO(c).mod1;
+        -- Silence and the half-wave rectification of the waveform shift by
+        -- 12 or more, which leaves none of the 11 bits of the mantissa
         if audio.eg_silent or
            (bit_set(audio.op_neg, 1) and
             ((ismod1 and bit_set(audio.c_dm, 2)) or
              (not ismod1 and bit_set(audio.c_dc, 2))))
         then
-            exp_shift := audio.op_exp_s mod 4 + 12;
+            output := 0;
+        else
+            output := shift_right(audio.op_exp_m, audio.op_exp_s);
         end if;
-        output := shift_right(audio.op_exp_m, exp_shift);
         if not audio.eg_silent and bit_set(audio.op_neg, 1)
         then
             output := -output - 1;
@@ -1497,24 +1518,28 @@ package body lib_vrc7_audio is
         if ismod1
         then
             ret.ch_out := 0;
-        elsif output < 0
-        then
-            ret.ch_out := -((-output - 1) / 8) - 1;
         else
-            ret.ch_out := output / 8;
+            ret.ch_out := sar(output, 3);
         end if;
 
         -- OPLL_PhaseCalcIncrement, for the operator of the step after
+        -- The vibrato is added in the first half of its cycle and taken
+        -- away in the second
         freq := audio.c_fnum * 2;
+        vib := 0;
         if audio.c_vib
         then
-            case audio.lfo_vib_counter is
-                when 1 | 3 => freq := freq + freq / 2**8;
-                when 2 => freq := freq + freq / 2**7;
-                when 5 | 7 => freq := freq - freq / 2**8;
-                when 6 => freq := freq - freq / 2**7;
+            case audio.lfo_vib_counter mod 4 is
+                when 1 | 3 => vib := freq / 2**8;
+                when 2 => vib := freq / 2**7;
                 when others => null;
             end case;
+        end if;
+        if audio.lfo_vib_counter >= 4
+        then
+            freq := freq - vib;
+        else
+            freq := freq + vib;
         end if;
         freq := shl(freq, audio.c_block) / 2;
         ret.pg_inc := (freq * PG_MULTI(audio.c_multi)) / 2;
@@ -1525,10 +1550,7 @@ package body lib_vrc7_audio is
         then
             eg_level := eg_level + ret.lfo_am_out;
         end if;
-        if eg_level >= 128
-        then
-            eg_level := 127;
-        end if;
+        eg_level := min_int(eg_level, opll_level_t'high);
         if bit_set(ret.testmode, 0)
         then
             eg_level := 0;
@@ -1600,7 +1622,7 @@ package body lib_vrc7_audio is
         ret.write_a := (audio.write_a * 2) mod 4;
         ret.write_d := (audio.write_d * 2) mod 4;
 
-        ret.cycle := (c + 1) mod 18;
+        ret.cycle := CYCLE_INFO(c).next_cycle;
 
         ret.slot_2 := audio.slot_1;
         ret.slot_1 := slot;
@@ -1627,6 +1649,7 @@ package body lib_vrc7_audio is
     is
         variable ret : vrc7_audio_t;
         variable dot : opll_dot_t;
+        variable phase : natural range 0 to 2**10-1;
     begin
         ret := audio;
         dot := get_dot(audio, clk_sync);
@@ -1648,8 +1671,9 @@ package body lib_vrc7_audio is
                     null;
                 when STEP_OLD =>
                     ret.rd_old := from_channel_word(ram_data);
-                    ret.logsin_addr := get_logsin_addr(audio);
-                    ret.phase_neg := get_op_phase(audio) / 2**9;
+                    phase := get_op_phase(audio);
+                    ret.logsin_addr := get_logsin_addr(phase);
+                    ret.phase_neg := phase / 2**9;
                     ret.exp_level := get_exp_level(audio);
                 when STEP_TABLES =>
                     null;
@@ -1712,14 +1736,15 @@ package body lib_vrc7_audio is
             when STEP_SLOT =>
                 addr := audio.cycle;
             when STEP_WRITE =>
-                return bus_write(to_std_logic_vector((audio.cycle + 15) mod 18,
-                                                     opll_ram_addr_t'length));
+                return bus_write(to_std_logic_vector(
+                    CYCLE_INFO(audio.cycle).slot_3,
+                    opll_ram_addr_t'length));
             when STEP_OLD =>
                 if not is_reg_write(audio)
                 then
                     return OPLL_RAM_BUS_IDLE;
                 end if;
-                addr := RAM_CHANNEL + audio.cycle mod 9;
+                addr := RAM_CHANNEL + CYCLE_INFO(audio.cycle).channel;
             when STEP_TABLES =>
                 return OPLL_RAM_BUS_IDLE;
             when STEP_EXP =>
@@ -1727,9 +1752,9 @@ package body lib_vrc7_audio is
                 then
                     return OPLL_RAM_BUS_IDLE;
                 end if;
-                return bus_write(to_std_logic_vector(RAM_CHANNEL +
-                                                     audio.cycle mod 9,
-                                                     opll_ram_addr_t'length));
+                return bus_write(to_std_logic_vector(
+                    RAM_CHANNEL + CYCLE_INFO(audio.cycle).channel,
+                    opll_ram_addr_t'length));
         end case;
 
         return bus_read(to_std_logic_vector(addr, opll_ram_addr_t'length));
