@@ -18,6 +18,7 @@ use work.cart_mem_bus_types.all;
 use work.nes_types.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
+use work.perhipheral_types.all;
 use work.cart_types.all;
 use work.lib_cartridge.all;
 use work.lib_nes_mmap.all;
@@ -108,6 +109,8 @@ package lib_nes is
         audio                : mixed_audio_t;
         reset                : boolean;
         irq                  : boolean;
+        -- The RAMs are being filled, so the power up data changes
+        power_up_enable      : boolean;
     end record;
     
     type nes_in_t is record
@@ -123,6 +126,9 @@ package lib_nes is
         palette_bus        : palette_bus_t;
         data_to_palette    : pixel_t;
         audio              : apu_out_t;
+        -- The power up data is valid
+        power_up_ready     : boolean;
+        power_up_data      : power_up_data_t;
     end record;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t;
@@ -295,10 +301,12 @@ package body lib_nes is
         ret.audio := (others => '-');
         ret.reset := false;
         ret.irq   := false;
+        ret.power_up_enable := false;
         
         case nes_in.reg.cur_state is
             when STATE_RESET =>
                 ret.reset := true;
+                ret.power_up_enable := true;
                 
                 ret.cpu_bus.ram_bus :=
                     bus_write(nes_in.reg.cur_cycle(ram_addr_t'range));
@@ -315,17 +323,19 @@ package body lib_nes is
                 ret.chip_ram_bus :=
                     bus_write(nes_in.reg.cur_cycle(chip_ram_addr_t'range));
                 
-                ret.cpu_bus.data_to_ram := x"00";
+                -- The RAMs of the console power up with random bytes, a
+                -- different part of the power up data for each
+                ret.cpu_bus.data_to_ram := nes_in.power_up_data(7 downto 0);
                 
-                ret.data_to_oam := x"00";
-                ret.data_to_sec_oam := x"00";
+                ret.data_to_oam := nes_in.power_up_data(15 downto 8);
+                ret.data_to_sec_oam := nes_in.power_up_data(23 downto 16);
                 ret.data_to_palette :=
                     STARTUP_PALETTE
                     (
                         to_integer(nes_in.reg.cur_cycle(palette_addr_t'range))
                     );
                 
-                ret.ppu_bus.data_to_ciram := x"00";
+                ret.ppu_bus.data_to_ciram := nes_in.power_up_data(31 downto 24);
                 ret.data_to_chip_ram := x"00";
 
                 -- PRG RAM and CHR RAM share the cartridge memory bus, so their
@@ -367,7 +377,9 @@ package body lib_nes is
                 then
                     ret.reg.cur_cycle := x"0000";
                     ret.reg.cur_state := STATE_LOAD;
-                else
+                -- Waits for the power up data before filling the RAMs
+                elsif nes_in.power_up_ready
+                then
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
             when STATE_LOAD =>

@@ -92,7 +92,8 @@ package soc is
         CLK_FREQ         : positive := 50_000_000;
         CPU_FREQ_NUM     : positive := 39_375_000;
         CPU_FREQ_DEN     : positive := 22;
-        CART_BOARDS      : board_set_t := ALL_BOARDS
+        CART_BOARDS      : board_set_t := ALL_BOARDS;
+        POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO
     );
     port
     (

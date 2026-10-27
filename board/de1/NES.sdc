@@ -187,3 +187,11 @@ set_multicycle_path -setup -end 4 -from $nes_core_regs -to $nes_ram_regs
 set_multicycle_path -hold -end 3 -from $nes_core_regs -to $nes_ram_regs
 set_multicycle_path -setup -end 4 -from $nes_ram_regs -to $nes_core_regs
 set_multicycle_path -hold -end 3 -from $nes_ram_regs -to $nes_core_regs
+
+# The ring oscillators of the power up TRNG are asynchronous to every clock by
+# design, and its enable chain only gates when the seed starts. Neither needs
+# timing closure, since a bad bit only changes a random seed
+set trng_cells [get_registers {*|power_up_fill:*|neoTRNG:*|neoTRNG_cell:*|*}]
+set trng_ctrl [get_registers {*|power_up_fill:*|neoTRNG:*|*}]
+
+set_false_path -from $trng_cells -to $trng_ctrl

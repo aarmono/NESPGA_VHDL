@@ -22,11 +22,26 @@ generic
     NES_FILEPATH    : string;
     FM2_FILEPATH    : string := "";
     NES_FILE_BYTES  : integer := 196608;
-    FM2_OFFSET      : integer := 2
+    FM2_OFFSET      : integer := 2;
+    -- Fill the RAMs with random bytes, the same ones in every run
+    POWER_UP_FILL   : boolean := false
 );
 end nes_bench;
 
 architecture behavioral of nes_bench is
+
+    function get_power_up_mode(fill : boolean) return power_up_mode_t
+    is
+    begin
+        if fill
+        then
+            return POWER_UP_DETERMINISTIC;
+        else
+            return POWER_UP_ZERO;
+        end if;
+    end function;
+
+    constant POWER_UP_MODE : power_up_mode_t := get_power_up_mode(POWER_UP_FILL);
 
     -- The simulated clock runs at 50MHz * (6 / 28) and the CPU runs at
     -- exactly a sixth of it, so a CPU cycle is as long as 28 clocks of a
@@ -69,7 +84,8 @@ begin
         VENDOR => VENDOR_SIM,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CLK_FREQ,
-        CPU_FREQ_DEN => 6
+        CPU_FREQ_DEN => 6,
+        POWER_UP_MODE => POWER_UP_MODE
     )
     port map
     (

@@ -28,6 +28,8 @@
 ../../../perhiperals/wm8731/wm8731.vhdl
 
 ../../../perhiperals/syncram_sp/syncram_sp.vhdl
+../../../perhiperals/neotrng/neoTRNG.vhd
+../../../perhiperals/neotrng/power_up_fill.vhdl
 
 ../../../perhiperals/sdram/sdram_ctrl.vhdl
 
