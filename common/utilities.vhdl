@@ -253,8 +253,10 @@ package body utilities is
         constant SCALE : positive := 2**lo;
         constant WIDTH : positive := 2**field'length;
     begin
-        return val - ((val / SCALE) mod WIDTH) * SCALE +
-               to_integer(field) * SCALE;
+        -- A sum of the bits above, the field and the bits below, which
+        -- don't overlap, so synthesis builds it without adders
+        return (val / (SCALE * WIDTH)) * (SCALE * WIDTH) +
+               to_integer(field) * SCALE + val mod SCALE;
     end;
 
     function max(a, b : integer) return integer

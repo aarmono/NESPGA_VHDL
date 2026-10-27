@@ -46,10 +46,12 @@ package lib_mapper_irem is
 
     function get_irem_board(config : cart_config_t) return irem_board_t;
 
-    -- The PRG ROM banks at 0x8000 (or 0xC000 with the PRG mode set), 0xA000
-    -- and, on the VRC1, 0xC000
+    -- The PRG ROM banks at 0x8000, 0xA000 and 0xC000, or 0xC000 and 0x8000
+    -- for the first and last with the PRG mode set. Only the VRC1 writes the
+    -- last, which is the second last bank on the other boards
     type prg_bank_arr_t is array(0 to 2) of prg_bank_8kb_t;
-    -- The 1KB CHR banks, or the 4KB CHR banks of the VRC1 in the first two
+    -- The 1KB CHR banks. The 4KB CHR banks of the VRC1 are in the first of
+    -- each half, as 1KB banks: shifted left by 2
     subtype chr_bank_t is unsigned(7 downto 0);
     type chr_bank_arr_t is array(0 to 7) of chr_bank_t;
 
@@ -61,7 +63,9 @@ package lib_mapper_irem is
         -- last bank at 0x8000
         prg_swap  : boolean;
         chr_banks : chr_bank_arr_t;
-        mirror    : mirror_t;
+        -- The mirroring, as bits 7-6 of 0x9001 of the H3001. The mirroring
+        -- bit of the G-101 and VRC1 is in bit 1
+        mirror    : std_logic_vector(1 downto 0);
 
         -- H3001
         irq_reload : irq_count_t;
@@ -71,14 +75,13 @@ package lib_mapper_irem is
     end record;
 
     -- The power on state is not known. The H3001 games need the banks at
-    -- 0x8000 and 0xA000 to be 0 and 1 (nesdev). The mirroring is that of a
-    -- mirroring register of 0
+    -- 0x8000 and 0xA000 to be 0 and 1 (nesdev)
     constant RESET_MAPPER_IREM_REG : mapper_irem_reg_t :=
     (
-        prg_banks => (x"00", x"01", x"00"),
+        prg_banks => (x"00", x"01", x"FE"),
         prg_swap => false,
         chr_banks => (others => (others => '0')),
-        mirror => MIRROR_VERT,
+        mirror => "00",
 
         irq_reload => 0,
         irq_count => 0,
@@ -133,23 +136,18 @@ package body lib_mapper_irem is
         end case;
     end;
 
-    function is_g101(board : irem_board_t) return boolean
-    is
-    begin
-        return board = G101 or board = G101_1_SCREEN;
-    end;
-
     -- The mirroring of bits 7-6 of 0x9001 of the H3001: vertical for 0,
     -- horizontal for 2 and one screen A otherwise
     function get_h3001_mirror(mode : std_logic_vector(1 downto 0))
         return mirror_t
     is
     begin
-        case mode is
-            when "00" => return MIRROR_VERT;
-            when "10" => return MIRROR_HORZ;
-            when others => return MIRROR_A;
-        end case;
+        if mode(0) = '1'
+        then
+            return MIRROR_A;
+        else
+            return get_hv_mirror(mode(1));
+        end if;
     end;
 
     -- The control register of the H3001, by CPU A2-A0
@@ -169,7 +167,7 @@ package body lib_mapper_irem is
             when "000" =>
                 ret.prg_swap := data(7) = '1';
             when "001" =>
-                ret.mirror := get_h3001_mirror(data(7 downto 6));
+                ret.mirror := data(7 downto 6);
             when "011" =>
                 ret.irq_enable := data(7) = '1';
                 ret.irq := false;
@@ -229,14 +227,14 @@ package body lib_mapper_irem is
                 case board is
                     when G101 =>
                         ret.prg_swap := data(1) = '1';
-                        ret.mirror := get_hv_mirror(data(0));
+                        ret.mirror := data(0) & '0';
                     when G101_1_SCREEN =>
                     when H3001 =>
                         ret := cycle_h3001_write(ret, addr, data);
                     when VRC1 =>
-                        ret.mirror := get_hv_mirror(data(0));
-                        ret.chr_banks(0)(4) := data(1);
-                        ret.chr_banks(1)(4) := data(2);
+                        ret.mirror := data(0) & '0';
+                        ret.chr_banks(0)(6) := data(1);
+                        ret.chr_banks(4)(6) := data(2);
                 end case;
             -- 0xA000
             when "010" =>
@@ -245,7 +243,7 @@ package body lib_mapper_irem is
             when "011" =>
                 if board /= VRC1
                 then
-                    ret.chr_banks(to_integer(unsigned(addr(2 downto 0)))) :=
+                    ret.chr_banks(to_integer(addr(2 downto 0))) :=
                         unsigned(data);
                 end if;
             -- 0xC000
@@ -258,8 +256,8 @@ package body lib_mapper_irem is
             when "110" | "111" =>
                 if board = VRC1
                 then
-                    ret.chr_banks(to_integer(unsigned(addr(12 downto 12))))(
-                        3 downto 0) := unsigned(data(3 downto 0));
+                    ret.chr_banks(4 * to_integer(addr(12 downto 12)))(
+                        5 downto 2) := unsigned(data(3 downto 0));
                 end if;
             when others =>
         end case;
@@ -297,7 +295,6 @@ package body lib_mapper_irem is
     function get_prg_bank
     (
         reg    : mapper_irem_reg_t;
-        board  : irem_board_t;
         window : prg_window_t
     )
     return prg_bank_8kb_t
@@ -309,19 +306,16 @@ package body lib_mapper_irem is
             when "01" =>
                 return reg.prg_banks(1);
             when "10" =>
-                if board = VRC1
-                then
-                    return reg.prg_banks(2);
-                elsif reg.prg_swap
+                if reg.prg_swap
                 then
                     return reg.prg_banks(0);
                 else
-                    return x"FE";
+                    return reg.prg_banks(2);
                 end if;
             when others =>
                 if reg.prg_swap
                 then
-                    return x"FE";
+                    return reg.prg_banks(2);
                 else
                     return reg.prg_banks(0);
                 end if;
@@ -337,16 +331,21 @@ package body lib_mapper_irem is
     )
     return chr_bank_1kb_t
     is
+        variable idx  : chr_window_t;
+        variable bank : chr_bank_t;
     begin
+        idx := window;
         if board = VRC1
         then
-            return resize(reg.chr_banks(to_integer(window(2 downto 2))) &
-                          window(1 downto 0),
-                          chr_bank_1kb_t'length);
-        else
-            return resize(reg.chr_banks(to_integer(window)),
-                          chr_bank_1kb_t'length);
+            idx(1 downto 0) := "00";
         end if;
+        bank := reg.chr_banks(to_integer(std_logic_vector(idx)));
+        if board = VRC1
+        then
+            bank(1 downto 0) := window(1 downto 0);
+        end if;
+
+        return resize(bank, chr_bank_1kb_t'length);
     end;
 
     function cycle_mapper_irem
@@ -375,7 +374,7 @@ package body lib_mapper_irem is
         -- does not: a register write is not a read of PRG ROM, and not
         -- forwarding it keeps the CPU data bus out of the PRG ROM address
         banks := default_banks(config);
-        banks.prg := get_prg_bank(reg, board, get_prg_window(cart_in.cpu));
+        banks.prg := get_prg_bank(reg, get_prg_window(cart_in.cpu));
         banks.chr := get_chr_bank(ret.reg,
                                   board,
                                   get_chr_window(cart_in.ppu));
@@ -385,7 +384,7 @@ package body lib_mapper_irem is
             banks.mirror := MIRROR_B;
         elsif config.mirror /= MIRROR_FOUR
         then
-            banks.mirror := ret.reg.mirror;
+            banks.mirror := get_h3001_mirror(ret.reg.mirror);
         end if;
 
         ret.cart := map_cart(config, cart_in, banks);
