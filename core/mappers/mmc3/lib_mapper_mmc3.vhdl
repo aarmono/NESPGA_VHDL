@@ -197,11 +197,15 @@ package lib_mapper_mmc3 is
         outer_idx : outer_idx_t;
     end record;
 
+    -- The bank registers power on with no set value. These are those of
+    -- Mesen, FCEUX and Nestopia, which map 8KB of CHR RAM in order and which
+    -- Famicom Yarou Vol. 1 (45) needs, since it writes CHR RAM before it
+    -- sets them
     constant RESET_MAPPER_MMC3_REG : mapper_mmc3_reg_t :=
     (
         bank_idx => (others => '0'),
 
-        banks => (others => (others => '0')),
+        banks => (x"00", x"02", x"04", x"05", x"06", x"07", x"00", x"01"),
         rambo1_banks => (others => (others => '0')),
 
         chr_mode => '0',

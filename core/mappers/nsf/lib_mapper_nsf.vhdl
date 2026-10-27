@@ -88,6 +88,9 @@ package body lib_mapper_nsf is
 
         banks := default_banks(config);
         banks.prg := to_unsigned(bank / 2, prg_bank_8kb_t'length);
+        -- CHR is not banked: each 1KB window is its own 1KB of CHR
+        banks.chr := resize(get_chr_window(cart_in.ppu),
+                            chr_bank_1kb_t'length);
 
         ret.cart := map_cart(config, cart_in, banks);
 

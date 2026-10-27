@@ -13,6 +13,8 @@ window, in groups:
   1 The bank at 0xF000 at power on
   2 PRG ROM banks: each 4KB bank holds its number at SIG_LO and its
     complement at SIG_HI, read in each window
+  3 CHR RAM, not banked: each 1KB window is written with its own byte and
+    all are read back
 
 The code is the same in every 4KB bank, at the same offset, so it runs on
 whichever bank is at 0xF000.
@@ -126,6 +128,10 @@ def build():
         a.emit(LDA_IMM, value)
         a.abs(STA_ABS, addr)
 
+    def ppu_addr(addr):
+        write(0x2006, addr >> 8)
+        write(0x2006, addr & 0xFF)
+
     def model_write(addr, value):
         if 0x5000 <= addr < 0x6000:
             regs[addr & 7] = value % PRG_BANKS
@@ -172,6 +178,22 @@ def build():
         a.emit(STA_ZP, PTR + 1)
         a.abs_label(JSR, 'verify')
         tables.append((name, bytes(regs) + bytes([regs[0] ^ 0xFF])))
+
+    # CHR RAM: each 1KB window holds its own byte
+    a.emit(LDA_IMM, 0xFF)
+    a.emit(STA_ZP, DETAIL)
+    group(3)
+    for k in range(8):
+        ppu_addr(0x400 * k)
+        write(0x2007, 0xC0 | k)
+    for k in range(8):
+        ppu_addr(0x400 * k)
+        a.abs(LDA_ABS, 0x2007)                  # the read buffer
+        a.abs(LDA_ABS, 0x2007)
+        a.emit(LDY_IMM, k)
+        a.emit(CMP_IMM, 0xC0 | k)
+        a.emit(BEQ, 3)
+        a.abs_label(JMP_ABS, 'fail')
 
     a.emit(LDX_IMM, PASS_COLOR)
     a.abs_label(JMP_ABS, 'show')
