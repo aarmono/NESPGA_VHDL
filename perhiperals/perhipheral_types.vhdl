@@ -13,6 +13,24 @@ package perhipheral_types is
         VENDOR_ALTERA,
         VENDOR_SIM
     );
+
+    -- What the on-chip RAMs of the console contain after power up. The RAMs
+    -- of a real console power up random
+    type power_up_mode_t is
+    (
+        -- Whatever the RAM contains, which no fill touches
+        POWER_UP_ZERO,
+        -- Random bytes, from a seed read from a true random number generator
+        POWER_UP_RANDOM,
+        -- Random bytes from the same seed every time, for simulation. The
+        -- oscillators of the true random number generator cannot be
+        -- simulated
+        POWER_UP_DETERMINISTIC
+    );
+
+    -- Random bytes for the RAMs to power up with, which the power up fill
+    -- changes in every clock. All zero for POWER_UP_ZERO
+    subtype power_up_data_t is std_logic_vector(55 downto 0);
     
     type memory_type_t is
     (

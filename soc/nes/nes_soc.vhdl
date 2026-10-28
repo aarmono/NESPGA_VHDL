@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
+use work.perhipheral_types.all;
 use work.cpu_bus_types.all;
 use work.apu_bus_types.all;
 use work.joy_bus_types.all;
@@ -29,7 +30,9 @@ generic
     -- See clk_en
     CLK_FREQ     : positive := 50_000_000;
     CPU_FREQ_NUM : positive := 39_375_000;
-    CPU_FREQ_DEN : positive := 22
+    CPU_FREQ_DEN : positive := 22;
+    -- What the RAMs contain after power up. See power_up_mode_t
+    POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO
 );
 port
 (
@@ -166,6 +169,11 @@ is
     signal apu_irq  : boolean;
     signal irq      : boolean;
     
+    signal fill_enable : boolean;
+    signal fill_step   : boolean;
+    signal fill_ready  : boolean;
+    signal fill_data   : power_up_data_t;
+
     signal apu_ready : boolean;
     signal dma_ready : boolean;
     signal ready     : boolean;
@@ -173,6 +181,24 @@ is
 begin
 
     nes_running <= not int_reset;
+
+    fill : entity work.power_up_fill
+    generic map
+    (
+        MODE => POWER_UP_MODE
+    )
+    port map
+    (
+        clk => clk,
+        enable => fill_step,
+        ready => fill_ready,
+        data => fill_data
+    );
+
+    -- The power up data steps once per CPU cycle, so that it holds for the
+    -- whole CPU cycle reset holds each write to the cartridge memory bus,
+    -- which is served in any of its PPU cycles
+    fill_step <= fill_enable and cpu_en;
 
     cpu_clk_en <= cpu_en;
     ppu_clk_en <= ppu_en;
@@ -438,6 +464,9 @@ begin
         nes_in.data_to_palette := data_to_palette_from_ppu;
         
         nes_in.audio := audio_out;
+
+        nes_in.power_up_ready := fill_ready;
+        nes_in.power_up_data := fill_data;
         
         nes_out := cycle_nes(nes_in);
         
@@ -485,6 +514,7 @@ begin
         
         audio <= nes_out.audio;
         int_reset <= nes_out.reset;
+        fill_enable <= nes_out.power_up_enable;
 
         next_cart_irq <= nes_out.irq;
         

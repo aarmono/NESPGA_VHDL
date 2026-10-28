@@ -187,3 +187,19 @@ set_multicycle_path -setup -end 4 -from $nes_core_regs -to $nes_ram_regs
 set_multicycle_path -hold -end 3 -from $nes_core_regs -to $nes_ram_regs
 set_multicycle_path -setup -end 4 -from $nes_ram_regs -to $nes_core_regs
 set_multicycle_path -hold -end 3 -from $nes_ram_regs -to $nes_core_regs
+# Once seeded, the power up data only steps on cpu_en, so paths from it to
+# the NES core and the on-chip RAMs have 4 clocks like the core's own. While
+# seeding it shifts in TRNG bytes on any clock, so its path to itself keeps 1
+set fill_regs [get_registers {*|power_up_fill:*|*lfsr*}]
+set_multicycle_path -setup -end 4 -from $fill_regs -to $nes_core_regs
+set_multicycle_path -hold -end 3 -from $fill_regs -to $nes_core_regs
+set_multicycle_path -setup -end 4 -from $fill_regs -to $nes_ram_regs
+set_multicycle_path -hold -end 3 -from $fill_regs -to $nes_ram_regs
+
+# The ring oscillators of the power up TRNG are asynchronous to every clock by
+# design, and its enable chain only gates when the seed starts. Neither needs
+# timing closure, since a bad bit only changes a random seed
+set trng_cells [get_registers {*|power_up_fill:*|neoTRNG:*|neoTRNG_cell:*|*}]
+set trng_ctrl [get_registers {*|power_up_fill:*|neoTRNG:*|*}]
+
+set_false_path -from $trng_cells -to $trng_ctrl

@@ -385,6 +385,8 @@ set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/edge_detector.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/counter.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/syncram_sp/syncram_sp.vhdl
+set_global_assignment -name VHDL_FILE ../../perhiperals/neotrng/neoTRNG.vhd
+set_global_assignment -name VHDL_FILE ../../perhiperals/neotrng/power_up_fill.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/sdram/sdram_ctrl.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/sd_card/sd_reader.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/wm8731/wm8731.vhdl

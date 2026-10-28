@@ -18,16 +18,19 @@ use work.cart_mem_bus_types.all;
 use work.nes_types.all;
 use work.nes_audio_mixer.all;
 use work.utilities.all;
+use work.perhipheral_types.all;
 use work.cart_types.all;
 use work.lib_cartridge.all;
 use work.lib_nes_mmap.all;
 
 package lib_nes is
 
+    -- The header is loaded first, so that reset knows the board when it
+    -- fills the RAMs
     type state_t is
     (
-        STATE_RESET,
         STATE_LOAD,
+        STATE_RESET,
         STATE_CLEAR,
         STATE_RUN
     );
@@ -45,7 +48,7 @@ package lib_nes is
         cart_config => RESET_CART_CONFIG,
         mmap_reg => RESET_CPU_MMAP_REG,
         cur_cycle => x"0000",
-        cur_state => STATE_RESET
+        cur_state => STATE_LOAD
     );
 
     constant STARTUP_PALETTE : palette_t :=
@@ -108,6 +111,8 @@ package lib_nes is
         audio                : mixed_audio_t;
         reset                : boolean;
         irq                  : boolean;
+        -- The RAMs are being filled, so the power up data changes
+        power_up_enable      : boolean;
     end record;
     
     type nes_in_t is record
@@ -123,6 +128,9 @@ package lib_nes is
         palette_bus        : palette_bus_t;
         data_to_palette    : pixel_t;
         audio              : apu_out_t;
+        -- The power up data is valid
+        power_up_ready     : boolean;
+        power_up_data      : power_up_data_t;
     end record;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t;
@@ -253,14 +261,32 @@ package body lib_nes is
         return ret;
     end;
 
-    -- Reset clears the first 8KB of PRG RAM and CHR RAM, before the header
-    -- gives their sizes. A board with more needs the rest cleared after the
-    -- header is loaded
+    -- Reset fills the first 8KB of PRG RAM and CHR RAM. A board with more
+    -- needs the rest cleared after reset
     function needs_ram_clear(config : cart_config_t) return boolean
     is
     begin
         return not is_zero(config.prg_ram_mask and not DEFAULT_RAM_MASK) or
                not is_zero(config.chr_ram_mask and not DEFAULT_RAM_MASK);
+    end;
+
+    -- What PRG RAM or chip RAM powers up with: random bytes, unless the
+    -- board keeps its contents without power. There is no save to load, so
+    -- it holds a blank one, which games expect more than random bytes
+    function get_cart_ram_fill
+    (
+        config        : cart_config_t;
+        power_up_data : data_t
+    )
+    return data_t
+    is
+    begin
+        if has_save_ram(config)
+        then
+            return get_save_ram_fill(config);
+        else
+            return power_up_data;
+        end if;
     end;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t
@@ -295,81 +321,9 @@ package body lib_nes is
         ret.audio := (others => '-');
         ret.reset := false;
         ret.irq   := false;
+        ret.power_up_enable := false;
         
         case nes_in.reg.cur_state is
-            when STATE_RESET =>
-                ret.reset := true;
-                
-                ret.cpu_bus.ram_bus :=
-                    bus_write(nes_in.reg.cur_cycle(ram_addr_t'range));
-                
-                ret.oam_bus :=
-                    bus_write(nes_in.reg.cur_cycle(oam_addr_t'range));
-                ret.sec_oam_bus :=
-                    bus_write(nes_in.reg.cur_cycle(sec_oam_addr_t'range));
-                ret.palette_bus :=
-                    bus_write(nes_in.reg.cur_cycle(palette_addr_t'range));
-                
-                ret.ppu_bus.ciram_bus :=
-                    bus_write(nes_in.reg.cur_cycle(ciram_addr_t'range));
-                ret.chip_ram_bus :=
-                    bus_write(nes_in.reg.cur_cycle(chip_ram_addr_t'range));
-                
-                ret.cpu_bus.data_to_ram := x"00";
-                
-                ret.data_to_oam := x"00";
-                ret.data_to_sec_oam := x"00";
-                ret.data_to_palette :=
-                    STARTUP_PALETTE
-                    (
-                        to_integer(nes_in.reg.cur_cycle(palette_addr_t'range))
-                    );
-                
-                ret.ppu_bus.data_to_ciram := x"00";
-                ret.data_to_chip_ram := x"00";
-
-                -- PRG RAM and CHR RAM share the cartridge memory bus, so their
-                -- first 8KB are zeroed on alternate CPU cycles. A write that
-                -- is held for a whole CPU cycle by itself is always served,
-                -- even in the partial CPU cycle the NES can leave reset in
-                if nes_in.reg.cur_cycle(0) = '0'
-                then
-                    ret.prg_cart_mem_bus :=
-                        get_prg_ram_bus(
-                            bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
-                                             prg_ram_addr_t'length)));
-                    ret.data_to_prg_cart_mem := x"00";
-                else
-                    ret.chr_cart_mem_bus :=
-                        get_chr_ram_bus(
-                            bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
-                                             chr_ram_addr_t'length)));
-                    ret.data_to_chr_cart_mem := x"00";
-
-                    -- ExRAM is zeroed alongside the first 1KB of CHR RAM
-                    -- writes, on the PRG channel, which is otherwise idle in
-                    -- these cycles. Two writes fit in a whole CPU cycle, and
-                    -- these are never the first or last cycle of reset. Every
-                    -- board gets this, so it costs no time in reset
-                    if nes_in.reg.cur_cycle(13 downto 11) = "000"
-                    then
-                        ret.prg_cart_mem_bus :=
-                            get_exram_bus(
-                                bus_write(nes_in.reg.cur_cycle(10 downto 1)));
-                        ret.data_to_prg_cart_mem := x"00";
-                    end if;
-                end if;
-                
-                ret.reg.cart_config := RESET_CART_CONFIG;
-                ret.reg.mmap_reg := RESET_CPU_MMAP_REG;
-                
-                if nes_in.reg.cur_cycle = x"3FFF"
-                then
-                    ret.reg.cur_cycle := x"0000";
-                    ret.reg.cur_state := STATE_LOAD;
-                else
-                    ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
-                end if;
             when STATE_LOAD =>
                 ret.reset := true;
                 ret.prg_cart_mem_bus :=
@@ -437,23 +391,106 @@ package body lib_nes is
                             set_ines_ram_masks(ret.reg.cart_config);
                     end if;
 
-                    -- A board whose RAMs do not power on zeroed has them
-                    -- filled from the start
-                    if get_save_ram_fill(ret.reg.cart_config) /= x"00"
+                    ret.reg.cur_cycle := x"0000";
+                    ret.reg.cur_state := STATE_RESET;
+                else
+                    ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
+                end if;
+
+            when STATE_RESET =>
+                ret.reset := true;
+                ret.power_up_enable := true;
+                
+                ret.cpu_bus.ram_bus :=
+                    bus_write(nes_in.reg.cur_cycle(ram_addr_t'range));
+                
+                ret.oam_bus :=
+                    bus_write(nes_in.reg.cur_cycle(oam_addr_t'range));
+                ret.sec_oam_bus :=
+                    bus_write(nes_in.reg.cur_cycle(sec_oam_addr_t'range));
+                ret.palette_bus :=
+                    bus_write(nes_in.reg.cur_cycle(palette_addr_t'range));
+                
+                ret.ppu_bus.ciram_bus :=
+                    bus_write(nes_in.reg.cur_cycle(ciram_addr_t'range));
+                ret.chip_ram_bus :=
+                    bus_write(nes_in.reg.cur_cycle(chip_ram_addr_t'range));
+                
+                -- The RAMs of the console power up with random bytes, a
+                -- different part of the power up data for each
+                ret.cpu_bus.data_to_ram := nes_in.power_up_data(7 downto 0);
+                
+                ret.data_to_oam := nes_in.power_up_data(15 downto 8);
+                ret.data_to_sec_oam := nes_in.power_up_data(23 downto 16);
+                ret.data_to_palette :=
+                    STARTUP_PALETTE
+                    (
+                        to_integer(nes_in.reg.cur_cycle(palette_addr_t'range))
+                    );
+                
+                ret.ppu_bus.data_to_ciram := nes_in.power_up_data(31 downto 24);
+                ret.data_to_chip_ram :=
+                    get_cart_ram_fill(nes_in.reg.cart_config,
+                                      nes_in.power_up_data(55 downto 48));
+
+                -- PRG RAM and CHR RAM share the cartridge memory bus, so their
+                -- first 8KB are filled on alternate CPU cycles, from the same
+                -- part of the power up data. A write that
+                -- is held for a whole CPU cycle by itself is always served,
+                -- even in the partial CPU cycle the NES can leave reset in
+                if nes_in.reg.cur_cycle(0) = '0'
+                then
+                    ret.prg_cart_mem_bus :=
+                        get_prg_ram_bus(
+                            bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
+                                             prg_ram_addr_t'length)));
+                    ret.data_to_prg_cart_mem :=
+                        get_cart_ram_fill(nes_in.reg.cart_config,
+                                          nes_in.power_up_data(39 downto 32));
+                else
+                    ret.chr_cart_mem_bus :=
+                        get_chr_ram_bus(
+                            bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
+                                             chr_ram_addr_t'length)));
+                    ret.data_to_chr_cart_mem := nes_in.power_up_data(39 downto 32);
+
+                    -- ExRAM is filled alongside the first 1KB of CHR RAM
+                    -- writes, on the PRG channel, which is otherwise idle in
+                    -- these cycles. Two writes fit in a whole CPU cycle, and
+                    -- these are never the first or last cycle of reset. Every
+                    -- board gets this, so it costs no time in reset
+                    if nes_in.reg.cur_cycle(13 downto 11) = "000"
+                    then
+                        ret.prg_cart_mem_bus :=
+                            get_exram_bus(
+                                bus_write(nes_in.reg.cur_cycle(10 downto 1)));
+                        ret.data_to_prg_cart_mem := nes_in.power_up_data(47 downto 40);
+                    end if;
+                end if;
+                
+                ret.reg.mmap_reg := RESET_CPU_MMAP_REG;
+
+                if nes_in.reg.cur_cycle = x"3FFF"
+                then
+                    -- Bandai boards fill their PRG RAM and chip RAM again
+                    -- from the start, which reset already did. Their reset
+                    -- takes as long as before reset knew the board
+                    if get_save_ram_fill(nes_in.reg.cart_config) /= x"00"
                     then
                         ret.reg.cur_cycle := x"0000";
                         ret.reg.cur_state := STATE_CLEAR;
-                    elsif needs_ram_clear(ret.reg.cart_config)
+                    elsif needs_ram_clear(nes_in.reg.cart_config)
                     then
                         ret.reg.cur_cycle := unsigned(DEFAULT_RAM_MASK) + 1;
                         ret.reg.cur_state := STATE_CLEAR;
                     else
                         ret.reg.cur_state := STATE_RUN;
                     end if;
-                else
+                -- Waits for the power up data before filling the RAMs
+                elsif nes_in.power_up_ready
+                then
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
-
             when STATE_CLEAR =>
                 ret.reset := true;
 

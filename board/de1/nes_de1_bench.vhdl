@@ -6,6 +6,7 @@ use work.binary_io.all;
 use work.au_file.all;
 use work.utilities.all;
 use work.de1_types.all;
+use work.perhipheral_types.all;
 use work.simulation.all;
 
 entity nes_de1_bench is
@@ -84,7 +85,9 @@ begin
     nes : nes_de1
     generic map
     (
-        ROM_CONFIG => ROM_CONFIG
+        ROM_CONFIG => ROM_CONFIG,
+        -- The oscillators of the random number generator cannot be simulated
+        POWER_UP_MODE => POWER_UP_DETERMINISTIC
     )
     port map
     (

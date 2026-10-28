@@ -128,7 +128,8 @@ package de1_types is
     component nes_de1 is
     generic
     (
-        ROM_CONFIG : rom_config_t := ROM_SD_TO_SDRAM
+        ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
+        POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM
     );
     port
     (

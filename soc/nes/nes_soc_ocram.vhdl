@@ -30,7 +30,9 @@ generic
     CPU_FREQ_NUM     : positive := 39_375_000;
     CPU_FREQ_DEN     : positive := 22;
     -- See nes_soc
-    CART_BOARDS      : board_set_t := ALL_BOARDS
+    CART_BOARDS      : board_set_t := ALL_BOARDS;
+    -- See nes_soc
+    POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO
 );
 port
 (
@@ -98,6 +100,7 @@ begin
     generic map
     (
         CART_BOARDS => CART_BOARDS,
+        POWER_UP_MODE => POWER_UP_MODE,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
         CPU_FREQ_DEN => CPU_FREQ_DEN

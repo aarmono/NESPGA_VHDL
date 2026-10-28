@@ -13,7 +13,8 @@ use work.de1_types.all;
 entity nes_de1 is
 generic
 (
-    ROM_CONFIG : rom_config_t := ROM_SD_TO_SDRAM
+    ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
+    POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM
 );
 port
 (
@@ -349,7 +350,8 @@ begin
     nes : nes_soc_ocram
     generic map
     (
-        USE_EXT_CART_RAM => true
+        USE_EXT_CART_RAM => true,
+        POWER_UP_MODE => POWER_UP_MODE
     )
     port map
     (
