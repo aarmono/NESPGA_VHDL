@@ -45,8 +45,8 @@ else generate
 
     constant SEED_BYTES : positive := lfsr_t'length / 8;
 
-    -- x^48 + x^47 + x^21 + x^20 + 1
-    constant LFSR_TAPS : lfsr_t := x"C00000180000";
+    -- x^56 + x^55 + x^35 + x^34 + 1
+    constant LFSR_TAPS : lfsr_t := x"C0000600000000";
 
     -- Gives the bytes taken from the LFSR the 8 steps they need to not be
     -- shifted copies of each other

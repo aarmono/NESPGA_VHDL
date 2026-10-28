@@ -170,6 +170,7 @@ is
     signal irq      : boolean;
     
     signal fill_enable : boolean;
+    signal fill_step   : boolean;
     signal fill_ready  : boolean;
     signal fill_data   : power_up_data_t;
 
@@ -189,10 +190,15 @@ begin
     port map
     (
         clk => clk,
-        enable => fill_enable,
+        enable => fill_step,
         ready => fill_ready,
         data => fill_data
     );
+
+    -- The power up data steps once per CPU cycle, so that it holds for the
+    -- whole CPU cycle reset holds each write to the cartridge memory bus,
+    -- which is served in any of its PPU cycles
+    fill_step <= fill_enable and cpu_en;
 
     cpu_clk_en <= cpu_en;
     ppu_clk_en <= ppu_en;

@@ -143,8 +143,13 @@ package lib_cartridge is
     -- much here
     function set_ines_ram_masks(config : cart_config_t) return cart_config_t;
 
-    -- What the PRG RAM and chip RAM of the board hold at power on. The
-    -- console zeroes them unless the board needs otherwise
+    -- The PRG RAM and chip RAM of the board keep their contents without
+    -- power, with a battery or in EEPROMs
+    function has_save_ram(config : cart_config_t) return boolean;
+
+    -- What the PRG RAM and chip RAM of the board hold at power on when they
+    -- keep their contents, a blank save. The console zeroes them unless the
+    -- board needs otherwise
     function get_save_ram_fill(config : cart_config_t) return data_t;
 
 end package lib_cartridge;
@@ -565,6 +570,12 @@ package body lib_cartridge is
     -- Famicom Jump II (153) hangs if its PRG RAM holds zeroes, and the
     -- EEPROMs of the other Bandai boards are blank, so these are filled
     -- with ones, as a blank EEPROM is
+    function has_save_ram(config : cart_config_t) return boolean
+    is
+    begin
+        return config.battery or is_bandai_mapper(config.mapper_num);
+    end;
+
     function get_save_ram_fill(config : cart_config_t) return data_t
     is
     begin
