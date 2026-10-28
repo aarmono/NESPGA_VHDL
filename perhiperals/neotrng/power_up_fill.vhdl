@@ -48,13 +48,15 @@ else generate
     -- x^56 + x^55 + x^35 + x^34 + 1
     constant LFSR_TAPS : lfsr_t := x"C0000600000000";
 
-    -- Gives the bytes taken from the LFSR the 8 steps they need to not be
-    -- shifted copies of each other
-    function lfsr_step_byte(lfsr : lfsr_t) return lfsr_t
+    -- Steps the LFSR once for each of its bits, so that none of them is
+    -- still in the state. Each RAM takes its own byte of the state, and
+    -- with fewer steps a byte would be another byte of an earlier state
+    -- shifted down: stepping 8, CPU RAM powered up a copy of OAM
+    function lfsr_step(lfsr : lfsr_t) return lfsr_t
     is
         variable ret : lfsr_t := lfsr;
     begin
-        for i in 1 to 8
+        for i in lfsr_t'range
         loop
             if ret(0) = '1'
             then
@@ -130,7 +132,7 @@ begin
         when STATE_READY =>
             if enable
             then
-                lfsr <= lfsr_step_byte(lfsr);
+                lfsr <= lfsr_step(lfsr);
             end if;
         end case;
     end if;

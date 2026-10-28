@@ -7,7 +7,8 @@
 # the audio variants of fme7.py, mmc5_audio.py, n163.py, vrc6.py and
 # vrc7_audio.py, which is compared with Nuked-OPLL) and the debugging variants
 # (mmc5.py ines_dump, mmc5_split.py continue, rambo1.py dump/continue) are
-# left out.
+# left out, as is power_up_view.py, which shows the RAMs at power up rather
+# than checking anything.
 
 OUT ?= ../../board/sim/ghdl/generated_roms
 NES_TEST_ROMS := ../../nes-test-roms
