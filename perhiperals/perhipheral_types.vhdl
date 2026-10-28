@@ -30,7 +30,7 @@ package perhipheral_types is
 
     -- Random bytes for the RAMs to power up with, which the power up fill
     -- changes in every clock. All zero for POWER_UP_ZERO
-    subtype power_up_data_t is std_logic_vector(31 downto 0);
+    subtype power_up_data_t is std_logic_vector(47 downto 0);
     
     type memory_type_t is
     (

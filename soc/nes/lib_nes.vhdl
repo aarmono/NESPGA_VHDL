@@ -336,10 +336,13 @@ package body lib_nes is
                     );
                 
                 ret.ppu_bus.data_to_ciram := nes_in.power_up_data(31 downto 24);
+                -- Chip RAM is not filled: the same RAM holds the Bandai EEPROMs,
+                -- which keep their contents without power
                 ret.data_to_chip_ram := x"00";
 
                 -- PRG RAM and CHR RAM share the cartridge memory bus, so their
-                -- first 8KB are zeroed on alternate CPU cycles. A write that
+                -- first 8KB are filled on alternate CPU cycles, from the same
+                -- part of the power up data. A write that
                 -- is held for a whole CPU cycle by itself is always served,
                 -- even in the partial CPU cycle the NES can leave reset in
                 if nes_in.reg.cur_cycle(0) = '0'
@@ -348,15 +351,15 @@ package body lib_nes is
                         get_prg_ram_bus(
                             bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
                                              prg_ram_addr_t'length)));
-                    ret.data_to_prg_cart_mem := x"00";
+                    ret.data_to_prg_cart_mem := nes_in.power_up_data(39 downto 32);
                 else
                     ret.chr_cart_mem_bus :=
                         get_chr_ram_bus(
                             bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
                                              chr_ram_addr_t'length)));
-                    ret.data_to_chr_cart_mem := x"00";
+                    ret.data_to_chr_cart_mem := nes_in.power_up_data(39 downto 32);
 
-                    -- ExRAM is zeroed alongside the first 1KB of CHR RAM
+                    -- ExRAM is filled alongside the first 1KB of CHR RAM
                     -- writes, on the PRG channel, which is otherwise idle in
                     -- these cycles. Two writes fit in a whole CPU cycle, and
                     -- these are never the first or last cycle of reset. Every
@@ -366,7 +369,7 @@ package body lib_nes is
                         ret.prg_cart_mem_bus :=
                             get_exram_bus(
                                 bus_write(nes_in.reg.cur_cycle(10 downto 1)));
-                        ret.data_to_prg_cart_mem := x"00";
+                        ret.data_to_prg_cart_mem := nes_in.power_up_data(47 downto 40);
                     end if;
                 end if;
                 
