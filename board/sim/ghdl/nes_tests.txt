@@ -70,6 +70,17 @@ nes-test-roms/blargg_apu_2005.07.30/09.reset_timing.nes             | 184ms     
 nes-test-roms/blargg_apu_2005.07.30/10.len_halt_timing.nes          | 267ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00015.bmp
 nes-test-roms/blargg_apu_2005.07.30/11.len_reload_timing.nes        | 267ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00015.bmp
 
+# Reset button. The FM2 input presses reset (soft reset command) once the
+# test asks for it
+nes-test-roms/apu_reset/4015_cleared.nes                            | 701ms     | 41194745f15bc1e2933974f028464ba9e70526d023fffc2ffe5550a3020456cb *frame_00041.bmp | test_inputs/reset/apu_reset_4015_cleared.fm2
+nes-test-roms/apu_reset/4017_timing.nes                             | 801ms     | d796fc123a8fcd2cbf5ac59819d1298c936bb4625b77d1f30e067a3de8978a4e *frame_00047.bmp | test_inputs/reset/apu_reset_4017_timing.fm2
+nes-test-roms/apu_reset/4017_written.nes                            | 1218ms    | f1ed5521955c00d0937be53a3d1dde457ea3bf4187ea59f69c848f9f65a49bb0 *frame_00072.bmp | test_inputs/reset/apu_reset_4017_written.fm2
+nes-test-roms/apu_reset/irq_flag_cleared.nes                        | 701ms     | 6c6666703de9edd181b72302f1f433ecee3a7a5947ea43ba8da43dd7973256ce *frame_00041.bmp | test_inputs/reset/apu_reset_irq_flag_cleared.fm2
+nes-test-roms/apu_reset/len_ctrs_enabled.nes                        | 701ms     | a2de1059e85f344339e1fe4b31446384091bc457920ab3bcdfe69db160d40e78 *frame_00041.bmp | test_inputs/reset/apu_reset_len_ctrs_enabled.fm2
+nes-test-roms/apu_reset/works_immediately.nes                       | 718ms     | 8f6a0682aff39f177ea6bd6f4367361608984f785501fddda17f87a3e7f714c1 *frame_00042.bmp | test_inputs/reset/apu_reset_works_immediately.fm2
+nes-test-roms/cpu_reset/ram_after_reset.nes                         | 2669ms    | b35854251359c53469f69cbe0bbe7234b174114239472c5fb23821516fd04e8f *frame_00159.bmp | test_inputs/reset/cpu_reset_ram_after_reset.fm2
+nes-test-roms/cpu_reset/registers.nes                               | 2719ms    | 6839208ac3d5e61117c7ad79816c3a36f9f96b8f6864bd7a59e2d8b8a2de6cbe *frame_00162.bmp | test_inputs/reset/cpu_reset_registers.fm2
+
 # PPU
 nes-test-roms/oam_stress/oam_stress.nes                             | 28519ms   | bf0ae93ef420602287e426018267b865183ed0a86a5b77274b2e7bbde9778814 *frame_01709.bmp
 nes-test-roms/oam_read/oam_read.nes                                 | 550ms     | 04d7042515042d76cc185f5dfa024a0165dd8a21976adaf848efeeaf1601f63f *frame_00032.bmp

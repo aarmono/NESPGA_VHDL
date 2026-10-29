@@ -287,6 +287,11 @@ subtype dmc_data_t is unsigned(data_t'range);
     
     function get_status(dmc : dmc_t) return std_logic;
 
+    -- The reset button disables the channel, as a $4015 write would, and
+    -- clears all but the low bit of the output level. The registers are
+    -- unchanged
+    function soft_reset_dmc(dmc : dmc_t) return dmc_t;
+
 end package lib_apu_dmc;
 
 package body lib_apu_dmc is
@@ -717,6 +722,20 @@ package body lib_apu_dmc is
         -- Writing to this register clears the DMC interrupt flag.
         ret.dma.irq_active := false;
         
+        return ret;
+    end;
+
+    function soft_reset_dmc(dmc : dmc_t) return dmc_t
+    is
+        variable ret : dmc_t;
+    begin
+        ret := RESET_DMC;
+        ret.dma.dma_xfer_parms := dmc.dma.dma_xfer_parms;
+        ret.dma.irq_enable := dmc.dma.irq_enable;
+        ret.dma.loop_enable := dmc.dma.loop_enable;
+        ret.output.timer_idx := dmc.output.timer_idx;
+        ret.output.audio := dmc.output.audio mod 2;
+
         return ret;
     end;
 

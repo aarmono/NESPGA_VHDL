@@ -27,6 +27,9 @@ Joystick keymap
 * k = A Button
 * u = Select
 * i = Start
+* Escape = Reset
+
+KEY0 on the board is also the reset button.
 
 Mappers currently supported:
 
@@ -80,7 +83,7 @@ The simulator supports the following:
 * Loading .NES files into simulated flash memory
 * Dumping audio data to uncompressed .au files
 * Dumping video frames to .bmp files
-* Reading joystick input data from FCEUX .fm2 files
+* Reading joystick input data from FCEUX .fm2 files, including soft reset
 
 Scripts are included which can take the audio and video files and use ffmpeg to
 generate video files from the data

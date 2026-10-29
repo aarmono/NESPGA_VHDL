@@ -17,6 +17,8 @@ port
     clk_en            : in boolean := true;
     clk_sync          : in boolean := true;
     reset             : in boolean;
+    -- The reset button. See soft_reset_ppu_reg
+    soft_reset        : in boolean := false;
 
     chr_bus           : out chr_bus_t;
     chr_ale           : out boolean;
@@ -60,6 +62,10 @@ begin
         if reset
         then
             reg <= RESET_PPU_REG;
+            vint <= false;
+        elsif soft_reset
+        then
+            reg <= soft_reset_ppu_reg(reg);
             vint <= false;
         else
             reg <= reg_next;

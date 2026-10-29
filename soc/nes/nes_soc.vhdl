@@ -38,6 +38,10 @@ port
 (
     clk   : in std_logic;
     reset : in boolean;
+    -- The reset button. It resets the CPU and PPU like the reset button of
+    -- a front loading NES, and is ignored until the NES is running. The
+    -- cartridge has no reset line, so it is not reset
+    soft_reset : in boolean := false;
 
     nes_running : out boolean;
 
@@ -161,6 +165,9 @@ is
     -- The NES is held in reset from power up, so asserts that only hold
     -- out of reset do not fail at initialization
     signal int_reset : boolean := true;
+    signal int_soft_reset : boolean;
+    -- OAM DMA and the joystick port are reset the same by both
+    signal dma_joy_reset : boolean;
     signal nmi : boolean;
     
     signal cart_irq : boolean;
@@ -181,6 +188,9 @@ is
 begin
 
     nes_running <= not int_reset;
+
+    int_soft_reset <= soft_reset and not int_reset;
+    dma_joy_reset <= int_reset or int_soft_reset;
 
     fill : entity work.power_up_fill
     generic map
@@ -306,6 +316,7 @@ begin
         clk => clk,
         clk_en => cpu_en,
         reset => int_reset,
+        soft_reset => int_soft_reset,
         
         cpu_bus => cpu_bus,
         data_to_cpu => data_to_cpu,
@@ -323,6 +334,7 @@ begin
         clk_en => cpu_en,
         clk_odd => cpu_odd,
         reset => int_reset,
+        soft_reset => int_soft_reset,
 
         cpu_write => is_bus_write(cpu_bus),
         oam_dma => oam_dma_status,
@@ -344,7 +356,7 @@ begin
         clk => clk,
         clk_en => cpu_en,
         clk_odd => cpu_odd,
-        reset => int_reset,
+        reset => dma_joy_reset,
 
         cpu_bus => joy_bus,
         data_to_joy => data_to_joy,
@@ -366,6 +378,7 @@ begin
         clk_en => ppu_en,
         clk_sync => ppu_sync,
         reset  => int_reset,
+        soft_reset => int_soft_reset,
 
         chr_bus             => chr_bus,
         chr_ale             => chr_ale,
@@ -398,7 +411,7 @@ begin
         clk => clk,
         clk_en => cpu_en,
         clk_odd => cpu_odd,
-        reset => int_reset,
+        reset => dma_joy_reset,
 
         pause_dma => is_bus_active(apu_dma_bus),
         

@@ -121,7 +121,10 @@ package de1_types is
         
         shift_joy_2 : in std_logic;
         joy_2_val   : out std_logic;
-        joy_2_reg   : out std_logic_vector(7 downto 0)
+        joy_2_reg   : out std_logic_vector(7 downto 0);
+
+        -- Escape is held. Synchronized to clk_cpu
+        soft_reset : out boolean
     );
     end component ps2_joystick;
 
@@ -145,6 +148,8 @@ package de1_types is
         PS2_CLK : inout std_logic;
         PS2_DAT : inout std_logic;
 
+        -- Push buttons, low while pressed
+        KEY  : in std_logic_vector(3 downto 0) := (others => '1');
         SW   : in std_logic_vector(9 downto 0);
         LEDR : out std_logic_vector(9 downto 0);
         LEDG : out std_logic_vector(7 downto 0);

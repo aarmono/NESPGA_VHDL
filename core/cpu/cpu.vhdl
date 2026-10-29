@@ -12,6 +12,8 @@ port
     clk      : in  std_logic;
     clk_en   : in  boolean := true;
     reset    : in  boolean;
+    -- The reset button. See soft_reset_registers
+    soft_reset : in boolean := false;
     
     cpu_bus       : out cpu_bus_t;
     data_to_cpu   : in  data_t;
@@ -52,6 +54,9 @@ begin
         if reset
         then
             reg <= RESET_REGISTERS;
+        elsif soft_reset
+        then
+            reg <= soft_reset_registers(reg);
         else
             reg <= reg_in;
         end if;

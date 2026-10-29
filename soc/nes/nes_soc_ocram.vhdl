@@ -38,6 +38,8 @@ port
 (
     clk   : in std_logic;
     reset : in boolean;
+    -- See nes_soc
+    soft_reset : in boolean := false;
 
     nes_running : out boolean;
 
@@ -109,6 +111,7 @@ begin
     (
         clk => clk,
         reset => reset,
+        soft_reset => soft_reset,
 
         nes_running => nes_running,
 

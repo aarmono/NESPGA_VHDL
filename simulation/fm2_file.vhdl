@@ -7,6 +7,13 @@ package fm2_file is
 
     subtype joy_val_t is std_logic_vector(7 downto 0);
 
+    -- Bits of the commands field of an input line
+    constant FM2_CMD_SOFT_RESET : natural := 1;
+    constant FM2_CMD_HARD_RESET : natural := 2;
+
+    -- True if the commands field of an input line has cmd set
+    function fm2_has_command(commands : natural; cmd : natural) return boolean;
+
     procedure fm2_fopen
     (
         file file_in : text;
@@ -19,6 +26,14 @@ package fm2_file is
         joy_val_1    : out joy_val_t;
         joy_val_2    : out joy_val_t
     );
+
+    procedure fm2_fread
+    (
+        file file_in : text;
+        commands     : out natural;
+        joy_val_1    : out joy_val_t;
+        joy_val_2    : out joy_val_t
+    );
     
     procedure fm2_fclose
     (
@@ -28,6 +43,12 @@ package fm2_file is
 end fm2_file;
 
 package body fm2_file is
+
+    function fm2_has_command(commands : natural; cmd : natural) return boolean
+    is
+    begin
+        return (commands / cmd) mod 2 = 1;
+    end;
     
     procedure fm2_fopen
     (
@@ -95,6 +116,19 @@ package body fm2_file is
         joy_val_2    : out joy_val_t
     )
     is
+        variable commands : natural;
+    begin
+        fm2_fread(file_in, commands, joy_val_1, joy_val_2);
+    end;
+
+    procedure fm2_fread
+    (
+        file file_in : text;
+        commands     : out natural;
+        joy_val_1    : out joy_val_t;
+        joy_val_2    : out joy_val_t
+    )
+    is
         variable is_input_line : boolean := false;
 
         variable l : line;
@@ -104,6 +138,7 @@ package body fm2_file is
     begin
         joy_val_1 := (others => '1');
         joy_val_2 := (others => '1');
+        commands := 0;
 
         if not endfile(file_in)
         then
@@ -115,11 +150,16 @@ package body fm2_file is
                 is_input_line := c = '|';
             end loop;
 
-            -- Currently at one element past the starting pipe. Skip "commands"
-            -- element
+            -- Currently at one element past the starting pipe. The
+            -- "commands" element is a decimal number
             read(l, c);
             while c /= '|'
             loop
+                if c >= '0' and c <= '9'
+                then
+                    commands := commands * 10 +
+                                (character'pos(c) - character'pos('0'));
+                end if;
                 read(l, c);
             end loop;
 

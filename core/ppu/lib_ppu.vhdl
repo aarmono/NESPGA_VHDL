@@ -392,6 +392,9 @@ package lib_ppu is
         -- Delayed copy of render_enabled. Toggling rendering affects
         -- background and sprite fetches about 3 dots after the $2001 write
         render_fetch   : boolean;
+        -- Set by the reset button and cleared at the end of VBlank. While
+        -- set, writes to $2000, $2001, $2005 and $2006 are ignored
+        reset_flag     : boolean;
         -- Register copy of palette output, before grayscale is applied.
         -- Grayscale is applied as the pixel leaves the PPU, so a $2001
         -- write also affects the pixel computed in the previous cycle
@@ -444,11 +447,26 @@ package lib_ppu is
         chr_bus => CHR_BUS_IDLE,
         render_enabled => false,
         render_fetch => false,
+        reset_flag => false,
         pixel => (others => '0'),
         pixel_valid => false,
         io_latch => RESET_IO_LATCH
     );
     
+    -- The PPU comes out of reset at the top of the picture, on hardware dot
+    -- 0 of scanline 0
+    constant SOFT_RESET_TIME : ppu_time_t :=
+    (
+        frame    => 0,
+        scanline => VINT_END,
+        cycle    => 340
+    );
+
+    -- The reset button clears PPUCTRL, PPUMASK, t, fine X, the $2005/$2006
+    -- write latch and the PPUDATA read buffer. v, OAMADDR and PPUSTATUS are
+    -- unchanged
+    function soft_reset_ppu_reg(reg : ppu_reg_t) return ppu_reg_t;
+
     -- Shifts a background pattern shift register one pixel, shifting
     -- serial_in into the low bit
     function shift_pattern_table
@@ -625,6 +643,21 @@ end lib_ppu;
 
 
 package body lib_ppu is
+
+    function soft_reset_ppu_reg(reg : ppu_reg_t) return ppu_reg_t
+    is
+        variable ret : ppu_reg_t;
+    begin
+        ret := RESET_PPU_REG;
+        ret.ppu_addr := reg.ppu_addr;
+        ret.oam_addr := reg.oam_addr;
+        ret.status := reg.status;
+        ret.io_latch := reg.io_latch;
+        ret.cur_time := SOFT_RESET_TIME;
+        ret.reset_flag := true;
+
+        return ret;
+    end;
     
     -- attr_shift function {
     function attr_shift
@@ -2012,6 +2045,7 @@ package body lib_ppu is
             render_out.reg.status.vbl := false;
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
+            render_out.reg.reset_flag := false;
         end if;
 
         -- The second $2006 write loads v from t a few dots after the write.
@@ -2050,13 +2084,20 @@ package body lib_ppu is
             case render_in.cpu_bus.address is
                 -- Control Register
                 when "000" =>
-                    render_out.reg.control :=
-                        to_control_t(render_in.data_from_cpu);
-                    render_out.reg.scroll.name_table_select :=
-                        render_in.data_from_cpu(1 downto 0);
+                    if not render_in.reg.reset_flag
+                    then
+                        render_out.reg.control :=
+                            to_control_t(render_in.data_from_cpu);
+                        render_out.reg.scroll.name_table_select :=
+                            render_in.data_from_cpu(1 downto 0);
+                    end if;
                 -- Mask Register
                 when "001" =>
-                    render_out.reg.mask := to_mask_t(render_in.data_from_cpu);
+                    if not render_in.reg.reset_flag
+                    then
+                        render_out.reg.mask :=
+                            to_mask_t(render_in.data_from_cpu);
+                    end if;
                 -- OAM Address
                 when "011" =>
                     render_out.reg.oam_addr := unsigned(render_in.data_from_cpu);
@@ -2082,22 +2123,29 @@ package body lib_ppu is
                     end if;
                 -- Scroll Offset
                 when "101" =>
-                    if render_in.reg.count = 0
+                    if render_in.reg.reset_flag
+                    then
+                        null;
+                    elsif render_in.reg.count = 0
                     then
                         render_out.reg.scroll.coarse_x_scroll :=
                             unsigned(render_in.data_from_cpu(7 downto 3));
                         render_out.reg.fine_x_scroll :=
                             to_integer(render_in.data_from_cpu(2 downto 0));
+                        render_out.reg.count := 1;
                     else
                         render_out.reg.scroll.coarse_y_scroll :=
                             unsigned(render_in.data_from_cpu(7 downto 3));
                         render_out.reg.scroll.fine_y_scroll :=
                             to_integer(render_in.data_from_cpu(2 downto 0));
+                        render_out.reg.count := 0;
                     end if;
-                    render_out.reg.count := (render_in.reg.count + 1) mod 2;
                 -- PPU Address
                 when "110" =>
-                    if render_in.reg.count = 0
+                    if render_in.reg.reset_flag
+                    then
+                        null;
+                    elsif render_in.reg.count = 0
                     then
                         render_out.reg.scroll.fine_y_scroll :=
                             to_integer(render_in.data_from_cpu(5 downto 4));
@@ -2105,14 +2153,15 @@ package body lib_ppu is
                             render_in.data_from_cpu(3 downto 2);
                         render_out.reg.scroll.coarse_y_scroll(4 downto 3) :=
                             unsigned(render_in.data_from_cpu(1 downto 0));
+                        render_out.reg.count := 1;
                     else
                         render_out.reg.scroll.coarse_x_scroll :=
                             unsigned(render_in.data_from_cpu(4 downto 0));
                         render_out.reg.scroll.coarse_y_scroll(2 downto 0) :=
                             unsigned(render_in.data_from_cpu(7 downto 5));
                         render_out.reg.ppu_addr_delay := PPU_ADDR_WRITE_DELAY;
+                        render_out.reg.count := 0;
                     end if;
-                    render_out.reg.count := (render_in.reg.count + 1) mod 2;
                 -- PPU Data
                 when "111" =>
                     if v_ppu_chr_addr >= PALETTE_ADDR_START

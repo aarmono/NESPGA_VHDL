@@ -8,11 +8,17 @@ entity fm2_joystick is
 generic
 (
     FILEPATH     : string;
-    INPUT_OFFSET : integer := 0
+    INPUT_OFFSET : integer := 0;
+    -- How long the reset button is held for the soft reset command
+    SOFT_RESET_TIME : time := 20 us
 );
 port
 (
     frame_valid : in boolean;
+
+    -- The reset button, pressed at the start of each frame whose input line
+    -- has the soft reset command
+    soft_reset : out boolean := false;
 
     joy_strobe : in std_logic;
 
@@ -81,6 +87,7 @@ begin
             variable input_frame : integer := maximum(-INPUT_OFFSET, 0);
             variable ppu_frame   : integer := maximum(INPUT_OFFSET, 0);
 
+            variable commands   : natural;
             variable joy_1_next : joy_val_t := (others => '1');
             variable joy_2_next : joy_val_t := (others => '1');
         begin
@@ -97,10 +104,15 @@ begin
             loop
                 if ppu_frame = input_frame
                 then
-                    fm2_fread(fm2_file, joy_1_next, joy_2_next);
+                    fm2_fread(fm2_file, commands, joy_1_next, joy_2_next);
 
                     joy_1_cur <= joy_1_next;
                     joy_2_cur <= joy_2_next;
+
+                    if fm2_has_command(commands, FM2_CMD_SOFT_RESET)
+                    then
+                        soft_reset <= true, false after SOFT_RESET_TIME;
+                    end if;
 
                     input_frame := input_frame + 1;
                 end if;

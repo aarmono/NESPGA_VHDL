@@ -54,6 +54,11 @@ package lib_apu is
     )
     return apu_output_t;
 
+    -- The reset button disables every channel, as writing $00 to $4015
+    -- would, and resets the triangle to the start of its sequence. The
+    -- channel registers are unchanged
+    function soft_reset_apu(reg : reg_t) return reg_t;
+
 end lib_apu;
 
 package body lib_apu is
@@ -252,6 +257,21 @@ package body lib_apu is
         ret.ready := v_ready;
         ret.irq := frame_irq_asserted(reg.frame_seq) or v_dmc_irq;
         ret.dma_bus := v_dma_bus;
+
+        return ret;
+    end;
+
+    function soft_reset_apu(reg : reg_t) return reg_t
+    is
+        variable ret : reg_t;
+    begin
+        ret.frame_seq := soft_reset_frame_seq(reg.frame_seq);
+        ret.square_1 := write_reg_4(reg.square_1, '0');
+        ret.square_2 := write_reg_4(reg.square_2, '0');
+        ret.triangle := write_reg_3(reg.triangle, '0');
+        ret.triangle.seq := RESET_TRIANGLE_SEQ;
+        ret.noise := write_reg_3(reg.noise, '0');
+        ret.dmc := soft_reset_dmc(reg.dmc);
 
         return ret;
     end;
