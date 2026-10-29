@@ -4,13 +4,18 @@ use IEEE.numeric_std.all;
 use work.perhipheral_types.all;
 
 -- Makes the random bytes the RAMs of the console power up with, as the RAMs
--- of a real NES contain whatever they powered up with. A seed taken from a
--- neoTRNG initializes a LFSR, so that the oscillators only run for the few
--- hundred microseconds it takes to get the seed.
+-- of a real NES contain whatever they powered up with. Bytes from a neoTRNG
+-- are mixed into a LFSR, which makes the data.
 --
--- ready is true once there is a seed. The LFSR steps in every clock enable is
+-- The TRNG runs while enable is true, which is while the console is held in
+-- reset to load the ROM, and until enough bytes are mixed in to fill the
+-- LFSR. The ring oscillators of the TRNG start in the same state every time,
+-- so the bytes they make soon after they start are close to the same in
+-- every power up, and the longer they run the more random they get.
+--
+-- ready is true once enough bytes are mixed in. The LFSR steps when step is
 -- true, which is when the console is filling its RAMs. It holds its state
--- otherwise, so a later fill gets other bytes without reading the TRNG again.
+-- otherwise, so a later fill gets other bytes, mixed with more from the TRNG.
 --
 -- With POWER_UP_ZERO the data is zero and ready is always true
 entity power_up_fill is
@@ -23,6 +28,7 @@ port
     clk : in std_logic;
 
     enable : in boolean;
+    step   : in boolean;
     ready  : out boolean;
     data   : out power_up_data_t
 );
@@ -39,24 +45,20 @@ begin
 
 else generate
 
-    subtype lfsr_t is power_up_data_t;
-
-    type state_t is (STATE_SEED, STATE_READY);
-
-    constant SEED_BYTES : positive := lfsr_t'length / 8;
+    constant SEED_BYTES : positive := power_up_data_t'length / 8;
 
     -- x^56 + x^55 + x^35 + x^34 + 1
-    constant LFSR_TAPS : lfsr_t := x"C0000600000000";
+    constant LFSR_TAPS : power_up_data_t := x"C0000600000000";
 
     -- Steps the LFSR once for each of its bits, so that none of them is
     -- still in the state. Each RAM takes its own byte of the state, and
     -- with fewer steps a byte would be another byte of an earlier state
     -- shifted down: stepping 8, CPU RAM powered up a copy of OAM
-    function lfsr_step(lfsr : lfsr_t) return lfsr_t
+    function lfsr_step(lfsr : power_up_data_t) return power_up_data_t
     is
-        variable ret : lfsr_t := lfsr;
+        variable ret : power_up_data_t := lfsr;
     begin
-        for i in lfsr_t'range
+        for i in power_up_data_t'range
         loop
             if ret(0) = '1'
             then
@@ -73,9 +75,8 @@ else generate
     -- values
     signal por : std_logic_vector(1 downto 0) := "00";
 
-    signal state      : state_t := STATE_SEED;
-    signal seed_count : natural range 0 to SEED_BYTES-1 := 0;
-    signal lfsr       : lfsr_t := (others => '0');
+    signal lfsr     : power_up_data_t := (others => '0');
+    signal absorbed : natural range 0 to SEED_BYTES := 0;
 
     -- The ports of the TRNG are std_ulogic, which Quartus does not
     -- associate with std_logic signals
@@ -85,7 +86,10 @@ else generate
 
 begin
 
-    trng_enable <= '1' when state = STATE_SEED else '0';
+    ready <= absorbed = SEED_BYTES;
+    data <= lfsr;
+
+    trng_enable <= '1' when enable or absorbed /= SEED_BYTES else '0';
 
     trng : entity work.neoTRNG
     generic map
@@ -104,37 +108,34 @@ begin
         data_o => trng_data
     );
 
-    ready <= state = STATE_READY;
-    data <= lfsr;
-
     process(clk)
+        variable next_lfsr : power_up_data_t;
     begin
     if rising_edge(clk)
     then
         por <= por(0) & '1';
 
-        case state is
-        when STATE_SEED =>
-            if trng_valid = '1'
+        -- Bytes are only mixed in while the TRNG is enabled, which is before
+        -- the RAMs are filled, so that the data only changes on step during
+        -- a fill. The TRNG can still make a byte in the clock after it is
+        -- disabled, which is dropped
+        if trng_valid = '1' and trng_enable = '1'
+        then
+            -- Stepping before mixing in spreads every byte over the whole
+            -- state. The step can be undone, so no byte takes away what
+            -- earlier bytes put in
+            next_lfsr := lfsr_step(lfsr);
+            next_lfsr(7 downto 0) := next_lfsr(7 downto 0) xor
+                                     std_logic_vector(trng_data);
+            lfsr <= next_lfsr;
+            if absorbed /= SEED_BYTES
             then
-                if seed_count = SEED_BYTES-1
-                then
-                    -- An all zero seed would never leave zero
-                    lfsr <= lfsr(lfsr'left-8 downto 0) &
-                            std_logic_vector(trng_data(7 downto 1)) & '1';
-                    state <= STATE_READY;
-                else
-                    lfsr <= lfsr(lfsr'left-8 downto 0) &
-                            std_logic_vector(trng_data);
-                    seed_count <= seed_count + 1;
-                end if;
+                absorbed <= absorbed + 1;
             end if;
-        when STATE_READY =>
-            if enable
-            then
-                lfsr <= lfsr_step(lfsr);
-            end if;
-        end case;
+        elsif step
+        then
+            lfsr <= lfsr_step(lfsr);
+        end if;
     end if;
     end process;
 

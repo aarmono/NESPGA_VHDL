@@ -190,7 +190,8 @@ begin
     port map
     (
         clk => clk,
-        enable => fill_step,
+        enable => reset,
+        step => fill_step,
         ready => fill_ready,
         data => fill_data
     );

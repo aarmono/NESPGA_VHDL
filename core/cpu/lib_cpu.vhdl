@@ -155,6 +155,19 @@ package body lib_cpu is
         return ret;
     end;
 
+    -- RESET runs the interrupt push cycles with R/W held high, so it reads
+    -- the stack where BRK, IRQ and NMI write it
+    function interrupt_push(reg : registers_t) return cpu_bus_t
+    is
+    begin
+        if reg.opcode = OP_RESET
+        then
+            return bus_read(stack_addr(reg.opstate.stack));
+        else
+            return bus_write(stack_addr(reg.opstate.stack));
+        end if;
+    end;
+
     -- The value written by an indexed write
     function indexed_write_data
     (
@@ -605,18 +618,15 @@ package body lib_cpu is
                     when MODE_BRK =>
                         case reg.count is
                             when CYC_5 =>
-                                v_data_bus :=
-                                    bus_write(stack_addr(reg.opstate.stack));
+                                v_data_bus := interrupt_push(reg);
                                 v_data_out := reg.pc(15 downto 8);
                                 v_reg.opstate.stack := reg.opstate.stack - "1";
                             when CYC_4 =>
-                                v_data_bus :=
-                                    bus_write(stack_addr(reg.opstate.stack));
+                                v_data_bus := interrupt_push(reg);
                                 v_data_out := reg.pc(7 downto 0);
                                 v_reg.opstate.stack := reg.opstate.stack - "1";
                             when CYC_3 =>
-                                v_data_bus :=
-                                    bus_write(stack_addr(reg.opstate.stack));
+                                v_data_bus := interrupt_push(reg);
                                 v_data_out :=
                                     to_reg_t(reg.opstate.status,
                                              v_decoded.incr_pc);

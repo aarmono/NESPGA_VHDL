@@ -381,7 +381,13 @@ package body lib_nes is
                     when others =>
                 end case;
                 
-                if nes_in.reg.cur_cycle = x"0F"
+                if nes_in.reg.cur_cycle < x"0F"
+                then
+                    ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
+                -- Waits for the power up data before filling the RAMs,
+                -- so that it only changes on a clock enable once they
+                -- are being filled
+                elsif nes_in.power_up_ready
                 then
                     ret.reg.cart_config :=
                         set_rom_masks(nes_in.reg.cart_config);
@@ -393,8 +399,6 @@ package body lib_nes is
 
                     ret.reg.cur_cycle := x"0000";
                     ret.reg.cur_state := STATE_RESET;
-                else
-                    ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
 
             when STATE_RESET =>
@@ -486,9 +490,7 @@ package body lib_nes is
                     else
                         ret.reg.cur_state := STATE_RUN;
                     end if;
-                -- Waits for the power up data before filling the RAMs
-                elsif nes_in.power_up_ready
-                then
+                else
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
             when STATE_CLEAR =>
