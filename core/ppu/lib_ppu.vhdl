@@ -392,8 +392,9 @@ package lib_ppu is
         -- Delayed copy of render_enabled. Toggling rendering affects
         -- background and sprite fetches about 3 dots after the $2001 write
         render_fetch   : boolean;
-        -- Set by the reset button and cleared at the end of VBlank. While
-        -- set, writes to $2000, $2001, $2005 and $2006 are ignored
+        -- Set by power up and the reset button and cleared at the end of
+        -- VBlank. While set, writes to $2000, $2001, $2005 and $2006 are
+        -- ignored
         reset_flag     : boolean;
         -- Register copy of palette output, before grayscale is applied.
         -- Grayscale is applied as the pixel leaves the PPU, so a $2001
@@ -447,7 +448,7 @@ package lib_ppu is
         chr_bus => CHR_BUS_IDLE,
         render_enabled => false,
         render_fetch => false,
-        reset_flag => false,
+        reset_flag => true,
         pixel => (others => '0'),
         pixel_valid => false,
         io_latch => RESET_IO_LATCH
