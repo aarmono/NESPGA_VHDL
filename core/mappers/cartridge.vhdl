@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.utilities.all;
 use work.cart_types.all;
 use work.opll_bus_types.all;
 use work.lib_cartridge.all;
@@ -51,7 +52,7 @@ begin
 
     assert reset or CART_BOARDS(boards.board)
         report "Mapper not supported: " &
-               integer'image(to_integer(unsigned(config.mapper_num)))
+               integer'image(to_integer(config.mapper_num))
         severity failure;
 
     -- Only the registers of the board in use are written, since writing

@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
+use work.utilities.all;
 use work.binary_io.all;
 use work.bmp_file.all;
 use std.textio.all;
@@ -121,8 +122,8 @@ architecture behavioral of ppu_video_record is
     function to_color_idx(emphasis : emphasis_t; pixel : pixel_t) return color_idx_t
     is
     begin
-        return to_integer(unsigned(std_logic_vector'(to_emphasis_bits(emphasis) &
-                                                      pixel)));
+        return to_integer(std_logic_vector'(to_emphasis_bits(emphasis) &
+                                            pixel));
     end;
 
     type channel_lsb_t is array(color_channel_t) of natural;
@@ -154,7 +155,7 @@ architecture behavioral of ppu_video_record is
             ret := ret - 1;
         end if;
 
-        return std_logic_vector(to_unsigned(ret, 8));
+        return to_std_logic_vector(ret, 8);
     end;
 
     -- Builds the colours of all 8 emphasis combinations from PALETTE the same
@@ -173,17 +174,17 @@ architecture behavioral of ppu_video_record is
         for emphasis_bits in 0 to 2**emphasis_bits_t'length-1
         loop
             emphasis := to_emphasis_t(
-                std_logic_vector(to_unsigned(emphasis_bits, emphasis_bits_t'length)));
+                to_std_logic_vector(emphasis_bits, emphasis_bits_t'length));
 
             for pixel_idx in 0 to 2**pixel_t'length-1
             loop
-                pixel := std_logic_vector(to_unsigned(pixel_idx, pixel_t'length));
+                pixel := to_std_logic_vector(pixel_idx, pixel_t'length);
 
                 for channel in color_channel_t
                 loop
                     lsb := BGR_CHANNEL_LSB(channel);
-                    channels(channel) := real(to_integer(unsigned(
-                        PALETTE(pixel_idx)(lsb+7 downto lsb))));
+                    channels(channel) := real(to_integer(
+                        PALETTE(pixel_idx)(lsb+7 downto lsb)));
                 end loop;
 
                 if pixel(3 downto 1) /= "111"
@@ -287,7 +288,7 @@ begin
                                       PALETTE);
                     for i in 0 to pixel_num-1
                     loop
-                        pixel_val := std_logic_vector(to_unsigned(frame(i), 8));
+                        pixel_val := to_std_logic_vector(frame(i), 8);
                         bmp_fwrite_indexed(bmp_file, pixel_val);
                     end loop;
                 end if;

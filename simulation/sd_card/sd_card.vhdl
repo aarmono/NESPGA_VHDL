@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.utilities.all;
 use work.binary_io.all;
 
 -- Behavioral model of an SD card in SPI mode, holding the contents of
@@ -130,7 +131,7 @@ begin
         procedure execute
         is
         begin
-            index := to_integer(unsigned(cmd(0)(5 downto 0)));
+            index := to_integer(cmd(0)(5 downto 0));
             arg := unsigned(std_logic_vector'(cmd(1) & cmd(2) &
                                               cmd(3) & cmd(4)));
 

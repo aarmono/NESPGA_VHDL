@@ -86,13 +86,13 @@ package body bmp_file is
         -- Magic Number
         byte_fwrite(byte_file, x"4D42");
         -- Size
-        byte_fwrite(byte_file, std_logic_vector(to_unsigned(image_size, 32)));
+        byte_fwrite(byte_file, to_std_logic_vector(image_size, 32));
         -- Reserved 1
         byte_fwrite(byte_file, x"0000");
         -- Reserved 2
         byte_fwrite(byte_file, x"0000");
         -- Image offset
-        byte_fwrite(byte_file, std_logic_vector(to_unsigned(START_OF_IMAGE, 32)));
+        byte_fwrite(byte_file, to_std_logic_vector(START_OF_IMAGE, 32));
 
         -- BITMAPINFOHEADER
         -- Header size
@@ -152,13 +152,13 @@ package body bmp_file is
         -- Magic Number
         byte_fwrite(byte_file, x"4D42");
         -- Size
-        byte_fwrite(byte_file, std_logic_vector(to_unsigned(image_size, 32)));
+        byte_fwrite(byte_file, to_std_logic_vector(image_size, 32));
         -- Reserved 1
         byte_fwrite(byte_file, x"0000");
         -- Reserved 2
         byte_fwrite(byte_file, x"0000");
         -- Image offset
-        byte_fwrite(byte_file, std_logic_vector(to_unsigned(START_OF_IMAGE, 32)));
+        byte_fwrite(byte_file, to_std_logic_vector(START_OF_IMAGE, 32));
 
         -- BITMAPINFOHEADER
         -- Header size

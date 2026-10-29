@@ -457,8 +457,8 @@ package body cart_types is
         variable shift    : integer range 0 to 16;
         variable ret      : std_logic_vector(DEFAULT_RAM_MASK'range);
     begin
-        volatile := to_integer(unsigned(sizes(3 downto 0)));
-        battery := to_integer(unsigned(sizes(7 downto 4)));
+        volatile := to_integer(sizes(3 downto 0));
+        battery := to_integer(sizes(7 downto 4));
 
         -- Two RAMs, each no larger than the larger one, fit in twice its
         -- size

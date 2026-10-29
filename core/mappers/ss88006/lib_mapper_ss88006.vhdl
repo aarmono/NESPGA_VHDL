@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
+use work.utilities.all;
 use work.prg_bus_types.all;
 use work.cart_types.all;
 
@@ -173,8 +174,8 @@ package body lib_mapper_ss88006 is
         ret := reg;
         addr := cart_in.cpu.prg_bus.address;
         data := cart_in.cpu.data;
-        pair := to_integer(unsigned(addr(14 downto 12) & addr(1)));
-        irq_idx := to_integer(unsigned(addr(1 downto 0)));
+        pair := to_integer(addr(14 downto 12) & addr(1));
+        irq_idx := to_integer(addr(1 downto 0));
 
         if is_rom_write(cart_in.cpu, clk_sync)
         then
@@ -193,7 +194,7 @@ package body lib_mapper_ss88006 is
                         set_nibble(reg.chr_banks(pair - 4), addr(0), data);
                 when 12 | 13 =>
                     ret.irq_reload(irq_idx) :=
-                        to_integer(unsigned(data(3 downto 0)));
+                        to_integer(data(3 downto 0));
                 when 14 =>
                     if addr(0) = '0'
                     then

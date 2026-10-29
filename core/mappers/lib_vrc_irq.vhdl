@@ -158,7 +158,7 @@ package body lib_vrc_irq is
         case write is
             when VRC_IRQ_NO_WRITE =>
             when VRC_IRQ_LATCH =>
-                ret.latch := to_integer(unsigned(data));
+                ret.latch := to_integer(data);
             when VRC_IRQ_LATCH_LOW =>
                 ret.latch := set_bits(ret.latch, 0, data(3 downto 0));
             when VRC_IRQ_LATCH_HIGH =>

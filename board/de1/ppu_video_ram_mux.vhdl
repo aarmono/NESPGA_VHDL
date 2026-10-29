@@ -191,7 +191,7 @@ is
         variable ret : sram_data_t;
     begin
         emphasis := to_emphasis_t(color(color_t'high downto pixel_t'length));
-        ret := PALETTE(to_integer(unsigned(pixel)));
+        ret := PALETTE(to_integer(pixel));
 
         if pixel(3 downto 1) /= "111"
         then
@@ -200,7 +200,7 @@ is
                 lsb := RGB_CHANNEL_LSB(channel);
                 ret(lsb+3 downto lsb) := std_logic_vector(
                     ATTENUATION(attenuation_count(emphasis, channel))
-                               (to_integer(unsigned(ret(lsb+3 downto lsb)))));
+                               (to_integer(ret(lsb+3 downto lsb))));
             end loop;
         end if;
 

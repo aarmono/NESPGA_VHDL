@@ -103,14 +103,14 @@ nes_audio_mixer.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/g
 simulation.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
 sdram_ctrl.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 sdram_rom.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
-sdram.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
+sdram.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 sd_reader.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 binary_io.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-sd_card.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o binary_io.o
+sd_card.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o
 flash_stream.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o file_bus_types.o
 clk_en.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 /opt/ghdl/lib/ghdl/std/v08/env.o: 
-sdram_rom_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o nes_types.o cart_mem_bus_types.o file_bus_types.o simulation.o sdram_rom.o sdram.o sd_reader.o sd_card.o flash_stream.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o
+sdram_rom_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o nes_types.o utilities.o cart_mem_bus_types.o file_bus_types.o simulation.o sdram_rom.o sdram.o sd_reader.o sd_card.o flash_stream.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o
 /opt/ghdl/lib/ghdl/std/v08/env-body.o:  /opt/ghdl/lib/ghdl/std/v08/env.o
 file_memory.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o nes_types.o file_bus_types.o
 clock.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o

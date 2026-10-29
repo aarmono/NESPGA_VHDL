@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.perhipheral_types.all;
+use work.utilities.all;
 
 -- Makes the random bytes the RAMs of the console power up with, as the RAMs
 -- of a real NES contain whatever they powered up with. Bytes from a neoTRNG
@@ -80,7 +81,7 @@ else generate
     signal por : std_logic_vector(1 downto 0) := "00";
 
     signal lfsr     : power_up_data_t :=
-        std_logic_vector(to_unsigned(SEED, power_up_data_t'length));
+        to_std_logic_vector(SEED, power_up_data_t'length);
     signal absorbed : natural range 0 to SEED_BYTES := 0;
 
     -- The ports of the TRNG are std_ulogic, which Quartus does not

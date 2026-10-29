@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.utilities.all;
 
 -- Behavioral model of a 4 bank x 4096 row x 256 column x 16 bit SDR SDRAM,
 -- like the 8 MB part on the DE1. Only the features sdram_ctrl uses are
@@ -120,7 +121,7 @@ begin
             if cke = '1' and cs_n = '0' and
                not (ras_n = '1' and cas_n = '1' and we_n = '1')
             then
-                b := to_integer(unsigned(ba));
+                b := to_integer(ba);
                 check(now - first_clk >= T_INIT,
                       "command before power up delay");
 
@@ -132,7 +133,7 @@ begin
                     check(clk_count - mode_clk >= T_MRD_CLKS,
                           "ACTIVE tMRD violation");
                     bank_open(b) := true;
-                    bank_row(b) := to_integer(unsigned(addr));
+                    bank_row(b) := to_integer(addr);
                     last_act(b) := now;
                 elsif ras_n = '1' and cas_n = '0'
                 then
@@ -142,7 +143,7 @@ begin
                           "READ/WRITE tRCD violation");
                     check(addr(10) = '0', "auto precharge is not modeled");
                     idx := b * 2**20 + bank_row(b) * 2**8 +
-                           to_integer(unsigned(addr(7 downto 0)));
+                           to_integer(addr(7 downto 0));
 
                     if we_n = '0'
                     then
@@ -219,7 +220,7 @@ begin
                     end loop;
                     check(addr(2 downto 0) = "000",
                           "only burst length 1 is modeled");
-                    cas_lat := to_integer(unsigned(addr(6 downto 4)));
+                    cas_lat := to_integer(addr(6 downto 4));
                     check(cas_lat = 2 or cas_lat = 3,
                           "invalid CAS latency");
                     mode_clk := clk_count;
