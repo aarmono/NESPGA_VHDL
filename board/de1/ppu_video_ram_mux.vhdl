@@ -311,7 +311,18 @@ begin
             reg.vga_sram_ce_n(i) <= reg.vga_sram_ce_n(i-1);
         end loop;
         reg.vga_sram_ce_n(0) <= vga_sram_ce_n;
-        
+
+        -- The PPU powers up at a random point in its frame, so start over at
+        -- the top of the picture every VBlank. By then the last frame has
+        -- been written out and both addresses have wrapped to 0, so this only
+        -- changes anything after power up
+        if ppu_clk_en and not pixel_bus.frame_valid
+        then
+            reg.write_pixel_addr <= RESET_REG.write_pixel_addr;
+            reg.read_pixel_addr <= RESET_REG.read_pixel_addr;
+            reg.frame_overflow <= RESET_REG.frame_overflow;
+        end if;
+
         if reset
         then
             reg <= RESET_REG;
