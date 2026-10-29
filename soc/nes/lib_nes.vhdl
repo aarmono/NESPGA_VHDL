@@ -32,7 +32,12 @@ package lib_nes is
         STATE_LOAD,
         STATE_RESET,
         STATE_CLEAR,
-        STATE_RUN
+        STATE_RUN,
+        -- The reset button is held. The NES runs as in STATE_RUN, with the
+        -- CPU, APU and PPU held in reset. Like the other reset states, the
+        -- state only changes on CPU cycles, so they all leave reset on the
+        -- same clock
+        STATE_SOFT_RESET
     );
     
     -- Clocked off the CPU timer
@@ -110,6 +115,8 @@ package lib_nes is
         data_to_palette      : pixel_t;
         audio                : mixed_audio_t;
         reset                : boolean;
+        -- The reset button, for the CPU, APU and PPU
+        soft_reset           : boolean;
         irq                  : boolean;
         -- The RAMs are being filled, so the power up data changes
         power_up_enable      : boolean;
@@ -131,6 +138,8 @@ package lib_nes is
         -- The power up data is valid
         power_up_ready     : boolean;
         power_up_data      : power_up_data_t;
+        -- The reset button is held
+        soft_reset         : boolean;
     end record;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t;
@@ -320,6 +329,7 @@ package body lib_nes is
         
         ret.audio := (others => '-');
         ret.reset := false;
+        ret.soft_reset := false;
         ret.irq   := false;
         ret.power_up_enable := false;
         
@@ -536,7 +546,15 @@ package body lib_nes is
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
                 
-            when STATE_RUN =>
+            when STATE_RUN | STATE_SOFT_RESET =>
+                ret.soft_reset := nes_in.reg.cur_state = STATE_SOFT_RESET;
+                if nes_in.soft_reset
+                then
+                    ret.reg.cur_state := STATE_SOFT_RESET;
+                else
+                    ret.reg.cur_state := STATE_RUN;
+                end if;
+
                 ret.audio := mix_audio(nes_in.audio, nes_in.cart.audio);
                 
                 ret.oam_bus := nes_in.oam_bus;
