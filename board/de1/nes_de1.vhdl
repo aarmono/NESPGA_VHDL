@@ -30,6 +30,8 @@ port
     PS2_CLK : inout std_logic;
     PS2_DAT : inout std_logic;
     
+    -- Push buttons, low while pressed. KEY(0) is the reset button
+    KEY  : in std_logic_vector(3 downto 0) := (others => '1');
     SW   : in std_logic_vector(9 downto 0);
     LEDR : out std_logic_vector(9 downto 0);
     LEDG : out std_logic_vector(7 downto 0);
@@ -120,6 +122,12 @@ architecture behavioral of nes_de1 is
     signal reset_vga : boolean;
 
     signal nes_reset : boolean;
+
+    -- KEY(0) synchronized to CLOCK_50. The DE1 debounces its push buttons
+    signal key_reset_sync : std_logic_vector(1 downto 0) := (others => '1');
+    -- Escape on the keyboard, synchronized to CLOCK_50
+    signal esc_reset      : boolean;
+    signal nes_soft_reset : boolean;
     
     signal flash_bus          : file_bus_t;
     signal cart_mem_bus       : cart_mem_bus_t;
@@ -178,6 +186,16 @@ begin
         reset_vga_sync <= reset_vga_sync(0) & '0';
     end if;
     end process;
+
+    process(CLOCK_50)
+    begin
+    if rising_edge(CLOCK_50)
+    then
+        key_reset_sync <= key_reset_sync(0) & KEY(0);
+    end if;
+    end process;
+
+    nes_soft_reset <= key_reset_sync(1) = '0' or esc_reset;
 
     reset_50  <= reset_50_sync(1) = '1';
     reset_aud <= reset_aud_sync(1) = '1';
@@ -357,6 +375,7 @@ begin
     (
         clk => CLOCK_50,
         reset => nes_reset,
+        soft_reset => nes_soft_reset,
 
         nes_running => nes_running,
 
@@ -399,7 +418,9 @@ begin
         joy_1_reg => joy_1_reg,
         
         shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val
+        joy_2_val => joy_2_val,
+
+        soft_reset => esc_reset
     );
 
     -- The audio crosses to CLOCK_AUD with a toggle handshake: the toggle is

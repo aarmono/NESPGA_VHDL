@@ -68,7 +68,7 @@ architecture behavioral of nes_bench is
     signal ppu_clk_en : boolean;
     signal cpu_clk_en : boolean;
     
-    signal reset : boolean;
+    signal soft_reset : boolean;
     
     signal clk : std_logic := '0';
 
@@ -91,6 +91,7 @@ begin
     (
         clk => clk,
         reset => false,
+        soft_reset => soft_reset,
 
         nes_running => output_ready,
 
@@ -149,6 +150,8 @@ begin
     port map
     (
         frame_valid => pixel_bus.frame_valid,
+
+        soft_reset => soft_reset,
 
         joy_strobe => joy_strobe,
 

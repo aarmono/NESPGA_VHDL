@@ -27,7 +27,10 @@ port
     
     shift_joy_2 : in std_logic;
     joy_2_val   : out std_logic;
-    joy_2_reg   : out std_logic_vector(7 downto 0)
+    joy_2_reg   : out std_logic_vector(7 downto 0);
+
+    -- Escape is held. Synchronized to clk_cpu
+    soft_reset : out boolean
 );
 end ps2_joystick;
 
@@ -63,6 +66,7 @@ architecture behavioral of ps2_joystick is
     
     -- Keyboard clock domain
     signal joy_1_vals_ps2 : joy_vals_t := (others => '1');
+    signal esc_ps2        : boolean := false;
     
     signal key_ascii   : std_logic_vector(7 downto 0);
     signal key_stb     : std_logic;
@@ -77,6 +81,9 @@ architecture behavioral of ps2_joystick is
 
     signal sig_joy_1_reg : joy_vals_t;
 
+    signal esc_sync : boolean := false;
+    signal esc_cpu  : boolean := false;
+
 begin
 
     joy_1_val <= joy_1_shift(0);
@@ -84,6 +91,8 @@ begin
     
     joy_1_reg <= sig_joy_1_reg;
     joy_2_reg <= (others => '1');
+
+    soft_reset <= esc_cpu;
 
     keyboard_controller : ps2_keyboard
     port map
@@ -109,6 +118,7 @@ begin
         if reset_key
         then
             joy_1_vals_ps2 <= (others => '1');
+            esc_ps2 <= false;
         elsif key_stb = '1'
         then
             update := false;
@@ -155,6 +165,9 @@ begin
                      x"49" =>
                     idx := KEY_IDX_START;
                     update := true;
+                -- Escape (Reset)
+                when x"1B" =>
+                    esc_ps2 <= key_pressed;
                 when others =>
             end case;
             
@@ -176,6 +189,8 @@ begin
         then
             joy_1_vals_sync  <= (others => '1');
             joy_1_vals_cpu   <= (others => '1');
+            esc_sync         <= false;
+            esc_cpu          <= false;
             shift_joy_1_prev <= '0';
             joy_1_shift      <= (others => '1');
         else
@@ -185,6 +200,9 @@ begin
             -- each bit is synchronized on its own
             joy_1_vals_cpu  <= joy_1_vals_sync;
             joy_1_vals_sync <= joy_1_vals_ps2;
+
+            esc_cpu  <= esc_sync;
+            esc_sync <= esc_ps2;
             
             if joy_strobe = '1'
             then

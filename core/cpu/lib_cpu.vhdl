@@ -45,6 +45,10 @@ package lib_cpu is
         sh_halted => false
     );
 
+    -- The reset button runs the reset sequence again. A, X, Y, S and P are
+    -- unchanged until the sequence decrements S by 3 and sets I
+    function soft_reset_registers(reg : registers_t) return registers_t;
+
     type cpu_output_t is record
         reg      : registers_t;
         data_out : data_t;
@@ -80,6 +84,15 @@ package lib_cpu is
 end lib_cpu;
 
 package body lib_cpu is
+
+    function soft_reset_registers(reg : registers_t) return registers_t
+    is
+        variable ret : registers_t;
+    begin
+        ret := RESET_REGISTERS;
+        ret.opstate := reg.opstate;
+        return ret;
+    end;
 
     function branch
     (

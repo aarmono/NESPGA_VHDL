@@ -14,6 +14,8 @@ port
     clk_en        : in  boolean := true;
     clk_odd       : in  boolean;
     reset         : in  boolean;
+    -- The reset button. See soft_reset_apu
+    soft_reset    : in  boolean := false;
     
     cpu_write     : in  boolean;
     oam_dma       : in  oam_dma_status_t;
@@ -66,6 +68,10 @@ begin
         if reset
         then
             reg <= RESET_REG;
+            irq_delay <= (others => false);
+        elsif soft_reset
+        then
+            reg <= soft_reset_apu(reg);
             irq_delay <= (others => false);
         else
             reg <= reg_in;

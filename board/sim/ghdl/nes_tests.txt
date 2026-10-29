@@ -70,6 +70,17 @@ nes-test-roms/blargg_apu_2005.07.30/09.reset_timing.nes             | 184ms     
 nes-test-roms/blargg_apu_2005.07.30/10.len_halt_timing.nes          | 267ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00015.bmp
 nes-test-roms/blargg_apu_2005.07.30/11.len_reload_timing.nes        | 267ms     | 5fd7a0f2809eed72bc2886ea72522a1c4df57059d2883e9e602d46708455c442 *frame_00015.bmp
 
+# Reset button. The FM2 input presses reset (soft reset command) once the
+# test asks for it
+nes-test-roms/apu_reset/4015_cleared.nes                            | 701ms     | 41194745f15bc1e2933974f028464ba9e70526d023fffc2ffe5550a3020456cb *frame_00041.bmp | test_inputs/reset/apu_reset_4015_cleared.fm2
+nes-test-roms/apu_reset/4017_timing.nes                             | 801ms     | d796fc123a8fcd2cbf5ac59819d1298c936bb4625b77d1f30e067a3de8978a4e *frame_00047.bmp | test_inputs/reset/apu_reset_4017_timing.fm2
+nes-test-roms/apu_reset/4017_written.nes                            | 1218ms    | f1ed5521955c00d0937be53a3d1dde457ea3bf4187ea59f69c848f9f65a49bb0 *frame_00072.bmp | test_inputs/reset/apu_reset_4017_written.fm2
+nes-test-roms/apu_reset/irq_flag_cleared.nes                        | 701ms     | 6c6666703de9edd181b72302f1f433ecee3a7a5947ea43ba8da43dd7973256ce *frame_00041.bmp | test_inputs/reset/apu_reset_irq_flag_cleared.fm2
+nes-test-roms/apu_reset/len_ctrs_enabled.nes                        | 701ms     | a2de1059e85f344339e1fe4b31446384091bc457920ab3bcdfe69db160d40e78 *frame_00041.bmp | test_inputs/reset/apu_reset_len_ctrs_enabled.fm2
+nes-test-roms/apu_reset/works_immediately.nes                       | 718ms     | 8f6a0682aff39f177ea6bd6f4367361608984f785501fddda17f87a3e7f714c1 *frame_00042.bmp | test_inputs/reset/apu_reset_works_immediately.fm2
+nes-test-roms/cpu_reset/ram_after_reset.nes                         | 2669ms    | b35854251359c53469f69cbe0bbe7234b174114239472c5fb23821516fd04e8f *frame_00159.bmp | test_inputs/reset/cpu_reset_ram_after_reset.fm2
+nes-test-roms/cpu_reset/registers.nes                               | 2719ms    | 6839208ac3d5e61117c7ad79816c3a36f9f96b8f6864bd7a59e2d8b8a2de6cbe *frame_00162.bmp | test_inputs/reset/cpu_reset_registers.fm2
+
 # PPU
 nes-test-roms/oam_stress/oam_stress.nes                             | 28519ms   | bf0ae93ef420602287e426018267b865183ed0a86a5b77274b2e7bbde9778814 *frame_01709.bmp
 nes-test-roms/oam_read/oam_read.nes                                 | 550ms     | 04d7042515042d76cc185f5dfa024a0165dd8a21976adaf848efeeaf1601f63f *frame_00032.bmp
@@ -360,23 +371,20 @@ AccuracyCoin/AccuracyCoin.nes                                       | 1301ms    
 AccuracyCoin/AccuracyCoin.nes                                       | 1418ms    | 4e35c46ea0866c6008768175d472c543e513b15fdbc0e6019b7f9f1bb02076c9 *frame_00084.bmp | test_inputs/AccuracyCoin/page_03.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1485ms    | a88409357ae66915b0bf0e4e97240fe94de5db47aa1608a9e881c1883b781771 *frame_00088.bmp | test_inputs/AccuracyCoin/page_04.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1602ms    | fdcc92ad00365fa1e766cfce8f7a6b4684253baf3370bf0108e10f22efe3ac3f *frame_00095.bmp | test_inputs/AccuracyCoin/page_05.fm2
-AccuracyCoin/AccuracyCoin.nes                                       | 1668ms    | eb3cc50fcb7552b99123e934acb53b182bd3068ba2922ed9d794516e8917b38b *frame_00099.bmp | test_inputs/AccuracyCoin/page_06.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 1685ms    | eb3cc50fcb7552b99123e934acb53b182bd3068ba2922ed9d794516e8917b38b *frame_00100.bmp | test_inputs/AccuracyCoin/page_06.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1835ms    | da8e76bbcfd2ab729e457d80d7661fe83a87e5f538e7012014f531cd96804a1c *frame_00109.bmp | test_inputs/AccuracyCoin/page_07.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1835ms    | 046f40bdd218e4ce1cd1cdb40083e820eb75db8daab2447c477323f888b6c8d7 *frame_00109.bmp | test_inputs/AccuracyCoin/page_08.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1918ms    | 27cc918352d565057732e9155ec4ef00c9fe60e084b18f618eff43a897143029 *frame_00114.bmp | test_inputs/AccuracyCoin/page_09.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 2002ms    | 448f6fe71be1bc19deaac342112f9210a39ae0c9c4fc1f6cc18090b012280c3a *frame_00119.bmp | test_inputs/AccuracyCoin/page_10.fm2
-AccuracyCoin/AccuracyCoin.nes                                       | 2135ms    | 1a41d23324305af9b361c3ab6e899dcc2cf15282ea696b817e9a3c086fc00cf0 *frame_00127.bmp | test_inputs/AccuracyCoin/page_11.fm2
-AccuracyCoin/AccuracyCoin.nes                                       | 4437ms    | ba3f0f373f0798fc0ba2d77354fbb7b91412848250ba567b6304978bd9330a28 *frame_00265.bmp | test_inputs/AccuracyCoin/page_12.fm2
-AccuracyCoin/AccuracyCoin.nes                                       | 2619ms    | 276e80f458fbd7fd72eb7f0209499c369841a0926db15f059c269a63f2ae5910 *frame_00156.bmp | test_inputs/AccuracyCoin/page_13.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 2185ms    | 1a41d23324305af9b361c3ab6e899dcc2cf15282ea696b817e9a3c086fc00cf0 *frame_00130.bmp | test_inputs/AccuracyCoin/page_11.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 4653ms    | ba3f0f373f0798fc0ba2d77354fbb7b91412848250ba567b6304978bd9330a28 *frame_00278.bmp | test_inputs/AccuracyCoin/page_12.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 2652ms    | 276e80f458fbd7fd72eb7f0209499c369841a0926db15f059c269a63f2ae5910 *frame_00158.bmp | test_inputs/AccuracyCoin/page_13.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 3803ms    | 271d87cc1c780ab65695b6433f796930f7d8aff50c721d1ae6138b052842aaa6 *frame_00227.bmp | test_inputs/AccuracyCoin/page_14.fm2
-AccuracyCoin/AccuracyCoin.nes                                       | 3803ms    | 4c3bedc651d68017253e2e3b481a451a15a704544860f2b904f08f8d187a5fca *frame_00227.bmp | test_inputs/AccuracyCoin/page_15.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 3836ms    | 4c3bedc651d68017253e2e3b481a451a15a704544860f2b904f08f8d187a5fca *frame_00229.bmp | test_inputs/AccuracyCoin/page_15.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 1852ms    | 45a7791b3bf73d1ddad450f813788f281124d5f477f6fbfe1100fee2f872554e *frame_00110.bmp | test_inputs/AccuracyCoin/page_16.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 4103ms    | a53009d017e1bd65abbca73ca708a06c92b17a2995b0531890e3decb763d60b7 *frame_00245.bmp | test_inputs/AccuracyCoin/page_17.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 25083ms   | c4f78a3cd3307c663c89f2465010a567e5acc8257bbb164a6f6c07a2172618d0 *frame_01503.bmp | test_inputs/AccuracyCoin/page_18.fm2
-AccuracyCoin/AccuracyCoin.nes                                       | 12108ms   | bbb0dc53c6ce9cdebae6428bb32e9075bd637c9915d92936f1150d87205f35f3 *frame_00725.bmp | test_inputs/AccuracyCoin/page_19.fm2
+AccuracyCoin/AccuracyCoin.nes                                       | 12175ms   | bbb0dc53c6ce9cdebae6428bb32e9075bd637c9915d92936f1150d87205f35f3 *frame_00729.bmp | test_inputs/AccuracyCoin/page_19.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 13592ms   | a0927af1839405ccd31a00a0b2c87793cc4503b6550705a1ac3138eb1697d79f *frame_00814.bmp | test_inputs/AccuracyCoin/page_20.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 4754ms    | 21f812568a7d0e1eae32c1f00d5821fc8c90bd62c83d0dab0092d87c83c3fa59 *frame_00284.bmp | test_inputs/AccuracyCoin/page_21.fm2
 AccuracyCoin/AccuracyCoin.nes                                       | 5721ms    | 74c476e93bcf89a0796b88dbf2d32969247d562438872f4b42bd536151c81a37 *frame_00342.bmp | test_inputs/AccuracyCoin/page_22.fm2
-
-# Miscellaneous
-nes-test-roms/other/BLOCKS.NES                                      | 120ms     | cb05245ba4adacc3be405665c57768fc62a8e5f9d0d4f0508e49486f39dde61a *frame_00006.bmp

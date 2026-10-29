@@ -125,8 +125,8 @@ begin
             -- state. The step can be undone, so no byte takes away what
             -- earlier bytes put in
             next_lfsr := lfsr_step(lfsr);
-            next_lfsr(7 downto 0) := next_lfsr(7 downto 0) xor
-                                     std_logic_vector(trng_data);
+            next_lfsr(trng_data'range) := next_lfsr(trng_data'range) xor
+                                          std_logic_vector(trng_data);
             lfsr <= next_lfsr;
             if absorbed /= SEED_BYTES
             then

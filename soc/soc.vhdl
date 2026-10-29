@@ -28,6 +28,8 @@ package soc is
     (
         clk   : in std_logic;
         reset : in boolean;
+        -- The reset button
+        soft_reset : in boolean := false;
 
         nes_running : out boolean;
 
@@ -99,6 +101,8 @@ package soc is
     (
         clk   : in std_logic;
         reset : in boolean;
+        -- The reset button
+        soft_reset : in boolean := false;
 
         nes_running : out boolean;
 

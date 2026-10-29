@@ -68,11 +68,14 @@ package simulation is
     generic
     (
         FILEPATH     : string;
-        INPUT_OFFSET : integer := 0
+        INPUT_OFFSET : integer := 0;
+        SOFT_RESET_TIME : time := 20 us
     );
     port
     (
         frame_valid : in boolean;
+
+        soft_reset : out boolean := false;
 
         joy_strobe : in std_logic;
 

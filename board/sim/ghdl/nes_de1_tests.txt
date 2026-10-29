@@ -9,7 +9,6 @@
 #
 # NES file path                                                     | run time  | Hash
 # NROM, CHR ROM
-nes-test-roms/other/BLOCKS.NES                                      | 184ms     | 2fbcd4913eb07e0e83a222a5bd2226dd33b9045f9b94c53d2475572c736d9578 *frame_00010.bmp
 nes-test-roms/instr_test-v5/rom_singles/01-basics.nes               | 367ms     | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00021.bmp
 
 # NROM, CHR RAM

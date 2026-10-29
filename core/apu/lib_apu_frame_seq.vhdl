@@ -179,6 +179,10 @@ package lib_apu_frame_seq is
         odd_cycle : boolean
     )
     return frame_seq_t;
+
+    -- The reset button writes the last value written to $4017 again, at the
+    -- same time power up writes $00, and clears the frame IRQ flag
+    function soft_reset_frame_seq(seq : frame_seq_t) return frame_seq_t;
         
 end lib_apu_frame_seq;
 
@@ -374,4 +378,15 @@ package body lib_apu_frame_seq is
         return ret;
     end;
     
+    function soft_reset_frame_seq(seq : frame_seq_t) return frame_seq_t
+    is
+        variable ret : frame_seq_t;
+    begin
+        ret := RESET_FRAME_SEQ;
+        ret.mode := seq.mode;
+        ret.irq_disable := seq.irq_disable;
+
+        return ret;
+    end;
+
 end package body;
