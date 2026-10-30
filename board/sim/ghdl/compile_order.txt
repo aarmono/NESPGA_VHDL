@@ -141,5 +141,6 @@
 ../../../board/de1/vga_out.vhdl
 ../../../board/de1/nes_de1.vhdl
 ../../../board/de1/ps2_joystick.vhdl
+../../../board/de1/joy_port.vhdl
 ../../../board/de1/vga_video_record.vhdl
 ../../../board/de1/nes_de1_bench.vhdl

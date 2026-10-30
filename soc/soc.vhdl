@@ -77,11 +77,11 @@ package soc is
 
         joy_strobe : out std_logic;
 
-        shift_joy_1 : out std_logic;
-        joy_1_val   : in std_logic := '1';
+        joy_1_clk  : out std_logic;
+        joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
-        shift_joy_2 : out std_logic;
-        joy_2_val   : in std_logic := '1';
+        joy_2_clk  : out std_logic;
+        joy_2_data : in joy_data_t := JOY_DATA_IDLE;
 
         board_cpu_in  : out cart_cpu_in_t;
         board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
@@ -122,11 +122,11 @@ package soc is
 
         joy_strobe : out std_logic;
 
-        shift_joy_1 : out std_logic;
-        joy_1_val   : in std_logic := '1';
+        joy_1_clk  : out std_logic;
+        joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
-        shift_joy_2 : out std_logic;
-        joy_2_val   : in std_logic := '1';
+        joy_2_clk  : out std_logic;
+        joy_2_data : in joy_data_t := JOY_DATA_IDLE;
 
         board_cpu_in  : out cart_cpu_in_t;
         board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE

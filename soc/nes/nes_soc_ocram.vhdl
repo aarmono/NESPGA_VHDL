@@ -57,11 +57,11 @@ port
 
     joy_strobe : out std_logic;
 
-    shift_joy_1 : out std_logic;
-    joy_1_val   : in std_logic := '1';
+    joy_1_clk  : out std_logic;
+    joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
-    shift_joy_2 : out std_logic;
-    joy_2_val   : in std_logic := '1';
+    joy_2_clk  : out std_logic;
+    joy_2_data : in joy_data_t := JOY_DATA_IDLE;
 
     -- See nes_soc
     board_cpu_in  : out cart_cpu_in_t;
@@ -165,11 +165,11 @@ begin
 
         joy_strobe => joy_strobe,
 
-        shift_joy_1 => shift_joy_1,
-        joy_1_val => joy_1_val,
+        joy_1_clk => joy_1_clk,
+        joy_1_data => joy_1_data,
 
-        shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val,
+        joy_2_clk => joy_2_clk,
+        joy_2_data => joy_2_data,
 
         board_cpu_in => board_cpu_in,
         board_cpu_out => board_cpu_out

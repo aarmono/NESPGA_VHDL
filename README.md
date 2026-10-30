@@ -19,7 +19,22 @@ The current status is:
   due to the way the VGA hardware is designed, but this does not appear to
   matter significantly)
 * Audio from the line out on the board
-* Joystick control using a PS2 keyboard (key map is hardcoded)
+* Joystick control using a PS2 keyboard (key map is hardcoded) and/or NES
+  controllers wired to the GPIO_1 (JP2) expansion header
+
+NES controller wiring on JP2:
+
+| Controller port pin | Port 1 (JP2 pin) | Port 2 (JP2 pin) |
+|---|---|---|
+| CLK | 1 (GPIO_1[0]) | 6 (GPIO_1[5]) |
+| OUT (latch) | 2 (GPIO_1[1]) | 7 (GPIO_1[6]) |
+| D0 (data) | 3 (GPIO_1[2]) | 8 (GPIO_1[7]) |
+| D3 | 4 (GPIO_1[3]) | 9 (GPIO_1[8]) |
+| D4 | 5 (GPIO_1[4]) | 10 (GPIO_1[9]) |
+| +5V (connect to 3.3 V) | 29 | 29 |
+| GND | 30 | 30 |
+
+The green LEDs show the buttons the game last read from port 1.
 
 Joystick keymap
 * wsad for directional buttons
