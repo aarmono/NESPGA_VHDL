@@ -132,11 +132,11 @@ package nes_core is
 
         joy_strobe : out std_logic;
 
-        shift_joy_1 : out std_logic;
-        joy_1_val   : in std_logic;
+        joy_1_clk  : out std_logic;
+        joy_1_data : in joy_data_t;
 
-        shift_joy_2 : out std_logic;
-        joy_2_val   : in std_logic
+        joy_2_clk  : out std_logic;
+        joy_2_data : in joy_data_t
     );
     end component joystick_io;
 

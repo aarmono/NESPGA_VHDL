@@ -62,11 +62,11 @@ architecture behavioral of nes_bench is
 
     signal joy_strobe : std_logic;
 
-    signal shift_joy_1 : std_logic;
-    signal joy_1_val   : std_logic;
+    signal joy_1_clk  : std_logic;
+    signal joy_1_data : joy_data_t;
 
-    signal shift_joy_2 : std_logic;
-    signal joy_2_val   : std_logic;
+    signal joy_2_clk  : std_logic;
+    signal joy_2_data : joy_data_t;
 
     signal ppu_clk_en : boolean;
     signal cpu_clk_en : boolean;
@@ -110,11 +110,11 @@ begin
 
         joy_strobe => joy_strobe,
 
-        shift_joy_1 => shift_joy_1,
-        joy_1_val => joy_1_val,
+        joy_1_clk => joy_1_clk,
+        joy_1_data => joy_1_data,
 
-        shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val
+        joy_2_clk => joy_2_clk,
+        joy_2_data => joy_2_data
     );
     
     ppu_recorder : ppu_video_record
@@ -159,11 +159,11 @@ begin
 
         joy_strobe => joy_strobe,
 
-        shift_joy_1 => shift_joy_1,
-        joy_1_val => joy_1_val,
+        joy_1_clk => joy_1_clk,
+        joy_1_data => joy_1_data,
 
-        shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val
+        joy_2_clk => joy_2_clk,
+        joy_2_data => joy_2_data
     );
     
     nes_file : file_memory

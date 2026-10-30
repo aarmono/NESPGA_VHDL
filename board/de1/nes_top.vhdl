@@ -19,6 +19,9 @@ port
     
     PS2_CLK : inout std_logic;
     PS2_DAT : inout std_logic;
+
+    -- JP2 expansion header
+    GPIO_1 : inout std_logic_vector(35 downto 0);
     
     KEY  : in std_logic_vector(3 downto 0);
     SW   : in std_logic_vector(9 downto 0);
@@ -95,6 +98,9 @@ architecture behavioral of nes_top is
     signal clk_vga : std_logic;
     signal clk_we  : std_logic;
     
+    signal joy_1_data : joy_data_t;
+    signal joy_2_data : joy_data_t;
+
     signal aud_locked : std_logic;
     signal vga_locked : std_logic;
     signal reset_n : std_logic;
@@ -102,6 +108,18 @@ architecture behavioral of nes_top is
 begin
     
     reset_n <= aud_locked and vga_locked;
+
+    -- NES controller ports on JP2 header pins 1-5 (port 1) and 6-10
+    -- (port 2), each in the order CLK, latch, D0, D3, D4. Controllers must
+    -- be powered from 3.3 V (pin 29), not 5 V
+    GPIO_1(35 downto 10) <= (others => 'Z');
+    GPIO_1(9 downto 7) <= (others => 'Z');
+    GPIO_1(4 downto 2) <= (others => 'Z');
+
+    joy_1_data <= (0 => GPIO_1(2), 3 => GPIO_1(3), 4 => GPIO_1(4),
+                   others => '1');
+    joy_2_data <= (0 => GPIO_1(7), 3 => GPIO_1(8), 4 => GPIO_1(9),
+                   others => '1');
     
     -- 54 ns clock period 
     aud_clock_gen : aud_pll
@@ -136,6 +154,14 @@ begin
         
         PS2_CLK => PS2_CLK,
         PS2_DAT => PS2_DAT,
+
+        JOY_1_CLK => GPIO_1(0),
+        JOY_1_LATCH => GPIO_1(1),
+        JOY_1_DATA => joy_1_data,
+
+        JOY_2_CLK => GPIO_1(5),
+        JOY_2_LATCH => GPIO_1(6),
+        JOY_2_DATA => joy_2_data,
         
         KEY => KEY,
         SW => SW,
