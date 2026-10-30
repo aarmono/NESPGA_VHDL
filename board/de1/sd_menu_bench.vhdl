@@ -10,17 +10,19 @@ use work.cart_mem_bus_types.all;
 use work.perhipheral_types.all;
 use work.binary_io.all;
 use work.simulation.all;
+use work.sd_menu_stub.all;
 
 -- Runs sd_menu and sdram_rom on an SD card model, with this process in the
 -- place of the CPU, paced by the real NES clock enables.
 --
 -- With a card holding a filesystem (see simulation/sd_card/fat_image.py),
--- the loader must enter menu mode. Blocks are then read through the
+-- the loader must load the boot stub, which is checked against
+-- sd_menu_stub, and enter menu mode. Blocks are then read through the
 -- registers and checked against the image, the extent table is written to
 -- the buffer and read back, and the file is launched. Once it is loaded,
 -- random reads of the cartridge memory bus are checked against ROM_FILEPATH,
--- and the registers must be gone. With DROP_LAST_EXTENT, the launch must
--- fail instead.
+-- and the registers must be gone, or with KEEP_MENU, still there. With
+-- DROP_LAST_EXTENT, the launch must fail instead.
 --
 -- With RAW, the card holds an iNES file from block 0, which must be loaded
 -- without menu mode.
@@ -34,6 +36,7 @@ generic
     EXTENTS_FILEPATH : string := "";
 
     RAW              : boolean := false;
+    KEEP_MENU        : boolean := false;
     DROP_LAST_EXTENT : boolean := false;
     NUM_READS        : positive := 50_000;
 
@@ -54,10 +57,9 @@ architecture behavioral of sd_menu_bench is
     signal cpu_en : boolean;
     signal ppu_en : boolean;
 
-    -- This process stands in for the menu, which runs on the NES
-    signal in_menu   : boolean := false;
     -- Like nes_de1, the NES is held in reset while a file is loaded, so its
-    -- clock enables do not start SDRAM slots during the load
+    -- clock enables do not start SDRAM slots during the load. This process
+    -- stands in for the stub and the menu, which run on the NES
     signal nes_reset : boolean;
 
     signal board_cpu_in  : cart_cpu_in_t :=
@@ -238,7 +240,7 @@ begin
         report "SD card error"
         severity failure;
 
-    nes_reset <= loading and not in_menu;
+    nes_reset <= loading;
 
     nes_clk_en : entity work.clk_en(behavioral)
     port map
@@ -271,6 +273,7 @@ begin
         variable rand    : real;
         variable addr    : natural;
         variable expected : data_t;
+        variable stub_byte : data_t;
 
         -- One CPU cycle. The bus changes after a CPU clock enable and is
         -- taken at the next, like the bus of the NES
@@ -317,6 +320,17 @@ begin
                     severity failure;
                 exit when data(7) = '0';
             end loop;
+        end;
+
+        -- Reads the cartridge memory bus like the NES core: the bus changes
+        -- right after a PPU clock enable and the data is taken at the next
+        procedure cart_read(a : natural)
+        is
+        begin
+            cart_mem_bus <= bus_read(to_unsigned(a, cart_mem_addr_t'length));
+            wait until rising_edge(clk_50) and ppu_en;
+            wait until rising_edge(clk_50) and ppu_en;
+            data := cart_mem_data;
         end;
 
         procedure read_block(blk : natural)
@@ -370,10 +384,43 @@ begin
         else
             wait until no_header;
             report "No iNES header at " & time'image(now);
-            in_menu <= true;
+            wait until not no_header;
+            assert loading
+                report "Not loading the stub"
+                severity failure;
+            wait until not loading;
+            report "Stub loaded at " & time'image(now);
+
+            -- The stub's image, with the PRG ROM padded below the stub
+            for i in 0 to STUB_HEADER'length + STUB_PRG_BYTES - 1
+            loop
+                if i < STUB_HEADER'length
+                then
+                    stub_byte := STUB_HEADER(i);
+                elsif i < STUB_HEADER'length + STUB_PRG_BYTES - STUB_BYTES
+                then
+                    stub_byte := x"FF";
+                else
+                    stub_byte := STUB_ROM(i - STUB_HEADER'length -
+                                          STUB_PRG_BYTES + STUB_BYTES);
+                end if;
+                cart_read(i);
+                if data /= stub_byte
+                then
+                    errors := errors + 1;
+                    report "Stub image byte " & integer'image(i) &
+                           ": expected " & to_hstring(stub_byte) & " got " &
+                           to_hstring(data)
+                        severity error;
+                end if;
+            end loop;
+            assert errors = 0
+                report integer'image(errors) & " stub image errors"
+                severity failure;
+            cart_mem_bus <= CART_MEM_BUS_IDLE;
             wait until rising_edge(clk_50) and cpu_en;
 
-            -- Menu mode starts once the reader has finished the block
+            -- Menu mode starts once the stub is loaded
             loop
                 cpu_read(16#5204#);
                 exit when oe;
@@ -431,8 +478,7 @@ begin
                 report integer'image(errors) & " block read errors"
                 severity failure;
 
-            cpu_write(16#5205#, x"00");
-            in_menu <= false;
+            cpu_write(16#5205#, x"0" & "000" & to_std_logic(KEEP_MENU));
             report "Launched at " & time'image(now);
 
             wait until rising_edge(clk_50);
@@ -462,27 +508,47 @@ begin
 
         -- The registers are only there in menu mode
         cpu_read(16#5200#);
-        assert not oe report "Registers after loading" severity failure;
-        cpu_read(16#5000#);
-        assert not oe report "Buffer after loading" severity failure;
+        if KEEP_MENU
+        then
+            assert oe report "No registers after loading the menu"
+                severity failure;
+            cpu_read(16#5000#);
+            assert oe and data = extents(0)
+                report "No buffer after loading the menu"
+                severity failure;
+            -- Launch again while sd_reader still discards the rest of the
+            -- file's last block, which must not reach sdram_rom
+            cpu_write(16#5205#, x"01");
+            wait until rising_edge(clk_50);
+            wait until rising_edge(clk_50);
+            assert loading report "Relaunch did not restart the load"
+                severity failure;
+            wait until not loading or launch_failed;
+            assert not launch_failed
+                report "Relaunch failed"
+                severity failure;
+            report "Loaded again at " & time'image(now);
+            read_block(first + 1);
+            assert errors = 0
+                report "Block read error after loading the menu"
+                severity failure;
+        else
+            assert not oe report "Registers after loading" severity failure;
+            cpu_read(16#5000#);
+            assert not oe report "Buffer after loading" severity failure;
+        end if;
 
-        -- Like the NES core, change the cartridge memory bus right after
-        -- each PPU clock enable and consume the data at the next one
         for i in 1 to NUM_READS
         loop
             uniform(seed1, seed2, rand);
             addr := integer(floor(rand * real(ROM_BYTES)));
-            cart_mem_bus <= bus_read(to_unsigned(addr,
-                                                 cart_mem_addr_t'length));
-            wait until rising_edge(clk_50) and ppu_en;
-            wait until rising_edge(clk_50) and ppu_en;
+            cart_read(addr);
             expected := rom_file(addr);
-            if cart_mem_data /= expected
+            if data /= expected
             then
                 errors := errors + 1;
                 report "ROM byte " & integer'image(addr) & ": expected " &
-                       to_hstring(expected) & " got " &
-                       to_hstring(cart_mem_data)
+                       to_hstring(expected) & " got " & to_hstring(data)
                     severity error;
             end if;
         end loop;

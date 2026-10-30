@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: sd_menu_bench
 
 # Elaboration target
-sd_menu_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o utilities.o nes_types.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_mem_bus_types.o cart_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o perhipherals.o sd_reader.o sd_menu.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o sd_menu_bench.o /opt/ghdl/lib/ghdl/std/v08/env-body.o syncram_sp.o clock.o
+sd_menu_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o utilities.o nes_types.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_mem_bus_types.o cart_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o sd_menu_bench.o /opt/ghdl/lib/ghdl/std/v08/env-body.o syncram_sp.o clock.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -74,6 +74,8 @@ nes_audio_mixer.o: ../../../core/nes_audio_mixer.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 simulation.o: ../../../simulation/simulation.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+sd_menu_stub.o: ../../../board/de1/sd_menu_stub.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 perhipherals.o: ../../../perhiperals/perhipherals.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sd_reader.o: ../../../perhiperals/sd_card/sd_reader.vhdl
@@ -128,16 +130,17 @@ apu_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghd
 file_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 nes_audio_mixer.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o
 simulation.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
+sd_menu_stub.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o nes_types.o
 perhipherals.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o
 sd_reader.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o perhipheral_types.o
-sd_menu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o cart_types.o perhipherals.o perhipheral_types.o sd_reader.o
+sd_menu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o cart_types.o perhipherals.o perhipheral_types.o sd_menu_stub.o sd_reader.o
 sdram_ctrl.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 sdram_rom.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
 sdram.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 sd_card.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o
 clk_en.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 /opt/ghdl/lib/ghdl/std/v08/env.o: 
-sd_menu_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o nes_types.o utilities.o prg_bus_types.o cart_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o simulation.o sd_menu.o sdram_rom.o sdram.o sd_card.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o
+sd_menu_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o nes_types.o utilities.o prg_bus_types.o cart_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o simulation.o sd_menu_stub.o sd_menu.o sdram_rom.o sdram.o sd_card.o clk_en.o /opt/ghdl/lib/ghdl/std/v08/env.o
 /opt/ghdl/lib/ghdl/std/v08/env-body.o:  /opt/ghdl/lib/ghdl/std/v08/env.o
 syncram_sp.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o utilities.o
 clock.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o

@@ -7,14 +7,17 @@ use work.prg_bus_types.all;
 use work.cart_types.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
+use work.sd_menu_stub.all;
 
 -- The SD card side of ROM_SD_MENU. It loads ROM files from the card into
 -- sdram_rom, and gives the menu, which runs on the NES, access to the card.
 --
 -- After reset the card is streamed into sdram_rom from block 0, as with
 -- ROM_SD_TO_SDRAM. If the card holds a filesystem rather than an iNES file,
--- sdram_rom stops the stream (rom_no_header), and the loader enters menu
--- mode.
+-- sdram_rom stops the stream (rom_no_header). The boot stub (see
+-- sd_menu/stub.s) is then streamed into sdram_rom instead, as an NROM image
+-- whose PRG ROM is padded below the stub, and the loader enters menu mode
+-- once it is loaded. The stub launches MENU.NES from the card.
 --
 -- In menu mode the CPU sees these registers on the CPU side of the
 -- cartridge connector. Only A9 and A2-A0 are decoded in 0x5000-0x5FFF, so
@@ -24,21 +27,22 @@ use work.perhipheral_types.all;
 --   0x5200         W    Shifts a byte into the top of the 32 bit block
 --                       number. Write its 4 bytes, lowest first
 --   0x5204         W    Read the block into the buffer
---   0x5205         W    Launch
+--   0x5205         W    Launch. Bit 0: stay in menu mode
 --   0x5200-0x53FF  R    Status. Bit 7: a read is running. Bit 6: the card
 --                       failed
 --
--- The value written to a command is ignored. The buffer must not be
--- accessed while a block is read into it, and commands are ignored until the
--- read is over.
+-- Other bits of the values written to commands are ignored. The buffer must
+-- not be accessed while a block is read into it, and commands are ignored
+-- until the read is over.
 --
 -- Launch loads the file whose extents are in the buffer and leaves menu
--- mode. Each of the 64 entries of 8 bytes holds the first block of an
--- extent (4 bytes, lowest first), its number of blocks (2 bytes, lowest
--- first) and 2 unused bytes. A count of 0 ends the list. sdram_rom restarts,
--- so the NES is held in reset until the file is loaded and then powers up
--- into it. If the extents end before the file is loaded, or the file has no
--- iNES header, launch_failed becomes true.
+-- mode, unless bit 0 is set, as when the stub launches the menu. Each of the
+-- 64 entries of 8 bytes holds the first block of an extent (4 bytes, lowest
+-- first), its number of blocks (2 bytes, lowest first) and 2 unused bytes.
+-- A count of 0 ends the list. sdram_rom restarts, so the NES is held in
+-- reset until the file is loaded and then powers up into it. If the extents
+-- end before the file is loaded, or the file has no iNES header,
+-- launch_failed becomes true.
 entity sd_menu is
 generic
 (
@@ -86,10 +90,22 @@ architecture behavioral of sd_menu is
     subtype buf_addr_t is std_logic_vector(8 downto 0);
     subtype count_t is std_logic_vector(15 downto 0);
 
+    constant HEADER_BYTES : positive := stub_header_t'length;
+    -- The stub's iNES image: the header, then the PRG ROM
+    subtype stub_pos_t is natural range 0 to HEADER_BYTES + STUB_PRG_BYTES - 1;
+    -- Where the stub starts in the image
+    constant STUB_START : positive := HEADER_BYTES + STUB_PRG_BYTES -
+                                      STUB_BYTES;
+    subtype stub_addr_t is natural range 0 to STUB_BYTES - 1;
+
     type state_t is
     (
         -- Streaming the card from block 0 into sdram_rom
         ST_BOOT,
+        -- Restarting sdram_rom for the stub
+        ST_STUB_START,
+        -- Streaming the stub into sdram_rom
+        ST_STUB,
         -- Menu mode, waiting for a command
         ST_MENU,
         -- Menu mode, reading a block into the buffer
@@ -113,6 +129,12 @@ architecture behavioral of sd_menu is
         count  : count_t;
         extent : extent_t;
         fetch  : fetch_t;
+        -- The byte of the stub's image to stream, and whether it has been
+        -- read from the stub ROM
+        stub_pos   : stub_pos_t;
+        stub_ready : boolean;
+        -- Enter menu mode once the launched file is loaded
+        keep_menu  : boolean;
     end record;
 
     constant RESET_REG : reg_t :=
@@ -122,7 +144,10 @@ architecture behavioral of sd_menu is
         blk => (others => '0'),
         count => (others => '0'),
         extent => 0,
-        fetch => 0
+        fetch => 0,
+        stub_pos => 0,
+        stub_ready => false,
+        keep_menu => false
     );
 
     type menu_in_t is record
@@ -130,6 +155,7 @@ architecture behavioral of sd_menu is
         cpu_bus       : cart_cpu_in_t;
         rom_loading   : boolean;
         rom_no_header : boolean;
+        load_ready    : boolean;
         -- sd_reader is idle
         sd_idle       : boolean;
         buf_data      : data_t;
@@ -178,7 +204,24 @@ architecture behavioral of sd_menu is
                     ret.state := ST_LOADED;
                 elsif menu_in.rom_no_header and menu_in.sd_idle
                 then
+                    ret.state := ST_STUB_START;
+                end if;
+            when ST_STUB_START =>
+                ret.stub_pos := 0;
+                ret.stub_ready := false;
+                ret.state := ST_STUB;
+            when ST_STUB =>
+                -- The stub ROM's data is for the address of the clock before
+                if not menu_in.rom_loading
+                then
                     ret.state := ST_MENU;
+                elsif not reg.stub_ready
+                then
+                    ret.stub_ready := true;
+                elsif menu_in.load_ready and reg.stub_pos /= stub_pos_t'high
+                then
+                    ret.stub_pos := reg.stub_pos + 1;
+                    ret.stub_ready := false;
                 end if;
             when ST_MENU =>
                 if menu_in.cpu_clk_en and is_reg_write(menu_in.cpu_bus)
@@ -192,6 +235,7 @@ architecture behavioral of sd_menu is
                             ret.req := true;
                             ret.state := ST_READ;
                         when "101" =>
+                            ret.keep_menu := menu_in.cpu_bus.data(0) = '1';
                             ret.state := ST_LAUNCH;
                         when others =>
                             null;
@@ -229,12 +273,20 @@ architecture behavioral of sd_menu is
                     ret.fetch := reg.fetch + 1;
                 end if;
             when ST_RUN =>
-                if v_run_done
+                -- The NES leaves reset once the file is loaded, so menu
+                -- mode starts then, while sd_reader discards the rest of the
+                -- block. A read waits for it
+                if not menu_in.rom_loading
                 then
-                    if not menu_in.rom_loading
+                    if reg.keep_menu
                     then
+                        ret.state := ST_MENU;
+                    else
                         ret.state := ST_LOADED;
-                    elsif menu_in.rom_no_header or reg.extent = extent_t'high
+                    end if;
+                elsif v_run_done
+                then
+                    if menu_in.rom_no_header or reg.extent = extent_t'high
                     then
                         ret.state := ST_FAILED;
                     else
@@ -256,6 +308,9 @@ architecture behavioral of sd_menu is
     -- The data read from the card goes to sdram_rom, not the buffer
     signal to_sdram  : boolean;
 
+    signal stub_addr : stub_addr_t;
+    signal stub_data : data_t;
+
     signal req_count : sd_count_t;
     signal req_ready : boolean;
     signal sd_stop   : boolean;
@@ -273,21 +328,45 @@ architecture behavioral of sd_menu is
 begin
 
     menu_mode <= reg.state = ST_MENU or reg.state = ST_READ;
-    to_sdram <= reg.state /= ST_READ;
+    to_sdram <= reg.state /= ST_READ and reg.state /= ST_STUB;
 
-    rom_restart <= reg.state = ST_LAUNCH;
+    rom_restart <= reg.state = ST_STUB_START or reg.state = ST_LAUNCH;
     launch_failed <= reg.state = ST_FAILED;
     sd_failed <= sd_error;
 
     req_count <= to_integer(reg.count);
 
-    -- Once sdram_rom has the whole file, or has refused it, the rest of the
-    -- block is discarded and the run ends
-    sd_stop <= to_sdram and (not rom_loading or rom_no_header);
+    -- A run is only wanted while it reads a block into the buffer, or a
+    -- file that sdram_rom still takes. Otherwise the rest of the block is
+    -- discarded and the run ends: once sdram_rom has the whole file or has
+    -- refused it, and while a new run waits for that
+    sd_stop <= reg.req or not
+               (reg.state = ST_READ or
+                ((reg.state = ST_BOOT or reg.state = ST_RUN) and
+                 rom_loading and not rom_no_header));
 
-    load_valid <= sd_valid and to_sdram;
-    load_data <= sd_data;
+    load_valid <= reg.stub_ready when reg.state = ST_STUB else
+                  sd_valid and to_sdram;
+    load_data <=
+        sd_data when reg.state /= ST_STUB else
+        STUB_HEADER(reg.stub_pos mod HEADER_BYTES)
+            when reg.stub_pos < HEADER_BYTES else
+        x"FF" when reg.stub_pos < STUB_START else
+        stub_data;
     sd_ready <= load_ready or not to_sdram;
+
+    -- The stub is the top of the PRG ROM, which follows the header, so it
+    -- starts HEADER_BYTES past a multiple of STUB_BYTES
+    stub_addr <= (reg.stub_pos + STUB_BYTES - HEADER_BYTES) mod STUB_BYTES;
+
+    -- In a process of its own, so that it is built as a ROM
+    process(clk)
+    begin
+    if rising_edge(clk)
+    then
+        stub_data <= STUB_ROM(stub_addr);
+    end if;
+    end process;
 
     -- The buffer has one port. A block read into it has it to itself, so
     -- the CPU only has it in menu mode while no block is read, and the
@@ -376,6 +455,7 @@ begin
                                     cpu_bus => board_cpu_in,
                                     rom_loading => rom_loading,
                                     rom_no_header => rom_no_header,
+                                    load_ready => load_ready,
                                     sd_idle => req_ready,
                                     buf_data => data_from_buf));
         end if;

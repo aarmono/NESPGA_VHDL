@@ -361,8 +361,7 @@ begin
     LEDR(9) <= SW(9);
     LEDR(8 downto 2) <= (others => '0');
     LEDR(1) <= to_std_logic(rom_loading);
-    -- There is no menu to read a card that holds a filesystem yet
-    LEDR(0) <= to_std_logic(sd_error or rom_no_header or launch_error);
+    LEDR(0) <= to_std_logic(sd_error or launch_error);
     
     LEDG <= not joy_1_reg;
     
