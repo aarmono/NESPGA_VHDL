@@ -29,6 +29,17 @@ port
     
     PS2_CLK : inout std_logic;
     PS2_DAT : inout std_logic;
+
+    -- NES controller ports. The data lines are low while pressed and must
+    -- be pulled up, so that an empty port reads as nothing pressed. The
+    -- keyboard shares port 1
+    JOY_1_LATCH : out std_logic;
+    JOY_1_CLK   : out std_logic;
+    JOY_1_DATA  : in joy_data_t := JOY_DATA_IDLE;
+
+    JOY_2_LATCH : out std_logic;
+    JOY_2_CLK   : out std_logic;
+    JOY_2_DATA  : in joy_data_t := JOY_DATA_IDLE;
     
     -- Push buttons, low while pressed. KEY(0) is the reset button
     KEY  : in std_logic_vector(3 downto 0) := (others => '1');
@@ -144,13 +155,14 @@ architecture behavioral of nes_de1 is
     signal load_ready : boolean;
     
     signal joy_strobe : std_logic;
-    
-    signal shift_joy_1 : std_logic;
-    signal joy_1_val   : std_logic;
-    signal joy_1_reg   : std_logic_vector(7 downto 0);
-    
-    signal shift_joy_2 : std_logic;
-    signal joy_2_val   : std_logic;
+
+    signal nes_joy_1_clk  : std_logic;
+    signal nes_joy_1_data : joy_data_t;
+    signal joy_1_kbd      : joy_data_t;
+    signal joy_1_buttons  : std_logic_vector(7 downto 0);
+
+    signal nes_joy_2_clk  : std_logic;
+    signal nes_joy_2_data : joy_data_t;
     
 begin
     
@@ -305,7 +317,7 @@ begin
     LEDR(1) <= to_std_logic(rom_loading);
     LEDR(0) <= to_std_logic(sd_error);
     
-    LEDG <= not joy_1_reg;
+    LEDG <= not joy_1_buttons;
     
     -- WM8731 interface {
     aud_out : wm8731
@@ -391,13 +403,49 @@ begin
         
         joy_strobe => joy_strobe,
         
-        shift_joy_1 => shift_joy_1,
-        joy_1_val => joy_1_val,
+        joy_1_clk => nes_joy_1_clk,
+        joy_1_data => nes_joy_1_data,
         
-        shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val
+        joy_2_clk => nes_joy_2_clk,
+        joy_2_data => nes_joy_2_data
     );
     
+    joy_port_1 : joy_port
+    port map
+    (
+        clk => CLOCK_50,
+        reset => reset_50,
+
+        joy_strobe => joy_strobe,
+        joy_clk => nes_joy_1_clk,
+        joy_data => nes_joy_1_data,
+
+        int_data => joy_1_kbd,
+
+        buttons => joy_1_buttons,
+
+        pin_latch => JOY_1_LATCH,
+        pin_clk => JOY_1_CLK,
+        pin_data => JOY_1_DATA
+    );
+
+    joy_port_2 : joy_port
+    port map
+    (
+        clk => CLOCK_50,
+        reset => reset_50,
+
+        joy_strobe => joy_strobe,
+        joy_clk => nes_joy_2_clk,
+        joy_data => nes_joy_2_data,
+
+        buttons => open,
+
+        pin_latch => JOY_2_LATCH,
+        pin_clk => JOY_2_CLK,
+        pin_data => JOY_2_DATA
+    );
+
     joystick : ps2_joystick
     port map
     (
@@ -412,13 +460,8 @@ begin
         ps2_dat => PS2_DAT,
         
         joy_strobe => joy_strobe,
-        
-        shift_joy_1 => shift_joy_1,
-        joy_1_val => joy_1_val,
-        joy_1_reg => joy_1_reg,
-        
-        shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val,
+        joy_clk => nes_joy_1_clk,
+        joy_data => joy_1_kbd,
 
         soft_reset => esc_reset
     );

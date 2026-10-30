@@ -6,6 +6,15 @@ use work.utilities.all;
 package nes_types is
     
     subtype data_t is std_logic_vector(7 downto 0);
+
+    -- Data lines D4-D0 of a controller port, as driven by the controller:
+    -- low for a pressed button. The CPU reads them inverted in bits 4-0 of
+    -- $4016/$4017. A standard controller only drives D0; the Zapper and
+    -- Power Pad use D3 and D4, and the rest come from the expansion port
+    subtype joy_data_t is std_logic_vector(4 downto 0);
+    -- Nothing connected: the lines are pulled up
+    constant JOY_DATA_IDLE : joy_data_t := (others => '1');
+
     subtype audio_t is natural range 0 to 15;
     subtype dmc_audio_t is natural range 0 to 127;
     

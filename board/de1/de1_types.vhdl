@@ -113,20 +113,42 @@ package de1_types is
         ps2_clk : inout std_logic;
         ps2_dat : inout std_logic;
         
-        joy_strobe  : in std_logic;
-        
-        shift_joy_1 : in std_logic;
-        joy_1_val   : out std_logic;
-        joy_1_reg   : out std_logic_vector(7 downto 0);
-        
-        shift_joy_2 : in std_logic;
-        joy_2_val   : out std_logic;
-        joy_2_reg   : out std_logic_vector(7 downto 0);
+        -- The keyboard as a standard controller, synchronized to clk_cpu
+        joy_strobe : in std_logic;
+        joy_clk    : in std_logic;
+        joy_data   : out joy_data_t;
 
         -- Escape is held. Synchronized to clk_cpu
         soft_reset : out boolean
     );
     end component ps2_joystick;
+
+    component joy_port is
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean;
+
+        -- CPU side of the port. joy_strobe and joy_clk must be registered
+        -- (glitch free), since they drive the pins directly
+        joy_strobe : in std_logic;
+        joy_clk    : in std_logic;
+        joy_data   : out joy_data_t;
+
+        -- Data lines of the controllers inside the FPGA on this port
+        int_data : in joy_data_t := JOY_DATA_IDLE;
+
+        -- The first 8 bits the CPU read from D0 after the last strobe: the
+        -- buttons of a standard controller, with A in bit 0. Low while
+        -- pressed
+        buttons : out std_logic_vector(7 downto 0);
+
+        pin_latch : out std_logic;
+        pin_clk   : out std_logic;
+        -- Pulled up, so that an empty port reads as nothing pressed
+        pin_data  : in joy_data_t
+    );
+    end component joy_port;
 
     component nes_de1 is
     generic
@@ -147,6 +169,17 @@ package de1_types is
 
         PS2_CLK : inout std_logic;
         PS2_DAT : inout std_logic;
+
+        -- NES controller ports. The data lines are low while pressed and
+        -- must be pulled up, so that an empty port reads as nothing
+        -- pressed. The keyboard shares port 1
+        JOY_1_LATCH : out std_logic;
+        JOY_1_CLK   : out std_logic;
+        JOY_1_DATA  : in joy_data_t := JOY_DATA_IDLE;
+
+        JOY_2_LATCH : out std_logic;
+        JOY_2_CLK   : out std_logic;
+        JOY_2_DATA  : in joy_data_t := JOY_DATA_IDLE;
 
         -- Push buttons, low while pressed
         KEY  : in std_logic_vector(3 downto 0) := (others => '1');

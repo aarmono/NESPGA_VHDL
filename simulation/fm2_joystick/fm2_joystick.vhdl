@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use std.textio.all;
 use work.fm2_file.all;
+use work.nes_types.all;
 
 entity fm2_joystick is
 generic
@@ -20,13 +21,14 @@ port
     -- has the soft reset command
     soft_reset : out boolean := false;
 
+    -- Standard controllers on both ports
     joy_strobe : in std_logic;
 
-    shift_joy_1 : in std_logic;
-    joy_1_val   : out std_logic;
+    joy_1_clk  : in std_logic;
+    joy_1_data : out joy_data_t;
 
-    shift_joy_2 : in std_logic;
-    joy_2_val   : out std_logic
+    joy_2_clk  : in std_logic;
+    joy_2_data : out joy_data_t
 );
 end fm2_joystick;
 
@@ -40,17 +42,20 @@ architecture behavioral of fm2_joystick is
 
 begin
 
-    joy_1_val <= joy_1_shift(0);
-    joy_2_val <= joy_2_shift(0);
+    joy_1_data <= (0 => joy_1_shift(0), others => '1');
+    joy_2_data <= (0 => joy_2_shift(0), others => '1');
 
     process(all)
     begin
 
-        -- Mimics the behavior of a 4021 shift register
+        -- Mimics the behavior of a 4021 shift register: it loads the buttons
+        -- while the strobe is high and shifts on the rising edge of CLK
+        -- otherwise. Its serial input is grounded, so it shifts in 0s
+        -- (pressed), which the CPU reads as 1s after the 8 buttons
         if joy_strobe = '1'
         then
             joy_1_shift <= unsigned(joy_1_cur);
-        elsif rising_edge(shift_joy_1)
+        elsif rising_edge(joy_1_clk)
         then
             joy_1_shift <= shift_right(joy_1_shift, 1);
         end if;
@@ -58,7 +63,7 @@ begin
         if joy_strobe = '1'
         then
             joy_2_shift <= unsigned(joy_2_cur);
-        elsif rising_edge(shift_joy_2)
+        elsif rising_edge(joy_2_clk)
         then
             joy_2_shift <= shift_right(joy_2_shift, 1);
         end if;

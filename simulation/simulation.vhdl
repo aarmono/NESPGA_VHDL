@@ -77,13 +77,14 @@ package simulation is
 
         soft_reset : out boolean := false;
 
+        -- Standard controllers on both ports
         joy_strobe : in std_logic;
 
-        shift_joy_1 : in std_logic;
-        joy_1_val   : out std_logic;
+        joy_1_clk  : in std_logic;
+        joy_1_data : out joy_data_t;
 
-        shift_joy_2 : in std_logic;
-        joy_2_val   : out std_logic
+        joy_2_clk  : in std_logic;
+        joy_2_data : out joy_data_t
     );
     end component fm2_joystick;
     

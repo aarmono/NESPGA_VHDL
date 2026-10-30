@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
+use work.nes_types.all;
 use work.perhipheral_types.all;
 use work.perhipherals.all;
 
@@ -19,15 +20,10 @@ port
     ps2_clk : inout std_logic;
     ps2_dat : inout std_logic;
     
-    joy_strobe  : in std_logic;
-    
-    shift_joy_1 : in std_logic;
-    joy_1_val   : out std_logic;
-    joy_1_reg   : out std_logic_vector(7 downto 0);
-    
-    shift_joy_2 : in std_logic;
-    joy_2_val   : out std_logic;
-    joy_2_reg   : out std_logic_vector(7 downto 0);
+    -- The keyboard as a standard controller, synchronized to clk_cpu
+    joy_strobe : in std_logic;
+    joy_clk    : in std_logic;
+    joy_data   : out joy_data_t;
 
     -- Escape is held. Synchronized to clk_cpu
     soft_reset : out boolean
@@ -77,20 +73,16 @@ architecture behavioral of ps2_joystick is
     signal joy_1_vals_cpu  : joy_vals_t := (others => '1');
     signal joy_1_shift : unsigned(joy_vals_t'range) := (others => '1');
     
-    signal shift_joy_1_prev : std_logic;
+    signal joy_clk_prev : std_logic := '1';
 
-    signal sig_joy_1_reg : joy_vals_t;
+    signal joy_1_buttons : joy_vals_t;
 
     signal esc_sync : boolean := false;
     signal esc_cpu  : boolean := false;
 
 begin
 
-    joy_1_val <= joy_1_shift(0);
-    joy_2_val <= '1';
-    
-    joy_1_reg <= sig_joy_1_reg;
-    joy_2_reg <= (others => '1');
+    joy_data <= (0 => joy_1_shift(0), others => '1');
 
     soft_reset <= esc_cpu;
 
@@ -179,7 +171,7 @@ begin
     end if;
     end process;
     
-    sig_joy_1_reg <= apply_filter(joy_1_vals_cpu) when filter_invalid else
+    joy_1_buttons <= apply_filter(joy_1_vals_cpu) when filter_invalid else
                      joy_1_vals_cpu;
     
     process(clk_cpu)
@@ -191,10 +183,10 @@ begin
             joy_1_vals_cpu   <= (others => '1');
             esc_sync         <= false;
             esc_cpu          <= false;
-            shift_joy_1_prev <= '0';
+            joy_clk_prev     <= '1';
             joy_1_shift      <= (others => '1');
         else
-            shift_joy_1_prev <= shift_joy_1;
+            joy_clk_prev <= joy_clk;
             
             -- Clock domain crossing. The keys change independently, so
             -- each bit is synchronized on its own
@@ -204,10 +196,13 @@ begin
             esc_cpu  <= esc_sync;
             esc_sync <= esc_ps2;
             
+            -- Mimics the 4021 shift register in a standard controller: it
+            -- loads the buttons while the strobe is high, and otherwise
+            -- shifts in 0s on the rising edge of CLK
             if joy_strobe = '1'
             then
-                joy_1_shift <= unsigned(sig_joy_1_reg);
-            elsif shift_joy_1 = '1' and shift_joy_1_prev = '0'
+                joy_1_shift <= unsigned(joy_1_buttons);
+            elsif joy_clk = '1' and joy_clk_prev = '0'
             then
                 joy_1_shift <= shift_right(joy_1_shift, 1);
             end if;
