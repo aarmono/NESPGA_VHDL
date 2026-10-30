@@ -14,7 +14,11 @@ use work.cart_mem_bus_types.all;
 -- header says the file holds are copied, otherwise MAX_BYTES are. With
 -- REQUIRE_INES, a stream that does not start with an iNES header is not
 -- copied: no_header becomes true after its first 4 bytes, no more bytes are
--- taken, and loading stays true until reset.
+-- taken, and loading stays true until reset or restart.
+--
+-- restart starts a new copy, of a new stream, from the start, without
+-- initializing the SDRAM again. It only writes the lower half of the
+-- cartridge memory bus, so the cartridge RAMs keep their contents.
 --
 -- Once loading is complete each PPU cycle gets one SDRAM slot, started
 -- START_DELAY clocks after ppu_clk_en, which serves a read or a write of the
@@ -34,6 +38,8 @@ port
 (
     clk   : in std_logic;
     reset : in boolean;
+
+    restart : in boolean := false;
 
     loading   : out boolean;
     no_header : out boolean;
@@ -269,6 +275,14 @@ begin
                 address <= resize(cart_mem_bus.address, sdram_addr_t'length);
                 write_data <= data_to_cart_mem;
         end case;
+
+        -- Any slot started above still completes, since the copy only starts
+        -- slots once the SDRAM is idle
+        if restart and reg.state /= STATE_INIT
+        then
+            v_reg := RESET_REG;
+            v_reg.state := STATE_COPY;
+        end if;
 
         reg_in <= v_reg;
     end process;

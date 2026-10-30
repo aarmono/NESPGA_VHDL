@@ -371,6 +371,7 @@ set_global_assignment -name VHDL_FILE vga_pll.vhd
 set_global_assignment -name VHDL_FILE aud_pll.vhd
 set_global_assignment -name VHDL_FILE ppu_video_ram_mux.vhdl
 set_global_assignment -name VHDL_FILE sdram_rom.vhdl
+set_global_assignment -name VHDL_FILE sd_menu.vhdl
 set_global_assignment -name VHDL_FILE flash_stream.vhdl
 set_global_assignment -name VHDL_FILE ps2_joystick.vhdl
 set_global_assignment -name VHDL_FILE vga_out.vhdl

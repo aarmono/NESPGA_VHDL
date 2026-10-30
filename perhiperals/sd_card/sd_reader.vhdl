@@ -2,20 +2,26 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.utilities.all;
+use work.perhipheral_types.all;
 
--- Streams the contents of an SD card, starting at START_BLOCK, over SPI.
+-- Reads runs of consecutive blocks from an SD card over SPI.
 --
 -- After reset the card is initialized (CMD0, CMD8, ACMD41, CMD58, CMD16) at
--- INIT_SCK_FREQ and then read one 512 byte block at a time with CMD17 at
--- SCK_FREQ. Both standard capacity (byte addressed) and high capacity
--- (block addressed) cards are supported.
+-- INIT_SCK_FREQ, and blocks are then read one 512 byte block at a time with
+-- CMD17 at SCK_FREQ. Both standard capacity (byte addressed) and high
+-- capacity (block addressed) cards are supported.
+--
+-- The first run, of START_COUNT blocks from START_BLOCK, starts as soon as
+-- the card is initialized. Once a run is over the card is deselected and
+-- req_ready is true, and a run of req_count blocks from req_block is started
+-- on a clock where req_valid is also true. req_count must be at least 1.
 --
 -- Each received byte is presented on data with valid true until it is taken
--- by a clock where ready is also true. The card clock is paused until then,
--- so the consumer may take as long as it likes. Once stop is true the rest
--- of the current block is read and discarded and the card is deselected, so
--- that it is left in a state where it can be initialized again after a
--- reset.
+-- by a clock where ready is also true, and offset is its offset in the
+-- block. The card clock is paused until then, so the consumer may take as
+-- long as it likes. Once stop is true the rest of the current block is read
+-- and discarded, the run ends and the card is deselected, so that it is left
+-- in a state where it can be initialized again after a reset.
 --
 -- If the card does not respond as expected failed becomes true and the
 -- reader stops until the next reset.
@@ -32,6 +38,7 @@ generic
     SCK_FREQ      : positive := 12_500_000;
 
     START_BLOCK : natural := 0;
+    START_COUNT : sd_count_t := sd_count_t'high;
 
     -- Time to wait after reset before talking to the card
     POWER_UP_US : natural := 1000;
@@ -49,10 +56,16 @@ port
 
     failed : out boolean;
 
-    stop  : in boolean;
-    data  : out std_logic_vector(7 downto 0);
-    valid : out boolean;
-    ready : in boolean;
+    req_valid : in boolean := false;
+    req_block : in sd_block_t := (others => '0');
+    req_count : in sd_count_t := 1;
+    req_ready : out boolean;
+
+    stop   : in boolean;
+    data   : out std_logic_vector(7 downto 0);
+    offset : out sd_offset_t;
+    valid  : out boolean;
+    ready  : in boolean;
 
     sd_clk  : out std_logic;
     sd_cs_n : out std_logic;
@@ -81,7 +94,6 @@ architecture behavioral of sd_reader is
     subtype div_t is natural range 0 to INIT_HALF_CLKS - 1;
     subtype timer_t is natural range 0 to max(POWER_UP_CLKS, TIMEOUT_CLKS);
     subtype count_t is natural range 0 to BLOCK_BYTES - 1;
-    subtype block_t is natural range 0 to 2**23 - 1;
     subtype byte_t is std_logic_vector(7 downto 0);
     subtype frame_t is std_logic_vector(47 downto 0);
 
@@ -100,9 +112,11 @@ architecture behavioral of sd_reader is
         ST_TOKEN,
         ST_DATA,
         ST_CRC,
-        -- Clock one byte with CS high, then send cmd
+        -- Clock one byte with CS high, then send cmd, unless it is the read
+        -- of a block after the end of the run
         ST_DESELECT,
-        ST_DONE,
+        -- Waiting for a run to read
+        ST_IDLE,
         ST_ERROR
     );
 
@@ -129,7 +143,9 @@ architecture behavioral of sd_reader is
         v2         : boolean;
         -- Card is high capacity and is addressed in blocks
         block_addr : boolean;
-        blk        : block_t;
+        blk        : sd_block_t;
+        -- Blocks left in the run, including blk
+        left       : sd_count_t;
 
         r1    : byte_t;
         extra : std_logic_vector(31 downto 0);
@@ -159,7 +175,8 @@ architecture behavioral of sd_reader is
 
         v2 => false,
         block_addr => false,
-        blk => START_BLOCK,
+        blk => to_std_logic_vector(START_BLOCK, sd_block_t'length),
+        left => START_COUNT,
 
         r1 => (others => '1'),
         extra => (others => '1'),
@@ -233,10 +250,9 @@ architecture behavioral of sd_reader is
                 index := 17;
                 if v.block_addr
                 then
-                    arg := to_std_logic_vector(v.blk, 32);
+                    arg := v.blk;
                 else
-                    arg := to_std_logic_vector(v.blk, 23) &
-                           "000000000";
+                    arg := v.blk(22 downto 0) & "000000000";
                 end if;
         end case;
 
@@ -274,8 +290,11 @@ begin
     sd_mosi <= reg.mosi;
 
     failed <= reg.state = ST_ERROR;
-    data  <= reg.shift;
-    valid <= reg.state = ST_DATA and not reg.busy and not stop;
+    req_ready <= reg.state = ST_IDLE;
+
+    data   <= reg.shift;
+    offset <= reg.count;
+    valid  <= reg.state = ST_DATA and not reg.busy and not stop;
 
     process(all)
         variable v_reg : reg_t;
@@ -405,9 +424,13 @@ begin
                 when ST_CRC =>
                     if reg.count = 1
                     then
-                        if reg.blk /= block_t'high
+                        if reg.left > 1
                         then
-                            v_reg.blk := reg.blk + 1;
+                            v_reg.blk :=
+                                std_logic_vector(unsigned(reg.blk) + 1);
+                            v_reg.left := reg.left - 1;
+                        else
+                            v_reg.left := 0;
                         end if;
                         deselect(v_reg, CMD_READ_BLOCK);
                     else
@@ -415,13 +438,20 @@ begin
                         start_byte(v_reg, x"FF");
                     end if;
                 when ST_DESELECT =>
-                    if stop
+                    if reg.cmd = CMD_READ_BLOCK and (stop or reg.left = 0)
                     then
-                        v_reg.state := ST_DONE;
+                        v_reg.state := ST_IDLE;
                     else
                         start_cmd(v_reg, reg.cmd);
                     end if;
-                when ST_DONE | ST_ERROR =>
+                when ST_IDLE =>
+                    if req_valid
+                    then
+                        v_reg.blk := req_block;
+                        v_reg.left := req_count;
+                        start_cmd(v_reg, CMD_READ_BLOCK);
+                    end if;
+                when ST_ERROR =>
                     null;
             end case;
         end if;

@@ -7,6 +7,7 @@ use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.cart_mem_bus_types.all;
 use work.file_bus_types.all;
+use work.cart_types.all;
 use work.soc.all;
 use work.de1_types.all;
 
@@ -138,7 +139,12 @@ architecture behavioral of nes_de1 is
 
     signal rom_loading   : boolean;
     signal rom_no_header : boolean;
+    signal rom_restart   : boolean;
     signal sd_error      : boolean;
+    signal launch_error  : boolean;
+
+    signal board_cpu_in  : cart_cpu_in_t;
+    signal board_cpu_out : cart_cpu_out_t;
 
     signal load_valid : boolean;
     signal load_data  : data_t;
@@ -226,6 +232,8 @@ begin
         clk => CLOCK_50,
         reset => reset_50,
 
+        restart => rom_restart,
+
         loading => rom_loading,
         no_header => rom_no_header,
 
@@ -250,9 +258,45 @@ begin
         dram_dq => DRAM_DQ
     );
 
-    gen_sd_card : if ROM_CONFIG /= ROM_FLASH_TO_SDRAM generate
+    gen_sd_menu : if ROM_CONFIG = ROM_SD_MENU generate
     begin
         flash_bus <= FILE_BUS_IDLE;
+
+        sd : entity work.sd_menu(behavioral)
+        port map
+        (
+            clk => CLOCK_50,
+            reset => reset_50,
+
+            cpu_clk_en => cpu_clk_en,
+            board_cpu_in => board_cpu_in,
+            board_cpu_out => board_cpu_out,
+
+            rom_loading => rom_loading,
+            rom_no_header => rom_no_header,
+            rom_restart => rom_restart,
+
+            load_valid => load_valid,
+            load_data => load_data,
+            load_ready => load_ready,
+
+            sd_failed => sd_error,
+            launch_failed => launch_error,
+
+            sd_clk => SD_CLK,
+            sd_cs_n => SD_DAT3,
+            sd_mosi => SD_CMD,
+            sd_miso => SD_DAT
+        );
+    end generate;
+
+    gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
+    begin
+        flash_bus <= FILE_BUS_IDLE;
+
+        rom_restart <= false;
+        launch_error <= false;
+        board_cpu_out <= CART_CPU_OUT_IDLE;
 
         sd : entity work.sd_reader(behavioral)
         port map
@@ -262,8 +306,11 @@ begin
 
             failed => sd_error,
 
-            stop => not rom_loading or rom_no_header,
+            req_ready => open,
+
+            stop => not rom_loading,
             data => load_data,
+            offset => open,
             valid => load_valid,
             ready => load_ready,
 
@@ -272,9 +319,14 @@ begin
             sd_mosi => SD_CMD,
             sd_miso => SD_DAT
         );
-    else generate
+    end generate;
+
+    gen_flash : if ROM_CONFIG = ROM_FLASH_TO_SDRAM generate
     begin
         sd_error <= false;
+        rom_restart <= false;
+        launch_error <= false;
+        board_cpu_out <= CART_CPU_OUT_IDLE;
 
         SD_CLK <= '0';
         SD_DAT3 <= '1';
@@ -310,7 +362,7 @@ begin
     LEDR(8 downto 2) <= (others => '0');
     LEDR(1) <= to_std_logic(rom_loading);
     -- There is no menu to read a card that holds a filesystem yet
-    LEDR(0) <= to_std_logic(sd_error or rom_no_header);
+    LEDR(0) <= to_std_logic(sd_error or rom_no_header or launch_error);
     
     LEDG <= not joy_1_reg;
     
@@ -402,7 +454,10 @@ begin
         joy_1_val => joy_1_val,
         
         shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val
+        joy_2_val => joy_2_val,
+
+        board_cpu_in => board_cpu_in,
+        board_cpu_out => board_cpu_out
     );
     
     joystick : ps2_joystick

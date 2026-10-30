@@ -61,7 +61,11 @@ port
     joy_1_val   : in std_logic := '1';
 
     shift_joy_2 : out std_logic;
-    joy_2_val   : in std_logic := '1'
+    joy_2_val   : in std_logic := '1';
+
+    -- See nes_soc
+    board_cpu_in  : out cart_cpu_in_t;
+    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
 );
 end nes_soc_ocram;
 
@@ -165,7 +169,10 @@ begin
         joy_1_val => joy_1_val,
 
         shift_joy_2 => shift_joy_2,
-        joy_2_val => joy_2_val
+        joy_2_val => joy_2_val,
+
+        board_cpu_in => board_cpu_in,
+        board_cpu_out => board_cpu_out
     );
     
     prg_ram : syncram_sp

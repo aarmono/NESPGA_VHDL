@@ -12,6 +12,7 @@
 **/*.bak
 **/*.py
 !simulation/test_roms/*.py
+!simulation/sd_card/*.py
 **/*.dmp
 **/*.png
 NES

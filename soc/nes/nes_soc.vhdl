@@ -97,7 +97,16 @@ port
     joy_1_val   : in std_logic := '1';
 
     shift_joy_2 : out std_logic;
-    joy_2_val   : in std_logic := '1'
+    joy_2_val   : in std_logic := '1';
+
+    -- The CPU side of the cartridge connector, as the cartridge sees it, for
+    -- the board to decode too. Like the CPU bus, it is only valid at
+    -- cpu_clk_en
+    board_cpu_in  : out cart_cpu_in_t;
+    -- The board's side of the same connector. When it drives the data bus it
+    -- answers the read instead of the cartridge. Its IRQ is ORed with the
+    -- cartridge's, as /IRQ is shared
+    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
 );
 end entity;
 
@@ -437,6 +446,7 @@ begin
     is
         variable nes_in : nes_in_t;
         variable nes_out : nes_out_t;
+        variable cart_cpu_in : cart_cpu_in_t;
     begin
         nes_in.reg := reg;
         
@@ -457,8 +467,10 @@ begin
             nes_in.cpu_bus.dma_cycle := false;
         end if;
 
-        cart_in.cpu <= get_cart_cpu_in(nes_in.cpu_bus.cpu_bus,
+        cart_cpu_in := get_cart_cpu_in(nes_in.cpu_bus.cpu_bus,
                                        nes_in.cpu_bus.data_from_cpu);
+        cart_in.cpu <= cart_cpu_in;
+        board_cpu_in <= cart_cpu_in;
 
         nes_in.cpu_bus.clk_sync := ppu_sync;
         nes_in.cpu_bus.apu_regs_active :=
@@ -476,6 +488,13 @@ begin
         nes_in.ppu_bus.data_from_ciram := data_from_ciram;
 
         nes_in.cart := cart_out;
+        if board_cpu_out.data_oe
+        then
+            nes_in.cart.cpu.data := board_cpu_out.data;
+            nes_in.cart.cpu.data_oe := true;
+            nes_in.cart.cpu.data_float := board_cpu_out.data_float;
+        end if;
+        nes_in.cart.cpu.irq := cart_out.cpu.irq or board_cpu_out.irq;
         
         nes_in.oam_bus := oam_bus_from_ppu;
         nes_in.data_to_oam := data_to_oam_from_ppu;

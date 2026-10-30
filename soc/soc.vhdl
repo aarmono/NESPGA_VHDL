@@ -81,7 +81,10 @@ package soc is
         joy_1_val   : in std_logic := '1';
 
         shift_joy_2 : out std_logic;
-        joy_2_val   : in std_logic := '1'
+        joy_2_val   : in std_logic := '1';
+
+        board_cpu_in  : out cart_cpu_in_t;
+        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
     );
     end component nes_soc;
 
@@ -123,7 +126,10 @@ package soc is
         joy_1_val   : in std_logic := '1';
 
         shift_joy_2 : out std_logic;
-        joy_2_val   : in std_logic := '1'
+        joy_2_val   : in std_logic := '1';
+
+        board_cpu_in  : out cart_cpu_in_t;
+        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
     );
     end component nes_soc_ocram;
 
