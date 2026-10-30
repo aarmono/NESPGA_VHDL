@@ -136,8 +136,9 @@ architecture behavioral of nes_de1 is
 
     signal dram_ba : std_logic_vector(1 downto 0);
 
-    signal rom_loading : boolean;
-    signal sd_error    : boolean;
+    signal rom_loading   : boolean;
+    signal rom_no_header : boolean;
+    signal sd_error      : boolean;
 
     signal load_valid : boolean;
     signal load_data  : data_t;
@@ -216,12 +217,17 @@ begin
     DRAM_CLK <= CLOCK_WE;
 
     rom : entity work.sdram_rom(behavioral)
+    generic map
+    (
+        REQUIRE_INES => ROM_CONFIG = ROM_SD_MENU
+    )
     port map
     (
         clk => CLOCK_50,
         reset => reset_50,
 
         loading => rom_loading,
+        no_header => rom_no_header,
 
         load_valid => load_valid,
         load_data => load_data,
@@ -244,7 +250,7 @@ begin
         dram_dq => DRAM_DQ
     );
 
-    gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
+    gen_sd_card : if ROM_CONFIG /= ROM_FLASH_TO_SDRAM generate
     begin
         flash_bus <= FILE_BUS_IDLE;
 
@@ -256,7 +262,7 @@ begin
 
             failed => sd_error,
 
-            stop => not rom_loading,
+            stop => not rom_loading or rom_no_header,
             data => load_data,
             valid => load_valid,
             ready => load_ready,
@@ -303,7 +309,8 @@ begin
     LEDR(9) <= SW(9);
     LEDR(8 downto 2) <= (others => '0');
     LEDR(1) <= to_std_logic(rom_loading);
-    LEDR(0) <= to_std_logic(sd_error);
+    -- There is no menu to read a card that holds a filesystem yet
+    LEDR(0) <= to_std_logic(sd_error or rom_no_header);
     
     LEDG <= not joy_1_reg;
     

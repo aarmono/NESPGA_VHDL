@@ -9,7 +9,10 @@ package de1_types is
     type rom_config_t is
     (
         ROM_FLASH_TO_SDRAM,
-        ROM_SD_TO_SDRAM
+        ROM_SD_TO_SDRAM,
+        -- As ROM_SD_TO_SDRAM if the SD card starts with an iNES file,
+        -- otherwise the card holds a filesystem, which the menu reads
+        ROM_SD_MENU
     );
 
     subtype vga_channel_t is std_logic_vector(3 downto 0);

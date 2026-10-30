@@ -12,7 +12,9 @@ use work.simulation.all;
 -- model through sdram_rom, then performs random accesses paced by the real
 -- NES clock enables: reads of the file, checked against the file, and
 -- writes and reads of a RAM window above it, checked against what was
--- written.
+-- written. With REQUIRE_INES and EXPECT_NO_HEADER, the file is instead
+-- expected not to start with an iNES header, so loading must stop without
+-- completing.
 entity sdram_rom_bench is
 generic
 (
@@ -23,7 +25,10 @@ generic
     USE_SD_CARD      : boolean := true;
     SD_HIGH_CAPACITY : boolean := true;
     SD_VERSION_1     : boolean := false;
-    SD_START_BLOCK   : natural := 0
+    SD_START_BLOCK   : natural := 0;
+
+    REQUIRE_INES     : boolean := false;
+    EXPECT_NO_HEADER : boolean := false
 );
 end sdram_rom_bench;
 
@@ -32,7 +37,8 @@ architecture behavioral of sdram_rom_bench is
     signal clk_50   : std_logic;
     signal clk_dram : std_logic;
 
-    signal loading : boolean;
+    signal loading   : boolean;
+    signal no_header : boolean;
 
     signal load_valid : boolean;
     signal load_data  : data_t;
@@ -69,12 +75,17 @@ architecture behavioral of sdram_rom_bench is
 begin
 
     dut : entity work.sdram_rom(behavioral)
+    generic map
+    (
+        REQUIRE_INES => REQUIRE_INES
+    )
     port map
     (
         clk => clk_50,
         reset => false,
 
         loading => loading,
+        no_header => no_header,
 
         load_valid => load_valid,
         load_data => load_data,
@@ -132,7 +143,7 @@ begin
 
             failed => sd_error,
 
-            stop => not loading,
+            stop => not loading or no_header,
             data => load_data,
             valid => load_valid,
             ready => load_ready,
@@ -179,7 +190,7 @@ begin
             flash_bus => flash_bus,
             data_from_flash => flash_data,
 
-            stop => not loading,
+            stop => not loading or no_header,
             data => load_data,
             valid => load_valid,
             ready => load_ready
@@ -201,7 +212,24 @@ begin
 
     process
     begin
-        wait until not loading;
+        wait until not loading or no_header;
+        if no_header
+        then
+            assert EXPECT_NO_HEADER
+                report "No iNES header found at " & time'image(now)
+                severity failure;
+            -- The load must stay stopped
+            wait for 1 ms;
+            assert loading and no_header
+                report "Load continued after no iNES header was found"
+                severity failure;
+            report "PASS: stopped at a stream without an iNES header at " &
+                   time'image(now - 1 ms);
+            std.env.finish;
+        end if;
+        assert not EXPECT_NO_HEADER
+            report "Loaded a stream without an iNES header"
+            severity failure;
         report "Loaded in " & time'image(now);
         wait;
     end process;
