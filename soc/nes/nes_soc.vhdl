@@ -32,14 +32,17 @@ generic
     CPU_FREQ_NUM : positive := 39_375_000;
     CPU_FREQ_DEN : positive := 22;
     -- What the RAMs contain after power up. See power_up_mode_t
-    POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO
+    POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
+    -- See power_up_fill
+    POWER_UP_SEED : natural := 0
 );
 port
 (
     clk   : in std_logic;
     reset : in boolean;
     -- The reset button. It resets the CPU and PPU like the reset button of
-    -- a front loading NES, and is ignored until the NES is running. The
+    -- a front loading NES, except that the PPU's frame keeps running (see
+    -- soft_reset_ppu_reg), and is ignored until the NES is running. The
     -- cartridge has no reset line, so it is not reset
     soft_reset : in boolean := false;
 
@@ -165,7 +168,7 @@ is
     -- The NES is held in reset from power up, so asserts that only hold
     -- out of reset do not fail at initialization
     signal int_reset : boolean := true;
-    signal int_soft_reset : boolean;
+    signal int_soft_reset : boolean := false;
     -- OAM DMA and the joystick port are reset the same by both
     signal dma_joy_reset : boolean;
     signal nmi : boolean;
@@ -189,13 +192,13 @@ begin
 
     nes_running <= not int_reset;
 
-    int_soft_reset <= soft_reset and not int_reset;
     dma_joy_reset <= int_reset or int_soft_reset;
 
     fill : entity work.power_up_fill
     generic map
     (
-        MODE => POWER_UP_MODE
+        MODE => POWER_UP_MODE,
+        SEED => POWER_UP_SEED
     )
     port map
     (
@@ -379,6 +382,10 @@ begin
         clk_sync => ppu_sync,
         reset  => int_reset,
         soft_reset => int_soft_reset,
+        -- The PPU reloads this on every PPU cycle of reset. The power up data
+        -- last changes with the last step of the RAM fill, so the PPU starts
+        -- from that value, which holds through the end of reset
+        power_up_seed => fill_data(ppu_power_up_seed_t'range),
 
         chr_bus             => chr_bus,
         chr_ale             => chr_ale,
@@ -481,6 +488,8 @@ begin
 
         nes_in.power_up_ready := fill_ready;
         nes_in.power_up_data := fill_data;
+
+        nes_in.soft_reset := soft_reset;
         
         nes_out := cycle_nes(nes_in);
         
@@ -528,6 +537,7 @@ begin
         
         audio <= nes_out.audio;
         int_reset <= nes_out.reset;
+        int_soft_reset <= nes_out.soft_reset;
         fill_enable <= nes_out.power_up_enable;
 
         next_cart_irq <= nes_out.irq;

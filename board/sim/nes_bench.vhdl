@@ -24,7 +24,10 @@ generic
     NES_FILE_BYTES  : integer := 196608;
     FM2_OFFSET      : integer := 2;
     -- Fill the RAMs with random bytes, the same ones in every run
-    POWER_UP_FILL   : boolean := false
+    POWER_UP_FILL   : boolean := false;
+    -- With POWER_UP_FILL, other seeds fill the RAMs with other bytes and
+    -- start the PPU at another point of its frame
+    POWER_UP_SEED   : natural := 0
 );
 end nes_bench;
 
@@ -85,7 +88,8 @@ begin
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CLK_FREQ,
         CPU_FREQ_DEN => 6,
-        POWER_UP_MODE => POWER_UP_MODE
+        POWER_UP_MODE => POWER_UP_MODE,
+        POWER_UP_SEED => POWER_UP_SEED
     )
     port map
     (

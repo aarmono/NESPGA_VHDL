@@ -134,7 +134,7 @@ architecture behavioral of sdram_ctrl is
     -- Burst length 1, sequential, programmed CAS latency
     constant MODE_REG : std_logic_vector(11 downto 0) :=
         "00000" &
-        std_logic_vector(to_unsigned(CAS_LATENCY, 3)) &
+        to_std_logic_vector(CAS_LATENCY, 3) &
         "0000";
 
     type init_state_t is

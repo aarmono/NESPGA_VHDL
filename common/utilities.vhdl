@@ -166,7 +166,7 @@ package body utilities is
     function to_std_logic_vector(val : character) return std_logic_vector
     is
     begin
-        return std_logic_vector(to_unsigned(character'pos(val), 8));
+        return to_std_logic_vector(character'pos(val), 8);
     end;
 
     -- Faster in simulation than numeric_std's to_integer, which converts

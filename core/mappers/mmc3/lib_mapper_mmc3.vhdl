@@ -708,7 +708,7 @@ package body lib_mapper_mmc3 is
                     if cart_in.cpu.prg_bus.address(0) = '0'
                     then
                         ret.irq_reload :=
-                            to_integer(unsigned(cart_in.cpu.data));
+                            to_integer(cart_in.cpu.data);
                     -- The RAMBO-1 reloads the counter at once, selects the
                     -- source of its clock and restarts the prescaler and
                     -- the A12 filter

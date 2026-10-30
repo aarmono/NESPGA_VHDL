@@ -68,6 +68,7 @@ package nes_core is
         clk_sync          : in boolean := true;
         reset             : in boolean;
         soft_reset        : in boolean := false;
+        power_up_seed     : in ppu_power_up_seed_t := (others => '0');
 
         chr_bus           : out chr_bus_t;
         chr_ale           : out boolean;

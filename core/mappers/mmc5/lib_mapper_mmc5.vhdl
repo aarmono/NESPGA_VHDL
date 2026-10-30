@@ -592,7 +592,7 @@ package body lib_mapper_mmc5 is
                     when others => ret.prg_mode := PRG_8KB;
                 end case;
             when 16#101# =>
-                ret.chr_mode := to_integer(unsigned(data(1 downto 0)));
+                ret.chr_mode := to_integer(data(1 downto 0));
             when 16#102# =>
                 ret.prg_ram_protect(1 downto 0) := data(1 downto 0);
             when 16#103# =>
@@ -627,19 +627,19 @@ package body lib_mapper_mmc5 is
             when 16#200# =>
                 ret.split_enable := data(7) = '1';
                 ret.split_right := data(6) = '1';
-                ret.split_threshold := to_integer(unsigned(data(4 downto 0)));
+                ret.split_threshold := to_integer(data(4 downto 0));
             when 16#201# =>
-                ret.split_scroll := to_integer(unsigned(data));
+                ret.split_scroll := to_integer(data);
             when 16#202# =>
                 ret.split_bank := unsigned(data);
             when 16#203# =>
-                ret.irq_target := to_integer(unsigned(data));
+                ret.irq_target := to_integer(data);
             when 16#204# =>
                 ret.irq_enable := data(7) = '1';
             when 16#205# =>
-                ret.multiplicand := to_integer(unsigned(data));
+                ret.multiplicand := to_integer(data);
             when 16#206# =>
-                ret.multiplier := to_integer(unsigned(data));
+                ret.multiplier := to_integer(data);
             when others =>
                 null;
         end case;

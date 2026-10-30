@@ -32,7 +32,9 @@ generic
     -- See nes_soc
     CART_BOARDS      : board_set_t := ALL_BOARDS;
     -- See nes_soc
-    POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO
+    POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO;
+    -- See nes_soc
+    POWER_UP_SEED    : natural := 0
 );
 port
 (
@@ -103,6 +105,7 @@ begin
     (
         CART_BOARDS => CART_BOARDS,
         POWER_UP_MODE => POWER_UP_MODE,
+        POWER_UP_SEED => POWER_UP_SEED,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
         CPU_FREQ_DEN => CPU_FREQ_DEN

@@ -192,8 +192,8 @@ begin
                     v_reg.state := STATE_COPY;
                 end if;
             when STATE_COPY =>
-                address <= std_logic_vector(
-                    to_unsigned(reg.load_addr, sdram_addr_t'length));
+                address <= to_std_logic_vector(
+                    reg.load_addr, sdram_addr_t'length);
 
                 -- Keep starting slots while waiting for data so that the
                 -- SDRAM is refreshed
@@ -214,9 +214,9 @@ begin
                         when 3 =>
                             v_reg.ines := reg.ines and load_data = x"1A";
                         when 4 =>
-                            v_reg.prg_banks := to_integer(unsigned(load_data));
+                            v_reg.prg_banks := to_integer(load_data);
                         when 5 =>
-                            v_reg.chr_banks := to_integer(unsigned(load_data));
+                            v_reg.chr_banks := to_integer(load_data);
                         when 6 =>
                             v_reg.trainer := load_data(2) = '1';
                         when 7 =>

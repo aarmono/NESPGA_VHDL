@@ -120,7 +120,7 @@ simulation.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/i
 ppu_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o nes_types.o nes_core.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o file_bus_types.o ppu_bus_types.o simulation.o /opt/ghdl/lib/ghdl/std/v08/env.o
 binary_io.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 bmp_file.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o
-ppu_video_record.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o binary_io.o bmp_file.o /opt/ghdl/lib/ghdl/std/v08/textio.o
+ppu_video_record.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o binary_io.o bmp_file.o /opt/ghdl/lib/ghdl/std/v08/textio.o
 file_memory.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o nes_types.o file_bus_types.o
 lib_ppu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o
 ppu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o lib_ppu.o ppu_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o nes_types.o utilities.o

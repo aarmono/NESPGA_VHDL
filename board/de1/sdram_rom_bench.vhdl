@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use IEEE.math_real.all;
 use work.nes_types.all;
+use work.utilities.all;
 use work.cart_mem_bus_types.all;
 use work.file_bus_types.all;
 use work.simulation.all;
@@ -277,7 +278,7 @@ begin
                 errors := errors + 1;
                 report "Mismatch at " &
                        integer'image(
-                           to_integer(unsigned(cart_mem_bus.address))) &
+                           to_integer(cart_mem_bus.address)) &
                        ": expected " & to_hstring(expected) &
                        " got " & to_hstring(cart_mem_data)
                     severity error;
@@ -318,8 +319,8 @@ begin
                 cart_mem_bus <= bus_write(to_unsigned(
                     RAM_BASE + ram_idx, cart_mem_addr_t'length));
                 uniform(seed1, seed2, rand);
-                cart_mem_wdata <= std_logic_vector(to_unsigned(
-                    integer(floor(rand * 256.0)), data_t'length));
+                cart_mem_wdata <= to_std_logic_vector(
+                    integer(floor(rand * 256.0)), data_t'length);
             else
                 cart_mem_bus <= bus_read(to_unsigned(
                     RAM_BASE + ram_idx, cart_mem_addr_t'length));

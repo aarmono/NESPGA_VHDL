@@ -228,20 +228,20 @@ architecture behavioral of sd_reader is
                 index := 58;
             when CMD_SET_BLOCKLEN =>
                 index := 16;
-                arg := std_logic_vector(to_unsigned(BLOCK_BYTES, 32));
+                arg := to_std_logic_vector(BLOCK_BYTES, 32);
             when CMD_READ_BLOCK =>
                 index := 17;
                 if v.block_addr
                 then
-                    arg := std_logic_vector(to_unsigned(v.blk, 32));
+                    arg := to_std_logic_vector(v.blk, 32);
                 else
-                    arg := std_logic_vector(to_unsigned(v.blk, 23)) &
+                    arg := to_std_logic_vector(v.blk, 23) &
                            "000000000";
                 end if;
         end case;
 
         v.cmd := cmd;
-        v.frame := "01" & std_logic_vector(to_unsigned(index, 6)) &
+        v.frame := "01" & to_std_logic_vector(index, 6) &
                    arg & crc & "1";
         v.count := 0;
         v.cs_n := '0';

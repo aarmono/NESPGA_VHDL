@@ -308,7 +308,7 @@ package body lib_mapper_taito is
         ret := reg;
         addr := cart_in.cpu.prg_bus.address;
         data := cart_in.cpu.data;
-        idx := to_integer(unsigned(addr(1 downto 0)));
+        idx := to_integer(addr(1 downto 0));
 
         if is_rom_write(cart_in.cpu, clk_sync) and
            (board = TAITO_TC0690 or addr(14) = '0')
@@ -336,7 +336,7 @@ package body lib_mapper_taito is
                 when "10" =>
                     case idx is
                         when 0 =>
-                            ret.irq_reload := to_integer(unsigned(data));
+                            ret.irq_reload := to_integer(data);
                         -- The next clock reloads the counter
                         when 1 =>
                             ret.irq_count := 0;
@@ -378,7 +378,7 @@ package body lib_mapper_taito is
         ret := reg;
         addr := cart_in.cpu.prg_bus.address;
         data := cart_in.cpu.data;
-        idx := to_integer(unsigned(addr(3 downto 0)));
+        idx := to_integer(addr(3 downto 0));
 
         if not cart_in.cpu.romsel and
            is_bus_write(cart_in.cpu.prg_bus) and
@@ -406,7 +406,7 @@ package body lib_mapper_taito is
                         ret.prg_banks(idx - 10) :=
                             get_x1_017_prg_bank(board, data);
                     when 13 =>
-                        ret.irq_reload := to_integer(unsigned(data));
+                        ret.irq_reload := to_integer(data);
                     when 14 =>
                         ret.irq_counting := data(0) = '1' and data(2) = '0';
                         ret.irq_enable := data(1) = '1';

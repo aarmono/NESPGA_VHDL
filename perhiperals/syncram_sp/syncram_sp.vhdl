@@ -58,7 +58,7 @@ vendor_gen : case VENDOR generate
             -- logic
             if write and clk_en
             then
-                ram(to_integer(unsigned(address))) <= data_in;
+                ram(to_integer(address)) <= data_in;
             end if;
             
             -- Can't use clock enable signal here since Quartus

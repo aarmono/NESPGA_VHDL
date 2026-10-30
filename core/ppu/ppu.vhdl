@@ -19,6 +19,8 @@ port
     reset             : in boolean;
     -- The reset button. See soft_reset_ppu_reg
     soft_reset        : in boolean := false;
+    -- Where in the frame power up starts. See power_up_ppu_reg
+    power_up_seed     : in ppu_power_up_seed_t := (others => '0');
 
     chr_bus           : out chr_bus_t;
     chr_ale           : out boolean;
@@ -61,7 +63,7 @@ begin
     if clk_en then
         if reset
         then
-            reg <= RESET_PPU_REG;
+            reg <= power_up_ppu_reg(power_up_seed);
             vint <= false;
         elsif soft_reset
         then

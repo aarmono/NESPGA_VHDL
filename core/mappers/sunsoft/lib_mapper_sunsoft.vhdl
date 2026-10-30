@@ -195,7 +195,7 @@ package body lib_mapper_sunsoft is
         ret := reg;
         addr := cart_in.cpu.prg_bus.address;
         data := cart_in.cpu.data;
-        idx := to_integer(unsigned(addr(14 downto 12)));
+        idx := to_integer(addr(14 downto 12));
 
         -- The licensing timer restarts on a write to 0x6000-0x7FFF with PRG
         -- RAM disabled

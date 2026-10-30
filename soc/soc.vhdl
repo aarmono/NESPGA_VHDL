@@ -95,7 +95,8 @@ package soc is
         CPU_FREQ_NUM     : positive := 39_375_000;
         CPU_FREQ_DEN     : positive := 22;
         CART_BOARDS      : board_set_t := ALL_BOARDS;
-        POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO
+        POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO;
+        POWER_UP_SEED    : natural := 0
     );
     port
     (

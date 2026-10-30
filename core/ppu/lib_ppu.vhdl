@@ -14,6 +14,13 @@ package lib_ppu is
     subtype ppu_cycle_t is natural range 0 to 2**9-1;
     subtype ppu_frame_t is natural range 0 to 1;
 
+    -- A frame is LINES_PER_FRAME lines of DOTS_PER_LINE dots. Line 0 here is
+    -- hardware scanline 241, and cycle is one less than the hardware dot
+    constant LINES_PER_FRAME   : positive := 262;
+    constant DOTS_PER_LINE     : positive := 341;
+    constant LAST_LINE         : ppu_cycle_t := LINES_PER_FRAME - 1;
+    constant LAST_CYCLE        : ppu_cycle_t := DOTS_PER_LINE - 1;
+
     constant SPRITE_EVAL_START : ppu_cycle_t := 64;
     constant FRONT_BG_END      : ppu_cycle_t := 255;
     constant FRAME_START       : ppu_cycle_t := 21;
@@ -454,19 +461,23 @@ package lib_ppu is
         io_latch => RESET_IO_LATCH
     );
     
-    -- The PPU comes out of reset at the top of the picture, on hardware dot
-    -- 0 of scanline 0
-    constant SOFT_RESET_TIME : ppu_time_t :=
-    (
-        frame    => 0,
-        scanline => VINT_END,
-        cycle    => 340
-    );
-
     -- The reset button clears PPUCTRL, PPUMASK, t, fine X, the $2005/$2006
     -- write latch and the PPUDATA read buffer. v, OAMADDR and PPUSTATUS are
-    -- unchanged
+    -- unchanged.
+    --
+    -- A real PPU comes out of reset at the top of the picture. Here the frame
+    -- keeps running through reset instead, so where the CPU starts in the
+    -- frame depends on when the button was pressed. Games that seed their
+    -- random numbers from CPU time left over in each frame play differently
+    -- after each reset, as they do after each power up
     function soft_reset_ppu_reg(reg : ppu_reg_t) return ppu_reg_t;
+
+    -- The PPU powers up somewhere in the frame chosen by seed, as the CPU of
+    -- a real NES starts at no fixed point of the PPU's frame. Games that
+    -- clear RAM and seed their random numbers from CPU time left over in
+    -- each frame (Blades of Steel) play differently for each start. A zero
+    -- seed starts at VBlank start, on the even frame
+    function power_up_ppu_reg(seed : ppu_power_up_seed_t) return ppu_reg_t;
 
     -- Shifts a background pattern shift register one pixel, shifting
     -- serial_in into the low bit
@@ -654,12 +665,41 @@ package body lib_ppu is
         ret.oam_addr := reg.oam_addr;
         ret.status := reg.status;
         ret.io_latch := reg.io_latch;
-        ret.cur_time := SOFT_RESET_TIME;
+        -- Rendering is disabled by reset, so no dot is skipped
+        ret.cur_time := incr_time(reg.cur_time, false);
         ret.reset_flag := true;
 
         return ret;
     end;
-    
+
+    function power_up_ppu_reg(seed : ppu_power_up_seed_t) return ppu_reg_t
+    is
+        variable line  : ppu_cycle_t;
+        variable cycle : ppu_cycle_t;
+        variable ret   : ppu_reg_t;
+    begin
+        -- 9 bits each, folded into range with one subtract. The lower lines
+        -- and cycles are twice as likely, which costs less than a modulo
+        line := to_integer(seed(8 downto 0));
+        if line >= LINES_PER_FRAME
+        then
+            line := line - LINES_PER_FRAME;
+        end if;
+
+        cycle := to_integer(seed(17 downto 9));
+        if cycle >= DOTS_PER_LINE
+        then
+            cycle := cycle - DOTS_PER_LINE;
+        end if;
+
+        ret := RESET_PPU_REG;
+        ret.cur_time.frame := to_integer(seed(18 downto 18));
+        ret.cur_time.scanline := line;
+        ret.cur_time.cycle := cycle;
+
+        return ret;
+    end;
+
     -- attr_shift function {
     function attr_shift
     (
@@ -1091,13 +1131,10 @@ package body lib_ppu is
         
         constant ODD_FRAME   : ppu_frame_t := 1;
 
-        constant START_LINE  : ppu_cycle_t := 0;
-        constant VAR_LINE    : ppu_cycle_t := 20;
-        constant END_LINE    : ppu_cycle_t := 261;
+        -- The pre-render line, which is one dot shorter on odd frames
+        constant VAR_LINE    : ppu_cycle_t := VINT_END;
 
-        constant START_CYCLE : ppu_cycle_t := 0;
         constant SKIP_CYCLE  : ppu_cycle_t := 338;
-        constant END_CYCLE   : ppu_cycle_t := 340;
     begin
         -- With rendering disabled (background and sprites disabled in PPUMASK
         -- ($2001)), each PPU frame is 341*262=89342 PPU clocks long. There is
@@ -1112,13 +1149,13 @@ package body lib_ppu is
         -- dot 1 of scanline 241, which is cycle 0 of line 0 here), so dot
         -- 339 is cycle 338 and the skipped dot 340 is cycle 339
         next_time := time_in;
-        if time_in.cycle = END_CYCLE
+        if time_in.cycle = LAST_CYCLE
         then
-            next_time.cycle := START_CYCLE;
+            next_time.cycle := 0;
             
-            if time_in.scanline = END_LINE
+            if time_in.scanline = LAST_LINE
             then
-                next_time.scanline := START_LINE;
+                next_time.scanline := VINT_START;
                 next_time.frame := wrap(time_in.frame + 1, ppu_frame_t'high);
             else
                 next_time.scanline := time_in.scanline + 1;
@@ -1128,7 +1165,7 @@ package body lib_ppu is
               time_in.frame = ODD_FRAME and
               render_enabled
         then
-            next_time.cycle := END_CYCLE;
+            next_time.cycle := LAST_CYCLE;
         else
             next_time.cycle := time_in.cycle + 1;
         end if;
@@ -1188,7 +1225,7 @@ package body lib_ppu is
         then
             return cur_time.scanline - FRAME_START;
         else
-            return (cur_time.scanline + 241) mod 2**8;
+            return (cur_time.scanline + LINES_PER_FRAME - FRAME_START) mod 2**8;
         end if;
     end;
 
@@ -1944,7 +1981,7 @@ package body lib_ppu is
                         when others =>
                             null;
                     end case;
-                when 320 to 340 =>
+                when BACK_BG_START to LAST_CYCLE =>
                     -- Normally index 0, unless sprite fetch was interrupted
                     -- by disabling rendering
                     render_out.sec_oam_bus := bus_read(render_in.reg.sec_oam_addr);

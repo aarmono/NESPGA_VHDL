@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.perhipheral_types.all;
+use work.utilities.all;
 
 -- Makes the random bytes the RAMs of the console power up with, as the RAMs
 -- of a real NES contain whatever they powered up with. Bytes from a neoTRNG
@@ -21,7 +22,11 @@ use work.perhipheral_types.all;
 entity power_up_fill is
 generic
 (
-    MODE : power_up_mode_t
+    MODE : power_up_mode_t;
+    -- What the LFSR holds before the TRNG bytes are mixed in. With
+    -- POWER_UP_DETERMINISTIC the bytes are the same every time, so this is
+    -- how simulations power up in other ways
+    SEED : natural := 0
 );
 port
 (
@@ -75,7 +80,8 @@ else generate
     -- values
     signal por : std_logic_vector(1 downto 0) := "00";
 
-    signal lfsr     : power_up_data_t := (others => '0');
+    signal lfsr     : power_up_data_t :=
+        to_std_logic_vector(SEED, power_up_data_t'length);
     signal absorbed : natural range 0 to SEED_BYTES := 0;
 
     -- The ports of the TRNG are std_ulogic, which Quartus does not
