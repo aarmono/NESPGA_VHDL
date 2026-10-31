@@ -112,3 +112,53 @@ jobs:
           name: nes-de1-test-failures
           path: board/sim/ghdl/de1_output/failures/
           if-no-files-found: ignore
+
+  # Smoke tests of the SD card menu (ROM_SD_MENU) on nes_de1_bench from
+  # sd_menu_tests.txt: boot the menu from a FAT card, launch a test ROM from
+  # it and check the game's screen. The cards are made on the runner, since
+  # the GHDL image has no cc65 or mtools
+  sd-menu-smoke:
+    name: SD menu smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cc65 dosfstools mtools
+
+      - name: Make the cards
+        working-directory: board/de1/sd_menu
+        run: make smoke_card.img
+
+      - name: Build GHDL image
+        run: board/sim/ghdl/build_ghdl_image.sh
+
+      - name: Run tests
+        working-directory: board/sim/ghdl
+        run: |
+          ./run_ghdl.sh ./run_nes_tests.sh -b nes_de1_bench \
+            -f sd_menu_tests.txt -o sd_menu_output
+
+      - name: Write job summary
+        if: ${{ !cancelled() }}
+        working-directory: board/sim/ghdl
+        run: |
+          ./run_nes_tests.sh -b nes_de1_bench -f sd_menu_tests.txt \
+            -r sd_menu_output/results.txt >> "$GITHUB_STEP_SUMMARY"
+
+      # The frames too, since a failure can be anywhere from the stub to the
+      # game
+      - name: Upload failed test output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sd-menu-smoke-failures
+          path: |
+            board/sim/ghdl/sd_menu_output/failures/
+            board/sim/ghdl/sd_menu_output/**/frame_*.bmp
+          if-no-files-found: ignore

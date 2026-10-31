@@ -1,0 +1,88 @@
+name: SD menu
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build MENU.NES and SD card image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cc65 dosfstools fdisk mtools
+
+      - name: Assemble
+        working-directory: board/de1/sd_menu
+        run: make
+
+      # The stub's VHDL package is checked in so that the ghdl and Quartus
+      # builds do not need cc65; it must match stub.s and fat.s
+      - name: Check the stub package is up to date
+        run: |
+          if ! git diff --exit-code -- board/de1/sd_menu_stub.vhdl
+          then
+            echo "::error file=board/de1/sd_menu_stub.vhdl::out of date; run make in board/de1/sd_menu and commit it"
+            exit 1
+          fi
+
+      - name: Make SD card image
+        working-directory: board/de1/sd_menu
+        run: |
+          make sd_card.img
+          gzip -9 -k sd_card.img
+          {
+            echo "### SD menu"
+            echo "| File | Bytes |"
+            echo "| --- | ---: |"
+            for f in menu.nes sd_card.img.gz
+            do
+              echo "| $f | $(stat -c %s "$f") |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload MENU.NES and SD card image
+        uses: actions/upload-artifact@v7
+        with:
+          name: sd-menu
+          path: |
+            board/de1/sd_menu/menu.nes
+            board/de1/sd_menu/sd_card.img.gz
+
+  # Attaches MENU.NES and the card image to the release, replacing any
+  # uploaded by hand
+  release:
+    name: Attach to release
+    needs: build
+    if: ${{ github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download MENU.NES and SD card image
+        uses: actions/download-artifact@v8
+        with:
+          name: sd-menu
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv menu.nes MENU.NES
+          gh release upload "${{ github.event.release.tag_name }}" \
+            MENU.NES sd_card.img.gz --clobber -R "${{ github.repository }}"

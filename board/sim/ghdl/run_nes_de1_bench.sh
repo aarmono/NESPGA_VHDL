@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 usage() {
-    echo "Usage: $0 [ -n NES_FILEPATH ] [ -o OUTPUT_DIR ] [ -i FM2_FILEPATH ] [ -t SIMULATION_TIME ]"
+    echo "Usage: $0 [ -n NES_FILEPATH ] [ -o OUTPUT_DIR ] [ -i FM2_FILEPATH ] [ -t SIMULATION_TIME ] [ -- BENCH_ARGS... ]"
+    echo "  BENCH_ARGS are passed to nes_de1_bench, such as generics:"
+    echo "  -- -gROM_CONFIG=ROM_SD_MENU -gJOY_A_FROM_MS=150 -gJOY_A_UNTIL_MS=200"
 }
 
 exit_abnormal() {
@@ -23,6 +25,7 @@ do
            exit_abnormal;;
     esac
 done
+shift $((OPTIND - 1))
 
 if [ "$NES_FILEPATH" == "" ]
 then
@@ -52,5 +55,6 @@ exec ./nes_de1_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                      -gBMP_FILE_PREFIX="$BMP_PREFIX" \
                      -gNES_FILEPATH="$NES_FILEPATH"  \
                      -gNES_FILE_BYTES="$NES_SIZE"    \
+                     "$@"                            \
                      $TIME_PARM                      \
                      --ieee-asserts=disable

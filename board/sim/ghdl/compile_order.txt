@@ -134,6 +134,9 @@
 ../../../board/de1/ppu_video_ram_mux.vhdl
 ../../../board/de1/flash_stream.vhdl
 ../../../board/de1/sdram_rom.vhdl
+../../../board/de1/sd_menu_stub.vhdl
+../../../board/de1/sd_menu.vhdl
+../../../board/de1/sd_menu_bench.vhdl
 ../../../board/de1/sdram_rom_bench.vhdl
 ../../../board/de1/vga_out.vhdl
 ../../../board/de1/nes_de1.vhdl

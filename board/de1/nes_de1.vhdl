@@ -7,6 +7,7 @@ use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.cart_mem_bus_types.all;
 use work.file_bus_types.all;
+use work.cart_types.all;
 use work.soc.all;
 use work.de1_types.all;
 
@@ -14,7 +15,10 @@ entity nes_de1 is
 generic
 (
     ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
-    POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM
+    POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
+    -- How long Start and Select are held to return to the SD menu. See
+    -- sd_menu
+    RETURN_HOLD_MS : positive := 2000
 );
 port
 (
@@ -142,13 +146,22 @@ architecture behavioral of nes_de1 is
     
     signal flash_bus          : file_bus_t;
     signal cart_mem_bus       : cart_mem_bus_t;
+    -- The cartridge memory bus as sdram_rom sees it
+    signal rom_cart_mem_bus   : cart_mem_bus_t;
     signal data_to_cart_mem   : data_t;
     signal data_from_cart_mem : data_t;
 
     signal dram_ba : std_logic_vector(1 downto 0);
 
-    signal rom_loading : boolean;
-    signal sd_error    : boolean;
+    signal rom_loading   : boolean;
+    signal rom_no_header : boolean;
+    signal rom_restart   : boolean;
+    signal sd_error      : boolean;
+    signal launch_error  : boolean;
+    signal keep_prg_ram  : boolean;
+
+    signal board_cpu_in  : cart_cpu_in_t;
+    signal board_cpu_out : cart_cpu_out_t;
 
     signal load_valid : boolean;
     signal load_data  : data_t;
@@ -228,19 +241,26 @@ begin
     DRAM_CLK <= CLOCK_WE;
 
     rom : entity work.sdram_rom(behavioral)
+    generic map
+    (
+        REQUIRE_INES => ROM_CONFIG = ROM_SD_MENU
+    )
     port map
     (
         clk => CLOCK_50,
         reset => reset_50,
 
+        restart => rom_restart,
+
         loading => rom_loading,
+        no_header => rom_no_header,
 
         load_valid => load_valid,
         load_data => load_data,
         load_ready => load_ready,
 
         ppu_clk_en => ppu_clk_en,
-        cart_mem_bus => cart_mem_bus,
+        cart_mem_bus => rom_cart_mem_bus,
         data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem,
 
@@ -256,6 +276,60 @@ begin
         dram_dq => DRAM_DQ
     );
 
+    gen_sd_menu : if ROM_CONFIG = ROM_SD_MENU generate
+    begin
+        flash_bus <= FILE_BUS_IDLE;
+
+        sd : entity work.sd_menu(behavioral)
+        generic map
+        (
+            RETURN_HOLD_MS => RETURN_HOLD_MS
+        )
+        port map
+        (
+            clk => CLOCK_50,
+            reset => reset_50,
+
+            cpu_clk_en => cpu_clk_en,
+            board_cpu_in => board_cpu_in,
+            board_cpu_out => board_cpu_out,
+
+            buttons => joy_1_buttons,
+
+            keep_prg_ram => keep_prg_ram,
+
+            cart_mem_bus_in => cart_mem_bus,
+            cart_mem_bus_out => rom_cart_mem_bus,
+
+            rom_loading => rom_loading,
+            rom_no_header => rom_no_header,
+            rom_restart => rom_restart,
+
+            load_valid => load_valid,
+            load_data => load_data,
+            load_ready => load_ready,
+
+            sd_failed => sd_error,
+            launch_failed => launch_error,
+
+            sd_clk => SD_CLK,
+            sd_cs_n => SD_DAT3,
+            sd_mosi => SD_CMD,
+            sd_miso => SD_DAT
+        );
+    end generate;
+
+    -- Without the menu, the ROM is loaded once and the board does not touch
+    -- the CPU or cartridge memory buses
+    gen_no_menu : if ROM_CONFIG /= ROM_SD_MENU generate
+    begin
+        rom_restart <= false;
+        launch_error <= false;
+        keep_prg_ram <= false;
+        board_cpu_out <= CART_CPU_OUT_IDLE;
+        rom_cart_mem_bus <= cart_mem_bus;
+    end generate;
+
     gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
     begin
         flash_bus <= FILE_BUS_IDLE;
@@ -268,8 +342,11 @@ begin
 
             failed => sd_error,
 
+            req_ready => open,
+
             stop => not rom_loading,
             data => load_data,
+            offset => open,
             valid => load_valid,
             ready => load_ready,
 
@@ -278,7 +355,9 @@ begin
             sd_mosi => SD_CMD,
             sd_miso => SD_DAT
         );
-    else generate
+    end generate;
+
+    gen_flash : if ROM_CONFIG = ROM_FLASH_TO_SDRAM generate
     begin
         sd_error <= false;
 
@@ -315,7 +394,7 @@ begin
     LEDR(9) <= SW(9);
     LEDR(8 downto 2) <= (others => '0');
     LEDR(1) <= to_std_logic(rom_loading);
-    LEDR(0) <= to_std_logic(sd_error);
+    LEDR(0) <= to_std_logic(sd_error or launch_error);
     
     LEDG <= not joy_1_buttons;
     
@@ -388,6 +467,7 @@ begin
         clk => CLOCK_50,
         reset => nes_reset,
         soft_reset => nes_soft_reset,
+        keep_prg_ram => keep_prg_ram,
 
         nes_running => nes_running,
 
@@ -407,7 +487,10 @@ begin
         joy_1_data => nes_joy_1_data,
         
         joy_2_clk => nes_joy_2_clk,
-        joy_2_data => nes_joy_2_data
+        joy_2_data => nes_joy_2_data,
+
+        board_cpu_in => board_cpu_in,
+        board_cpu_out => board_cpu_out
     );
     
     joy_port_1 : joy_port

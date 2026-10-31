@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 usage() {
-    echo "Usage: $0 [ -n NES_FILEPATH ] [ -o OUTPUT_DIR ] [ -i FM2_FILEPATH ] [ -t SIMULATION_TIME ]"
+    echo "Usage: $0 [ -n NES_FILEPATH ] [ -o OUTPUT_DIR ] [ -i FM2_FILEPATH ] [ -t SIMULATION_TIME ] [ -- BENCH_ARGS... ]"
+    echo "  BENCH_ARGS are passed to nes_bench, such as generics"
 }
 
 exit_abnormal() {
@@ -24,6 +25,7 @@ do
            exit_abnormal;;
     esac
 done
+shift $((OPTIND - 1))
 
 if [ "$NES_FILEPATH" == "" ]
 then
@@ -59,6 +61,7 @@ exec ./nes_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                  -gNES_FILEPATH="$NES_FILEPATH"  \
                  -gNES_FILE_BYTES="$NES_SIZE"    \
                  $FM2_PARM                       \
+                 "$@"                            \
                  $TIME_PARM                      \
                  --asserts=disable               \
                  --ieee-asserts=disable

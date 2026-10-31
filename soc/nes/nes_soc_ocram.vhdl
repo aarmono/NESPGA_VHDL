@@ -41,7 +41,8 @@ port
     clk   : in std_logic;
     reset : in boolean;
     -- See nes_soc
-    soft_reset : in boolean := false;
+    soft_reset   : in boolean := false;
+    keep_prg_ram : in boolean := false;
 
     nes_running : out boolean;
 
@@ -61,7 +62,11 @@ port
     joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
     joy_2_clk  : out std_logic;
-    joy_2_data : in joy_data_t := JOY_DATA_IDLE
+    joy_2_data : in joy_data_t := JOY_DATA_IDLE;
+
+    -- See nes_soc
+    board_cpu_in  : out cart_cpu_in_t;
+    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
 );
 end nes_soc_ocram;
 
@@ -115,6 +120,7 @@ begin
         clk => clk,
         reset => reset,
         soft_reset => soft_reset,
+        keep_prg_ram => keep_prg_ram,
 
         nes_running => nes_running,
 
@@ -165,7 +171,10 @@ begin
         joy_1_data => joy_1_data,
 
         joy_2_clk => joy_2_clk,
-        joy_2_data => joy_2_data
+        joy_2_data => joy_2_data,
+
+        board_cpu_in => board_cpu_in,
+        board_cpu_out => board_cpu_out
     );
     
     prg_ram : syncram_sp
