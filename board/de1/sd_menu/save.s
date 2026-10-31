@@ -85,6 +85,8 @@ found:       .res 1
 scan:        .res 4
 scan_left:   .res 4
 clus_end:    .res 4
+; The size of a FAT entry: 2, or 4 on FAT32
+ent_size:    .res 1
 fat_blk:     .res 4
 fat_i:       .res 1
 val:         .res 4
@@ -552,46 +554,51 @@ alloc:
     sta p2 + 1
     lda #0
     sta found
-@next:
+    lda #2
+    bit fat32
+    bpl :+
+    lda #4
+:   sta ent_size
     lda scan_left
     ora scan_left + 1
     ora scan_left + 2
     ora scan_left + 3
-    bne @look
+    bne @locate
+@full:
     lda #ERR_DISK_FULL
     jmp fail
-@look:
+
+    ; The FAT block that holds the entry of cluster scan is read, and ptr
+    ; then steps through it with scan, so that the next block is only
+    ; located at the end of this one
+@locate:
     copy32 clus, scan
-    jsr is_free
-    bne @used
-    ldy #3
-@note:
-    lda scan, y
-    sta (p2), y
+    jsr fat_locate
+@look:
+    ; The entry is 0 for a free cluster. The top 4 bits of a FAT32 entry
+    ; are reserved
+    bit fat32
+    bmi @look32
+    ldy #1
+    lda (ptr), y
     dey
-    bpl @note
-    add16i p2, 4
-    inc found
-    lda found
-    cmp need
-    beq @got
+    ora (ptr), y
+    beq @free
+    bne @used
+@look32:
+    ldy #3
+    lda (ptr), y
+    and #$0F
+    dey
+    ora (ptr), y
+    dey
+    ora (ptr), y
+    dey
+    ora (ptr), y
+    beq @free
 @used:
-    inc32 scan
-    ldx #3
-@end:
-    lda scan, x
-    cmp clus_end, x
-    bne @in
-    dex
-    bpl @end
-    lda #2
-    sta scan
-    lda #0
-    sta scan + 1
-    sta scan + 2
-    sta scan + 3
-@in:
-    ; scan_left - 1, borrowing through the bytes that are 0
+    ; scan_left - 1, borrowing through the bytes that are 0. Every cluster
+    ; has been looked at once it is 0
     lda scan_left
     bne @dec0
     lda scan_left + 1
@@ -605,7 +612,57 @@ alloc:
     dec scan_left + 1
 @dec0:
     dec scan_left
-    jmp @next
+    bne @left
+    lda scan_left + 1
+    ora scan_left + 2
+    ora scan_left + 3
+    beq @full
+@left:
+    inc32 scan
+    ; Cluster 2 follows the last, lowest byte first since it differs most
+    ldx #0
+@end:
+    lda scan, x
+    cmp clus_end, x
+    bne @step
+    inx
+    cpx #4
+    bne @end
+    lda #2
+    sta scan
+    lda #0
+    sta scan + 1
+    sta scan + 2
+    sta scan + 3
+    jmp @locate
+@step:
+    ; The next entry. The buffer is page aligned, so the low byte wraps to
+    ; 0 between its pages, and the block ends after the second
+    clc
+    lda ptr
+    adc ent_size
+    sta ptr
+    bne @look
+    inc ptr + 1
+    lda ptr + 1
+    cmp #>BUF + 2
+    bne @look
+    jmp @locate
+
+    ; Out of line, so that the loop's branches reach
+@free:
+    ldy #3
+@note:
+    lda scan, y
+    sta (p2), y
+    dey
+    bpl @note
+    add16i p2, 4
+    inc found
+    lda found
+    cmp need
+    beq @got
+    jmp @used
 
 @got:
     ; The new file must fit in the launch table

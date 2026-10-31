@@ -517,6 +517,44 @@ want_screen 5 "  >${long:0:27}"
 want_file "long_back.card@@$((2048 * 512))" "Games/$long.sav" long.sav
 want_fsck long_back.card 2048
 
+# The first free clusters for a save are 9 FAT blocks in
+fat far.img 16
+head -c $((1100 * 1024)) /dev/zero > big.bin
+mcopy -i far.img big.bin ::/BIG.BIN
+mcopy -i far.img zelda.nes "::/Zelda (U).nes"
+SD_OUT=1 SD_STATE_IN=random.state run save_far far.img zelda.nes a
+want_launch_with 2 3
+want_file save_far.card "Zelda (U).sav" zeros.sav
+want_fsck save_far.card
+
+# The only free clusters are before the FAT32 next free hint, which is the
+# last cluster, so the search goes on from cluster 2
+fat wrap.img 32
+mcopy -i wrap.img zelda.nes "::/Zelda (U).nes"
+head -c $((16 * 1024)) /dev/zero > first.bin
+mcopy -i wrap.img first.bin ::/FIRST.BIN
+free=$(mdir -i wrap.img ::/ | awk '/bytes free/ { gsub(/ /, ""); print $0 }' |
+       sed 's/bytesfree//')
+head -c "$free" /dev/zero > big.bin
+mcopy -i wrap.img big.bin ::/BIG.BIN
+mdel -i wrap.img ::/FIRST.BIN
+python3 -c '
+import struct, sys
+with open(sys.argv[1], "r+b") as f:
+    bpb = f.read(512)
+    reserved, = struct.unpack_from("<H", bpb, 0x0E)
+    total, = struct.unpack_from("<I", bpb, 0x20)
+    fat_size, = struct.unpack_from("<I", bpb, 0x24)
+    fsinfo, = struct.unpack_from("<H", bpb, 0x30)
+    clusters = (total - reserved - bpb[0x10] * fat_size) // bpb[0x0D]
+    f.seek(fsinfo * 512 + 0x1EC)
+    f.write(struct.pack("<I", clusters + 1))
+' wrap.img
+SD_OUT=1 SD_STATE_IN=random.state run save_wrap wrap.img zelda.nes a
+want_launch_with 2 3
+want_file save_wrap.card "Zelda (U).sav" zeros.sav
+want_fsck save_wrap.card
+
 # No room in a root directory of 16 entries
 rm -f full.img
 /usr/sbin/mkfs.fat -C -F 16 -s 1 -r 16 full.img 16384 > /dev/null 2>&1
