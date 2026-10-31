@@ -12,11 +12,13 @@ use work.perhipheral_types.all;
 -- CMD17, and written with CMD24, at SCK_FREQ. Both standard capacity (byte
 -- addressed) and high capacity (block addressed) cards are supported.
 --
--- The first run, of sd_count_t'high blocks from START_BLOCK, starts as soon
--- as the card is initialized. Once a run is over the card is deselected and
--- req_ready is true, and a run of req_count blocks from req_block is started
--- on a clock where req_valid is also true. req_count must be at least 1.
--- If req_write is true as well, block req_block is written instead.
+-- The first run, from START_BLOCK, starts as soon as the card is
+-- initialized. Without REQUESTS it does not end until stop. With REQUESTS
+-- it is sd_count_t'high blocks long. Once a run is over the card is
+-- deselected and req_ready is true, and with REQUESTS a run of req_count
+-- blocks from req_block is started on a clock where req_valid is also true.
+-- req_count must be at least 1. If req_write is true as well, block
+-- req_block is written instead.
 --
 -- Each received byte is presented on data with valid true until it is taken
 -- by a clock where ready is also true, and offset is its offset in the
@@ -47,6 +49,9 @@ generic
     SCK_FREQ      : positive := 12_500_000;
 
     START_BLOCK : natural := 0;
+    -- Take runs and writes from the req ports. Without it the first run
+    -- never ends, and the logic for the req ports is not built
+    REQUESTS    : boolean := false;
 
     -- Time to wait after reset before talking to the card
     POWER_UP_US : natural := 1000;
@@ -107,6 +112,8 @@ architecture behavioral of sd_reader is
     subtype count_t is natural range 0 to BLOCK_BYTES - 1;
     subtype byte_t is std_logic_vector(7 downto 0);
     subtype frame_t is std_logic_vector(47 downto 0);
+    -- The bytes of a command frame
+    subtype frame_byte_t is natural range 0 to 5;
 
     type state_t is
     (
@@ -151,10 +158,19 @@ architecture behavioral of sd_reader is
         CMD_WRITE_BLOCK
     );
 
+    -- The R1 responses that are checked for
+    type r1_t is
+    (
+        R1_READY,
+        R1_IDLE,
+        -- Idle, with an illegal command
+        R1_ILLEGAL,
+        R1_OTHER
+    );
+
     type reg_t is record
         state : state_t;
         cmd   : cmd_t;
-        frame : frame_t;
         count : count_t;
         tries : natural range 0 to CMD0_TRIES;
         timer : timer_t;
@@ -169,12 +185,13 @@ architecture behavioral of sd_reader is
         -- stop ended the read run
         stopped    : boolean;
 
-        r1    : byte_t;
-        extra : std_logic_vector(31 downto 0);
+        r1    : r1_t;
+        -- Bits 11-8 of the R7 response of CMD8 are 0x1: 2.7-3.6V. The
+        -- check pattern is in its last byte
+        volts_ok : boolean;
 
         -- Byte transfer
         busy  : boolean;
-        fast  : boolean;
         div   : div_t;
         bits  : natural range 0 to 7;
         shift : byte_t;
@@ -190,7 +207,6 @@ architecture behavioral of sd_reader is
     (
         state => ST_POWER_UP,
         cmd => CMD_GO_IDLE,
-        frame => (others => '1'),
         count => 0,
         tries => 0,
         timer => POWER_UP_CLKS,
@@ -201,11 +217,10 @@ architecture behavioral of sd_reader is
         left => sd_count_t'high,
         stopped => false,
 
-        r1 => (others => '1'),
-        extra => (others => '1'),
+        r1 => R1_OTHER,
+        volts_ok => false,
 
         busy => false,
-        fast => false,
         div => 0,
         bits => 0,
         shift => (others => '1'),
@@ -216,6 +231,28 @@ architecture behavioral of sd_reader is
         miso => '1'
     );
 
+    -- Blocks are read and written at SCK_FREQ, once the card is initialized
+    function is_fast(cmd : cmd_t) return boolean
+    is
+    begin
+        return cmd = CMD_READ_BLOCK or cmd = CMD_WRITE_BLOCK;
+    end;
+
+    function get_r1(resp : byte_t) return r1_t
+    is
+    begin
+        case resp is
+            when x"00" =>
+                return R1_READY;
+            when x"01" =>
+                return R1_IDLE;
+            when x"05" =>
+                return R1_ILLEGAL;
+            when others =>
+                return R1_OTHER;
+        end case;
+    end;
+
     -- Start clocking a byte out on MOSI and in from MISO. The received byte
     -- is in shift once busy is false again
     procedure start_byte(v : inout reg_t; tx : in byte_t)
@@ -225,7 +262,7 @@ architecture behavioral of sd_reader is
         v.bits := 0;
         v.shift := tx;
         v.mosi := tx(7);
-        if v.fast
+        if is_fast(v.cmd)
         then
             v.div := HALF_CLKS - 1;
         else
@@ -233,8 +270,10 @@ architecture behavioral of sd_reader is
         end if;
     end;
 
-    -- Select the card and start sending cmd, preceded by one byte of 0xFF
-    procedure start_cmd(v : inout reg_t; cmd : in cmd_t)
+    -- The command frame of the command in reg. It is sent a byte at a time
+    -- rather than held in a shift register, as it only depends on registers
+    -- that do not change while it is sent
+    function get_frame(reg : reg_t) return frame_t
     is
         variable index : natural range 0 to 63;
         variable arg   : std_logic_vector(31 downto 0);
@@ -243,7 +282,7 @@ architecture behavioral of sd_reader is
     begin
         arg := (others => '0');
         crc := (others => '1');
-        case cmd is
+        case reg.cmd is
             when CMD_GO_IDLE =>
                 index := 0;
                 crc := "1001010";
@@ -257,7 +296,7 @@ architecture behavioral of sd_reader is
             when CMD_APP_SEND_OP_COND =>
                 index := 41;
                 -- HCS: the host supports high capacity cards
-                if v.v2
+                if reg.v2
                 then
                     arg(30) := '1';
                 end if;
@@ -267,23 +306,43 @@ architecture behavioral of sd_reader is
                 index := 16;
                 arg := to_std_logic_vector(BLOCK_BYTES, 32);
             when CMD_READ_BLOCK | CMD_WRITE_BLOCK =>
-                if cmd = CMD_READ_BLOCK
+                if reg.cmd = CMD_READ_BLOCK
                 then
                     index := 17;
                 else
                     index := 24;
                 end if;
-                if v.block_addr
+                if reg.block_addr
                 then
-                    arg := v.blk;
+                    arg := reg.blk;
                 else
-                    arg := v.blk(22 downto 0) & "000000000";
+                    arg := reg.blk(22 downto 0) & "000000000";
                 end if;
         end case;
 
+        return "01" & to_std_logic_vector(index, 6) & arg & crc & "1";
+    end;
+
+    -- Byte n of the command frame of the command in reg
+    function get_frame_byte(reg : reg_t; n : frame_byte_t) return byte_t
+    is
+        constant FRAME : frame_t := get_frame(reg);
+    begin
+        case n is
+            when 0 => return FRAME(47 downto 40);
+            when 1 => return FRAME(39 downto 32);
+            when 2 => return FRAME(31 downto 24);
+            when 3 => return FRAME(23 downto 16);
+            when 4 => return FRAME(15 downto 8);
+            when 5 => return FRAME(7 downto 0);
+        end case;
+    end;
+
+    -- Select the card and start sending cmd, preceded by one byte of 0xFF
+    procedure start_cmd(v : inout reg_t; cmd : in cmd_t)
+    is
+    begin
         v.cmd := cmd;
-        v.frame := "01" & to_std_logic_vector(index, 6) &
-                   arg & crc & "1";
         v.count := 0;
         v.cs_n := '0';
         v.state := ST_CMD;
@@ -349,7 +408,7 @@ architecture behavioral of sd_reader is
             then
                 ret.div := reg.div - 1;
             else
-                if reg.fast
+                if is_fast(reg.cmd)
                 then
                     ret.div := HALF_CLKS - 1;
                 else
@@ -397,15 +456,14 @@ architecture behavioral of sd_reader is
                         start_byte(ret, x"FF");
                     else
                         ret.count := reg.count + 1;
-                        ret.frame := reg.frame(39 downto 0) & x"FF";
-                        start_byte(ret, reg.frame(47 downto 40));
+                        start_byte(ret, get_frame_byte(reg, reg.count));
                     end if;
                 when ST_RESP =>
                     if reg.shift(7) = '0' or reg.count = NCR_BYTES - 1
                     then
-                        -- A timeout leaves r1 as 0xFF, which every
+                        -- A timeout leaves r1 as R1_OTHER, which every
                         -- command treats as a failure
-                        ret.r1 := reg.shift;
+                        ret.r1 := get_r1(reg.shift);
                         if reg.cmd = CMD_SEND_IF_COND or reg.cmd = CMD_READ_OCR
                         then
                             ret.count := 0;
@@ -419,7 +477,17 @@ architecture behavioral of sd_reader is
                         start_byte(ret, x"FF");
                     end if;
                 when ST_RESP_EXTRA =>
-                    ret.extra := reg.extra(23 downto 0) & reg.shift;
+                    -- Only the bits that are checked are kept. The last byte
+                    -- is checked from shift
+                    if reg.count = 0 and reg.cmd = CMD_READ_OCR
+                    then
+                        -- CCS. A failed command leaves it unused
+                        ret.block_addr := reg.shift(6) = '1';
+                    end if;
+                    if reg.count = 2
+                    then
+                        ret.volts_ok := reg.shift(3 downto 0) = x"1";
+                    end if;
                     if reg.count = 3
                     then
                         v_resp_done := true;
@@ -526,7 +594,7 @@ architecture behavioral of sd_reader is
                     end if;
                 when ST_DESELECT =>
                     if (reg.cmd = CMD_READ_BLOCK and
-                        (ret.stopped or reg.left = 0)) or
+                        (ret.stopped or (REQUESTS and reg.left = 0))) or
                        reg.cmd = CMD_WRITE_BLOCK
                     then
                         ret.stopped := false;
@@ -535,7 +603,7 @@ architecture behavioral of sd_reader is
                         start_cmd(ret, reg.cmd);
                     end if;
                 when ST_IDLE =>
-                    if reader_in.req_valid
+                    if REQUESTS and reader_in.req_valid
                     then
                         ret.blk := reader_in.req_block;
                         ret.left := reader_in.req_count;
@@ -555,7 +623,7 @@ architecture behavioral of sd_reader is
         then
             case reg.cmd is
                 when CMD_GO_IDLE =>
-                    if ret.r1 = x"01"
+                    if ret.r1 = R1_IDLE
                     then
                         deselect(ret, CMD_SEND_IF_COND);
                     elsif reg.tries = CMD0_TRIES - 1
@@ -568,11 +636,11 @@ architecture behavioral of sd_reader is
                 when CMD_SEND_IF_COND =>
                     -- Version 1 cards reject CMD8 as an illegal command
                     ret.timer := TIMEOUT_CLKS;
-                    if ret.r1 = x"01" and ret.extra(11 downto 0) = x"1AA"
+                    if ret.r1 = R1_IDLE and reg.volts_ok and reg.shift = x"AA"
                     then
                         ret.v2 := true;
                         deselect(ret, CMD_APP);
-                    elsif ret.r1 = x"05"
+                    elsif ret.r1 = R1_ILLEGAL
                     then
                         ret.v2 := false;
                         deselect(ret, CMD_APP);
@@ -580,14 +648,14 @@ architecture behavioral of sd_reader is
                         fail(ret);
                     end if;
                 when CMD_APP =>
-                    if ret.r1(7 downto 1) = "0000000"
+                    if ret.r1 = R1_READY or ret.r1 = R1_IDLE
                     then
                         deselect(ret, CMD_APP_SEND_OP_COND);
                     else
                         fail(ret);
                     end if;
                 when CMD_APP_SEND_OP_COND =>
-                    if ret.r1 = x"00"
+                    if ret.r1 = R1_READY
                     then
                         if reg.v2
                         then
@@ -595,7 +663,7 @@ architecture behavioral of sd_reader is
                         else
                             deselect(ret, CMD_SET_BLOCKLEN);
                         end if;
-                    elsif ret.r1 = x"01" and reg.timer /= 0
+                    elsif ret.r1 = R1_IDLE and reg.timer /= 0
                     then
                         -- Still initializing
                         deselect(ret, CMD_APP);
@@ -603,13 +671,10 @@ architecture behavioral of sd_reader is
                         fail(ret);
                     end if;
                 when CMD_READ_OCR =>
-                    if ret.r1 = x"00"
+                    if ret.r1 = R1_READY
                     then
-                        -- CCS
-                        ret.block_addr := ret.extra(30) = '1';
                         if ret.block_addr
                         then
-                            ret.fast := true;
                             deselect(ret, CMD_READ_BLOCK);
                         else
                             deselect(ret, CMD_SET_BLOCKLEN);
@@ -618,15 +683,14 @@ architecture behavioral of sd_reader is
                         fail(ret);
                     end if;
                 when CMD_SET_BLOCKLEN =>
-                    if ret.r1 = x"00"
+                    if ret.r1 = R1_READY
                     then
-                        ret.fast := true;
                         deselect(ret, CMD_READ_BLOCK);
                     else
                         fail(ret);
                     end if;
                 when CMD_READ_BLOCK =>
-                    if ret.r1 = x"00"
+                    if ret.r1 = R1_READY
                     then
                         -- Keep the card selected and wait for the data
                         ret.timer := TIMEOUT_CLKS;
@@ -636,7 +700,9 @@ architecture behavioral of sd_reader is
                         fail(ret);
                     end if;
                 when CMD_WRITE_BLOCK =>
-                    if ret.r1 = x"00"
+                    -- Only reachable with REQUESTS. Saying so lets the
+                    -- write states be removed without it
+                    if REQUESTS and ret.r1 = R1_READY
                     then
                         ret.count := 0;
                         ret.state := ST_WRITE_TOKEN;

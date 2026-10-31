@@ -132,11 +132,14 @@ architecture behavioral of sd_menu is
     constant BUTTON_START  : natural := 3;
 
     constant HEADER_BYTES : positive := stub_header_t'length;
-    -- The stub's iNES image: the header, then the PRG ROM
-    subtype stub_pos_t is natural range 0 to HEADER_BYTES + STUB_PRG_BYTES - 1;
-    -- Where the stub starts in the image
-    constant STUB_START : positive := HEADER_BYTES + STUB_PRG_BYTES -
-                                      STUB_BYTES;
+    -- The stub's iNES image is the header, then the PRG ROM, with the stub
+    -- at its top. The position in the image is counted from
+    -- STUB_POS_START, so that the parts of the image and the stub ROM
+    -- address are bits of it: the header is below STUB_BYTES, then the
+    -- padding below STUB_PRG_BYTES, then the stub, at STUB_PRG_BYTES plus
+    -- its address. sdram_rom stops the stream at the end of the image
+    constant STUB_POS_START : positive := STUB_BYTES - HEADER_BYTES;
+    subtype stub_pos_t is natural range 0 to 2 * STUB_PRG_BYTES - 1;
     subtype stub_addr_t is natural range 0 to STUB_BYTES - 1;
 
     type state_t is
@@ -282,7 +285,7 @@ architecture behavioral of sd_menu is
                     ret.state := ST_STUB_START;
                 end if;
             when ST_STUB_START =>
-                ret.stub_pos := 0;
+                ret.stub_pos := STUB_POS_START;
                 ret.stub_ready := false;
                 ret.keep_ram := true;
                 ret.state := ST_STUB;
@@ -294,7 +297,7 @@ architecture behavioral of sd_menu is
                 elsif not reg.stub_ready
                 then
                     ret.stub_ready := true;
-                elsif menu_in.load_ready and reg.stub_pos /= stub_pos_t'high
+                elsif menu_in.load_ready
                 then
                     ret.stub_pos := reg.stub_pos + 1;
                     ret.stub_ready := false;
@@ -450,17 +453,16 @@ begin
 
     load_valid <= reg.stub_ready when reg.state = ST_STUB else
                   sd_valid and to_sdram;
+    -- STUB_POS_START is a multiple of HEADER_BYTES
     load_data <=
         sd_data when reg.state /= ST_STUB else
         STUB_HEADER(reg.stub_pos mod HEADER_BYTES)
-            when reg.stub_pos < HEADER_BYTES else
-        x"FF" when reg.stub_pos < STUB_START else
+            when reg.stub_pos < STUB_BYTES else
+        x"FF" when reg.stub_pos < STUB_PRG_BYTES else
         stub_data;
     sd_ready <= load_ready or not to_sdram;
 
-    -- The stub is the top of the PRG ROM, which follows the header, so it
-    -- starts HEADER_BYTES past a multiple of STUB_BYTES
-    stub_addr <= (reg.stub_pos + STUB_BYTES - HEADER_BYTES) mod STUB_BYTES;
+    stub_addr <= reg.stub_pos mod STUB_BYTES;
 
     -- In a process of its own, so that it is built as a ROM
     process(clk)
@@ -523,6 +525,10 @@ begin
     );
 
     reader : entity work.sd_reader(behavioral)
+    generic map
+    (
+        REQUESTS => true
+    )
     port map
     (
         clk => clk,
