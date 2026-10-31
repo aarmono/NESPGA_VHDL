@@ -2,7 +2,8 @@
 # holds it, ../sd_menu_stub.vhdl, which is checked in so that the simulation
 # and Quartus builds do not need cc65. stub.nes is the stub's image as
 # sd_menu streams it, for stub_test.sh. menu.nes is the menu, which goes on
-# the card as MENU.NES
+# the card as MENU.NES. make sd_card.img makes a card image holding it (see
+# sd_image.sh)
 
 CA65 ?= ca65
 LD65 ?= ld65
@@ -27,7 +28,11 @@ menu.nes: menu.o fat.o menu.cfg
 ../sd_menu_stub.vhdl stub.nes &: stub.bin stub_rom.py
 	$(PYTHON) stub_rom.py stub.bin ../sd_menu_stub.vhdl --nes stub.nes
 
+sd_card.img: menu.nes sd_image.sh
+	./sd_image.sh $@
+
 clean:
-	rm -f *.o *.lst stub.bin stub.map stub.nes font.chr menu.map menu.nes
+	rm -f *.o *.lst stub.bin stub.map stub.nes font.chr menu.map menu.nes \
+		sd_card.img sd_card.img.gz
 
 .PHONY: all clean
