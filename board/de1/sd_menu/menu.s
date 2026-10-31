@@ -119,7 +119,6 @@ fn:          .res 2
 case_bits:   .res 1
 case_flag:   .res 1
 char:        .res 1
-index:       .res 1
 ; The position before the entry being read, and before the first entry of
 ; the item, its long name or its short entry
 ent_state:   .res DIR_STATE_BYTES
@@ -449,13 +448,8 @@ title_ptr:
     sta str + 1
     ldx depth
 @add:
-    clc
-    lda str
-    adc #TITLE_BYTES
-    sta str
-    bcc :+
-    inc str + 1
-:   dex
+    add16i str, TITLE_BYTES
+    dex
     bne @add
     rts
 
@@ -486,12 +480,7 @@ scan:
     cmp #MAX_PAGES - 1
     beq @done
     inc last_page
-    clc
-    lda pg_ptr
-    adc #DIR_STATE_BYTES
-    sta pg_ptr
-    bcc @note
-    inc pg_ptr + 1
+    add16i pg_ptr, DIR_STATE_BYTES
 @note:
     ldy #DIR_STATE_BYTES - 1
 @copy:
@@ -522,13 +511,8 @@ page_entry:
     cpx #0
     beq @done
 @add:
-    clc
-    lda pg_ptr
-    adc #DIR_STATE_BYTES
-    sta pg_ptr
-    bcc :+
-    inc pg_ptr + 1
-:   dex
+    add16i pg_ptr, DIR_STATE_BYTES
+    dex
     bne @add
 @done:
     rts
@@ -571,12 +555,7 @@ next_item:
     lda #0
     sta lfn_ok
 @entry:
-    ldx #DIR_STATE_BYTES - 1
-@save:
-    lda dir_state, x
-    sta ent_state, x
-    dex
-    bpl @save
+    copyx ent_state, dir_state, DIR_STATE_BYTES
     jsr dir_next
     bcc @read
     rts
@@ -609,12 +588,7 @@ next_item:
     ldy #13
     lda (ptr), y
     sta lfn_sum
-    ldx #DIR_STATE_BYTES - 1
-@start:
-    lda ent_state, x
-    sta item_state, x
-    dex
-    bpl @start
+    copyx item_state, ent_state, DIR_STATE_BYTES
     lda #1
     sta lfn_ok
     bne @chars
@@ -675,12 +649,7 @@ next_item:
     jmp @named
 
 @short_name:
-    ldx #DIR_STATE_BYTES - 1
-@here:
-    lda ent_state, x
-    sta item_state, x
-    dex
-    bpl @here
+    copyx item_state, ent_state, DIR_STATE_BYTES
     ldy #DIR_CASE
     lda (ptr), y
     sta case_bits
@@ -758,14 +727,8 @@ next_item:
     ; The menu itself
     lda depth
     bne @file
-    ldy #10
-@menu:
-    lda (ptr), y
-    cmp menu_name, y
-    bne @file
-    dey
-    bpl @menu
-    bmi @skip
+    jsr is_menu
+    beq @skip
 @file:
     lda #KIND_FILE
     beq @found
@@ -1300,7 +1263,6 @@ palette:
     .byte $0F, $2A, $2A, $2A, $0F, $2A, $2A, $2A
     .byte $0F, $2A, $2A, $2A, $0F, $2A, $2A, $2A
 
-menu_name:       .byte "MENU    NES"
 no_entries_text: .asciiz "No games here"
 footer_text:     .asciiz "A:Open  B:Back"
 error_text:      .asciiz "Error"

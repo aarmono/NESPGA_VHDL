@@ -121,14 +121,7 @@ prepare_launch:
 @found:
     jsr build_extents
     bcs @fragmented
-    ldx #0
-@copy:
-    lda TABLE, x
-    sta SAVE_EXTENTS, x
-    lda TABLE + $100, x
-    sta SAVE_EXTENTS + $100, x
-    inx
-    bne @copy
+    copy512 SAVE_EXTENTS, TABLE
     lda file_blocks
     sta SAVE_BLOCKS
     copy32 SAVE_SERIAL, vol_serial
@@ -146,12 +139,7 @@ prepare_launch:
     sta flag_val
 
 @launch:
-    ldx #RESUME_BYTES - 1
-@resume:
-    lda cur_clus, x
-    sta RESUME, x
-    dex
-    bpl @resume
+    copyx RESUME, cur_clus, RESUME_BYTES
 
     copy32 clus, game_clus
     jsr build_extents
@@ -178,14 +166,7 @@ write_back:
     dex
     bpl @serial
 
-    ldx #0
-@copy:
-    lda SAVE_EXTENTS, x
-    sta TABLE, x
-    lda SAVE_EXTENTS + $100, x
-    sta TABLE + $100, x
-    inx
-    bne @copy
+    copy512 TABLE, SAVE_EXTENTS
     lda #OP_STORE
     ldx SAVE_BLOCKS
     jsr for_blocks
@@ -196,12 +177,7 @@ write_back:
     lda REG_STATUS
     and #FLAG_RESUME
     beq @done
-    ldx #RESUME_BYTES - 1
-@restore:
-    lda RESUME, x
-    sta cur_clus, x
-    dex
-    bpl @restore
+    copyx cur_clus, RESUME, RESUME_BYTES
 @done:
     rts
 @wrong_card:
@@ -268,14 +244,7 @@ read_header:
 ; GAMENAME = FULLNAME with .sav in place of .nes, in the case of each
 ; letter replaced, or with .sav added if it does not end in .nes
 save_name:
-    ldx #0
-@copy:
-    lda FULLNAME, x
-    sta GAMENAME, x
-    lda FULLNAME + $100, x
-    sta GAMENAME + $100, x
-    inx
-    bne @copy
+    copy512 GAMENAME, FULLNAME
     lda full_len
     sta game_len
 
@@ -414,19 +383,9 @@ find_save:
     cmp (p2), y
     bne @next
 @same:
-    clc
-    lda p1
-    adc #2
-    sta p1
-    bcc :+
-    inc p1 + 1
-:   clc
-    lda p2
-    adc #2
-    sta p2
-    bcc :+
-    inc p2 + 1
-:   dex
+    add16i p1, 2
+    add16i p2, 2
+    dex
     bne @char
 
     ; The blocks the file holds, rounded up. 64 KB or more holds the
@@ -484,11 +443,7 @@ make_save:
     ldx #0
     txa
     sta cache_ok
-@zero:
-    sta BUF, x
-    sta BUF + $100, x
-    inx
-    bne @zero
+    fill512 BUF
     lda #OP_ZERO
     ldx save_blocks
     jsr for_blocks
@@ -508,12 +463,7 @@ find_slots:
     lda #0
     sta run
 @entry:
-    ldx #DIR_STATE_BYTES - 1
-@save:
-    lda dir_state, x
-    sta ent_tmp, x
-    dex
-    bpl @save
+    copyx ent_tmp, dir_state, DIR_STATE_BYTES
     jsr dir_next
     bcs @full
     ldy #0
@@ -527,12 +477,7 @@ find_slots:
 @free:
     lda run
     bne @counted
-    ldx #DIR_STATE_BYTES - 1
-@first:
-    lda ent_tmp, x
-    sta slot_state, x
-    dex
-    bpl @first
+    copyx slot_state, ent_tmp, DIR_STATE_BYTES
 @counted:
     inc run
     lda run
@@ -625,13 +570,8 @@ alloc:
     sta (p2), y
     dey
     bpl @note
-    clc
-    lda p2
-    adc #4
-    sta p2
-    bcc :+
-    inc p2 + 1
-:   inc found
+    add16i p2, 4
+    inc found
     lda found
     cmp need
     beq @got
@@ -699,13 +639,8 @@ alloc:
 @break:
     inc fat_i
 @run:
-    clc
-    lda p1
-    adc #4
-    sta p1
-    bcc :+
-    inc p1 + 1
-:   dex
+    add16i p1, 4
+    dex
     bne @extent
     lda fat_i
     cmp #EXTENTS + 1
@@ -749,13 +684,8 @@ alloc:
     sta val + 3
 @chain:
     jsr set_fat
-    clc
-    lda p1
-    adc #4
-    sta p1
-    bcc :+
-    inc p1 + 1
-:   lda found
+    add16i p1, 4
+    lda found
     bne @link
     ; The last cluster, for the FSInfo hint
     copy32 scan, clus
@@ -871,19 +801,7 @@ fsinfo:
     and BPB_FSINFO + 1
     cmp #$FF
     beq @none
-    clc
-    lda block
-    adc BPB_FSINFO
-    sta block
-    lda block + 1
-    adc BPB_FSINFO + 1
-    sta block + 1
-    lda block + 2
-    adc #0
-    sta block + 2
-    lda block + 3
-    adc #0
-    sta block + 3
+    add32_16 block, block, BPB_FSINFO
     jsr read_block
     ldx #3
 @signature:
@@ -931,12 +849,7 @@ update_fsinfo:
 ; file at CLIST, to the free entries from slot_state
 write_entries:
     jsr make_short
-    ldx #DIR_STATE_BYTES - 1
-@restore:
-    lda slot_state, x
-    sta dir_state, x
-    dex
-    bpl @restore
+    copyx dir_state, slot_state, DIR_STATE_BYTES
     lda #$80
     sta dir_all
 
@@ -1265,13 +1178,8 @@ for_blocks:
     cmp w_off + 1
     bne @same
     ; The next extent
-    clc
-    lda w_ptr
-    adc #8
-    sta w_ptr
-    bcc :+
-    inc w_ptr + 1
-:   lda #0
+    add16i w_ptr, 8
+    lda #0
     sta w_off
     sta w_off + 1
 @same:

@@ -47,7 +47,6 @@ root:      .res 4
 root_count: .res 2
 clus:      .res 4
 tmp:       .res 4
-count:     .res 2
 sec_per_clus: .res 1
 clus_shift:   .res 1
 fat32:     .res 1
@@ -115,19 +114,7 @@ filesystem:
     copy32 vol_lba, block
     lda BPB_NUM_FATS
     sta num_fats
-    clc
-    lda block
-    adc BPB_RESERVED
-    sta fat_lba
-    lda block + 1
-    adc BPB_RESERVED + 1
-    sta fat_lba + 1
-    lda block + 2
-    adc #0
-    sta fat_lba + 2
-    lda block + 3
-    adc #0
-    sta fat_lba + 3
+    add32_16 fat_lba, block, BPB_RESERVED
 
     ; The size of a FAT. The 16 bit size is 0 on FAT32
     ldx #0
@@ -338,7 +325,7 @@ check_boot:
     clc
     rts
 
-; block = the first block of cluster clus, count = blocks per cluster
+; block = the first block of cluster clus
 clus_to_block:
     sec
     lda clus
@@ -360,10 +347,6 @@ clus_to_block:
     bne @shift
 @add:
     add32 block, data_lba
-    lda sec_per_clus
-    sta count
-    lda #0
-    sta count + 1
     rts
 
 ; clus = the cluster after clus in its chain. Carry set at the end of the
@@ -490,12 +473,14 @@ dir_open:
 @root32:
     copy32 clus, root
 @chain:
+; Reads the directory from the start of cluster clus, part of its chain
+dir_chain:
     copy32 dir_clus, clus
     jsr clus_to_block
     copy32 dir_block, block
-    lda count
+    lda sec_per_clus
     sta dir_count
-    lda count + 1
+    lda #0
     sta dir_count + 1
     rts
 
@@ -526,13 +511,7 @@ dir_next:
     copy32 clus, dir_clus
     jsr next_clus
     bcs @end
-    copy32 dir_clus, clus
-    jsr clus_to_block
-    copy32 dir_block, block
-    lda count
-    sta dir_count
-    lda count + 1
-    sta dir_count + 1
+    jsr dir_chain
 
 @read:
     copy32 block, dir_block
@@ -564,6 +543,20 @@ dir_next:
     sec
     rts
 
+; Z set if the directory entry at ptr is MENU.NES. Changes A and Y
+is_menu:
+    ldy #10
+:   lda (ptr), y
+    cmp menu_name, y
+    bne :+
+    dey
+    bpl :-
+    lda #0
+:   rts
+
+menu_name:
+    .byte "MENU    NES"
+
 ; clus = the first cluster of the file whose directory entry is at ptr
 entry_clus:
     ldy #DIR_CLUS_LO
@@ -593,11 +586,7 @@ build_extents:
 
     ldx #0
     txa
-@clear:
-    sta TABLE, x
-    sta TABLE + $100, x
-    inx
-    bne @clear
+    fill512 TABLE
     stx ext_end
     stx ext_end + 1
     stx ext_end + 2
@@ -631,12 +620,7 @@ build_extents:
     jmp @end
 
 @new:
-    clc
-    lda ext_ptr
-    adc #8
-    sta ext_ptr
-    bcc @entry
-    inc ext_ptr + 1
+    add16i ext_ptr, 8
 @entry:
     lda ext_ptr + 1
     cmp #>(TABLE + $200)
@@ -675,14 +659,7 @@ build_extents:
 ; is loaded
 launch:
     pha
-    ldx #0
-@copy:
-    lda TABLE, x
-    sta BUF, x
-    lda TABLE + $100, x
-    sta BUF + $100, x
-    inx
-    bne @copy
+    copy512 BUF, TABLE
     pla
     sta REG_LAUNCH
 @wait:

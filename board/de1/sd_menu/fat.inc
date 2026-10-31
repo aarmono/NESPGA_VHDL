@@ -107,7 +107,7 @@ DIR_STATE_BYTES = 11
 
 .global mount, read_block, write_block, dir_open, dir_next, entry_clus
 .global build_extents, launch, check_clus, clus_to_block, fat_locate
-.global fat_where
+.global fat_where, is_menu
 
 .macro copy32 dst, src
     .repeat 4, i
@@ -123,6 +123,61 @@ DIR_STATE_BYTES = 11
         adc src + i
         sta dst + i
     .endrepeat
+.endmacro
+
+; dst = src32 + src16, where src16 is 16 bits
+.macro add32_16 dst, src32, src16
+    clc
+    lda src32
+    adc src16
+    sta dst
+    lda src32 + 1
+    adc src16 + 1
+    sta dst + 1
+    .repeat 2, i
+        lda src32 + 2 + i
+        adc #0
+        sta dst + 2 + i
+    .endrepeat
+.endmacro
+
+; dst, a 16 bit pointer, += n, a constant below 256
+.macro add16i dst, n
+    clc
+    lda dst
+    adc #n
+    sta dst
+    bcc :+
+    inc dst + 1
+:
+.endmacro
+
+; Copies the n bytes (at most 128) at src to dst. X is $FF after
+.macro copyx dst, src, n
+    ldx #n - 1
+:   lda src, x
+    sta dst, x
+    dex
+    bpl :-
+.endmacro
+
+; Copies the 512 bytes at src to dst. X is 0 after
+.macro copy512 dst, src
+    ldx #0
+:   lda src, x
+    sta dst, x
+    lda src + $100, x
+    sta dst + $100, x
+    inx
+    bne :-
+.endmacro
+
+; Stores A in the 512 bytes at dst. X must be 0, and is 0 after
+.macro fill512 dst
+:   sta dst, x
+    sta dst + $100, x
+    inx
+    bne :-
 .endmacro
 
 .macro inc32 dst

@@ -55,7 +55,6 @@ architecture behavioral of sdram_rom_bench is
     -- The RAM window is small so that most reads of it are of an address
     -- that has been written. It is at the start of the upper half of the
     -- cartridge memory bus, where the cartridge RAMs are
-    constant RAM_BASE  : natural := 2**(cart_mem_addr_t'length - 1);
     constant RAM_BYTES : positive := 256;
 
     type ram_t is array(0 to RAM_BYTES - 1) of data_t;
@@ -345,13 +344,13 @@ begin
             if rand < 0.5
             then
                 cart_mem_bus <= bus_write(to_unsigned(
-                    RAM_BASE + ram_idx, cart_mem_addr_t'length));
+                    CART_RAM_BASE + ram_idx, cart_mem_addr_t'length));
                 uniform(seed1, seed2, rand);
                 cart_mem_wdata <= to_std_logic_vector(
                     integer(floor(rand * 256.0)), data_t'length);
             else
                 cart_mem_bus <= bus_read(to_unsigned(
-                    RAM_BASE + ram_idx, cart_mem_addr_t'length));
+                    CART_RAM_BASE + ram_idx, cart_mem_addr_t'length));
             end if;
         end if;
     end if;

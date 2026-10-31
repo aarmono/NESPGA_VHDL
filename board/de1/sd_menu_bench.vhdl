@@ -56,9 +56,8 @@ architecture behavioral of sd_menu_bench is
 
     constant BLOCK_BYTES : positive := 512;
     constant RETURN_HOLD_MS : positive := 1;
-    -- The start of the cartridge RAM region, PRG RAM, and of bank 24
-    constant CART_RAM : natural := 2**(cart_mem_addr_t'length - 1);
-    constant BANK_24  : natural := CART_RAM + 24 * 8192;
+    -- The start of PRG RAM, and of bank 24
+    constant BANK_24  : natural := CART_RAM_BASE + 24 * 8192;
 
     type bytes_t is array(natural range <>) of data_t;
     type bytes_ptr_t is access bytes_t;
@@ -411,6 +410,17 @@ begin
                 severity failure;
         end;
 
+        -- Waits for menu mode, in which the registers answer
+        procedure wait_registers
+        is
+        begin
+            loop
+                cpu_read(16#5204#);
+                exit when oe;
+            end loop;
+            report "Menu mode at " & time'image(now);
+        end;
+
         -- Waits for the stub to be loaded and menu mode to start
         procedure wait_menu_mode
         is
@@ -420,16 +430,11 @@ begin
             assert keep_prg_ram
                 report "PRG RAM not kept for the stub"
                 severity failure;
-            loop
-                cpu_read(16#5204#);
-                exit when oe;
-            end loop;
-            report "Menu mode at " & time'image(now);
+            wait_registers;
         end;
 
         procedure read_block(blk : natural)
         is
-            variable v_blk : std_logic_vector(31 downto 0);
         begin
             set_block(blk);
             cpu_write(16#5204#, x"00");
@@ -511,11 +516,7 @@ begin
             wait until rising_edge(clk_50) and cpu_en;
 
             -- Menu mode starts once the stub is loaded
-            loop
-                cpu_read(16#5204#);
-                exit when oe;
-            end loop;
-            report "Menu mode at " & time'image(now);
+            wait_registers;
 
             -- The NES's own addresses are left alone
             cpu_read(16#4020#);
@@ -542,28 +543,28 @@ begin
             -- The menu's PRG RAM bank moves accesses to the PRG RAM window,
             -- and only those
             cpu_write(16#5207#, x"18");
-            cart_write(CART_RAM + 16#10#, x"A5");
+            cart_write(CART_RAM_BASE + 16#10#, x"A5");
             cpu_write(16#5207#, x"00");
-            cart_write(CART_RAM + 16#10#, x"5A");
+            cart_write(CART_RAM_BASE + 16#10#, x"5A");
             cart_read(BANK_24 + 16#10#);
             assert data = x"A5"
                 report "Bank 24 holds " & to_hstring(data) & ", not A5"
                 severity failure;
             cpu_write(16#5207#, x"18");
-            cart_read(CART_RAM + 16#10#);
+            cart_read(CART_RAM_BASE + 16#10#);
             assert data = x"A5"
                 report "PRG RAM in bank 24 reads " & to_hstring(data)
                 severity failure;
             cpu_write(16#5207#, x"00");
-            cart_read(CART_RAM + 16#10#);
+            cart_read(CART_RAM_BASE + 16#10#);
             assert data = x"5A"
                 report "PRG RAM in bank 0 reads " & to_hstring(data)
                 severity failure;
             -- CHR RAM is not moved
             cpu_write(16#5207#, x"18");
-            cart_write(CART_RAM + 16#10010#, x"C3");
+            cart_write(CART_RAM_BASE + CART_RAM_WINDOW_BYTES + 16#10#, x"C3");
             cpu_write(16#5207#, x"00");
-            cart_read(CART_RAM + 16#10010#);
+            cart_read(CART_RAM_BASE + CART_RAM_WINDOW_BYTES + 16#10#);
             assert data = x"C3"
                 report "CHR RAM moved by the bank"
                 severity failure;
@@ -697,7 +698,7 @@ begin
         then
             -- The game's PRG RAM, which a return to the menu keeps. The
             -- bank only applies in menu mode
-            cart_write(CART_RAM + 16#123#, x"3C");
+            cart_write(CART_RAM_BASE + 16#123#, x"3C");
             cart_mem_bus <= CART_MEM_BUS_IDLE;
 
             -- Start and Select, then a shorter press of both, and of one
@@ -730,7 +731,7 @@ begin
                 buttons <= "11111111";
                 wait_menu_mode;
                 check_flags("10");
-                cart_read(CART_RAM + 16#123#);
+                cart_read(CART_RAM_BASE + 16#123#);
                 assert data = x"3C"
                     report "PRG RAM not kept: " & to_hstring(data)
                     severity failure;

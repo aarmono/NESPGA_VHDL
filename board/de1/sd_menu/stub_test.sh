@@ -11,6 +11,7 @@
 HERE=$(cd "$(dirname "$0")"; pwd)
 REPO=$(cd "$HERE/../../.."; pwd)
 MESEN_AGENT=${MESEN_AGENT:-$HOME/.local/bin/mesen-agent}
+. "$HERE/sd_test_lib.sh"
 ROM=${1:-$REPO/nes-test-roms/instr_test-v5/rom_singles/01-basics.nes}
 
 WORK=$(mktemp -d)
@@ -35,13 +36,7 @@ check() {
         2> stderr.log
     local code=$?
     local result
-    result=$(python3 -c '
-import json, sys
-for line in open(sys.argv[1]):
-    event = json.loads(line)
-    if event.get("event") == "lua_log":
-        print(event["text"])
-' events.jsonl | grep -E "^(LAUNCH|ERROR)" | head -1)
+    result=$(lua_log events.jsonl | grep -E "^(LAUNCH|ERROR)" | head -1)
 
     local status=FAIL
     if [ "$want" == launch ]
@@ -134,23 +129,9 @@ check empty_file 18 empty.img
 
 # MENU.NES with more than 64 extents: 1 block clusters, every other one free
 /usr/sbin/mkfs.fat -C -F 16 -s 1 frag.img 16384 > /dev/null 2>&1
-echo small > small.bin
-for n in $(seq 1 130)
-do
-    MTOOLS_SKIP_CHECK=1 mcopy -i frag.img small.bin ::/F$n.BIN
-done
-for n in $(seq 1 2 130)
-do
-    MTOOLS_SKIP_CHECK=1 mdel -i frag.img ::/F$n.BIN
-done
+fragment frag.img
 cat "$ROM" "$ROM" "$ROM" "$ROM" > big.nes
 MTOOLS_SKIP_CHECK=1 mcopy -i frag.img big.nes ::/MENU.NES
 check fragmented 19 frag.img
 
-if [ $failures == 0 ]
-then
-    echo "PASS"
-else
-    echo "$failures FAILED"
-    exit 1
-fi
+summary

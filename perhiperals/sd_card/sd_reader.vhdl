@@ -12,8 +12,8 @@ use work.perhipheral_types.all;
 -- CMD17, and written with CMD24, at SCK_FREQ. Both standard capacity (byte
 -- addressed) and high capacity (block addressed) cards are supported.
 --
--- The first run, of START_COUNT blocks from START_BLOCK, starts as soon as
--- the card is initialized. Once a run is over the card is deselected and
+-- The first run, of sd_count_t'high blocks from START_BLOCK, starts as soon
+-- as the card is initialized. Once a run is over the card is deselected and
 -- req_ready is true, and a run of req_count blocks from req_block is started
 -- on a clock where req_valid is also true. req_count must be at least 1.
 -- If req_write is true as well, block req_block is written instead.
@@ -45,7 +45,6 @@ generic
     SCK_FREQ      : positive := 12_500_000;
 
     START_BLOCK : natural := 0;
-    START_COUNT : sd_count_t := sd_count_t'high;
 
     -- Time to wait after reset before talking to the card
     POWER_UP_US : natural := 1000;
@@ -195,7 +194,7 @@ architecture behavioral of sd_reader is
         v2 => false,
         block_addr => false,
         blk => to_std_logic_vector(START_BLOCK, sd_block_t'length),
-        left => START_COUNT,
+        left => sd_count_t'high,
 
         r1 => (others => '1'),
         extra => (others => '1'),
@@ -448,14 +447,10 @@ begin
                 when ST_CRC =>
                     if reg.count = 1
                     then
-                        if reg.left > 1
-                        then
-                            v_reg.blk :=
-                                std_logic_vector(unsigned(reg.blk) + 1);
-                            v_reg.left := reg.left - 1;
-                        else
-                            v_reg.left := 0;
-                        end if;
+                        -- left is at least 1. Once it is 0 the run is
+                        -- over and the next run sets blk
+                        v_reg.blk := std_logic_vector(unsigned(reg.blk) + 1);
+                        v_reg.left := reg.left - 1;
                         deselect(v_reg, CMD_READ_BLOCK);
                     else
                         v_reg.count := reg.count + 1;

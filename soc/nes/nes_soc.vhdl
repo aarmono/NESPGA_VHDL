@@ -445,11 +445,13 @@ begin
         ready => dma_ready
     );
 
+    -- Outside the main process, so it only wakes when the CPU side changes
+    board_cpu_in <= cart_in.cpu;
+
     process(all)
     is
         variable nes_in : nes_in_t;
         variable nes_out : nes_out_t;
-        variable cart_cpu_in : cart_cpu_in_t;
     begin
         nes_in.reg := reg;
         
@@ -470,10 +472,8 @@ begin
             nes_in.cpu_bus.dma_cycle := false;
         end if;
 
-        cart_cpu_in := get_cart_cpu_in(nes_in.cpu_bus.cpu_bus,
+        cart_in.cpu <= get_cart_cpu_in(nes_in.cpu_bus.cpu_bus,
                                        nes_in.cpu_bus.data_from_cpu);
-        cart_in.cpu <= cart_cpu_in;
-        board_cpu_in <= cart_cpu_in;
 
         nes_in.cpu_bus.clk_sync := ppu_sync;
         nes_in.cpu_bus.apu_regs_active :=

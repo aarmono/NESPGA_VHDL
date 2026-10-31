@@ -10,6 +10,7 @@
 HERE=$(cd "$(dirname "$0")"; pwd)
 REPO=$(cd "$HERE/../../.."; pwd)
 MESEN_AGENT=${MESEN_AGENT:-$HOME/.local/bin/mesen-agent}
+. "$HERE/sd_test_lib.sh"
 ROMS=$REPO/nes-test-roms/instr_test-v5/rom_singles
 export MTOOLS_SKIP_CHECK=1
 
@@ -143,13 +144,7 @@ run() {
         --lua "$HERE/sd_test.lua" --lua-allow-io > events.jsonl \
         2> stderr.log
     echo "exit $?" > "$name.log"
-    python3 -c '
-import json, sys
-for line in open(sys.argv[1]):
-    event = json.loads(line)
-    if event.get("event") == "lua_log":
-        print(event["text"], end="")
-' events.jsonl >> "$name.log"
+    lua_log events.jsonl >> "$name.log"
     current=$name
 }
 
@@ -392,15 +387,7 @@ want_launch
 
 # A file with more than 64 extents: 1 block clusters, every other one free
 fat frag.img 16
-echo small > small.bin
-for n in $(seq 1 130)
-do
-    mcopy -i frag.img small.bin ::/F$n.BIN
-done
-for n in $(seq 1 2 130)
-do
-    mdel -i frag.img ::/F$n.BIN
-done
+fragment frag.img
 rom frag.nes frag
 dd if=/dev/urandom bs=512 count=1100 status=none >> frag.nes
 mcopy -i frag.img frag.nes "::/Fragmented.nes"
@@ -535,6 +522,7 @@ rm -f full.img
 /usr/sbin/mkfs.fat -C -F 16 -s 1 -r 16 full.img 16384 > /dev/null 2>&1
 mcopy -i full.img "$HERE/menu.nes" ::/MENU.NES
 mcopy -i full.img zelda.nes "::/Zelda (U).nes"
+echo small > small.bin
 for n in $(seq 1 13)
 do
     mcopy -i full.img small.bin ::/F$n.BIN
@@ -568,10 +556,4 @@ SD_OUT=1 run short_chain short.img short.nes a
 want_error 18
 want_writes 0
 
-if [ $failures == 0 ]
-then
-    echo "PASS"
-else
-    echo "$failures FAILED"
-    exit 1
-fi
+summary

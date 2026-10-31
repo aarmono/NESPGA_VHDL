@@ -41,13 +41,8 @@ reset:
     lda (ptr), y
     and #ATTR_SKIP
     bne @entry
-    ldy #10
-@name:
-    lda (ptr), y
-    cmp menu_name, y
+    jsr is_menu
     bne @entry
-    dey
-    bpl @name
 
     jsr entry_clus
     jsr build_extents
@@ -85,9 +80,6 @@ fail:
 nmi:
 irq:
     rti
-
-menu_name:
-    .byte "MENU    NES"
 
 .segment "VECTORS"
     .word nmi, reset, irq

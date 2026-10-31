@@ -251,7 +251,7 @@ architecture behavioral of sd_menu is
         variable ret : cart_mem_bus_t;
     begin
         ret := cart_mem_bus;
-        if cart_mem_bus.address(22 downto 16) = "1000000"
+        if is_in_window(cart_mem_bus.address, PRG_RAM_WINDOW)
         then
             ret.address(17 downto 13) := bank;
         end if;

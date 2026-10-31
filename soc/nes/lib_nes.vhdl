@@ -148,11 +148,6 @@ package lib_nes is
 
     function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t;
 
-    -- The ROM file is in the lower half of the cartridge memory bus, from
-    -- address 0. The cartridge RAMs are in the upper half, each in its own
-    -- fixed 64 KB window: PRG RAM, then CHR RAM, then ExRAM
-    constant CART_RAM_BASE : natural := 2**(cart_mem_addr_t'length - 1);
-
     -- Offset into the cartridge RAM windows
     subtype cart_ram_addr_t is std_logic_vector(17 downto 0);
 
@@ -161,15 +156,6 @@ package lib_nes is
 end lib_nes;
 
 package body lib_nes is
-
-    constant PRG_RAM_WINDOW : cart_mem_addr_t :=
-        to_std_logic_vector(CART_RAM_BASE, cart_mem_addr_t'length);
-    constant CHR_RAM_WINDOW : cart_mem_addr_t :=
-        to_std_logic_vector(CART_RAM_BASE + 16#10000#,
-                            cart_mem_addr_t'length);
-    constant EXRAM_WINDOW : cart_mem_addr_t :=
-        to_std_logic_vector(CART_RAM_BASE + 16#20000#,
-                            cart_mem_addr_t'length);
 
     function parse_mirror(mirror : std_logic_vector(1 downto 0)) return mirror_t
     is

@@ -319,15 +319,20 @@ begin
         );
     end generate;
 
-    gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
+    -- Without the menu, the ROM is loaded once and the board does not touch
+    -- the CPU or cartridge memory buses
+    gen_no_menu : if ROM_CONFIG /= ROM_SD_MENU generate
     begin
-        flash_bus <= FILE_BUS_IDLE;
-
         rom_restart <= false;
         launch_error <= false;
         keep_prg_ram <= false;
         board_cpu_out <= CART_CPU_OUT_IDLE;
         rom_cart_mem_bus <= cart_mem_bus;
+    end generate;
+
+    gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
+    begin
+        flash_bus <= FILE_BUS_IDLE;
 
         sd : entity work.sd_reader(behavioral)
         port map
@@ -355,11 +360,6 @@ begin
     gen_flash : if ROM_CONFIG = ROM_FLASH_TO_SDRAM generate
     begin
         sd_error <= false;
-        rom_restart <= false;
-        launch_error <= false;
-        keep_prg_ram <= false;
-        board_cpu_out <= CART_CPU_OUT_IDLE;
-        rom_cart_mem_bus <= cart_mem_bus;
 
         SD_CLK <= '0';
         SD_DAT3 <= '1';
