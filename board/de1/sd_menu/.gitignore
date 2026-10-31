@@ -1,5 +1,7 @@
-stub.o
-stub.lst
+*.o
+*.lst
+*.map
 stub.bin
-stub.map
 stub.nes
+font.chr
+menu.nes

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Runs the boot stub in Mesen (mesen-agent) on SD card images of each layout
-# it must handle, made by simulation/sd_card/fat_image.py, with stub_test.lua
-# standing in for sd_menu's registers. MENU.NES is ROM (default: an
-# instr_test-v5 ROM). Each case must launch MENU.NES with extents that hold
-# it, or show the error color it expects. Run make first.
+# it must handle, made by simulation/sd_card/fat_image.py and mtools, with
+# sd_test.lua standing in for sd_menu's registers. MENU.NES is ROM
+# (default: an instr_test-v5 ROM). Each case must launch MENU.NES with
+# extents that hold it, or show the error color it expects. Run make first.
 #
 # Usage: stub_test.sh [ ROM ]
 
@@ -31,7 +31,7 @@ check() {
     rm -rf home
     env "$@" SD_IMAGE="$img" SD_EXPECT="$ROM" "$MESEN_AGENT" \
         "$HERE/stub.nes" --home home --frames 20 --timeout 60 \
-        --lua "$HERE/stub_test.lua" --lua-allow-io > events.jsonl \
+        --lua "$HERE/sd_test.lua" --lua-allow-io > events.jsonl \
         2> stderr.log
     local code=$?
     local result
@@ -131,6 +131,21 @@ for i in range(entries):
 open("empty.img", "wb").write(image)
 PY
 check empty_file 18 empty.img
+
+# MENU.NES with more than 64 extents: 1 block clusters, every other one free
+/usr/sbin/mkfs.fat -C -F 16 -s 1 frag.img 16384 > /dev/null 2>&1
+echo small > small.bin
+for n in $(seq 1 130)
+do
+    MTOOLS_SKIP_CHECK=1 mcopy -i frag.img small.bin ::/F$n.BIN
+done
+for n in $(seq 1 2 130)
+do
+    MTOOLS_SKIP_CHECK=1 mdel -i frag.img ::/F$n.BIN
+done
+cat "$ROM" "$ROM" "$ROM" "$ROM" > big.nes
+MTOOLS_SKIP_CHECK=1 mcopy -i frag.img big.nes ::/MENU.NES
+check fragmented 19 frag.img
 
 if [ $failures == 0 ]
 then

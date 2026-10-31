@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.nes_types.all;
 use work.file_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
@@ -16,7 +17,12 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     NES_FILE_BYTES  : integer := 196608;
-    ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM
+    ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM;
+    -- A on the controller in port 1 is held from JOY_A_FROM_MS until
+    -- JOY_A_UNTIL_MS, as when choosing the first entry of the SD menu.
+    -- Natural, not time, since ghdl cannot override time generics
+    JOY_A_FROM_MS   : natural := 0;
+    JOY_A_UNTIL_MS  : natural := 0
 );
 end nes_de1_bench;
 
@@ -55,6 +61,10 @@ architecture behavioral of nes_de1_bench is
 
     signal ps2_clk : std_logic;
     signal ps2_dat : std_logic;
+
+    signal joy_1_latch : std_logic;
+    signal joy_1_clk   : std_logic;
+    signal joy_1_data  : joy_data_t := JOY_DATA_IDLE;
 
     signal sram_dq   : std_logic_vector(15 downto 0);
     signal sram_addr : std_logic_vector(17 downto 0);
@@ -102,6 +112,12 @@ begin
 
         PS2_CLK => ps2_clk,
         PS2_DAT => ps2_dat,
+
+        JOY_1_LATCH => joy_1_latch,
+        JOY_1_CLK => joy_1_clk,
+        JOY_1_DATA => joy_1_data,
+        JOY_2_LATCH => open,
+        JOY_2_CLK => open,
 
         SW => (others => '0'),
         
@@ -232,6 +248,26 @@ begin
         mosi => sd_cmd,
         miso => sd_dat
     );
+
+    -- A standard controller: a 4021 shift register, which loads the
+    -- buttons (low while pressed, A first) while the latch is high, and
+    -- shifts when CLK rises
+    joy_1 : process(joy_1_latch, joy_1_clk)
+        variable shift : std_logic_vector(7 downto 0) := (others => '1');
+    begin
+        if joy_1_latch = '1'
+        then
+            shift := (others => '1');
+            if now >= JOY_A_FROM_MS * 1 ms and now < JOY_A_UNTIL_MS * 1 ms
+            then
+                shift(0) := '0';
+            end if;
+        elsif rising_edge(joy_1_clk)
+        then
+            shift := '1' & shift(7 downto 1);
+        end if;
+        joy_1_data(0) <= shift(0);
+    end process;
 
     -- Pull ups on the board
     sd_dat <= 'H';
