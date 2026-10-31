@@ -216,9 +216,6 @@ architecture behavioral of sd_reader is
         miso => '1'
     );
 
-    signal reg    : reg_t := RESET_REG;
-    signal reg_in : reg_t;
-
     -- Start clocking a byte out on MOSI and in from MISO. The received byte
     -- is in shift once busy is false again
     procedure start_byte(v : inout reg_t; tx : in byte_t)
@@ -311,6 +308,349 @@ architecture behavioral of sd_reader is
         v.state := ST_ERROR;
     end;
 
+    -- The entity's inputs, other than clk and reset
+    type reader_in_t is record
+        stop       : boolean;
+        ready      : boolean;
+        write_data : byte_t;
+        req_valid  : boolean;
+        req_write  : boolean;
+        req_block  : sd_block_t;
+        req_count  : sd_count_t;
+        miso       : std_logic;
+    end record;
+
+    function cycle_reader(reg : reg_t; reader_in : reader_in_t) return reg_t
+    is
+        variable ret : reg_t;
+        variable v_resp_done : boolean;
+    begin
+        ret := reg;
+        v_resp_done := false;
+
+        if reader_in.stop and reg.cmd = CMD_READ_BLOCK and
+           reg.state /= ST_IDLE
+        then
+            ret.stopped := true;
+        end if;
+
+        ret.miso := to_x01(reader_in.miso);
+
+        if reg.timer /= 0
+        then
+            ret.timer := reg.timer - 1;
+        end if;
+
+        -- Byte transfer, SPI mode 0. MOSI changes on the falling edge of
+        -- SCK and MISO is sampled just before it
+        if reg.busy
+        then
+            if reg.div /= 0
+            then
+                ret.div := reg.div - 1;
+            else
+                if reg.fast
+                then
+                    ret.div := HALF_CLKS - 1;
+                else
+                    ret.div := INIT_HALF_CLKS - 1;
+                end if;
+
+                if reg.sck = '0'
+                then
+                    ret.sck := '1';
+                else
+                    ret.sck := '0';
+                    ret.shift := reg.shift(6 downto 0) & reg.miso;
+                    if reg.bits = 7
+                    then
+                        ret.busy := false;
+                        ret.mosi := '1';
+                    else
+                        ret.bits := reg.bits + 1;
+                        ret.mosi := reg.shift(6);
+                    end if;
+                end if;
+            end if;
+        else
+            case reg.state is
+                when ST_POWER_UP =>
+                    if reg.timer = 0
+                    then
+                        ret.count := 0;
+                        ret.state := ST_WAKE;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_WAKE =>
+                    if reg.count = WAKE_BYTES - 1
+                    then
+                        start_cmd(ret, CMD_GO_IDLE);
+                    else
+                        ret.count := reg.count + 1;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_CMD =>
+                    if reg.count = 6
+                    then
+                        ret.count := 0;
+                        ret.state := ST_RESP;
+                        start_byte(ret, x"FF");
+                    else
+                        ret.count := reg.count + 1;
+                        ret.frame := reg.frame(39 downto 0) & x"FF";
+                        start_byte(ret, reg.frame(47 downto 40));
+                    end if;
+                when ST_RESP =>
+                    if reg.shift(7) = '0' or reg.count = NCR_BYTES - 1
+                    then
+                        -- A timeout leaves r1 as 0xFF, which every
+                        -- command treats as a failure
+                        ret.r1 := reg.shift;
+                        if reg.cmd = CMD_SEND_IF_COND or reg.cmd = CMD_READ_OCR
+                        then
+                            ret.count := 0;
+                            ret.state := ST_RESP_EXTRA;
+                            start_byte(ret, x"FF");
+                        else
+                            v_resp_done := true;
+                        end if;
+                    else
+                        ret.count := reg.count + 1;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_RESP_EXTRA =>
+                    ret.extra := reg.extra(23 downto 0) & reg.shift;
+                    if reg.count = 3
+                    then
+                        v_resp_done := true;
+                    else
+                        ret.count := reg.count + 1;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_TOKEN =>
+                    if reg.shift = x"FE"
+                    then
+                        ret.count := 0;
+                        ret.state := ST_DATA;
+                        start_byte(ret, x"FF");
+                    elsif reg.shift /= x"FF" or reg.timer = 0
+                    then
+                        -- Data error token, or no response
+                        fail(ret);
+                    else
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_DATA =>
+                    if reader_in.ready or ret.stopped
+                    then
+                        if reg.count = BLOCK_BYTES - 1
+                        then
+                            ret.count := 0;
+                            ret.state := ST_CRC;
+                        else
+                            ret.count := reg.count + 1;
+                        end if;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_CRC =>
+                    if reg.count = 1
+                    then
+                        -- left is at least 1. Once it is 0 the run is
+                        -- over and the next run sets blk
+                        ret.blk := std_logic_vector(unsigned(reg.blk) + 1);
+                        ret.left := reg.left - 1;
+                        deselect(ret, CMD_READ_BLOCK);
+                    else
+                        ret.count := reg.count + 1;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_WRITE_TOKEN =>
+                    if reg.count = 0
+                    then
+                        ret.count := 1;
+                        start_byte(ret, x"FF");
+                    else
+                        -- offset is 0 for the first byte from here
+                        ret.count := 0;
+                        ret.state := ST_WRITE_DATA;
+                        start_byte(ret, x"FE");
+                    end if;
+                when ST_WRITE_DATA =>
+                    if reg.count = BLOCK_BYTES - 1
+                    then
+                        ret.count := 0;
+                        ret.state := ST_WRITE_CRC;
+                    else
+                        ret.count := reg.count + 1;
+                    end if;
+                    start_byte(ret, reader_in.write_data);
+                when ST_WRITE_CRC =>
+                    -- The CRC is not checked in SPI mode. The byte after it
+                    -- is the first byte polled for the response
+                    if reg.count = 2
+                    then
+                        ret.count := 0;
+                        ret.state := ST_WRITE_RESP;
+                    else
+                        ret.count := reg.count + 1;
+                    end if;
+                    start_byte(ret, x"FF");
+                when ST_WRITE_RESP =>
+                    -- xxx0sss1, where sss = 010 means the data was accepted
+                    if reg.shift(4) = '0' and reg.shift(0) = '1'
+                    then
+                        if reg.shift(3 downto 1) = "010"
+                        then
+                            ret.timer := TIMEOUT_CLKS;
+                            ret.state := ST_WRITE_BUSY;
+                            start_byte(ret, x"FF");
+                        else
+                            fail(ret);
+                        end if;
+                    elsif reg.count = NCR_BYTES - 1
+                    then
+                        fail(ret);
+                    else
+                        ret.count := reg.count + 1;
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_WRITE_BUSY =>
+                    if reg.shift = x"FF"
+                    then
+                        deselect(ret, CMD_WRITE_BLOCK);
+                    elsif reg.timer = 0
+                    then
+                        fail(ret);
+                    else
+                        start_byte(ret, x"FF");
+                    end if;
+                when ST_DESELECT =>
+                    if (reg.cmd = CMD_READ_BLOCK and
+                        (ret.stopped or reg.left = 0)) or
+                       reg.cmd = CMD_WRITE_BLOCK
+                    then
+                        ret.stopped := false;
+                        ret.state := ST_IDLE;
+                    else
+                        start_cmd(ret, reg.cmd);
+                    end if;
+                when ST_IDLE =>
+                    if reader_in.req_valid
+                    then
+                        ret.blk := reader_in.req_block;
+                        ret.left := reader_in.req_count;
+                        if reader_in.req_write
+                        then
+                            start_cmd(ret, CMD_WRITE_BLOCK);
+                        else
+                            start_cmd(ret, CMD_READ_BLOCK);
+                        end if;
+                    end if;
+                when ST_ERROR =>
+                    null;
+            end case;
+        end if;
+
+        if v_resp_done
+        then
+            case reg.cmd is
+                when CMD_GO_IDLE =>
+                    if ret.r1 = x"01"
+                    then
+                        deselect(ret, CMD_SEND_IF_COND);
+                    elsif reg.tries = CMD0_TRIES - 1
+                    then
+                        fail(ret);
+                    else
+                        ret.tries := reg.tries + 1;
+                        deselect(ret, CMD_GO_IDLE);
+                    end if;
+                when CMD_SEND_IF_COND =>
+                    -- Version 1 cards reject CMD8 as an illegal command
+                    ret.timer := TIMEOUT_CLKS;
+                    if ret.r1 = x"01" and ret.extra(11 downto 0) = x"1AA"
+                    then
+                        ret.v2 := true;
+                        deselect(ret, CMD_APP);
+                    elsif ret.r1 = x"05"
+                    then
+                        ret.v2 := false;
+                        deselect(ret, CMD_APP);
+                    else
+                        fail(ret);
+                    end if;
+                when CMD_APP =>
+                    if ret.r1(7 downto 1) = "0000000"
+                    then
+                        deselect(ret, CMD_APP_SEND_OP_COND);
+                    else
+                        fail(ret);
+                    end if;
+                when CMD_APP_SEND_OP_COND =>
+                    if ret.r1 = x"00"
+                    then
+                        if reg.v2
+                        then
+                            deselect(ret, CMD_READ_OCR);
+                        else
+                            deselect(ret, CMD_SET_BLOCKLEN);
+                        end if;
+                    elsif ret.r1 = x"01" and reg.timer /= 0
+                    then
+                        -- Still initializing
+                        deselect(ret, CMD_APP);
+                    else
+                        fail(ret);
+                    end if;
+                when CMD_READ_OCR =>
+                    if ret.r1 = x"00"
+                    then
+                        -- CCS
+                        ret.block_addr := ret.extra(30) = '1';
+                        if ret.block_addr
+                        then
+                            ret.fast := true;
+                            deselect(ret, CMD_READ_BLOCK);
+                        else
+                            deselect(ret, CMD_SET_BLOCKLEN);
+                        end if;
+                    else
+                        fail(ret);
+                    end if;
+                when CMD_SET_BLOCKLEN =>
+                    if ret.r1 = x"00"
+                    then
+                        ret.fast := true;
+                        deselect(ret, CMD_READ_BLOCK);
+                    else
+                        fail(ret);
+                    end if;
+                when CMD_READ_BLOCK =>
+                    if ret.r1 = x"00"
+                    then
+                        -- Keep the card selected and wait for the data
+                        ret.timer := TIMEOUT_CLKS;
+                        ret.state := ST_TOKEN;
+                        start_byte(ret, x"FF");
+                    else
+                        fail(ret);
+                    end if;
+                when CMD_WRITE_BLOCK =>
+                    if ret.r1 = x"00"
+                    then
+                        ret.count := 0;
+                        ret.state := ST_WRITE_TOKEN;
+                    else
+                        fail(ret);
+                    end if;
+            end case;
+        end if;
+
+        return ret;
+    end;
+
+    signal reg : reg_t := RESET_REG;
+
 begin
 
     sd_clk  <= reg.sck;
@@ -325,333 +665,6 @@ begin
     valid  <= reg.state = ST_DATA and not reg.busy and not stop and
               not reg.stopped;
 
-    process(all)
-        variable v_reg : reg_t;
-        variable v_resp_done : boolean;
-    begin
-        v_reg := reg;
-        v_resp_done := false;
-
-        if stop and reg.cmd = CMD_READ_BLOCK and reg.state /= ST_IDLE
-        then
-            v_reg.stopped := true;
-        end if;
-
-        v_reg.miso := to_x01(sd_miso);
-
-        if reg.timer /= 0
-        then
-            v_reg.timer := reg.timer - 1;
-        end if;
-
-        -- Byte transfer, SPI mode 0. MOSI changes on the falling edge of
-        -- SCK and MISO is sampled just before it
-        if reg.busy
-        then
-            if reg.div /= 0
-            then
-                v_reg.div := reg.div - 1;
-            else
-                if reg.fast
-                then
-                    v_reg.div := HALF_CLKS - 1;
-                else
-                    v_reg.div := INIT_HALF_CLKS - 1;
-                end if;
-
-                if reg.sck = '0'
-                then
-                    v_reg.sck := '1';
-                else
-                    v_reg.sck := '0';
-                    v_reg.shift := reg.shift(6 downto 0) & reg.miso;
-                    if reg.bits = 7
-                    then
-                        v_reg.busy := false;
-                        v_reg.mosi := '1';
-                    else
-                        v_reg.bits := reg.bits + 1;
-                        v_reg.mosi := reg.shift(6);
-                    end if;
-                end if;
-            end if;
-        else
-            case reg.state is
-                when ST_POWER_UP =>
-                    if reg.timer = 0
-                    then
-                        v_reg.count := 0;
-                        v_reg.state := ST_WAKE;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_WAKE =>
-                    if reg.count = WAKE_BYTES - 1
-                    then
-                        start_cmd(v_reg, CMD_GO_IDLE);
-                    else
-                        v_reg.count := reg.count + 1;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_CMD =>
-                    if reg.count = 6
-                    then
-                        v_reg.count := 0;
-                        v_reg.state := ST_RESP;
-                        start_byte(v_reg, x"FF");
-                    else
-                        v_reg.count := reg.count + 1;
-                        v_reg.frame := reg.frame(39 downto 0) & x"FF";
-                        start_byte(v_reg, reg.frame(47 downto 40));
-                    end if;
-                when ST_RESP =>
-                    if reg.shift(7) = '0' or reg.count = NCR_BYTES - 1
-                    then
-                        -- A timeout leaves r1 as 0xFF, which every
-                        -- command treats as a failure
-                        v_reg.r1 := reg.shift;
-                        if reg.cmd = CMD_SEND_IF_COND or reg.cmd = CMD_READ_OCR
-                        then
-                            v_reg.count := 0;
-                            v_reg.state := ST_RESP_EXTRA;
-                            start_byte(v_reg, x"FF");
-                        else
-                            v_resp_done := true;
-                        end if;
-                    else
-                        v_reg.count := reg.count + 1;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_RESP_EXTRA =>
-                    v_reg.extra := reg.extra(23 downto 0) & reg.shift;
-                    if reg.count = 3
-                    then
-                        v_resp_done := true;
-                    else
-                        v_reg.count := reg.count + 1;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_TOKEN =>
-                    if reg.shift = x"FE"
-                    then
-                        v_reg.count := 0;
-                        v_reg.state := ST_DATA;
-                        start_byte(v_reg, x"FF");
-                    elsif reg.shift /= x"FF" or reg.timer = 0
-                    then
-                        -- Data error token, or no response
-                        fail(v_reg);
-                    else
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_DATA =>
-                    if ready or v_reg.stopped
-                    then
-                        if reg.count = BLOCK_BYTES - 1
-                        then
-                            v_reg.count := 0;
-                            v_reg.state := ST_CRC;
-                        else
-                            v_reg.count := reg.count + 1;
-                        end if;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_CRC =>
-                    if reg.count = 1
-                    then
-                        -- left is at least 1. Once it is 0 the run is
-                        -- over and the next run sets blk
-                        v_reg.blk := std_logic_vector(unsigned(reg.blk) + 1);
-                        v_reg.left := reg.left - 1;
-                        deselect(v_reg, CMD_READ_BLOCK);
-                    else
-                        v_reg.count := reg.count + 1;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_WRITE_TOKEN =>
-                    if reg.count = 0
-                    then
-                        v_reg.count := 1;
-                        start_byte(v_reg, x"FF");
-                    else
-                        -- offset is 0 for the first byte from here
-                        v_reg.count := 0;
-                        v_reg.state := ST_WRITE_DATA;
-                        start_byte(v_reg, x"FE");
-                    end if;
-                when ST_WRITE_DATA =>
-                    if reg.count = BLOCK_BYTES - 1
-                    then
-                        v_reg.count := 0;
-                        v_reg.state := ST_WRITE_CRC;
-                    else
-                        v_reg.count := reg.count + 1;
-                    end if;
-                    start_byte(v_reg, write_data);
-                when ST_WRITE_CRC =>
-                    -- The CRC is not checked in SPI mode. The byte after it
-                    -- is the first byte polled for the response
-                    if reg.count = 2
-                    then
-                        v_reg.count := 0;
-                        v_reg.state := ST_WRITE_RESP;
-                    else
-                        v_reg.count := reg.count + 1;
-                    end if;
-                    start_byte(v_reg, x"FF");
-                when ST_WRITE_RESP =>
-                    -- xxx0sss1, where sss = 010 means the data was accepted
-                    if reg.shift(4) = '0' and reg.shift(0) = '1'
-                    then
-                        if reg.shift(3 downto 1) = "010"
-                        then
-                            v_reg.timer := TIMEOUT_CLKS;
-                            v_reg.state := ST_WRITE_BUSY;
-                            start_byte(v_reg, x"FF");
-                        else
-                            fail(v_reg);
-                        end if;
-                    elsif reg.count = NCR_BYTES - 1
-                    then
-                        fail(v_reg);
-                    else
-                        v_reg.count := reg.count + 1;
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_WRITE_BUSY =>
-                    if reg.shift = x"FF"
-                    then
-                        deselect(v_reg, CMD_WRITE_BLOCK);
-                    elsif reg.timer = 0
-                    then
-                        fail(v_reg);
-                    else
-                        start_byte(v_reg, x"FF");
-                    end if;
-                when ST_DESELECT =>
-                    if (reg.cmd = CMD_READ_BLOCK and
-                        (v_reg.stopped or reg.left = 0)) or
-                       reg.cmd = CMD_WRITE_BLOCK
-                    then
-                        v_reg.stopped := false;
-                        v_reg.state := ST_IDLE;
-                    else
-                        start_cmd(v_reg, reg.cmd);
-                    end if;
-                when ST_IDLE =>
-                    if req_valid
-                    then
-                        v_reg.blk := req_block;
-                        v_reg.left := req_count;
-                        if req_write
-                        then
-                            start_cmd(v_reg, CMD_WRITE_BLOCK);
-                        else
-                            start_cmd(v_reg, CMD_READ_BLOCK);
-                        end if;
-                    end if;
-                when ST_ERROR =>
-                    null;
-            end case;
-        end if;
-
-        if v_resp_done
-        then
-            case reg.cmd is
-                when CMD_GO_IDLE =>
-                    if v_reg.r1 = x"01"
-                    then
-                        deselect(v_reg, CMD_SEND_IF_COND);
-                    elsif reg.tries = CMD0_TRIES - 1
-                    then
-                        fail(v_reg);
-                    else
-                        v_reg.tries := reg.tries + 1;
-                        deselect(v_reg, CMD_GO_IDLE);
-                    end if;
-                when CMD_SEND_IF_COND =>
-                    -- Version 1 cards reject CMD8 as an illegal command
-                    v_reg.timer := TIMEOUT_CLKS;
-                    if v_reg.r1 = x"01" and v_reg.extra(11 downto 0) = x"1AA"
-                    then
-                        v_reg.v2 := true;
-                        deselect(v_reg, CMD_APP);
-                    elsif v_reg.r1 = x"05"
-                    then
-                        v_reg.v2 := false;
-                        deselect(v_reg, CMD_APP);
-                    else
-                        fail(v_reg);
-                    end if;
-                when CMD_APP =>
-                    if v_reg.r1(7 downto 1) = "0000000"
-                    then
-                        deselect(v_reg, CMD_APP_SEND_OP_COND);
-                    else
-                        fail(v_reg);
-                    end if;
-                when CMD_APP_SEND_OP_COND =>
-                    if v_reg.r1 = x"00"
-                    then
-                        if reg.v2
-                        then
-                            deselect(v_reg, CMD_READ_OCR);
-                        else
-                            deselect(v_reg, CMD_SET_BLOCKLEN);
-                        end if;
-                    elsif v_reg.r1 = x"01" and reg.timer /= 0
-                    then
-                        -- Still initializing
-                        deselect(v_reg, CMD_APP);
-                    else
-                        fail(v_reg);
-                    end if;
-                when CMD_READ_OCR =>
-                    if v_reg.r1 = x"00"
-                    then
-                        -- CCS
-                        v_reg.block_addr := v_reg.extra(30) = '1';
-                        if v_reg.block_addr
-                        then
-                            v_reg.fast := true;
-                            deselect(v_reg, CMD_READ_BLOCK);
-                        else
-                            deselect(v_reg, CMD_SET_BLOCKLEN);
-                        end if;
-                    else
-                        fail(v_reg);
-                    end if;
-                when CMD_SET_BLOCKLEN =>
-                    if v_reg.r1 = x"00"
-                    then
-                        v_reg.fast := true;
-                        deselect(v_reg, CMD_READ_BLOCK);
-                    else
-                        fail(v_reg);
-                    end if;
-                when CMD_READ_BLOCK =>
-                    if v_reg.r1 = x"00"
-                    then
-                        -- Keep the card selected and wait for the data
-                        v_reg.timer := TIMEOUT_CLKS;
-                        v_reg.state := ST_TOKEN;
-                        start_byte(v_reg, x"FF");
-                    else
-                        fail(v_reg);
-                    end if;
-                when CMD_WRITE_BLOCK =>
-                    if v_reg.r1 = x"00"
-                    then
-                        v_reg.count := 0;
-                        v_reg.state := ST_WRITE_TOKEN;
-                    else
-                        fail(v_reg);
-                    end if;
-            end case;
-        end if;
-
-        reg_in <= v_reg;
-    end process;
-
     process(clk)
     begin
     if rising_edge(clk)
@@ -660,7 +673,14 @@ begin
         then
             reg <= RESET_REG;
         else
-            reg <= reg_in;
+            reg <= cycle_reader(reg, (stop => stop,
+                                      ready => ready,
+                                      write_data => write_data,
+                                      req_valid => req_valid,
+                                      req_write => req_write,
+                                      req_block => req_block,
+                                      req_count => req_count,
+                                      miso => sd_miso));
         end if;
     end if;
     end process;
