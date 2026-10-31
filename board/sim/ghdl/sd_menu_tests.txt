@@ -1,0 +1,14 @@
+# Smoke tests of ROM_SD_MENU for nes_de1_bench:
+#   run_nes_tests.sh -b nes_de1_bench -f sd_menu_tests.txt -o sd_menu_output
+# Make the cards first with make -C board/de1/sd_menu smoke_card.img, outside
+# the GHDL container, which lacks cc65 and mtools.
+#
+# The boot stub loads MENU.NES from the card, the menu lists the card, and A
+# (held from 150 to 200 ms) launches the first entry. The game's final screen
+# is checked as in nes_de1_tests.txt. It is reached a few frames earlier
+# (01-basics: frame 31) and kept to the end, so that small changes in how long
+# the stub and menu take do not break the test.
+#
+# Card image path                   | run time | Hash | FM2 (none) | Bench args
+# FAT16, no partition table, instr_test-v5 01-basics as a long name
+board/de1/sd_menu/smoke_card.img    | 601ms    | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00035.bmp | | -gROM_CONFIG=ROM_SD_MENU -gJOY_A_FROM_MS=150 -gJOY_A_UNTIL_MS=200
