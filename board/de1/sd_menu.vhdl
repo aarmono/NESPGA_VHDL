@@ -5,6 +5,7 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.prg_bus_types.all;
 use work.cart_types.all;
+use work.cart_mem_bus_types.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.sd_menu_stub.all;
@@ -26,14 +27,18 @@ use work.sd_menu_stub.all;
 --   0x5000-0x51FF  R/W  The block buffer
 --   0x5200         W    Shifts a byte into the top of the 32 bit block
 --                       number. Write its 4 bytes, lowest first
+--   0x5201         W    Bits 1-0: the flags, which only reset clears
 --   0x5204         W    Read the block into the buffer
---   0x5205         W    Launch. Bit 0: stay in menu mode
---   0x5200-0x53FF  R    Status. Bit 7: a read is running. Bit 6: the card
---                       failed
+--   0x5205         W    Launch. Bit 0: stay in menu mode. Bit 1: keep PRG
+--                       RAM
+--   0x5206         W    Write the buffer to the block
+--   0x5207         W    Bits 4-0: the bank of cartridge RAM at 0x6000
+--   0x5200-0x53FF  R    Status. Bit 7: a read or write is running. Bit 6:
+--                       the card failed. Bits 1-0: the flags
 --
 -- Other bits of the values written to commands are ignored. The buffer must
--- not be accessed while a block is read into it, and commands are ignored
--- until the read is over.
+-- not be accessed while a block is read into it or written from it, and
+-- commands are ignored until that is over.
 --
 -- Launch loads the file whose extents are in the buffer and leaves menu
 -- mode, unless bit 0 is set, as when the stub launches the menu. Each of the
@@ -42,12 +47,28 @@ use work.sd_menu_stub.all;
 -- A count of 0 ends the list. sdram_rom restarts, so the NES is held in
 -- reset until the file is loaded and then powers up into it. If the extents
 -- end before the file is loaded, or the file has no iNES header,
--- launch_failed becomes true.
+-- launch_failed becomes true. Bit 1 makes the power up leave PRG RAM alone
+-- (keep_prg_ram), as when the menu has loaded a save into it. The stub and
+-- the menu always keep it, so that a game's PRG RAM survives until the menu
+-- has written it back.
+--
+-- In menu mode, CPU accesses to PRG RAM, which the menu has 8 KB of at
+-- 0x6000-0x7FFF, go to the selected 8 KB bank of the 256 KB of cartridge
+-- RAM instead (see lib_nes): 0-7 are PRG RAM, 8-15 CHR RAM, 16 ExRAM, and
+-- the rest are not used by games, so the menu keeps its own data there.
+--
+-- Holding Start and Select on controller 1 for RETURN_HOLD_MS, while a game
+-- that the menu launched runs, returns to the menu: the stub is loaded
+-- again, as at power up, and launches the menu, which finds what it left in
+-- cartridge RAM and in the flags. buttons are those the game last read.
 entity sd_menu is
 generic
 (
     -- See syncram_sp
-    VENDOR : vendor_t := VENDOR_ALTERA
+    VENDOR : vendor_t := VENDOR_ALTERA;
+
+    CLK_FREQ       : positive := 50_000_000;
+    RETURN_HOLD_MS : positive := 2000
 );
 port
 (
@@ -58,6 +79,17 @@ port
     cpu_clk_en    : in boolean;
     board_cpu_in  : in cart_cpu_in_t;
     board_cpu_out : out cart_cpu_out_t;
+
+    -- Controller 1, low while pressed, with A in bit 0. See joy_port
+    buttons : in std_logic_vector(7 downto 0);
+
+    -- See nes_soc
+    keep_prg_ram : out boolean;
+
+    -- The cartridge memory bus, from nes_soc to sdram_rom. The menu's PRG
+    -- RAM bank is applied here
+    cart_mem_bus_in  : in cart_mem_bus_t;
+    cart_mem_bus_out : out cart_mem_bus_t;
 
     -- See sdram_rom
     rom_loading   : in boolean;
@@ -89,6 +121,15 @@ architecture behavioral of sd_menu is
     subtype fetch_t is natural range 0 to 6;
     subtype buf_addr_t is std_logic_vector(8 downto 0);
     subtype count_t is std_logic_vector(15 downto 0);
+    subtype flags_t is std_logic_vector(1 downto 0);
+    -- 8 KB banks of the cartridge RAM region
+    subtype bank_t is std_logic_vector(4 downto 0);
+
+    constant HOLD_CLKS : positive := RETURN_HOLD_MS * (CLK_FREQ / 1000);
+    subtype hold_t is natural range 0 to HOLD_CLKS;
+
+    constant BUTTON_SELECT : natural := 2;
+    constant BUTTON_START  : natural := 3;
 
     constant HEADER_BYTES : positive := stub_header_t'length;
     -- The stub's iNES image: the header, then the PRG ROM
@@ -110,13 +151,17 @@ architecture behavioral of sd_menu is
         ST_MENU,
         -- Menu mode, reading a block into the buffer
         ST_READ,
+        -- Menu mode, writing the buffer to a block
+        ST_WRITE,
         -- Restarting sdram_rom
         ST_LAUNCH,
         -- Reading an extent from the buffer
         ST_FETCH,
         -- Reading an extent into sdram_rom
         ST_RUN,
-        -- The ROM file is loaded
+        -- The ROM file the menu launched is loaded, and runs
+        ST_GAME,
+        -- The ROM file at block 0 is loaded
         ST_LOADED,
         ST_FAILED
     );
@@ -135,6 +180,11 @@ architecture behavioral of sd_menu is
         stub_ready : boolean;
         -- Enter menu mode once the launched file is loaded
         keep_menu  : boolean;
+        keep_ram   : boolean;
+        flags      : flags_t;
+        bank       : bank_t;
+        -- How long Start and Select have been held
+        hold       : hold_t;
     end record;
 
     constant RESET_REG : reg_t :=
@@ -147,7 +197,11 @@ architecture behavioral of sd_menu is
         fetch => 0,
         stub_pos => 0,
         stub_ready => false,
-        keep_menu => false
+        keep_menu => false,
+        keep_ram => false,
+        flags => (others => '0'),
+        bank => (others => '0'),
+        hold => 0
     );
 
     type menu_in_t is record
@@ -159,6 +213,7 @@ architecture behavioral of sd_menu is
         -- sd_reader is idle
         sd_idle       : boolean;
         buf_data      : data_t;
+        buttons       : std_logic_vector(7 downto 0);
     end record;
 
     -- An access to 0x5000-0x5FFF
@@ -181,6 +236,26 @@ architecture behavioral of sd_menu is
     begin
         return is_bus_write(cpu_bus.prg_bus) and is_window(cpu_bus) and
                cpu_bus.prg_bus.address(9) = '1';
+    end;
+
+    -- The cartridge memory bus with the menu's PRG RAM bank applied to
+    -- accesses to the 64 KB PRG RAM window, the first of the cartridge RAM
+    -- region. The menu's 8 KB of PRG RAM is at its start
+    function get_menu_cart_mem_bus
+    (
+        cart_mem_bus : cart_mem_bus_t;
+        bank         : bank_t
+    )
+    return cart_mem_bus_t
+    is
+        variable ret : cart_mem_bus_t;
+    begin
+        ret := cart_mem_bus;
+        if cart_mem_bus.address(22 downto 16) = "1000000"
+        then
+            ret.address(17 downto 13) := bank;
+        end if;
+        return ret;
     end;
 
     function cycle_menu(reg : reg_t; menu_in : menu_in_t) return reg_t
@@ -209,6 +284,7 @@ architecture behavioral of sd_menu is
             when ST_STUB_START =>
                 ret.stub_pos := 0;
                 ret.stub_ready := false;
+                ret.keep_ram := true;
                 ret.state := ST_STUB;
             when ST_STUB =>
                 -- The stub ROM's data is for the address of the clock before
@@ -230,18 +306,28 @@ architecture behavioral of sd_menu is
                         when "000" =>
                             ret.blk := menu_in.cpu_bus.data &
                                        reg.blk(31 downto 8);
+                        when "001" =>
+                            ret.flags := menu_in.cpu_bus.data(flags_t'range);
                         when "100" =>
                             ret.count := x"0001";
                             ret.req := true;
                             ret.state := ST_READ;
                         when "101" =>
                             ret.keep_menu := menu_in.cpu_bus.data(0) = '1';
+                            ret.keep_ram := menu_in.cpu_bus.data(0) = '1' or
+                                            menu_in.cpu_bus.data(1) = '1';
                             ret.state := ST_LAUNCH;
+                        when "110" =>
+                            ret.count := x"0001";
+                            ret.req := true;
+                            ret.state := ST_WRITE;
+                        when "111" =>
+                            ret.bank := menu_in.cpu_bus.data(bank_t'range);
                         when others =>
                             null;
                     end case;
                 end if;
-            when ST_READ =>
+            when ST_READ | ST_WRITE =>
                 if v_run_done
                 then
                     ret.state := ST_MENU;
@@ -278,11 +364,12 @@ architecture behavioral of sd_menu is
                 -- block. A read waits for it
                 if not menu_in.rom_loading
                 then
+                    ret.hold := 0;
                     if reg.keep_menu
                     then
                         ret.state := ST_MENU;
                     else
-                        ret.state := ST_LOADED;
+                        ret.state := ST_GAME;
                     end if;
                 elsif v_run_done
                 then
@@ -294,6 +381,17 @@ architecture behavioral of sd_menu is
                         ret.fetch := 0;
                         ret.state := ST_FETCH;
                     end if;
+                end if;
+            when ST_GAME =>
+                if menu_in.buttons(BUTTON_START) = '1' or
+                   menu_in.buttons(BUTTON_SELECT) = '1'
+                then
+                    ret.hold := 0;
+                elsif reg.hold = HOLD_CLKS
+                then
+                    ret.state := ST_STUB_START;
+                else
+                    ret.hold := reg.hold + 1;
                 end if;
             when ST_LOADED | ST_FAILED =>
                 null;
@@ -327,19 +425,25 @@ architecture behavioral of sd_menu is
 
 begin
 
-    menu_mode <= reg.state = ST_MENU or reg.state = ST_READ;
+    menu_mode <= reg.state = ST_MENU or reg.state = ST_READ or
+                 reg.state = ST_WRITE;
     to_sdram <= reg.state /= ST_READ and reg.state /= ST_STUB;
 
     rom_restart <= reg.state = ST_STUB_START or reg.state = ST_LAUNCH;
     launch_failed <= reg.state = ST_FAILED;
     sd_failed <= sd_error;
+    keep_prg_ram <= reg.keep_ram;
+
+    cart_mem_bus_out <= get_menu_cart_mem_bus(cart_mem_bus_in, reg.bank)
+                            when menu_mode else
+                        cart_mem_bus_in;
 
     req_count <= to_integer(reg.count);
 
     -- A run is only wanted while it reads a block into the buffer, or a
     -- file that sdram_rom still takes. Otherwise the rest of the block is
     -- discarded and the run ends: once sdram_rom has the whole file or has
-    -- refused it, and while a new run waits for that
+    -- refused it, and while a new run waits for that. Writes ignore it
     sd_stop <= reg.req or not
                (reg.state = ST_READ or
                 ((reg.state = ST_BOOT or reg.state = ST_RUN) and
@@ -368,14 +472,14 @@ begin
     end if;
     end process;
 
-    -- The buffer has one port. A block read into it has it to itself, so
-    -- the CPU only has it in menu mode while no block is read, and the
-    -- extents are read from it while the NES is held in reset. The address
-    -- is otherwise held, so that the read data does not change outside menu
-    -- mode
+    -- The buffer has one port. A block read into it or written from it has
+    -- it to itself, so the CPU only has it in menu mode while no block is
+    -- read or written, and the extents are read from it while the NES is
+    -- held in reset. The address is otherwise held, so that the read data
+    -- does not change outside menu mode
     buf_addr <=
         to_std_logic_vector(sd_offset, buf_addr_t'length)
-            when reg.state = ST_READ else
+            when reg.state = ST_READ or reg.state = ST_WRITE else
         board_cpu_in.prg_bus.address(buf_addr_t'range)
             when reg.state = ST_MENU else
         to_std_logic_vector(reg.extent, 6) &
@@ -396,8 +500,9 @@ begin
     board_cpu_out.data <=
         (others => '0') when not menu_mode else
         data_from_buf when board_cpu_in.prg_bus.address(9) = '0' else
-        to_std_logic(reg.state = ST_READ and not sd_error) &
-        to_std_logic(sd_error) & "000000";
+        to_std_logic((reg.state = ST_READ or reg.state = ST_WRITE) and
+                     not sd_error) &
+        to_std_logic(sd_error) & "0000" & reg.flags;
 
     buf : syncram_sp
     generic map
@@ -427,9 +532,12 @@ begin
         failed => sd_error,
 
         req_valid => reg.req,
+        req_write => reg.state = ST_WRITE,
         req_block => reg.blk,
         req_count => req_count,
         req_ready => req_ready,
+
+        write_data => data_from_buf,
 
         stop => sd_stop,
         data => sd_data,
@@ -457,7 +565,8 @@ begin
                                     rom_no_header => rom_no_header,
                                     load_ready => load_ready,
                                     sd_idle => req_ready,
-                                    buf_data => data_from_buf));
+                                    buf_data => data_from_buf,
+                                    buttons => buttons));
         end if;
     end if;
     end process;

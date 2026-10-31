@@ -4,17 +4,19 @@ use IEEE.numeric_std.all;
 use work.utilities.all;
 use work.perhipheral_types.all;
 
--- Reads runs of consecutive blocks from an SD card over SPI.
+-- Reads runs of consecutive blocks from an SD card over SPI, and writes
+-- single blocks.
 --
 -- After reset the card is initialized (CMD0, CMD8, ACMD41, CMD58, CMD16) at
 -- INIT_SCK_FREQ, and blocks are then read one 512 byte block at a time with
--- CMD17 at SCK_FREQ. Both standard capacity (byte addressed) and high
--- capacity (block addressed) cards are supported.
+-- CMD17, and written with CMD24, at SCK_FREQ. Both standard capacity (byte
+-- addressed) and high capacity (block addressed) cards are supported.
 --
 -- The first run, of START_COUNT blocks from START_BLOCK, starts as soon as
 -- the card is initialized. Once a run is over the card is deselected and
 -- req_ready is true, and a run of req_count blocks from req_block is started
 -- on a clock where req_valid is also true. req_count must be at least 1.
+-- If req_write is true as well, block req_block is written instead.
 --
 -- Each received byte is presented on data with valid true until it is taken
 -- by a clock where ready is also true, and offset is its offset in the
@@ -23,8 +25,13 @@ use work.perhipheral_types.all;
 -- and discarded, the run ends and the card is deselected, so that it is left
 -- in a state where it can be initialized again after a reset.
 --
--- If the card does not respond as expected failed becomes true and the
--- reader stops until the next reset.
+-- A write sends the byte at offset to the card, so write_data must be the
+-- byte at offset from the clock after offset changes. offset is 0 before
+-- the first byte. stop is ignored. req_ready becomes true again once the
+-- card has accepted the block and finished programming it.
+--
+-- If the card does not respond as expected, or rejects a write, failed
+-- becomes true and the reader stops until the next reset.
 --
 -- MISO is registered and sampled on the clock before the falling edge of
 -- SCK, so there is at least SCK_FREQ / 2 periods minus one clock between
@@ -57,9 +64,12 @@ port
     failed : out boolean;
 
     req_valid : in boolean := false;
+    req_write : in boolean := false;
     req_block : in sd_block_t := (others => '0');
     req_count : in sd_count_t := 1;
     req_ready : out boolean;
+
+    write_data : in std_logic_vector(7 downto 0) := (others => '1');
 
     stop   : in boolean;
     data   : out std_logic_vector(7 downto 0);
@@ -112,8 +122,16 @@ architecture behavioral of sd_reader is
         ST_TOKEN,
         ST_DATA,
         ST_CRC,
+        -- Send the data token of a write, after a byte of 0xFF
+        ST_WRITE_TOKEN,
+        ST_WRITE_DATA,
+        ST_WRITE_CRC,
+        -- Poll for the data response token
+        ST_WRITE_RESP,
+        -- Poll until the card stops holding MISO low while it programs
+        ST_WRITE_BUSY,
         -- Clock one byte with CS high, then send cmd, unless it is the read
-        -- of a block after the end of the run
+        -- of a block after the end of the run, or a write
         ST_DESELECT,
         -- Waiting for a run to read
         ST_IDLE,
@@ -128,7 +146,8 @@ architecture behavioral of sd_reader is
         CMD_APP_SEND_OP_COND,
         CMD_READ_OCR,
         CMD_SET_BLOCKLEN,
-        CMD_READ_BLOCK
+        CMD_READ_BLOCK,
+        CMD_WRITE_BLOCK
     );
 
     type reg_t is record
@@ -246,8 +265,13 @@ architecture behavioral of sd_reader is
             when CMD_SET_BLOCKLEN =>
                 index := 16;
                 arg := to_std_logic_vector(BLOCK_BYTES, 32);
-            when CMD_READ_BLOCK =>
-                index := 17;
+            when CMD_READ_BLOCK | CMD_WRITE_BLOCK =>
+                if cmd = CMD_READ_BLOCK
+                then
+                    index := 17;
+                else
+                    index := 24;
+                end if;
                 if v.block_addr
                 then
                     arg := v.blk;
@@ -437,8 +461,69 @@ begin
                         v_reg.count := reg.count + 1;
                         start_byte(v_reg, x"FF");
                     end if;
+                when ST_WRITE_TOKEN =>
+                    if reg.count = 0
+                    then
+                        v_reg.count := 1;
+                        start_byte(v_reg, x"FF");
+                    else
+                        -- offset is 0 for the first byte from here
+                        v_reg.count := 0;
+                        v_reg.state := ST_WRITE_DATA;
+                        start_byte(v_reg, x"FE");
+                    end if;
+                when ST_WRITE_DATA =>
+                    if reg.count = BLOCK_BYTES - 1
+                    then
+                        v_reg.count := 0;
+                        v_reg.state := ST_WRITE_CRC;
+                    else
+                        v_reg.count := reg.count + 1;
+                    end if;
+                    start_byte(v_reg, write_data);
+                when ST_WRITE_CRC =>
+                    -- The CRC is not checked in SPI mode. The byte after it
+                    -- is the first byte polled for the response
+                    if reg.count = 2
+                    then
+                        v_reg.count := 0;
+                        v_reg.state := ST_WRITE_RESP;
+                    else
+                        v_reg.count := reg.count + 1;
+                    end if;
+                    start_byte(v_reg, x"FF");
+                when ST_WRITE_RESP =>
+                    -- xxx0sss1, where sss = 010 means the data was accepted
+                    if reg.shift(4) = '0' and reg.shift(0) = '1'
+                    then
+                        if reg.shift(3 downto 1) = "010"
+                        then
+                            v_reg.timer := TIMEOUT_CLKS;
+                            v_reg.state := ST_WRITE_BUSY;
+                            start_byte(v_reg, x"FF");
+                        else
+                            fail(v_reg);
+                        end if;
+                    elsif reg.count = NCR_BYTES - 1
+                    then
+                        fail(v_reg);
+                    else
+                        v_reg.count := reg.count + 1;
+                        start_byte(v_reg, x"FF");
+                    end if;
+                when ST_WRITE_BUSY =>
+                    if reg.shift = x"FF"
+                    then
+                        deselect(v_reg, CMD_WRITE_BLOCK);
+                    elsif reg.timer = 0
+                    then
+                        fail(v_reg);
+                    else
+                        start_byte(v_reg, x"FF");
+                    end if;
                 when ST_DESELECT =>
-                    if reg.cmd = CMD_READ_BLOCK and (stop or reg.left = 0)
+                    if (reg.cmd = CMD_READ_BLOCK and (stop or reg.left = 0)) or
+                       reg.cmd = CMD_WRITE_BLOCK
                     then
                         v_reg.state := ST_IDLE;
                     else
@@ -449,7 +534,12 @@ begin
                     then
                         v_reg.blk := req_block;
                         v_reg.left := req_count;
-                        start_cmd(v_reg, CMD_READ_BLOCK);
+                        if req_write
+                        then
+                            start_cmd(v_reg, CMD_WRITE_BLOCK);
+                        else
+                            start_cmd(v_reg, CMD_READ_BLOCK);
+                        end if;
                     end if;
                 when ST_ERROR =>
                     null;
@@ -537,6 +627,14 @@ begin
                         v_reg.timer := TIMEOUT_CLKS;
                         v_reg.state := ST_TOKEN;
                         start_byte(v_reg, x"FF");
+                    else
+                        fail(v_reg);
+                    end if;
+                when CMD_WRITE_BLOCK =>
+                    if v_reg.r1 = x"00"
+                    then
+                        v_reg.count := 0;
+                        v_reg.state := ST_WRITE_TOKEN;
                     else
                         fail(v_reg);
                     end if;

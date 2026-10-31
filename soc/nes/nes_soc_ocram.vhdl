@@ -41,7 +41,8 @@ port
     clk   : in std_logic;
     reset : in boolean;
     -- See nes_soc
-    soft_reset : in boolean := false;
+    soft_reset   : in boolean := false;
+    keep_prg_ram : in boolean := false;
 
     nes_running : out boolean;
 
@@ -119,6 +120,7 @@ begin
         clk => clk,
         reset => reset,
         soft_reset => soft_reset,
+        keep_prg_ram => keep_prg_ram,
 
         nes_running => nes_running,
 

@@ -14,6 +14,8 @@ all: ../sd_menu_stub.vhdl menu.nes
 %.o: %.s fat.inc
 	$(CA65) $< -o $@ -l $*.lst
 
+menu.o save.o: menu.inc
+
 stub.bin: stub.o fat.o stub.cfg
 	$(LD65) -C stub.cfg -o $@ -m stub.map stub.o fat.o
 
@@ -22,8 +24,8 @@ font.chr: font.py
 
 menu.o: font.chr
 
-menu.nes: menu.o fat.o menu.cfg
-	$(LD65) -C menu.cfg -o $@ -m menu.map menu.o fat.o
+menu.nes: menu.o save.o fat.o menu.cfg
+	$(LD65) -C menu.cfg -o $@ -m menu.map menu.o save.o fat.o
 
 ../sd_menu_stub.vhdl stub.nes &: stub.bin stub_rom.py
 	$(PYTHON) stub_rom.py stub.bin ../sd_menu_stub.vhdl --nes stub.nes

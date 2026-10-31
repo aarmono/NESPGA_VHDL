@@ -14,7 +14,7 @@ ROMS=$REPO/nes-test-roms/instr_test-v5/rom_singles
 export MTOOLS_SKIP_CHECK=1
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+trap '[ -n "$KEEP_WORK" ] || rm -rf "$WORK"' EXIT
 cd "$WORK"
 
 failures=0
@@ -70,10 +70,56 @@ open(sys.argv[1], "wb").write(data)
 ' "$1" "$2"
 }
 
+# rom_bat FILE SEED [ NVRAM ]: the same with the battery bit set, and with
+# NVRAM, a NES 2.0 header with PRG NVRAM of 64 << NVRAM bytes
+rom_bat() {
+    python3 -c '
+import random, sys
+random.seed(sys.argv[2])
+header = bytearray(b"NES\x1a\x01\x00\x02") + bytes(9)
+if len(sys.argv) > 3:
+    header[7] = 0x08
+    header[10] = int(sys.argv[3]) << 4
+open(sys.argv[1], "wb").write(bytes(header) + random.randbytes(16384))
+' "$@"
+}
+
+# random FILE BYTES SEED: random bytes
+random_file() {
+    python3 -c '
+import random, sys
+random.seed(sys.argv[3])
+open(sys.argv[1], "wb").write(random.randbytes(int(sys.argv[2])))
+' "$@"
+}
+
+# state FILE FLAGS [ BANK DATA ]...: sd_test.lua's state: the flags, then
+# the 256 KB of cartridge RAM, random, with DATA from the start of each BANK.
+# FILE may also be the state to change, in which case FLAGS may be -
+state() {
+    python3 -c '
+import os, random, sys
+path, flags = sys.argv[1], sys.argv[2]
+if flags == "-":
+    data = bytearray(open(path, "rb").read())
+else:
+    random.seed(path)
+    data = bytearray([int(flags)]) + random.randbytes(256 * 1024)
+args = sys.argv[3:]
+for bank, src in zip(args[::2], args[1::2]):
+    chunk = open(src, "rb").read()
+    start = 1 + int(bank) * 8192
+    data[start:start + len(chunk)] = chunk
+open(path, "wb").write(data)
+' "$@"
+}
+
 # run NAME IMAGE EXPECT BUTTONS...: presses each button (a, b, up, down,
 # left, right, start) in turn from frame FIRST_PRESS, PRESS_GAP frames
 # apart. The screen is logged after the last press. EXPECT is the file that
-# a launch must load. The log is in NAME.log
+# a launch must load. The log is in NAME.log. The card image and state at
+# launch or after the last press are in NAME.card and NAME.state, if
+# SD_OUT is set, and the state starts from SD_STATE_IN if it is set
 run() {
     local name=$1 img=$2 expect=$3
     shift 3
@@ -84,8 +130,14 @@ run() {
         inputs+=(--input "0:$button@$frame-$((frame + 1))")
         frame=$((frame + PRESS_GAP))
     done
-    rm -rf home
-    SD_IMAGE="$img" SD_EXPECT="$expect" SD_SCREEN_FRAME=$frame \
+    rm -rf home "$name.card" "$name.state"
+    local out=()
+    if [ -n "$SD_OUT" ]
+    then
+        out=(SD_IMAGE_OUT="$name.card" SD_STATE_OUT="$name.state")
+    fi
+    env "${out[@]}" \
+        SD_IMAGE="$img" SD_EXPECT="$expect" SD_SCREEN_FRAME=$frame \
         "$MESEN_AGENT" "$HERE/menu.nes" --home home \
         --frames $((frame + 20)) --timeout 60 "${inputs[@]}" \
         --lua "$HERE/sd_test.lua" --lua-allow-io > events.jsonl \
@@ -117,6 +169,90 @@ want_launch() {
     else
         result FAIL "no launch: $(grep -E "^(LAUNCH|ERROR|exit)" \
             "$current.log" | tr '\n' ' ')"
+    fi
+}
+
+# want_save_launch FLAGS: the last run launched EXPECT with PRG RAM kept,
+# and the flags FLAGS
+want_launch_with() {
+    if grep -q "^exit 0" "$current.log" &&
+       grep -q "^LAUNCH value $1, .*MATCH, flags $2," "$current.log"
+    then
+        result ok "launch value $1, flags $2"
+    else
+        result FAIL "no launch with value $1, flags $2: $(grep -E \
+            "^(LAUNCH|ERROR|exit)" "$current.log" | tr '\n' ' ')"
+    fi
+}
+
+# want_end FLAGS WRITES: the last run ended without a launch, with the flags
+# FLAGS, after WRITES block writes
+want_end() {
+    if grep -q "^END flags $1, [0-9]* reads, $2 writes" "$current.log" &&
+       ! grep -q "^\(LAUNCH\|ERROR\)" "$current.log"
+    then
+        result ok "end flags $1, $2 writes"
+    else
+        result FAIL "not end flags $1, $2 writes: $(grep -E \
+            "^(END|LAUNCH|ERROR|exit)" "$current.log" | tr '\n' ' ')"
+    fi
+}
+
+# want_writes N: the last run wrote N blocks
+want_writes() {
+    local writes
+    writes=$(grep -c "^write block" "$current.log")
+    if [ "$writes" == "$1" ]
+    then
+        result ok "$1 writes"
+    else
+        result FAIL "$writes writes, not $1"
+    fi
+}
+
+# want_file IMAGE PATH DATA: the file PATH in the filesystem IMAGE holds
+# DATA
+want_file() {
+    rm -f got.bin
+    if mcopy -n -i "$1" "::/$2" got.bin 2> /dev/null && cmp -s got.bin "$3"
+    then
+        result ok "$2 holds $(basename "$3")"
+    else
+        result FAIL "$2 does not hold $(basename "$3")"
+    fi
+}
+
+# want_fsck IMAGE [ OFFSET ]: fsck.fat finds nothing wrong with the
+# filesystem at block OFFSET of IMAGE
+want_fsck() {
+    local img=$1
+    if [ -n "$2" ]
+    then
+        dd if="$1" of=part.img bs=512 skip="$2" status=none
+        img=part.img
+    fi
+    if /usr/sbin/fsck.fat -n "$img" > fsck.log 2>&1
+    then
+        result ok "fsck clean"
+    else
+        result FAIL "fsck: $(tail -n +2 fsck.log | tr '\n' ' ')"
+    fi
+}
+
+# want_ram STATE BANK DATA: the cartridge RAM in STATE holds DATA from the
+# start of BANK
+want_ram() {
+    if python3 -c '
+import sys
+data = open(sys.argv[1], "rb").read()
+want = open(sys.argv[3], "rb").read()
+start = 1 + int(sys.argv[2]) * 8192
+sys.exit(data[start:start + len(want)] != want)
+' "$@"
+    then
+        result ok "RAM bank $2 holds $(basename "$3")"
+    else
+        result FAIL "RAM bank $2 does not hold $(basename "$3")"
     fi
 }
 
@@ -280,6 +416,157 @@ want_screen 4 "  >Fragmented"
 SD_FAIL=1 run card_failed root.img game1.nes
 want_error 11
 want_screen 4 "   SD card failed"
+
+# Saves. A battery game without a save, one with a save from an emulator,
+# a game without a battery, and a NES 2.0 battery game without PRG NVRAM
+fat save.img 16
+rom_bat zelda.nes zelda
+rom_bat icarus.nes icarus
+rom plain.nes plain
+rom_bat eeprom.nes eeprom 0
+random_file icarus.sav 8192 icarus.sav
+python3 -c 'open("zeros.sav", "wb").write(bytes(8192))'
+random_file played.sav 8192 played
+# A fixed serial number, which root.img does not have
+printf '\x78\x56\x34\x12' | dd of=save.img bs=1 seek=$((0x27)) conv=notrunc \
+    status=none
+mcopy -i save.img zelda.nes "::/Zelda (U).nes"
+mcopy -i save.img icarus.nes "::/Kid Icarus.nes"
+mcopy -i save.img icarus.sav "::/KID ICARUS.SAV"
+mcopy -i save.img plain.nes "::/Plain.nes"
+mcopy -i save.img eeprom.nes "::/EEPROM.nes"
+state random.state 0
+
+# A new save is made, cleared and loaded
+SD_OUT=1 SD_STATE_IN=random.state run save_new save.img zelda.nes a
+want_launch_with 2 3
+want_file save_new.card "Zelda (U).sav" zeros.sav
+want_ram save_new.state 0 zeros.sav
+want_fsck save_new.card
+
+# Back from the game, PRG RAM is written to it, and the cursor is where it
+# was
+state save_new.state - 0 played.sav
+SD_OUT=1 SD_STATE_IN=save_new.state FIRST_PRESS=40 run save_back \
+    save_new.card zelda.nes
+want_end 2 16
+want_file save_back.card "Zelda (U).sav" played.sav
+want_screen 4 "  >Zelda (U)"
+want_fsck save_back.card
+
+# The save is found again, and with a short name in other case
+SD_OUT=1 SD_STATE_IN=save_back.state run save_again save_back.card zelda.nes a
+want_launch_with 2 3
+want_writes 0
+want_ram save_again.state 0 played.sav
+
+SD_OUT=1 SD_STATE_IN=save_back.state run save_found save_back.card \
+    icarus.nes down a
+want_launch_with 2 3
+want_writes 0
+want_ram save_found.state 0 icarus.sav
+
+# A 2 KB save from an emulator: the rest of the 8 KB is cleared, and only
+# 4 blocks are written back
+head -c 2048 played.sav > small.sav
+python3 -c 'open("small8k.sav", "wb").write(open("small.sav", "rb").read() + bytes(6144))'
+cp save_back.card small_save.img
+mcopy -i small_save.img small.sav "::/Plain.sav"
+mcopy -i small_save.img plain.nes "::/Plain.nes"
+rom_bat small_bat.nes small_bat
+mdel -i small_save.img "::/Plain.nes"
+mcopy -i small_save.img small_bat.nes "::/Plain.nes"
+SD_OUT=1 SD_STATE_IN=random.state run small_save small_save.img \
+    small_bat.nes down down a
+want_launch_with 2 3
+want_ram small_save.state 0 small8k.sav
+state small_save.state - 0 played.sav
+SD_OUT=1 SD_STATE_IN=small_save.state FIRST_PRESS=40 run small_back \
+    small_save.card small_bat.nes
+want_end 2 4
+want_file small_back.card "Plain.sav" small.sav
+
+# No save, but the cursor is kept
+SD_OUT=1 SD_STATE_IN=random.state run no_battery save.img plain.nes \
+    down down a
+want_launch_with 0 2
+want_writes 0
+SD_STATE_IN=no_battery.state FIRST_PRESS=40 run no_battery_back save.img \
+    plain.nes
+want_end 2 0
+want_screen 6 "  >Plain"
+
+SD_OUT=1 SD_STATE_IN=random.state run no_nvram save.img eeprom.nes \
+    down down down a
+want_launch_with 0 2
+want_writes 0
+
+# A save waiting for another card is not written to this one
+SD_STATE_IN=save_new.state run wrong_card root.img game1.nes
+want_error 1D
+
+# A 32 KB NES 2.0 save in four banks, with a long name, in a directory on
+# FAT32
+fat big_save.img 32 2048
+part="big_save.img@@$((2048 * 512))"
+rom_bat long.nes long 9
+random_file long.sav 32768 long.sav
+long="A battery game whose name is far longer than the screen"
+mmd -i "$part" ::/Games
+mcopy -i "$part" game1.nes "::/Games/First.nes"
+mcopy -i "$part" long.nes "::/Games/$long.nes"
+python3 -c 'open("zeros32.sav", "wb").write(bytes(32768))'
+SD_OUT=1 SD_STATE_IN=random.state run long_new big_save.img long.nes \
+    a down a
+want_launch_with 2 3
+want_file "long_new.card@@$((2048 * 512))" "Games/$long.sav" zeros32.sav
+want_fsck long_new.card 2048
+state long_new.state - 0 long.sav
+SD_OUT=1 SD_STATE_IN=long_new.state FIRST_PRESS=60 run long_back \
+    long_new.card long.nes
+want_end 2 64
+want_screen 2 "   Games/"
+want_screen 5 "  >${long:0:27}"
+want_file "long_back.card@@$((2048 * 512))" "Games/$long.sav" long.sav
+want_fsck long_back.card 2048
+
+# No room in a root directory of 16 entries
+rm -f full.img
+/usr/sbin/mkfs.fat -C -F 16 -s 1 -r 16 full.img 16384 > /dev/null 2>&1
+mcopy -i full.img "$HERE/menu.nes" ::/MENU.NES
+mcopy -i full.img zelda.nes "::/Zelda (U).nes"
+for n in $(seq 1 13)
+do
+    mcopy -i full.img small.bin ::/F$n.BIN
+done
+SD_OUT=1 run dir_full full.img zelda.nes a
+want_error 1B
+want_writes 0
+
+# A save whose cluster chain is shorter than its size: nothing past the
+# chain may be read or written
+fat short.img 16
+rom_bat short.nes short
+mcopy -i short.img short.nes ::/SHORT.NES
+mcopy -i short.img played.sav ::/SHORT.SAV
+python3 -c '
+import struct, sys
+with open(sys.argv[1], "r+b") as f:
+    boot = f.read(512)
+    reserved, = struct.unpack_from("<H", boot, 0x0E)
+    fats = boot[0x10]
+    fat_size, = struct.unpack_from("<H", boot, 0x16)
+    f.seek((reserved + fats * fat_size) * 512)
+    root = f.read(16 * 512)
+    entry = root.index(b"SHORT   SAV")
+    clus, = struct.unpack_from("<H", root, entry + 26)
+    for n in range(fats):
+        f.seek((reserved + n * fat_size) * 512 + 2 * clus)
+        f.write(b"\xff\xff")
+' short.img
+SD_OUT=1 run short_chain short.img short.nes a
+want_error 18
+want_writes 0
 
 if [ $failures == 0 ]
 then

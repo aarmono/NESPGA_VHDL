@@ -140,6 +140,8 @@ package lib_nes is
         power_up_data      : power_up_data_t;
         -- The reset button is held
         soft_reset         : boolean;
+        -- Reset leaves PRG RAM alone, as it holds a save the board loaded
+        keep_prg_ram       : boolean;
     end record;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t;
@@ -449,18 +451,22 @@ package body lib_nes is
 
                 -- PRG RAM and CHR RAM share the cartridge memory bus, so their
                 -- first 8KB are filled on alternate CPU cycles, from the same
-                -- part of the power up data. A write that
+                -- part of the power up data. PRG RAM is left alone when the
+                -- board has loaded a save into it. A write that
                 -- is held for a whole CPU cycle by itself is always served,
                 -- even in the partial CPU cycle the NES can leave reset in
                 if nes_in.reg.cur_cycle(0) = '0'
                 then
-                    ret.prg_cart_mem_bus :=
-                        get_prg_ram_bus(
-                            bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
-                                             prg_ram_addr_t'length)));
-                    ret.data_to_prg_cart_mem :=
-                        get_cart_ram_fill(nes_in.reg.cart_config,
-                                          nes_in.power_up_data(39 downto 32));
+                    if not nes_in.keep_prg_ram
+                    then
+                        ret.prg_cart_mem_bus :=
+                            get_prg_ram_bus(
+                                bus_write(resize(nes_in.reg.cur_cycle(13 downto 1),
+                                                 prg_ram_addr_t'length)));
+                        ret.data_to_prg_cart_mem :=
+                            get_cart_ram_fill(nes_in.reg.cart_config,
+                                              nes_in.power_up_data(39 downto 32));
+                    end if;
                 else
                     ret.chr_cart_mem_bus :=
                         get_chr_ram_bus(
@@ -510,9 +516,11 @@ package body lib_nes is
                 -- same CPU cycle. The mux serves the CHR write first, then
                 -- the PRG write once the CHR write hits in its cache. A
                 -- board with a save RAM fill has PRG RAM and the chip RAM
-                -- filled from the start instead
+                -- filled from the start instead. PRG RAM is left alone when
+                -- the board has loaded a save into it
                 if is_zero(std_logic_vector(nes_in.reg.cur_cycle) and
-                           not nes_in.reg.cart_config.prg_ram_mask)
+                           not nes_in.reg.cart_config.prg_ram_mask) and
+                   not nes_in.keep_prg_ram
                 then
                     ret.prg_cart_mem_bus :=
                         get_prg_ram_bus(bus_write(nes_in.reg.cur_cycle));

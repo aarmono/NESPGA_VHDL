@@ -19,6 +19,8 @@ BPB_FAT_SIZE_16  = BUF + $16
 BPB_TOTAL_32     = BUF + $20
 BPB_FAT_SIZE_32  = BUF + $24
 BPB_ROOT_CLUS    = BUF + $2C
+BPB_SERIAL_16    = BUF + $27
+BPB_SERIAL_32    = BUF + $43
 
 MBR_TYPE  = BUF + $1C2
 MBR_START = BUF + $1C6
@@ -29,7 +31,14 @@ block:     .res 4
 ; The block in the buffer, if cache_ok is set
 cached:    .res 4
 cache_ok:  .res 1
+; The block of the boot sector, and the volume's serial number
+vol_lba:   .res 4
+vol_serial: .res 4
 fat_lba:   .res 4
+fat_size:  .res 4
+num_fats:  .res 1
+; The number of clusters, from cluster 2
+clus_count: .res 4
 ; The first block of cluster 2
 data_lba:  .res 4
 ; FAT16: the first block of the root directory. FAT32: its first cluster
@@ -43,6 +52,8 @@ sec_per_clus: .res 1
 clus_shift:   .res 1
 fat32:     .res 1
 ptr:       .res 2
+; Bit 7 set: dir_next does not stop at the end marker
+dir_all:   .res 1
 ; The extent being built in TABLE
 ext_ptr:   .res 2
 ; The block after the last extent
@@ -101,6 +112,9 @@ mount:
 
 ; block is the boot sector, which is in the buffer
 filesystem:
+    copy32 vol_lba, block
+    lda BPB_NUM_FATS
+    sta num_fats
     clc
     lda block
     adc BPB_RESERVED
@@ -126,9 +140,14 @@ filesystem:
     ora tmp
     bne @fat16
     copy32 tmp, BPB_FAT_SIZE_32
+    copy32 vol_serial, BPB_SERIAL_32
     dex
+    bne @size
 @fat16:
+    copy32 vol_serial, BPB_SERIAL_16
+@size:
     stx fat32
+    copy32 fat_size, tmp
 
     copy32 data_lba, fat_lba
     ldx BPB_NUM_FATS
@@ -140,7 +159,7 @@ filesystem:
     bit fat32
     bpl @root16
     copy32 root, BPB_ROOT_CLUS
-    rts
+    jmp @count
 
 @root16:
     ; The root directory comes before cluster 2, in (entries + 15) / 16
@@ -167,14 +186,15 @@ filesystem:
     lda data_lba + 1
     adc root_count + 1
     sta data_lba + 1
-    bcc @fat12
+    bcc @count
     inc data_lba + 2
-    bne @fat12
+    bne @count
     inc data_lba + 3
 
-    ; FAT12 has fewer than 4085 clusters: the blocks from data_lba to the
-    ; end of the volume, block + total, shifted down by clus_shift
-@fat12:
+    ; The clusters: the blocks from data_lba to the end of the volume,
+    ; block + total, shifted down by clus_shift. FAT12 has fewer than
+    ; 4085
+@count:
     lda BPB_TOTAL_16
     sta tmp
     lda BPB_TOTAL_16 + 1
@@ -203,6 +223,9 @@ filesystem:
     dex
     bne @shift
 @clusters:
+    copy32 clus_count, tmp
+    bit fat32
+    bmi @not_fat12
     lda tmp + 3
     ora tmp + 2
     bne @not_fat12
@@ -215,6 +238,11 @@ filesystem:
     jmp fail
 @not_fat12:
     rts
+
+; Writes the buffer to block
+write_block:
+    ldy #REG_WRITE - REG_BLOCK
+    bne block_cmd
 
 ; Reads block into the buffer, unless it is already there
 read_block:
@@ -229,6 +257,12 @@ read_block:
     bpl @cached
     rts
 @read:
+    ldy #REG_READ - REG_BLOCK
+    ; Falls through
+
+; Sends block, then command Y, the offset of its register from REG_BLOCK.
+; The buffer then holds block
+block_cmd:
     ; Commands are ignored during a read, which a reset can leave running
 @idle:
     bit REG_STATUS
@@ -241,7 +275,7 @@ read_block:
     inx
     cpx #4
     bne @shift
-    sta REG_READ
+    sta REG_BLOCK, y
 @busy:
     lda REG_STATUS
     bmi @busy
@@ -335,6 +369,18 @@ clus_to_block:
 ; clus = the cluster after clus in its chain. Carry set at the end of the
 ; chain
 next_clus:
+    jsr fat_locate
+    jmp fat_value
+
+; Reads the block of the first FAT that holds the entry of cluster clus:
+; block is that block, and ptr the entry in the buffer
+fat_locate:
+    jsr fat_where
+    jmp read_block
+
+; block = the block of the first FAT that holds the entry of cluster clus,
+; and ptr = the entry in the buffer once the block is read
+fat_where:
     ; The entry's byte offset in the FAT
     copy32 tmp, clus
     asl tmp
@@ -367,8 +413,9 @@ next_clus:
     ror a
     sta block
     add32 block, fat_lba
-    jsr read_block
+    rts
 
+fat_value:
     ldy #0
     lda (ptr), y
     sta clus
@@ -505,9 +552,12 @@ dir_next:
     asl a
     sta ptr
     inc dir_entry
+    bit dir_all
+    bmi @entry
     ldy #0
     lda (ptr), y
     beq @end
+@entry:
     clc
     rts
 @end:

@@ -45,6 +45,9 @@ port
     -- soft_reset_ppu_reg), and is ignored until the NES is running. The
     -- cartridge has no reset line, so it is not reset
     soft_reset : in boolean := false;
+    -- Reset leaves PRG RAM alone instead of filling it, because the board
+    -- has loaded a save into it. Must be stable while reset is true
+    keep_prg_ram : in boolean := false;
 
     nes_running : out boolean;
 
@@ -509,6 +512,7 @@ begin
         nes_in.power_up_data := fill_data;
 
         nes_in.soft_reset := soft_reset;
+        nes_in.keep_prg_ram := keep_prg_ram;
         
         nes_out := cycle_nes(nes_in);
         

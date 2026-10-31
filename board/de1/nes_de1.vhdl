@@ -15,7 +15,10 @@ entity nes_de1 is
 generic
 (
     ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
-    POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM
+    POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
+    -- How long Start and Select are held to return to the SD menu. See
+    -- sd_menu
+    RETURN_HOLD_MS : positive := 2000
 );
 port
 (
@@ -143,6 +146,8 @@ architecture behavioral of nes_de1 is
     
     signal flash_bus          : file_bus_t;
     signal cart_mem_bus       : cart_mem_bus_t;
+    -- The cartridge memory bus as sdram_rom sees it
+    signal rom_cart_mem_bus   : cart_mem_bus_t;
     signal data_to_cart_mem   : data_t;
     signal data_from_cart_mem : data_t;
 
@@ -153,6 +158,7 @@ architecture behavioral of nes_de1 is
     signal rom_restart   : boolean;
     signal sd_error      : boolean;
     signal launch_error  : boolean;
+    signal keep_prg_ram  : boolean;
 
     signal board_cpu_in  : cart_cpu_in_t;
     signal board_cpu_out : cart_cpu_out_t;
@@ -254,7 +260,7 @@ begin
         load_ready => load_ready,
 
         ppu_clk_en => ppu_clk_en,
-        cart_mem_bus => cart_mem_bus,
+        cart_mem_bus => rom_cart_mem_bus,
         data_to_cart_mem => data_to_cart_mem,
         data_from_cart_mem => data_from_cart_mem,
 
@@ -275,6 +281,10 @@ begin
         flash_bus <= FILE_BUS_IDLE;
 
         sd : entity work.sd_menu(behavioral)
+        generic map
+        (
+            RETURN_HOLD_MS => RETURN_HOLD_MS
+        )
         port map
         (
             clk => CLOCK_50,
@@ -283,6 +293,13 @@ begin
             cpu_clk_en => cpu_clk_en,
             board_cpu_in => board_cpu_in,
             board_cpu_out => board_cpu_out,
+
+            buttons => joy_1_buttons,
+
+            keep_prg_ram => keep_prg_ram,
+
+            cart_mem_bus_in => cart_mem_bus,
+            cart_mem_bus_out => rom_cart_mem_bus,
 
             rom_loading => rom_loading,
             rom_no_header => rom_no_header,
@@ -308,7 +325,9 @@ begin
 
         rom_restart <= false;
         launch_error <= false;
+        keep_prg_ram <= false;
         board_cpu_out <= CART_CPU_OUT_IDLE;
+        rom_cart_mem_bus <= cart_mem_bus;
 
         sd : entity work.sd_reader(behavioral)
         port map
@@ -338,7 +357,9 @@ begin
         sd_error <= false;
         rom_restart <= false;
         launch_error <= false;
+        keep_prg_ram <= false;
         board_cpu_out <= CART_CPU_OUT_IDLE;
+        rom_cart_mem_bus <= cart_mem_bus;
 
         SD_CLK <= '0';
         SD_DAT3 <= '1';
@@ -446,6 +467,7 @@ begin
         clk => CLOCK_50,
         reset => nes_reset,
         soft_reset => nes_soft_reset,
+        keep_prg_ram => keep_prg_ram,
 
         nes_running => nes_running,
 

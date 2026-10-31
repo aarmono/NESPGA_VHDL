@@ -8,17 +8,22 @@
 ; right move by a page, A or Start opens a directory or launches a file, and
 ; B goes back up.
 ;
-; The header declares no PRG RAM, so that loading the menu leaves the
-; previous game's PRG RAM alone, and the menu works in the 2 KB of the NES.
+; The header declares 8 KB of PRG RAM, which sd_menu maps to a bank of
+; cartridge RAM that games do not use (see menu.inc). The stub and the menu
+; are launched with PRG RAM kept, so the previous game's PRG RAM is still
+; there for save.s to write back. The directory and the cursor are kept in
+; the menu's bank too, so the menu comes back where it was after a game.
 ; A directory is read once when it is opened, to count its entries and to
 ; note where each page starts. Each page is then read again when it is
 ; shown. Up to MAX_PAGES pages of a directory are listed.
 ;
 ; Errors show a message, with the error's color (see fat.inc) as the
 ; backdrop. A goes back to the directory after a failed launch, and to the
-; root directory after other errors.
+; root directory after other errors. If writing a save back fails, A tries
+; again.
 
 .include "fat.inc"
+.include "menu.inc"
 
 PPU_OAM_ADDR = $2003
 OAM_DMA      = $4014
@@ -53,11 +58,9 @@ ROWS       = 22
 FOOTER_ROW = 27
 CURSOR_COL = 2
 NAME_COL   = 3
-NAME_COLS  = 27
 PAGE_COL   = 24
 
 MAX_PAGES = 80
-MAX_DEPTH = 7
 
 KIND_FILE = 0
 KIND_DIR  = 1
@@ -66,17 +69,13 @@ KIND_DIR  = 1
 ; built to launch
 OAM         = $0200
 PAGES       = $0300
-; Per level: the parent's cluster (4 bytes), page and row
-DIRS        = PAGES + MAX_PAGES * DIR_STATE_BYTES
-DIR_BYTES   = 6
-; Per level: the title, zero terminated
-TITLES      = DIRS + MAX_DEPTH * DIR_BYTES
-TITLE_BYTES = NAME_COLS + 1
-; The entry's name: up to 39 characters of a long name, then room for a /
-; and the terminator
-NAME        = TITLES + MAX_DEPTH * TITLE_BYTES
+; The entry's name as shown: up to 39 characters of its full name, then
+; room for a / and the terminator
+NAME        = PAGES + MAX_PAGES * DIR_STATE_BYTES
 NAME_BYTES  = 41
 LFN_CHARS   = 39
+; Long name entries: 13 characters each, 255 in all
+LFN_MAX     = 20
 
 .assert TABLE = PAGES, error, "TABLE"
 .assert NAME + NAME_BYTES <= $0800, error, "out of RAM"
@@ -91,7 +90,10 @@ repeat:      .res 1
 ; The directions to act on this frame
 act:         .res 1
 
-; The cursor
+; The directory, 0 for the root, how deep it is, and the cursor, in the
+; order of RESUME
+cur_clus:    .res 4
+depth:       .res 1
 page:        .res 1
 row:         .res 1
 ; The last entry of the directory
@@ -100,9 +102,6 @@ last_row:    .res 1
 ; Nonzero if the directory has no entries to list
 empty:       .res 1
 
-; The directory, 0 for the root, and how deep it is
-cur_clus:    .res 4
-depth:       .res 1
 mounted:     .res 1
 launching:   .res 1
 err:         .res 1
@@ -112,6 +111,11 @@ kind:        .res 1
 lfn_ok:      .res 1
 lfn_seq:     .res 1
 lfn_sum:     .res 1
+; The sequence number of the first long name entry, the number of entries
+lfn_count:   .res 1
+item_mode:   .res 1
+full_len:    .res 1
+fn:          .res 2
 case_bits:   .res 1
 case_flag:   .res 1
 char:        .res 1
@@ -126,9 +130,9 @@ str:         .res 2
 counter:     .res 1
 
 .segment "HEADER"
-    ; NES 2.0, mapper 0, 1 16 KB PRG ROM bank, 1 8 KB CHR ROM bank, no PRG
-    ; RAM, no CHR RAM, NTSC
-    .byte "NES", $1A, 1, 1, $00, $08, 0, 0, 0, 0, 0, 0, 0, 0
+    ; NES 2.0, mapper 0, 1 16 KB PRG ROM bank, 1 8 KB CHR ROM bank, 8 KB of
+    ; PRG RAM, no CHR RAM, NTSC
+    .byte "NES", $1A, 1, 1, $00, $08, 0, 0, $07, 0, 0, 0, 0, 0
 
 .segment "CHARS"
     .incbin "font.chr"
@@ -142,6 +146,19 @@ counter:     .res 1
     ldx #c
     jsr ppu_at
     jsr print
+.endmacro
+
+; Copies character n of a long name entry, at offset off in the entry at
+; ptr, to (fn)
+.macro lfn_char off, n
+    ldy #off
+    lda (ptr), y
+    ldy #2 * n
+    sta (fn), y
+    ldy #off + 1
+    lda (ptr), y
+    ldy #2 * n + 1
+    sta (fn), y
 .endmacro
 
 .code
@@ -178,8 +195,14 @@ reset:
     inx
     bne @oam
     jsr load_palette
+    lda #MENU_BANK
+    sta REG_BANK
+    ; Buttons held now, such as the Start and Select that returned to the
+    ; menu, count as pressed only once they are released and pressed again
+    jsr read_joy
 
     jsr mount
+    jsr write_back
     inc mounted
 
 ; Reads the directory cur_clus and shows the page with the cursor
@@ -350,13 +373,10 @@ open_item:
     beq @dir
 
     inc launching
-    jsr build_extents
-    bcc @launch
-    lda #ERR_FRAGMENTED
-    jmp fail
-@launch:
+    jsr prepare_launch
+    pha
     jsr screen_off
-    lda #0
+    pla
     jmp launch
 
 @dir:
@@ -543,9 +563,10 @@ select_item:
     jmp fail
 
 ; Reads the next entry of the directory to list, a .NES file or a
-; directory: kind, its name in NAME and its first cluster in clus. Its long
-; name is used if it has one that is whole and whose checksum matches the
-; short entry. Carry set at the end of the directory
+; directory, or with item_mode 1 any file: kind, its full name in FULLNAME
+; and full_len, the name to show in NAME, and its first cluster in clus. Its
+; long name is used if it has one that is whole and whose checksum matches
+; the short entry. Carry set at the end of the directory
 next_item:
     lda #0
     sta lfn_ok
@@ -581,7 +602,10 @@ next_item:
     ; The first entry of a long name holds its last characters
     lda (ptr), y
     and #$1F
+    cmp #LFN_MAX + 1
+    bcs @orphan
     sta lfn_seq
+    sta lfn_count
     ldy #13
     lda (ptr), y
     sta lfn_sum
@@ -591,12 +615,6 @@ next_item:
     sta item_state, x
     dex
     bpl @start
-    lda #0
-    ldx #NAME_BYTES - 1
-@clear:
-    sta NAME, x
-    dex
-    bpl @clear
     lda #1
     sta lfn_ok
     bne @chars
@@ -617,47 +635,10 @@ next_item:
     sta lfn_seq
 
 @chars:
-    ; Only the first 3 entries (39 characters) are kept
+    ; The entry's 13 characters go to FULLNAME from (lfn_seq - 1) * 13
     ldx lfn_seq
     beq @orphan
-    cpx #4
-    bcs @entry
-    lda lfn_index - 1, x
-    tax
-    lda #0
-    sta index
-@char:
-    ldy index
-    lda lfn_offsets, y
-    tay
-    lda (ptr), y
-    sta char
-    iny
-    lda (ptr), y
-    bne @wide
-    lda char
-    beq @store
-    cmp #$20
-    bcc @bad
-    cmp #$7F
-    bcc @store
-    bcs @bad
-@wide:
-    ; $FFFF pads the name after its terminator
-    and char
-    cmp #$FF
-    bne @bad
-    lda #0
-    beq @store
-@bad:
-    lda #'?'
-@store:
-    sta NAME, x
-    inx
-    inc index
-    lda index
-    cmp #13
-    bne @char
+    jsr lfn_copy
     jmp @entry
 
 @orphan:
@@ -668,7 +649,8 @@ next_item:
 @short:
     ldy #DIR_ATTR
     lda (ptr), y
-    and #ATTR_VOLUME | ATTR_HIDDEN
+    ldx item_mode
+    and skip_attrs, x
     bne @orphan
     lda lfn_ok
     beq @short_name
@@ -688,7 +670,9 @@ next_item:
     cpy #11
     bne @sum
     cmp lfn_sum
-    beq @named
+    bne @short_name
+    jsr lfn_name
+    jmp @named
 
 @short_name:
     ldx #DIR_STATE_BYTES - 1
@@ -728,6 +712,22 @@ next_item:
 @no_ext:
     lda #0
     sta NAME, x
+    ; The full name is the same
+    stx full_len
+    txa
+    asl a
+    tay
+@full:
+    dey
+    bmi @named
+    lda #0
+    sta FULLNAME, y
+    dey
+    dex
+    lda NAME, x
+    sta FULLNAME, y
+    tya
+    bne @full
 
 @named:
     lda #0
@@ -741,6 +741,8 @@ next_item:
     lda (ptr), y
     and #ATTR_DIR
     bne @dir
+    lda item_mode
+    bne @file
     ldy #8
     lda (ptr), y
     cmp #'N'
@@ -770,11 +772,119 @@ next_item:
 @skip:
     jmp @entry
 @dir:
+    lda item_mode
+    bne @skip
     lda #KIND_DIR
 @found:
     sta kind
     jsr entry_clus
     clc
+    rts
+
+; Copies the 13 characters of the long name entry at ptr, whose sequence
+; number is X, to FULLNAME
+lfn_copy:
+    jsr lfn_ptr
+    ; Unrolled, as this is most of the time taken to list a directory
+    lfn_char 1, 0
+    lfn_char 3, 1
+    lfn_char 5, 2
+    lfn_char 7, 3
+    lfn_char 9, 4
+    lfn_char 14, 5
+    lfn_char 16, 6
+    lfn_char 18, 7
+    lfn_char 20, 8
+    lfn_char 22, 9
+    lfn_char 24, 10
+    lfn_char 28, 11
+    lfn_char 30, 12
+    rts
+
+; fn = FULLNAME + (X - 1) * 26, where the characters of long name entry X
+; go
+lfn_ptr:
+    lda #<FULLNAME
+    sta fn
+    lda #>FULLNAME
+    sta fn + 1
+@add:
+    dex
+    beq @done
+    clc
+    lda fn
+    adc #26
+    sta fn
+    bcc @add
+    inc fn + 1
+    bne @add
+@done:
+    rts
+
+; The long name is whole: full_len is its length, up to its terminator, and
+; NAME is its first LFN_CHARS characters, with ? for those that are not
+; ASCII
+lfn_name:
+    ; The terminator can only be in the last entry
+    ldx lfn_count
+    jsr lfn_ptr
+    lda #0
+    ldx lfn_count
+@base:
+    dex
+    beq @find
+    clc
+    adc #13
+    bne @base
+@find:
+    sta full_len
+    ldy #0
+@terminator:
+    lda (fn), y
+    iny
+    ora (fn), y
+    beq @length
+    iny
+    inc full_len
+    beq @too_long
+    cpy #26
+    bne @terminator
+    beq @length
+@too_long:
+    dec full_len
+@length:
+
+    lda #<FULLNAME
+    sta fn
+    lda #>FULLNAME
+    sta fn + 1
+    ldx #0
+@char:
+    cpx full_len
+    beq @end
+    cpx #LFN_CHARS
+    beq @end
+    txa
+    asl a
+    tay
+    iny
+    lda (fn), y
+    bne @bad
+    dey
+    lda (fn), y
+    cmp #$20
+    bcc @bad
+    cmp #$7F
+    bcc @store
+@bad:
+    lda #'?'
+@store:
+    sta NAME, x
+    inx
+    bne @char
+@end:
+    lda #0
+    sta NAME, x
     rts
 
 ; NAME, x = the character of the short entry at y, in lower case if
@@ -971,6 +1081,11 @@ fail:
     ldx #$FF
     txs
     sta err
+    lda #MENU_BANK
+    sta REG_BANK
+    lda #0
+    sta item_mode
+    sta dir_all
     jsr screen_off
     jsr clear_screen
     lda #$3F
@@ -1172,9 +1287,9 @@ print_dec:
 
 .rodata
 
-; Where each long name entry's characters go in NAME, by sequence number
-lfn_index:
-    .byte 0, 13, 26
+; The attributes of short entries that next_item skips, by item_mode
+skip_attrs:
+    .byte ATTR_VOLUME | ATTR_HIDDEN, ATTR_VOLUME
 ; The offsets of the 13 characters in a long name entry
 lfn_offsets:
     .byte 1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30
@@ -1194,6 +1309,7 @@ continue_text:   .asciiz "Press A"
 error_messages:
     .word err_card, err_signature, err_gpt, err_partition, err_boot
     .word err_fat12, err_not_found, err_chain, err_fragmented
+    .word err_not_ines, err_dir_full, err_disk_full, err_wrong_card
 
 err_card:       .asciiz "SD card failed"
 err_signature:  .asciiz "No MBR or boot sector"
@@ -1204,6 +1320,10 @@ err_fat12:      .asciiz "FAT12 is not supported"
 err_not_found:  .asciiz "File not found"
 err_chain:      .asciiz "Broken or empty file"
 err_fragmented: .asciiz "File has over 64 fragments"
+err_not_ines:   .asciiz "Not an iNES file"
+err_dir_full:   .asciiz "No room in the folder"
+err_disk_full:  .asciiz "The card is full"
+err_wrong_card: .asciiz "Card changed: save not written"
 
 .segment "VECTORS"
     .word nmi, reset, irq

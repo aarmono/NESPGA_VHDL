@@ -19,10 +19,18 @@ generic
     NES_FILE_BYTES  : integer := 196608;
     ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM;
     -- A on the controller in port 1 is held from JOY_A_FROM_MS until
-    -- JOY_A_UNTIL_MS, as when choosing the first entry of the SD menu.
-    -- Natural, not time, since ghdl cannot override time generics
+    -- JOY_A_UNTIL_MS, as when choosing the first entry of the SD menu, and
+    -- again from JOY_A2_FROM_MS until JOY_A2_UNTIL_MS. Start and Select are
+    -- held from JOY_RETURN_FROM_MS until JOY_RETURN_UNTIL_MS, as when
+    -- returning to the menu after RETURN_HOLD_MS. Natural, not time, since
+    -- ghdl cannot override time generics
     JOY_A_FROM_MS   : natural := 0;
-    JOY_A_UNTIL_MS  : natural := 0
+    JOY_A_UNTIL_MS  : natural := 0;
+    JOY_A2_FROM_MS  : natural := 0;
+    JOY_A2_UNTIL_MS : natural := 0;
+    JOY_RETURN_FROM_MS  : natural := 0;
+    JOY_RETURN_UNTIL_MS : natural := 0;
+    RETURN_HOLD_MS  : positive := 2000
 );
 end nes_de1_bench;
 
@@ -97,7 +105,8 @@ begin
     (
         ROM_CONFIG => ROM_CONFIG,
         -- The oscillators of the random number generator cannot be simulated
-        POWER_UP_MODE => POWER_UP_DETERMINISTIC
+        POWER_UP_MODE => POWER_UP_DETERMINISTIC,
+        RETURN_HOLD_MS => RETURN_HOLD_MS
     )
     port map
     (
@@ -258,9 +267,15 @@ begin
         if joy_1_latch = '1'
         then
             shift := (others => '1');
-            if now >= JOY_A_FROM_MS * 1 ms and now < JOY_A_UNTIL_MS * 1 ms
+            if (now >= JOY_A_FROM_MS * 1 ms and now < JOY_A_UNTIL_MS * 1 ms) or
+               (now >= JOY_A2_FROM_MS * 1 ms and now < JOY_A2_UNTIL_MS * 1 ms)
             then
                 shift(0) := '0';
+            end if;
+            if now >= JOY_RETURN_FROM_MS * 1 ms and
+               now < JOY_RETURN_UNTIL_MS * 1 ms
+            then
+                shift(3 downto 2) := "00";
             end if;
         elsif rising_edge(joy_1_clk)
         then

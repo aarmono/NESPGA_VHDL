@@ -24,8 +24,15 @@ use work.sd_menu_stub.all;
 -- and the registers must be gone, or with KEEP_MENU, still there. With
 -- DROP_LAST_EXTENT, the launch must fail instead.
 --
+-- Before the launch, a block is written and read back, the flags are set,
+-- and the menu's PRG RAM bank is checked to move PRG RAM accesses, and only
+-- those. After the launch, without KEEP_MENU, holding Start and Select must
+-- return to the menu, with the flags and cartridge RAM kept, and a shorter
+-- press must not. keep_prg_ram is checked throughout: KEEP_RAM sets bit 1
+-- of the launch.
+--
 -- With RAW, the card holds an iNES file from block 0, which must be loaded
--- without menu mode.
+-- without menu mode, and Start and Select must do nothing.
 entity sd_menu_bench is
 generic
 (
@@ -37,6 +44,7 @@ generic
 
     RAW              : boolean := false;
     KEEP_MENU        : boolean := false;
+    KEEP_RAM         : boolean := false;
     DROP_LAST_EXTENT : boolean := false;
     NUM_READS        : positive := 50_000;
 
@@ -47,6 +55,10 @@ end sd_menu_bench;
 architecture behavioral of sd_menu_bench is
 
     constant BLOCK_BYTES : positive := 512;
+    constant RETURN_HOLD_MS : positive := 1;
+    -- The start of the cartridge RAM region, PRG RAM, and of bank 24
+    constant CART_RAM : natural := 2**(cart_mem_addr_t'length - 1);
+    constant BANK_24  : natural := CART_RAM + 24 * 8192;
 
     type bytes_t is array(natural range <>) of data_t;
     type bytes_ptr_t is access bytes_t;
@@ -81,8 +93,14 @@ architecture behavioral of sd_menu_bench is
     signal sd_failed     : boolean;
     signal launch_failed : boolean;
 
-    signal cart_mem_bus  : cart_mem_bus_t := CART_MEM_BUS_IDLE;
-    signal cart_mem_data : data_t;
+    -- Controller 1, low while pressed
+    signal buttons      : std_logic_vector(7 downto 0) := (others => '1');
+    signal keep_prg_ram : boolean;
+
+    signal cart_mem_bus   : cart_mem_bus_t := CART_MEM_BUS_IDLE;
+    signal rom_mem_bus    : cart_mem_bus_t;
+    signal cart_mem_wdata : data_t := (others => '0');
+    signal cart_mem_data  : data_t;
 
     signal sd_clk  : std_logic;
     signal sd_cs_n : std_logic;
@@ -138,7 +156,8 @@ begin
     dut : entity work.sd_menu(behavioral)
     generic map
     (
-        VENDOR => VENDOR_SIM
+        VENDOR => VENDOR_SIM,
+        RETURN_HOLD_MS => RETURN_HOLD_MS
     )
     port map
     (
@@ -148,6 +167,13 @@ begin
         cpu_clk_en => cpu_en,
         board_cpu_in => board_cpu_in,
         board_cpu_out => board_cpu_out,
+
+        buttons => buttons,
+
+        keep_prg_ram => keep_prg_ram,
+
+        cart_mem_bus_in => cart_mem_bus,
+        cart_mem_bus_out => rom_mem_bus,
 
         rom_loading => loading,
         rom_no_header => no_header,
@@ -186,8 +212,8 @@ begin
         load_ready => load_ready,
 
         ppu_clk_en => ppu_en,
-        cart_mem_bus => cart_mem_bus,
-        data_to_cart_mem => (others => '-'),
+        cart_mem_bus => rom_mem_bus,
+        data_to_cart_mem => cart_mem_wdata,
         data_from_cart_mem => cart_mem_data,
 
         dram_addr => dram_addr,
@@ -333,7 +359,17 @@ begin
             data := cart_mem_data;
         end;
 
-        procedure read_block(blk : natural)
+        procedure cart_write(a : natural; wdata : data_t)
+        is
+        begin
+            cart_mem_bus <= bus_write(to_unsigned(a, cart_mem_addr_t'length));
+            cart_mem_wdata <= wdata;
+            wait until rising_edge(clk_50) and ppu_en;
+            wait until rising_edge(clk_50) and ppu_en;
+            cart_mem_bus <= CART_MEM_BUS_IDLE;
+        end;
+
+        procedure set_block(blk : natural)
         is
             variable v_blk : std_logic_vector(31 downto 0);
         begin
@@ -342,6 +378,60 @@ begin
             loop
                 cpu_write(16#5200#, v_blk(8 * i + 7 downto 8 * i));
             end loop;
+        end;
+
+        -- Writes a pattern that depends on blk to the block, and to image
+        procedure write_block(blk : natural)
+        is
+        begin
+            for i in 0 to BLOCK_BYTES - 1
+            loop
+                image(blk * BLOCK_BYTES + i) :=
+                    to_std_logic_vector((i * 7 + blk) mod 256, 8);
+                cpu_write(16#5000# + i, image(blk * BLOCK_BYTES + i));
+            end loop;
+            set_block(blk);
+            cpu_write(16#5206#, x"00");
+            cpu_read(16#5200#);
+            assert data(7) = '1'
+                report "Status not busy after a write command"
+                severity failure;
+            wait_ready;
+            report "Wrote block " & integer'image(blk) & " at " &
+                   time'image(now);
+        end;
+
+        procedure check_flags(flags : std_logic_vector(1 downto 0))
+        is
+        begin
+            cpu_read(16#5200#);
+            assert oe and data(1 downto 0) = flags
+                report "Flags read " & to_hstring(data) & ", expected " &
+                       to_hstring(flags)
+                severity failure;
+        end;
+
+        -- Waits for the stub to be loaded and menu mode to start
+        procedure wait_menu_mode
+        is
+        begin
+            wait until not loading;
+            report "Stub loaded at " & time'image(now);
+            assert keep_prg_ram
+                report "PRG RAM not kept for the stub"
+                severity failure;
+            loop
+                cpu_read(16#5204#);
+                exit when oe;
+            end loop;
+            report "Menu mode at " & time'image(now);
+        end;
+
+        procedure read_block(blk : natural)
+        is
+            variable v_blk : std_logic_vector(31 downto 0);
+        begin
+            set_block(blk);
             cpu_write(16#5204#, x"00");
             cpu_read(16#5200#);
             assert data(7) = '1'
@@ -439,6 +529,46 @@ begin
             read_block(1);
             read_block(IMAGE_BYTES / BLOCK_BYTES - 1);
 
+            -- A write, then reads of it and of the block before it, which
+            -- the write must leave alone
+            write_block(IMAGE_BYTES / BLOCK_BYTES - 1);
+            read_block(IMAGE_BYTES / BLOCK_BYTES - 2);
+            read_block(IMAGE_BYTES / BLOCK_BYTES - 1);
+
+            check_flags("00");
+            cpu_write(16#5201#, x"FE");
+            check_flags("10");
+
+            -- The menu's PRG RAM bank moves accesses to the PRG RAM window,
+            -- and only those
+            cpu_write(16#5207#, x"18");
+            cart_write(CART_RAM + 16#10#, x"A5");
+            cpu_write(16#5207#, x"00");
+            cart_write(CART_RAM + 16#10#, x"5A");
+            cart_read(BANK_24 + 16#10#);
+            assert data = x"A5"
+                report "Bank 24 holds " & to_hstring(data) & ", not A5"
+                severity failure;
+            cpu_write(16#5207#, x"18");
+            cart_read(CART_RAM + 16#10#);
+            assert data = x"A5"
+                report "PRG RAM in bank 24 reads " & to_hstring(data)
+                severity failure;
+            cpu_write(16#5207#, x"00");
+            cart_read(CART_RAM + 16#10#);
+            assert data = x"5A"
+                report "PRG RAM in bank 0 reads " & to_hstring(data)
+                severity failure;
+            -- CHR RAM is not moved
+            cpu_write(16#5207#, x"18");
+            cart_write(CART_RAM + 16#10010#, x"C3");
+            cpu_write(16#5207#, x"00");
+            cart_read(CART_RAM + 16#10010#);
+            assert data = x"C3"
+                report "CHR RAM moved by the bank"
+                severity failure;
+            cart_mem_bus <= CART_MEM_BUS_IDLE;
+
             extents := read_file(EXTENTS_FILEPATH, BLOCK_BYTES);
             -- The first block of the file
             first := to_integer(extents(3) & extents(2) &
@@ -478,7 +608,8 @@ begin
                 report integer'image(errors) & " block read errors"
                 severity failure;
 
-            cpu_write(16#5205#, x"0" & "000" & to_std_logic(KEEP_MENU));
+            cpu_write(16#5205#, x"0" & "00" & to_std_logic(KEEP_RAM) &
+                                to_std_logic(KEEP_MENU));
             report "Launched at " & time'image(now);
 
             wait until rising_edge(clk_50);
@@ -504,6 +635,9 @@ begin
                 report "Launch failed"
                 severity failure;
             report "File loaded at " & time'image(now);
+            assert keep_prg_ram = (KEEP_MENU or KEEP_RAM)
+                report "keep_prg_ram does not follow the launch"
+                severity failure;
         end if;
 
         -- The registers are only there in menu mode
@@ -556,8 +690,55 @@ begin
         assert errors = 0
             report integer'image(errors) & " ROM read errors"
             severity failure;
-        report "PASS: " & integer'image(NUM_READS) & " ROM reads at " &
+        report integer'image(NUM_READS) & " ROM reads passed at " &
                time'image(now);
+
+        if not KEEP_MENU
+        then
+            -- The game's PRG RAM, which a return to the menu keeps. The
+            -- bank only applies in menu mode
+            cart_write(CART_RAM + 16#123#, x"3C");
+            cart_mem_bus <= CART_MEM_BUS_IDLE;
+
+            -- Start and Select, then a shorter press of both, and of one
+            buttons <= "11110011";
+            wait for (RETURN_HOLD_MS * 1 ms) / 2;
+            buttons <= "11111111";
+            wait for 10 us;
+            buttons <= "11110111";
+            wait for (RETURN_HOLD_MS * 1 ms) * 3 / 2;
+            assert not loading
+                report "A short press or Select alone returned to the menu"
+                severity failure;
+            buttons <= "11110011";
+            wait for (RETURN_HOLD_MS * 1 ms) * 9 / 10;
+            assert not loading
+                report "Returned to the menu too early"
+                severity failure;
+            if RAW
+            then
+                wait for (RETURN_HOLD_MS * 1 ms);
+                assert not loading
+                    report "Start and Select reloaded a raw card"
+                    severity failure;
+            else
+                wait until loading for (RETURN_HOLD_MS * 1 ms) / 5;
+                assert loading
+                    report "Start and Select did not return to the menu"
+                    severity failure;
+                report "Returning to the menu at " & time'image(now);
+                buttons <= "11111111";
+                wait_menu_mode;
+                check_flags("10");
+                cart_read(CART_RAM + 16#123#);
+                assert data = x"3C"
+                    report "PRG RAM not kept: " & to_hstring(data)
+                    severity failure;
+                cart_mem_bus <= CART_MEM_BUS_IDLE;
+            end if;
+        end if;
+
+        report "PASS at " & time'image(now);
         std.env.finish;
     end process;
 

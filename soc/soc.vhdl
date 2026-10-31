@@ -30,6 +30,8 @@ package soc is
         reset : in boolean;
         -- The reset button
         soft_reset : in boolean := false;
+        -- Reset leaves PRG RAM alone, as it holds a save
+        keep_prg_ram : in boolean := false;
 
         nes_running : out boolean;
 
@@ -107,6 +109,8 @@ package soc is
         reset : in boolean;
         -- The reset button
         soft_reset : in boolean := false;
+        -- Reset leaves PRG RAM alone, as it holds a save
+        keep_prg_ram : in boolean := false;
 
         nes_running : out boolean;
 

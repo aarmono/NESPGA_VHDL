@@ -11,17 +11,80 @@
 -- on the screen at launch, at an error, and at the end of frame
 -- SD_SCREEN_FRAME if it is set (the menu's tiles are ASCII codes, and its
 -- cursor sprite is shown as '>').
+--
+-- Blocks written go to a copy of the image. The flags and the 256 KB of
+-- cartridge RAM that the menu's PRG RAM bank selects from are kept as
+-- sd_menu keeps them, and start from SD_STATE_IN if it is set (the flags
+-- byte, then the RAM), otherwise zero. At launch, and at the end of frame
+-- SD_SCREEN_FRAME, the image is written to SD_IMAGE_OUT and the state to
+-- SD_STATE_OUT, if they are set, so that a later run can stand in for the
+-- menu coming back after the game.
 local image = assert(io.open(os.getenv("SD_IMAGE"), "rb")):read("a")
 local expect = assert(io.open(os.getenv("SD_EXPECT"), "rb")):read("a")
 local failed = os.getenv("SD_FAIL") ~= nil
 local screen_frame = tonumber(os.getenv("SD_SCREEN_FRAME") or "")
 local error_continue = os.getenv("SD_ERROR_CONTINUE") ~= nil
+local image_out = os.getenv("SD_IMAGE_OUT")
+local state_out = os.getenv("SD_STATE_OUT")
 
+local RAM_BYTES = 256 * 1024
 local buf = {}
 for i = 0, 511 do buf[i] = 0 end
 local block = 0
 local busy = 0
 local reads = 0
+local writes = 0
+local written = {}
+local flags = 0
+local bank = 0
+local ram = {}
+
+local state_in = os.getenv("SD_STATE_IN")
+if state_in ~= nil then
+  local data = assert(io.open(state_in, "rb")):read("a")
+  flags = data:byte(1)
+  for i = 0, RAM_BYTES - 1 do
+    local b = data:byte(i + 2)
+    if b ~= 0 then ram[i] = b end
+  end
+end
+
+local function block_data(n)
+  return written[n] or image:sub(n * 512 + 1, n * 512 + 512)
+end
+
+local function dump()
+  if image_out ~= nil then
+    local blocks = {}
+    for n in pairs(written) do blocks[#blocks + 1] = n end
+    table.sort(blocks)
+    local parts = {}
+    local pos = 0
+    for _, n in ipairs(blocks) do
+      parts[#parts + 1] = image:sub(pos * 512 + 1, n * 512)
+      parts[#parts + 1] = written[n]
+      pos = n + 1
+    end
+    parts[#parts + 1] = image:sub(pos * 512 + 1)
+    local f = assert(io.open(image_out, "wb"))
+    f:write(table.concat(parts))
+    f:close()
+  end
+  if state_out ~= nil then
+    local parts = {string.char(flags)}
+    local chunk = {}
+    for i = 0, RAM_BYTES - 1 do
+      chunk[#chunk + 1] = ram[i] or 0
+      if #chunk == 4096 then
+        parts[#parts + 1] = string.char(table.unpack(chunk))
+        chunk = {}
+      end
+    end
+    local f = assert(io.open(state_out, "wb"))
+    f:write(table.concat(parts))
+    f:close()
+  end
+end
 
 local function log_screen()
   emu.log("SCREEN --")
@@ -53,10 +116,19 @@ emu.addMemoryCallback(function(addr, value)
   end
   if busy > 0 then
     busy = busy - 1
-    return 0x80
+    return 0x80 | flags
   end
-  return failed and 0x40 or 0
+  return (failed and 0x40 or 0) | flags
 end, emu.callbackType.read, 0x5000, 0x5FFF)
+
+-- The menu's PRG RAM, in the selected bank of cartridge RAM
+emu.addMemoryCallback(function(addr, value)
+  return ram[bank * 8192 + (addr & 0x1FFF)] or 0
+end, emu.callbackType.read, 0x6000, 0x7FFF)
+
+emu.addMemoryCallback(function(addr, value)
+  ram[bank * 8192 + (addr & 0x1FFF)] = value
+end, emu.callbackType.write, 0x6000, 0x7FFF)
 
 emu.addMemoryCallback(function(addr, value)
   if addr & 0x200 == 0 then
@@ -66,13 +138,25 @@ emu.addMemoryCallback(function(addr, value)
   local reg = addr & 7
   if reg == 0 then
     block = ((block >> 8) | (value << 24)) & 0xFFFFFFFF
+  elseif reg == 1 then
+    flags = value & 3
+    emu.log(string.format("flags %d", flags))
   elseif reg == 4 then
     reads = reads + 1
     emu.log(string.format("read block %d", block))
+    local data = block_data(block)
     for i = 0, 511 do
-      buf[i] = image:byte(block * 512 + i + 1) or 0
+      buf[i] = data:byte(i + 1) or 0
     end
     busy = 3
+  elseif reg == 6 then
+    writes = writes + 1
+    emu.log(string.format("write block %d", block))
+    assert((block + 1) * 512 <= #image, "write past the end of the image")
+    written[block] = string.char(table.unpack(buf, 0, 511))
+    busy = 3
+  elseif reg == 7 then
+    bank = value & 31
   elseif reg == 5 then
     local data = {}
     local extents = 0
@@ -85,13 +169,17 @@ emu.addMemoryCallback(function(addr, value)
       extents = extents + 1
       emu.log(string.format("extent %d: block %d, %d blocks", e, first,
                             count))
-      data[#data + 1] = image:sub(first * 512 + 1, (first + count) * 512)
+      for n = first, first + count - 1 do
+        data[#data + 1] = block_data(n)
+      end
     end
     local ok = table.concat(data):sub(1, #expect) == expect
     log_screen()
-    emu.log(string.format("LAUNCH value %d, %d extents, %d reads, %s",
+    emu.log(string.format("LAUNCH value %d, %d extents, %d reads, %s, " ..
+                          "flags %d, %d writes",
                           value, extents, reads,
-                          ok and "MATCH" or "MISMATCH"))
+                          ok and "MATCH" or "MISMATCH", flags, writes))
+    dump()
     emu.stop(ok and 0 or 1)
   end
 end, emu.callbackType.write, 0x5000, 0x5FFF)
@@ -117,6 +205,9 @@ end, emu.callbackType.write, 0x2007, 0x2007)
 emu.addEventCallback(function()
   if frame == screen_frame then
     log_screen()
+    emu.log(string.format("END flags %d, %d reads, %d writes", flags, reads,
+                          writes))
+    dump()
   end
   -- A frame after the color, so that the menu's message is on the screen
   if error_frame ~= nil and frame > error_frame then
