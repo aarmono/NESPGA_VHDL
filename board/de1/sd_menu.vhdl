@@ -441,13 +441,12 @@ begin
     req_count <= to_integer(reg.count);
 
     -- A run is only wanted while it reads a block into the buffer, or a
-    -- file that sdram_rom still takes. Otherwise the rest of the block is
-    -- discarded and the run ends: once sdram_rom has the whole file or has
-    -- refused it, and while a new run waits for that. Writes ignore it
-    sd_stop <= reg.req or not
-               (reg.state = ST_READ or
-                ((reg.state = ST_BOOT or reg.state = ST_RUN) and
-                 rom_loading and not rom_no_header));
+    -- file that sdram_rom still takes. Otherwise sd_reader ends it, once
+    -- sdram_rom has the whole file or has refused it. A new run waits for
+    -- that. Writes ignore it
+    sd_stop <= not (reg.state = ST_READ or
+                    ((reg.state = ST_BOOT or reg.state = ST_RUN) and
+                     rom_loading and not rom_no_header));
 
     load_valid <= reg.stub_ready when reg.state = ST_STUB else
                   sd_valid and to_sdram;

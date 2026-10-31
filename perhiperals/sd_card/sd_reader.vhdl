@@ -21,9 +21,11 @@ use work.perhipheral_types.all;
 -- Each received byte is presented on data with valid true until it is taken
 -- by a clock where ready is also true, and offset is its offset in the
 -- block. The card clock is paused until then, so the consumer may take as
--- long as it likes. Once stop is true the rest of the current block is read
--- and discarded, the run ends and the card is deselected, so that it is left
--- in a state where it can be initialized again after a reset.
+-- long as it likes. stop ends a read run: from the first clock where it is
+-- true, valid is false, the rest of the current block is read and
+-- discarded, and the run ends with the card deselected, so that it is left
+-- in a state where it can be initialized again after a reset. stop only
+-- has to be true for one clock, and is ignored while no read is running.
 --
 -- A write sends the byte at offset to the card, so write_data must be the
 -- byte at offset from the clock after offset changes. offset is 0 before
@@ -164,6 +166,8 @@ architecture behavioral of sd_reader is
         blk        : sd_block_t;
         -- Blocks left in the run, including blk
         left       : sd_count_t;
+        -- stop ended the read run
+        stopped    : boolean;
 
         r1    : byte_t;
         extra : std_logic_vector(31 downto 0);
@@ -195,6 +199,7 @@ architecture behavioral of sd_reader is
         block_addr => false,
         blk => to_std_logic_vector(START_BLOCK, sd_block_t'length),
         left => sd_count_t'high,
+        stopped => false,
 
         r1 => (others => '1'),
         extra => (others => '1'),
@@ -317,7 +322,8 @@ begin
 
     data   <= reg.shift;
     offset <= reg.count;
-    valid  <= reg.state = ST_DATA and not reg.busy and not stop;
+    valid  <= reg.state = ST_DATA and not reg.busy and not stop and
+              not reg.stopped;
 
     process(all)
         variable v_reg : reg_t;
@@ -325,6 +331,11 @@ begin
     begin
         v_reg := reg;
         v_resp_done := false;
+
+        if stop and reg.cmd = CMD_READ_BLOCK and reg.state /= ST_IDLE
+        then
+            v_reg.stopped := true;
+        end if;
 
         v_reg.miso := to_x01(sd_miso);
 
@@ -433,7 +444,7 @@ begin
                         start_byte(v_reg, x"FF");
                     end if;
                 when ST_DATA =>
-                    if ready or stop
+                    if ready or v_reg.stopped
                     then
                         if reg.count = BLOCK_BYTES - 1
                         then
@@ -517,9 +528,11 @@ begin
                         start_byte(v_reg, x"FF");
                     end if;
                 when ST_DESELECT =>
-                    if (reg.cmd = CMD_READ_BLOCK and (stop or reg.left = 0)) or
+                    if (reg.cmd = CMD_READ_BLOCK and
+                        (v_reg.stopped or reg.left = 0)) or
                        reg.cmd = CMD_WRITE_BLOCK
                     then
+                        v_reg.stopped := false;
                         v_reg.state := ST_IDLE;
                     else
                         start_cmd(v_reg, reg.cmd);
