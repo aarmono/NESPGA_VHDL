@@ -28,6 +28,18 @@ package lib_ppu is
     constant VINT_START        : ppu_cycle_t := 0;
     constant VINT_END          : ppu_cycle_t := 20;
     constant BACK_BG_START     : ppu_cycle_t := 320;
+
+    -- The PPU clocks for which writes to $2000, $2001, $2005 and $2006 are
+    -- ignored after reset. A real PPU comes out of reset at the top of the
+    -- picture (hardware dot 0 of scanline 0, cycle LAST_CYCLE of line
+    -- VINT_END here), and its reset ends at the end of the next VBlank
+    -- (cycle 0 of line VINT_END), a frame less LAST_CYCLE clocks later.
+    -- Rendering is disabled until then, so no dot is skipped. That is
+    -- 29667 CPU cycles, of which nesdev measures ~29658 from the first
+    -- instruction
+    constant RESET_DOTS : positive :=
+        LINES_PER_FRAME * DOTS_PER_LINE - LAST_CYCLE;
+    subtype reset_dots_t is natural range 0 to RESET_DOTS;
     constant BACK_BG_END       : ppu_cycle_t := 335;
     -- Dots from a $2007 read to the PPUDATA state machine reading memory
     constant PPU_DATA_READ_DELAY : positive := 5;
@@ -399,10 +411,10 @@ package lib_ppu is
         -- Delayed copy of render_enabled. Toggling rendering affects
         -- background and sprite fetches about 3 dots after the $2001 write
         render_fetch   : boolean;
-        -- Set by power up and the reset button and cleared at the end of
-        -- VBlank. While set, writes to $2000, $2001, $2005 and $2006 are
-        -- ignored
-        reset_flag     : boolean;
+        -- The PPU clocks left of reset, set by power up and the reset button.
+        -- While not 0, writes to $2000, $2001, $2005 and $2006 are ignored.
+        -- See RESET_DOTS
+        reset_dots     : reset_dots_t;
         -- Register copy of palette output, before grayscale is applied.
         -- Grayscale is applied as the pixel leaves the PPU, so a $2001
         -- write also affects the pixel computed in the previous cycle
@@ -455,7 +467,7 @@ package lib_ppu is
         chr_bus => CHR_BUS_IDLE,
         render_enabled => false,
         render_fetch => false,
-        reset_flag => true,
+        reset_dots => RESET_DOTS,
         pixel => (others => '0'),
         pixel_valid => false,
         io_latch => RESET_IO_LATCH
@@ -469,14 +481,16 @@ package lib_ppu is
     -- keeps running through reset instead, so where the CPU starts in the
     -- frame depends on when the button was pressed. Games that seed their
     -- random numbers from CPU time left over in each frame play differently
-    -- after each reset, as they do after each power up
+    -- after each reset, as they do after each power up. Writes are still
+    -- ignored for as long as after a real reset (RESET_DOTS)
     function soft_reset_ppu_reg(reg : ppu_reg_t) return ppu_reg_t;
 
     -- The PPU powers up somewhere in the frame chosen by seed, as the CPU of
     -- a real NES starts at no fixed point of the PPU's frame. Games that
     -- clear RAM and seed their random numbers from CPU time left over in
     -- each frame (Blades of Steel) play differently for each start. A zero
-    -- seed starts at VBlank start, on the even frame.
+    -- seed starts at VBlank start, on the even frame. Writes are ignored for
+    -- RESET_DOTS wherever the frame starts, as when a real NES powers up.
     --
     -- On a Famicom the PPU's reset pin is tied high, and the CPU comes out of
     -- reset about a frame after the PPU powers up, so the PPU's reset has
@@ -678,7 +692,6 @@ package body lib_ppu is
         ret.io_latch := reg.io_latch;
         -- Rendering is disabled by reset, so no dot is skipped
         ret.cur_time := incr_time(reg.cur_time, false);
-        ret.reset_flag := true;
 
         return ret;
     end;
@@ -712,7 +725,10 @@ package body lib_ppu is
         ret.cur_time.frame := to_integer(seed(18 downto 18));
         ret.cur_time.scanline := line;
         ret.cur_time.cycle := cycle;
-        ret.reset_flag := not famicom;
+        if famicom
+        then
+            ret.reset_dots := 0;
+        end if;
 
         return ret;
     end;
@@ -2100,7 +2116,11 @@ package body lib_ppu is
             render_out.reg.status.vbl := false;
             render_out.reg.status.spr_0_hit := false;
             render_out.reg.status.spr_overflow := false;
-            render_out.reg.reset_flag := false;
+        end if;
+
+        if render_in.reg.reset_dots /= 0
+        then
+            render_out.reg.reset_dots := render_in.reg.reset_dots - 1;
         end if;
 
         -- The second $2006 write loads v from t a few dots after the write.
@@ -2139,7 +2159,7 @@ package body lib_ppu is
             case render_in.cpu_bus.address is
                 -- Control Register
                 when "000" =>
-                    if not render_in.reg.reset_flag
+                    if render_in.reg.reset_dots = 0
                     then
                         render_out.reg.control :=
                             to_control_t(render_in.data_from_cpu);
@@ -2148,7 +2168,7 @@ package body lib_ppu is
                     end if;
                 -- Mask Register
                 when "001" =>
-                    if not render_in.reg.reset_flag
+                    if render_in.reg.reset_dots = 0
                     then
                         render_out.reg.mask :=
                             to_mask_t(render_in.data_from_cpu);
@@ -2178,7 +2198,7 @@ package body lib_ppu is
                     end if;
                 -- Scroll Offset
                 when "101" =>
-                    if render_in.reg.reset_flag
+                    if render_in.reg.reset_dots /= 0
                     then
                         null;
                     elsif render_in.reg.count = 0
@@ -2197,7 +2217,7 @@ package body lib_ppu is
                     end if;
                 -- PPU Address
                 when "110" =>
-                    if render_in.reg.reset_flag
+                    if render_in.reg.reset_dots /= 0
                     then
                         null;
                     elsif render_in.reg.count = 0
