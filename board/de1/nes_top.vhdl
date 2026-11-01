@@ -141,6 +141,10 @@ begin
     );
     
     nes : nes_de1
+    generic map
+    (
+        ROM_CONFIG => ROM_SD_MENU
+    )
     port map
     (
         CLOCK_50 => CLOCK_50,
