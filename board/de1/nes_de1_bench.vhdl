@@ -30,7 +30,10 @@ generic
     JOY_A2_UNTIL_MS : natural := 0;
     JOY_RETURN_FROM_MS  : natural := 0;
     JOY_RETURN_UNTIL_MS : natural := 0;
-    RETURN_HOLD_MS  : positive := 2000
+    RETURN_HOLD_MS  : positive := 2000;
+    FRAME_LOCK      : boolean := true;
+    -- Report the frame lock's phase error and stretch rate once a frame
+    LOG_LOCK        : boolean := false
 );
 end nes_de1_bench;
 
@@ -106,7 +109,9 @@ begin
         ROM_CONFIG => ROM_CONFIG,
         -- The oscillators of the random number generator cannot be simulated
         POWER_UP_MODE => POWER_UP_DETERMINISTIC,
-        RETURN_HOLD_MS => RETURN_HOLD_MS
+        RETURN_HOLD_MS => RETURN_HOLD_MS,
+        FRAME_LOCK => FRAME_LOCK,
+        LOG_LOCK => LOG_LOCK
     )
     port map
     (
@@ -330,10 +335,11 @@ begin
         done => false
     );
 
+    -- 27 MHz * 29/31, as the VGA PLL makes it
     clk_vga_gen : clock
     generic map
     (
-        PERIOD => 39683 ps
+        PERIOD => 39591 ps
     )
     port map
     (

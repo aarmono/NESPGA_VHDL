@@ -28,6 +28,7 @@
 ../../../perhiperals/wm8731/wm8731.vhdl
 
 ../../../perhiperals/syncram_sp/syncram_sp.vhdl
+../../../perhiperals/syncram_sdp/syncram_sdp.vhdl
 ../../../perhiperals/neotrng/neoTRNG.vhd
 ../../../perhiperals/neotrng/power_up_fill.vhdl
 
@@ -127,6 +128,10 @@
 ../../../soc/nes/nes_soc_ocram.vhdl
 
 ../../../soc/soc.vhdl
+
+../../../board/platform/platform_video.vhdl
+../../../board/platform/frame_lock_video.vhdl
+../../../board/platform/frame_lock_bench.vhdl
 
 ../../../board/sim/nes_bench.vhdl
 

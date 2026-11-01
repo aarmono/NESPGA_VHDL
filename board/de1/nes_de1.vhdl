@@ -10,6 +10,7 @@ use work.file_bus_types.all;
 use work.cart_types.all;
 use work.soc.all;
 use work.de1_types.all;
+use work.platform_video.all;
 
 entity nes_de1 is
 generic
@@ -18,7 +19,15 @@ generic
     POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
     -- How long Start and Select are held to return to the SD menu. See
     -- sd_menu
-    RETURN_HOLD_MS : positive := 2000
+    RETURN_HOLD_MS : positive := 2000;
+    -- Lock the VGA output's frames to the NES's, through a line buffer,
+    -- so that each line is shown about a line after the PPU draws it (see
+    -- frame_lock_video). Otherwise the PPU writes a frame to the SRAM,
+    -- which the VGA output reads at its own rate
+    FRAME_LOCK    : boolean := true;
+    -- Simulation only: report the frame lock's phase error and stretch
+    -- rate once a frame
+    LOG_LOCK      : boolean := false
 );
 port
 (
@@ -100,6 +109,35 @@ port
 end nes_de1;
 
 architecture behavioral of nes_de1 is
+
+    -- With the frame lock the NES runs at 27.9 clocks per CPU cycle, 1309
+    -- ppm fast, and frame_lock_video stretches cycles to slow it to the VGA
+    -- output's rate. The VGA PLL makes 27 MHz * 29/31 = 25.258 MHz, 662 ppm
+    -- faster than the 25.2415 MHz that matches the NES, which needs ~591
+    -- units of stretch rate
+    function cpu_freq_num(locked : boolean) return positive
+    is
+    begin
+        if locked
+        then
+            return 500_000_000;
+        else
+            return 39_375_000;
+        end if;
+    end;
+
+    function cpu_freq_den(locked : boolean) return positive
+    is
+    begin
+        if locked
+        then
+            return 279;
+        else
+            return 22;
+        end if;
+    end;
+
+    constant LOCK_START_RATE : natural := 591;
     
     signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
@@ -124,6 +162,11 @@ architecture behavioral of nes_de1 is
     signal ppu_clk_en  : boolean;
 
     signal nes_running : boolean;
+
+    signal nes_stretch        : boolean;
+    signal nes_run            : boolean;
+    signal nes_waiting_to_run : boolean;
+    signal nes_ppu_start      : ppu_position_t;
 
     -- RESET_N synchronized to each clock domain. Reset is asserted
     -- asynchronously and released synchronously, so that every register in
@@ -421,49 +464,111 @@ begin
     
     audio <= "0" & std_logic_vector(reg_audio_aud_clk) & "00000";
 
-    vram_mux : ppu_video_ram_mux
-    port map
-    (
-        clk_50mhz => CLOCK_50,
-        clk_we => CLOCK_WE,
-        reset => reset_50,
+    gen_frame_lock : if FRAME_LOCK generate
+        signal video : video_out_t;
+    begin
+        -- The SRAM isn't used
+        SRAM_DQ <= (others => 'Z');
+        SRAM_ADDR <= (others => '0');
+        SRAM_LB_N <= '1';
+        SRAM_UB_N <= '1';
+        SRAM_CE_N <= '1';
+        SRAM_OE_N <= '1';
+        SRAM_WE_N <= '1';
 
-        sram_dq => SRAM_DQ,
-        sram_addr => SRAM_ADDR,
-        sram_lb_n => SRAM_LB_N,
-        sram_ub_n => SRAM_UB_N,
-        sram_oe_n => SRAM_OE_N,
-        sram_we_n => SRAM_WE_N,
-        sram_ce_n => SRAM_CE_N,
+        lock : frame_lock_video
+        generic map
+        (
+            FORMAT => FORMAT_640X480,
+            START_RATE => LOCK_START_RATE,
+            LOG => LOG_LOCK
+        )
+        port map
+        (
+            clk_sys => CLOCK_50,
+            reset_sys => reset_50,
+            clk_pix => CLOCK_VGA,
+            reset_pix => reset_vga,
 
-        ppu_clk_en => ppu_clk_en,
-        pixel_bus  => pixel_bus,
+            cpu_clk_en => cpu_clk_en,
+            ppu_clk_en => ppu_clk_en,
+            pixel_bus => pixel_bus,
 
-        data_to_vga => vga_sram_dq,
-        vga_sram_addr => vga_sram_addr,
-        vga_sram_oe_n => vga_sram_oe_n,
-        vga_sram_ce_n => vga_sram_ce_n
-    );
+            nes_running => nes_running,
+            waiting_to_run => nes_waiting_to_run,
+            ppu_start => nes_ppu_start,
 
-    vga : vga_gen
-    port map
-    (
-        clk => CLOCK_VGA,
-        reset => reset_vga,
+            stretch => nes_stretch,
+            run => nes_run,
 
-        sram_dq => vga_sram_dq,
-        sram_addr => vga_sram_addr,
-        sram_oe_n => vga_sram_oe_n,
-        sram_ce_n => vga_sram_ce_n,
+            video => video,
 
-        vga_out => vga_out
-    );
+            phase_error => open,
+            stretch_rate => open,
+            locked => open
+        );
+
+        -- The DAC takes the top 4 bits of each channel
+        vga_out.color.red <= video.red(7 downto 4);
+        vga_out.color.green <= video.green(7 downto 4);
+        vga_out.color.blue <= video.blue(7 downto 4);
+        vga_out.h_sync <= video.h_sync;
+        vga_out.v_sync <= video.v_sync;
+        vga_out.lval <= video.lval;
+        vga_out.fval <= video.fval;
+    end generate;
+
+    gen_frame_buffer : if not FRAME_LOCK generate
+    begin
+        nes_stretch <= false;
+        nes_run <= true;
+
+        vram_mux : ppu_video_ram_mux
+        port map
+        (
+            clk_50mhz => CLOCK_50,
+            clk_we => CLOCK_WE,
+            reset => reset_50,
+
+            sram_dq => SRAM_DQ,
+            sram_addr => SRAM_ADDR,
+            sram_lb_n => SRAM_LB_N,
+            sram_ub_n => SRAM_UB_N,
+            sram_oe_n => SRAM_OE_N,
+            sram_we_n => SRAM_WE_N,
+            sram_ce_n => SRAM_CE_N,
+
+            ppu_clk_en => ppu_clk_en,
+            pixel_bus  => pixel_bus,
+
+            data_to_vga => vga_sram_dq,
+            vga_sram_addr => vga_sram_addr,
+            vga_sram_oe_n => vga_sram_oe_n,
+            vga_sram_ce_n => vga_sram_ce_n
+        );
+
+        vga : vga_gen
+        port map
+        (
+            clk => CLOCK_VGA,
+            reset => reset_vga,
+
+            sram_dq => vga_sram_dq,
+            sram_addr => vga_sram_addr,
+            sram_oe_n => vga_sram_oe_n,
+            sram_ce_n => vga_sram_ce_n,
+
+            vga_out => vga_out
+        );
+    end generate;
 
     nes : nes_soc_ocram
     generic map
     (
         USE_EXT_CART_RAM => true,
-        POWER_UP_MODE => POWER_UP_MODE
+        POWER_UP_MODE => POWER_UP_MODE,
+        CPU_FREQ_NUM => cpu_freq_num(FRAME_LOCK),
+        CPU_FREQ_DEN => cpu_freq_den(FRAME_LOCK)
     )
     port map
     (
@@ -474,6 +579,11 @@ begin
         famicom => famicom,
 
         nes_running => nes_running,
+
+        stretch => nes_stretch,
+        run => nes_run,
+        waiting_to_run => nes_waiting_to_run,
+        ppu_start => nes_ppu_start,
 
         cpu_clk_en => cpu_clk_en,
         ppu_clk_en => ppu_clk_en,

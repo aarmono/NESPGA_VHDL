@@ -158,7 +158,9 @@ package de1_types is
     (
         ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
         POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
-        RETURN_HOLD_MS : positive := 2000
+        RETURN_HOLD_MS : positive := 2000;
+        FRAME_LOCK    : boolean := true;
+        LOG_LOCK      : boolean := false
     );
     port
     (
