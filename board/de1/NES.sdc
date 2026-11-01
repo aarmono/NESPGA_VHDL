@@ -17,7 +17,7 @@ create_clock -name {CLOCK_27} -period 37.037 [get_ports {CLOCK_27[0]}]
 # ratios the PLLs can produce:
 #   aud_clock_gen c0: 50 * 7/19 = 18.42 MHz audio clock (CLOCK_AUD)
 #   aud_clock_gen c1: 50 MHz, shifted -2.143 ns (CLOCK_WE)
-#   vga_clock_gen c0: 27 * 14/15 = 25.2 MHz VGA pixel clock (CLOCK_VGA)
+#   vga_clock_gen c0: 27 * 29/31 = 25.258 MHz VGA pixel clock (CLOCK_VGA)
 derive_pll_clocks
 
 set clk_aud {aud_clock_gen|altpll_component|pll|clk[0]}
@@ -85,13 +85,13 @@ set_multicycle_path -hold -end 0 -from [get_clocks {sdram_clk}] -to [get_clocks 
 #**************************************************************
 
 # vga_gen presents an SRAM address and captures the pixel data on the next
-# VGA clock (39.682 ns), so the round trip through the 10 ns SRAM is split
+# VGA clock (39.591 ns), so the round trip through the 10 ns SRAM is split
 # into a budget of 15 ns from the VGA clock to the address pins, 1 ns of
 # board delay and 10 ns of SRAM access time, leaving the rest of the period
 # from the data pins to the capturing register.
 set sram_read_outputs [get_ports {SRAM_ADDR[*] SRAM_OE_N SRAM_CE_N}]
 
-set_output_delay -clock [get_clocks $clk_vga] -max 24.682 $sram_read_outputs
+set_output_delay -clock [get_clocks $clk_vga] -max 24.591 $sram_read_outputs
 set_output_delay -clock [get_clocks $clk_vga] -min  0.000 $sram_read_outputs
 
 set_input_delay -clock [get_clocks $clk_vga] -max 26.000 [get_ports {SRAM_DQ[*]}]
