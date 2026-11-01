@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
 usage() {
-    echo "Usage: $0 [ -b BENCH ] [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
+    echo "Usage: $0 [ -b BENCH ] [ -f TESTS_FILE ] [ -o OUTPUT_ROOT ] [ -s SHARD/SHARD_COUNT ] [ -l ]"
     echo "       $0 [ -b BENCH ] [ -f TESTS_FILE ] [ -s SHARD/SHARD_COUNT ] -r RESULTS_FILE..."
     echo "  -b  Test bench to run the tests on: nes_bench (default) or"
     echo "      nes_de1_bench"
     echo "  -f  Test list to run (default: nes_tests.txt for nes_bench,"
     echo "      nes_de1_tests.txt for nes_de1_bench)"
+    echo "  -o  Directory for the test output (default: output for nes_bench,"
+    echo "      de1_output for nes_de1_bench). Its contents are deleted first"
     echo "  -s  Only run shard SHARD (1-based) of SHARD_COUNT. Tests are"
     echo "      distributed so each shard has about the same total run time"
     echo "  -l  List the selected tests and their run times, then exit"
@@ -18,9 +20,11 @@ usage() {
     echo "The exit status is nonzero if any selected test failed or has no result"
     echo
     echo "Each line of the test list has the format:"
-    echo "  NES file path | run time | hash [ | FM2 input path ]"
+    echo "  NES file path | run time | hash [ | FM2 input path [ | bench args ] ]"
     echo "NES file paths are relative to the root of the repository. FM2 input"
-    echo "paths are relative to this script's directory. The ROMs in"
+    echo "paths are relative to this script's directory. Bench args are passed"
+    echo "to the bench, such as -gROM_CONFIG=ROM_SD_MENU; leave the FM2 input"
+    echo "path empty to give them without one. The ROMs in"
     echo "board/sim/ghdl/generated_roms are generated before the tests run by"
     echo "simulation/test_roms/Makefile"
 }
@@ -94,6 +98,8 @@ run_nes_test() {
     RUN_TIME=`echo "$1" | cut -f 2 -d '|' | xargs`
     HASH=`echo "$1" | cut -f 3 -d '|' | xargs`
     FM2_PATH=`echo "$1" | cut -f 4 -d '|' | xargs`
+    # Split on spaces here, since IFS is a newline while the tests run
+    IFS=' ' read -r -a BENCH_ARGS <<< "`echo "$1" | cut -f 5 -d '|' -s`"
     TEST_NAME=`test_name "$1"`
     OUTPUT_DIR="$OUTPUT_ROOT"/"$TEST_NAME"
 
@@ -108,7 +114,7 @@ run_nes_test() {
     echo "Test start: $TEST_NAME"
     START=$SECONDS
     ./run_"$BENCH".sh -n "$NES_FILEPATH" -o "$OUTPUT_DIR" -t "$RUN_TIME" \
-                      "${FM2_ARGS[@]}" 1> /dev/null
+                      "${FM2_ARGS[@]}" -- "${BENCH_ARGS[@]}" 1> /dev/null
 
     if [ "$HASH" != "" ]
     then
@@ -193,16 +199,18 @@ report() {
 
 BENCH=nes_bench
 TESTS_FILE=
+OUTPUT_ROOT=
 SHARD=1
 SHARD_COUNT=1
 LIST_ONLY=0
 REPORT_ONLY=0
 
-while getopts b:f:s:lrh flag
+while getopts b:f:o:s:lrh flag
 do
     case "${flag}" in
         b) BENCH="${OPTARG}";;
         f) TESTS_FILE="${OPTARG}";;
+        o) OUTPUT_ROOT="${OPTARG}";;
         s) SHARD="${OPTARG%/*}"
            SHARD_COUNT="${OPTARG#*/}";;
         l) LIST_ONLY=1;;
@@ -223,10 +231,10 @@ fi
 case "$BENCH" in
     nes_bench)
         DEFAULT_TESTS_FILE=nes_tests.txt
-        OUTPUT_ROOT=output;;
+        DEFAULT_OUTPUT_ROOT=output;;
     nes_de1_bench)
         DEFAULT_TESTS_FILE=nes_de1_tests.txt
-        OUTPUT_ROOT=de1_output;;
+        DEFAULT_OUTPUT_ROOT=de1_output;;
     *)
         echo "Error: unknown bench '$BENCH'"
         exit_abnormal;;
@@ -235,6 +243,11 @@ esac
 if [ "$TESTS_FILE" == "" ]
 then
     TESTS_FILE=$DEFAULT_TESTS_FILE
+fi
+
+if [ "$OUTPUT_ROOT" == "" ]
+then
+    OUTPUT_ROOT=$DEFAULT_OUTPUT_ROOT
 fi
 
 if ! [[ "$SHARD" =~ ^[0-9]+$ && "$SHARD_COUNT" =~ ^[0-9]+$ ]] ||
@@ -254,7 +267,7 @@ TESTS=`select_tests "$TESTS_FILE" "$SHARD" "$SHARD_COUNT"`
 
 if [ $LIST_ONLY -eq 1 ]
 then
-    echo "$TESTS" | cut -f 1,2,4 -d '|' | sed -E 's/[ \t]*\|[ \t]*$//'
+    echo "$TESTS" | cut -f 1,2,4,5 -d '|' | sed -E 's/([ \t]*\|[ \t]*)+$//'
     exit 0
 fi
 

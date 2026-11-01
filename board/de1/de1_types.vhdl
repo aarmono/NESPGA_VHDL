@@ -9,7 +9,10 @@ package de1_types is
     type rom_config_t is
     (
         ROM_FLASH_TO_SDRAM,
-        ROM_SD_TO_SDRAM
+        ROM_SD_TO_SDRAM,
+        -- As ROM_SD_TO_SDRAM if the SD card starts with an iNES file,
+        -- otherwise the card holds a filesystem, which the menu reads
+        ROM_SD_MENU
     );
 
     subtype vga_channel_t is std_logic_vector(3 downto 0);
@@ -154,7 +157,8 @@ package de1_types is
     generic
     (
         ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
-        POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM
+        POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
+        RETURN_HOLD_MS : positive := 2000
     );
     port
     (

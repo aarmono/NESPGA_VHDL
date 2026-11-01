@@ -30,6 +30,8 @@ package soc is
         reset : in boolean;
         -- The reset button
         soft_reset : in boolean := false;
+        -- Reset leaves PRG RAM alone, as it holds a save
+        keep_prg_ram : in boolean := false;
 
         nes_running : out boolean;
 
@@ -81,7 +83,10 @@ package soc is
         joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
         joy_2_clk  : out std_logic;
-        joy_2_data : in joy_data_t := JOY_DATA_IDLE
+        joy_2_data : in joy_data_t := JOY_DATA_IDLE;
+
+        board_cpu_in  : out cart_cpu_in_t;
+        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
     );
     end component nes_soc;
 
@@ -104,6 +109,8 @@ package soc is
         reset : in boolean;
         -- The reset button
         soft_reset : in boolean := false;
+        -- Reset leaves PRG RAM alone, as it holds a save
+        keep_prg_ram : in boolean := false;
 
         nes_running : out boolean;
 
@@ -123,7 +130,10 @@ package soc is
         joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
         joy_2_clk  : out std_logic;
-        joy_2_data : in joy_data_t := JOY_DATA_IDLE
+        joy_2_data : in joy_data_t := JOY_DATA_IDLE;
+
+        board_cpu_in  : out cart_cpu_in_t;
+        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
     );
     end component nes_soc_ocram;
 

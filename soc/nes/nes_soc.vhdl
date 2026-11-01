@@ -45,6 +45,9 @@ port
     -- soft_reset_ppu_reg), and is ignored until the NES is running. The
     -- cartridge has no reset line, so it is not reset
     soft_reset : in boolean := false;
+    -- Reset leaves PRG RAM alone instead of filling it, because the board
+    -- has loaded a save into it. Must be stable while reset is true
+    keep_prg_ram : in boolean := false;
 
     nes_running : out boolean;
 
@@ -97,7 +100,16 @@ port
     joy_1_data : in joy_data_t := JOY_DATA_IDLE;
 
     joy_2_clk  : out std_logic;
-    joy_2_data : in joy_data_t := JOY_DATA_IDLE
+    joy_2_data : in joy_data_t := JOY_DATA_IDLE;
+
+    -- The CPU side of the cartridge connector, as the cartridge sees it, for
+    -- the board to decode too. Like the CPU bus, it is only valid at
+    -- cpu_clk_en
+    board_cpu_in  : out cart_cpu_in_t;
+    -- The board's side of the same connector. When it drives the data bus it
+    -- answers the read instead of the cartridge. Its IRQ is ORed with the
+    -- cartridge's, as /IRQ is shared
+    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
 );
 end entity;
 
@@ -433,6 +445,9 @@ begin
         ready => dma_ready
     );
 
+    -- Outside the main process, so it only wakes when the CPU side changes
+    board_cpu_in <= cart_in.cpu;
+
     process(all)
     is
         variable nes_in : nes_in_t;
@@ -476,6 +491,13 @@ begin
         nes_in.ppu_bus.data_from_ciram := data_from_ciram;
 
         nes_in.cart := cart_out;
+        if board_cpu_out.data_oe
+        then
+            nes_in.cart.cpu.data := board_cpu_out.data;
+            nes_in.cart.cpu.data_oe := true;
+            nes_in.cart.cpu.data_float := board_cpu_out.data_float;
+        end if;
+        nes_in.cart.cpu.irq := cart_out.cpu.irq or board_cpu_out.irq;
         
         nes_in.oam_bus := oam_bus_from_ppu;
         nes_in.data_to_oam := data_to_oam_from_ppu;
@@ -490,6 +512,7 @@ begin
         nes_in.power_up_data := fill_data;
 
         nes_in.soft_reset := soft_reset;
+        nes_in.keep_prg_ram := keep_prg_ram;
         
         nes_out := cycle_nes(nes_in);
         

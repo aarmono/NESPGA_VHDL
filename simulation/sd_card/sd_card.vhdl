@@ -8,7 +8,8 @@ use work.binary_io.all;
 -- FILEPATH starting at block START_BLOCK. Every other block reads as zero.
 --
 -- Only the commands sd_reader uses are modeled: CMD0, CMD8, CMD16, CMD17,
--- CMD55, ACMD41 and CMD58. HIGH_CAPACITY selects between a block addressed
+-- CMD24, CMD55, ACMD41 and CMD58. Writes change the model's copy of the
+-- file; a write to a block outside it is reported and dropped. HIGH_CAPACITY selects between a block addressed
 -- SDHC card and a byte addressed SDSC card, and VERSION_1 makes the card
 -- reject CMD8 like a version 1 card. Protocol violations are reported with
 -- severity error.
@@ -28,6 +29,8 @@ generic
     RESPONSE_DELAY : positive := 2;
     -- Bytes of 0xFF before the data token of a read (Nac)
     READ_DELAY     : natural := 20;
+    -- Bytes the card holds MISO low for after accepting a write
+    WRITE_BUSY     : natural := 40;
     -- Clock to output delay after the falling edge of SCK
     T_ODLY : time := 14 ns
 );
@@ -70,6 +73,13 @@ begin
 
         variable cmd       : cmd_bytes_t;
         variable cmd_bytes : natural := 0;
+
+        -- A write: waiting for its data token, then the bytes of the block
+        -- received so far, then its 2 CRC bytes
+        variable writing     : boolean := false;
+        variable write_token : boolean := false;
+        variable write_bytes : natural := 0;
+        variable write_blk   : natural := 0;
 
         variable wake_clks : natural := 0;
         variable spi_mode  : boolean := false;
@@ -277,6 +287,35 @@ begin
                     -- CRC is not checked in SPI mode
                     push(x"00");
                     push(x"00");
+                when 24 =>
+                    if idle
+                    then
+                        report "sd_card: CMD24 while idle"
+                            severity error;
+                        respond(r1 or x"04");
+                        return;
+                    end if;
+
+                    if HIGH_CAPACITY
+                    then
+                        write_blk := to_integer(arg);
+                    else
+                        assert arg mod BLOCK_BYTES = 0
+                            report "sd_card: unaligned write address"
+                            severity error;
+                        write_blk := to_integer(arg / BLOCK_BYTES);
+                    end if;
+                    assert write_blk >= START_BLOCK and
+                           (write_blk - START_BLOCK + 1) * BLOCK_BYTES <=
+                           FILE_BYTES
+                        report "sd_card: write to block " &
+                               integer'image(write_blk) & " outside the file"
+                        severity error;
+
+                    respond(r1);
+                    writing := true;
+                    write_token := false;
+                    write_bytes := 0;
                 when others =>
                     report "sd_card: unsupported CMD" & integer'image(index)
                         severity error;
@@ -287,7 +326,43 @@ begin
         procedure receive(val : byte_t)
         is
         begin
-            if count /= 0
+            if writing and count = 0
+            then
+                if not write_token
+                then
+                    if val = x"FE"
+                    then
+                        write_token := true;
+                    else
+                        assert val = x"FF"
+                            report "sd_card: byte " & to_hstring(val) &
+                                   " before the data token of a write"
+                            severity error;
+                    end if;
+                else
+                    if write_bytes < BLOCK_BYTES
+                    then
+                        offset := (write_blk - START_BLOCK) * BLOCK_BYTES +
+                                  write_bytes;
+                        if offset >= 0 and offset < FILE_BYTES
+                        then
+                            mem(offset) := val;
+                        end if;
+                    end if;
+                    write_bytes := write_bytes + 1;
+                    -- The block, then its CRC
+                    if write_bytes = BLOCK_BYTES + 2
+                    then
+                        writing := false;
+                        -- Data accepted, then busy while it programs
+                        push(x"E5");
+                        for i in 1 to WRITE_BUSY
+                        loop
+                            push(x"00");
+                        end loop;
+                    end if;
+                end if;
+            elsif count /= 0
             then
                 -- The card does not accept commands while it is sending
                 assert val = x"FF"

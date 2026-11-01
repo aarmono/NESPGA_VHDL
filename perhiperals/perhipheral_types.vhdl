@@ -6,6 +6,13 @@ package perhipheral_types is
 
     subtype wm_audio_t is std_logic_vector(15 downto 0);
 
+    -- Number of a 512 byte block on an SD card
+    subtype sd_block_t is std_logic_vector(31 downto 0);
+    -- Blocks in a run that sd_reader reads
+    subtype sd_count_t is natural range 0 to 2**16 - 1;
+    -- Offset of a byte in its block
+    subtype sd_offset_t is natural range 0 to 511;
+
     -- VENDOR_SIM is for simulation only. It has the same behavior as the
     -- other vendors, built in a way that is cheap to simulate
     type vendor_t is

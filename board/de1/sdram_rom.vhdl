@@ -11,8 +11,16 @@ use work.cart_mem_bus_types.all;
 -- which loading is true and the NES must be held in reset. A byte is taken
 -- from the stream on each clock where load_valid and load_ready are both
 -- true. If the file starts with an iNES header, only as many bytes as the
--- header says the file holds are copied, otherwise MAX_BYTES are. Once
--- loading is complete each PPU cycle gets one SDRAM slot, started
+-- header says the file holds are copied, otherwise MAX_BYTES are. With
+-- REQUIRE_INES, a stream that does not start with an iNES header is not
+-- copied: no_header becomes true after its first 4 bytes, no more bytes are
+-- taken, and loading stays true until reset or restart.
+--
+-- restart starts a new copy, of a new stream, from the start, without
+-- initializing the SDRAM again. It only writes the lower half of the
+-- cartridge memory bus, so the cartridge RAMs keep their contents.
+--
+-- Once loading is complete each PPU cycle gets one SDRAM slot, started
 -- START_DELAY clocks after ppu_clk_en, which serves a read or a write of the
 -- cartridge memory bus. The address and write data are sampled when the
 -- slot starts, so they must be stable from then until the next ppu_clk_en,
@@ -22,14 +30,19 @@ generic
 (
     CLK_FREQ    : positive := 50_000_000;
     -- Clocks after ppu_clk_en until the cartridge memory bus address is sampled
-    START_DELAY : positive := 2
+    START_DELAY : positive := 2;
+    -- Stop at a stream that does not start with an iNES header
+    REQUIRE_INES : boolean := false
 );
 port
 (
     clk   : in std_logic;
     reset : in boolean;
 
-    loading : out boolean;
+    restart : in boolean := false;
+
+    loading   : out boolean;
+    no_header : out boolean;
 
     load_valid : in boolean;
     load_data  : in data_t;
@@ -93,6 +106,8 @@ architecture behavioral of sdram_rom is
     (
         STATE_INIT,
         STATE_COPY,
+        -- The stream has no iNES header and REQUIRE_INES is set
+        STATE_NO_HEADER,
         STATE_RUN
     );
 
@@ -138,6 +153,7 @@ architecture behavioral of sdram_rom is
 begin
 
     loading <= reg.state /= STATE_RUN;
+    no_header <= reg.state = STATE_NO_HEADER;
 
     ctrl : entity work.sdram_ctrl(behavioral)
     generic map
@@ -213,6 +229,10 @@ begin
                             v_reg.ines := reg.ines and load_data = x"53";
                         when 3 =>
                             v_reg.ines := reg.ines and load_data = x"1A";
+                            if REQUIRE_INES and not v_reg.ines
+                            then
+                                v_reg.state := STATE_NO_HEADER;
+                            end if;
                         when 4 =>
                             v_reg.prg_banks := to_integer(load_data);
                         when 5 =>
@@ -243,6 +263,11 @@ begin
                         v_reg.load_addr := reg.load_addr + 1;
                     end if;
                 end if;
+            when STATE_NO_HEADER =>
+                -- Keep starting slots so that the SDRAM is refreshed
+                address <= to_std_logic_vector(
+                    reg.load_addr, sdram_addr_t'length);
+                start <= sdram_idle;
             when STATE_RUN =>
                 start <= reg.ppu_delay(reg.ppu_delay'high);
                 read <= is_bus_read(cart_mem_bus);
@@ -250,6 +275,14 @@ begin
                 address <= resize(cart_mem_bus.address, sdram_addr_t'length);
                 write_data <= data_to_cart_mem;
         end case;
+
+        -- Any slot started above still completes, since the copy only starts
+        -- slots once the SDRAM is idle
+        if restart and reg.state /= STATE_INIT
+        then
+            v_reg := RESET_REG;
+            v_reg.state := STATE_COPY;
+        end if;
 
         reg_in <= v_reg;
     end process;

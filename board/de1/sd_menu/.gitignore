@@ -1,0 +1,10 @@
+*.o
+*.lst
+*.map
+stub.bin
+stub.nes
+font.chr
+menu.nes
+sd_card.img
+sd_card.img.gz
+smoke_card.img
