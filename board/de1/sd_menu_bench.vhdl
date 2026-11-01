@@ -29,7 +29,8 @@ use work.sd_menu_stub.all;
 -- those. After the launch, without KEEP_MENU, holding Start and Select must
 -- return to the menu, with the flags and cartridge RAM kept, and a shorter
 -- press must not. keep_prg_ram is checked throughout: KEEP_RAM sets bit 1
--- of the launch.
+-- of the launch. The options set before the launch must hold while the file
+-- runs, and be cleared when the menu comes back.
 --
 -- With RAW, the card holds an iNES file from block 0, which must be loaded
 -- without menu mode, and Start and Select must do nothing.
@@ -95,6 +96,7 @@ architecture behavioral of sd_menu_bench is
     -- Controller 1, low while pressed
     signal buttons      : std_logic_vector(7 downto 0) := (others => '1');
     signal keep_prg_ram : boolean;
+    signal famicom      : boolean;
 
     signal cart_mem_bus   : cart_mem_bus_t := CART_MEM_BUS_IDLE;
     signal rom_mem_bus    : cart_mem_bus_t;
@@ -170,6 +172,7 @@ begin
         buttons => buttons,
 
         keep_prg_ram => keep_prg_ram,
+        famicom => famicom,
 
         cart_mem_bus_in => cart_mem_bus,
         cart_mem_bus_out => rom_mem_bus,
@@ -540,6 +543,15 @@ begin
             cpu_write(16#5201#, x"FE");
             check_flags("10");
 
+            assert not famicom
+                report "Options set before they were written"
+                severity failure;
+            cpu_write(16#5202#, x"FF");
+            wait until rising_edge(clk_50);
+            assert famicom
+                report "Options not set"
+                severity failure;
+
             -- The menu's PRG RAM bank moves accesses to the PRG RAM window,
             -- and only those
             cpu_write(16#5207#, x"18");
@@ -639,6 +651,9 @@ begin
             assert keep_prg_ram = (KEEP_MENU or KEEP_RAM)
                 report "keep_prg_ram does not follow the launch"
                 severity failure;
+            assert famicom
+                report "Options not kept through the launch"
+                severity failure;
         end if;
 
         -- The registers are only there in menu mode
@@ -731,6 +746,9 @@ begin
                 buttons <= "11111111";
                 wait_menu_mode;
                 check_flags("10");
+                assert not famicom
+                    report "Options not cleared for the menu"
+                    severity failure;
                 cart_read(CART_RAM_BASE + 16#123#);
                 assert data = x"3C"
                     report "PRG RAM not kept: " & to_hstring(data)

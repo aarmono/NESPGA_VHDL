@@ -32,6 +32,8 @@ package soc is
         soft_reset : in boolean := false;
         -- Reset leaves PRG RAM alone, as it holds a save
         keep_prg_ram : in boolean := false;
+        -- Run as a Famicom rather than a front loading NES
+        famicom : in boolean := false;
 
         nes_running : out boolean;
 
@@ -111,6 +113,8 @@ package soc is
         soft_reset : in boolean := false;
         -- Reset leaves PRG RAM alone, as it holds a save
         keep_prg_ram : in boolean := false;
+        -- Run as a Famicom rather than a front loading NES
+        famicom : in boolean := false;
 
         nes_running : out boolean;
 

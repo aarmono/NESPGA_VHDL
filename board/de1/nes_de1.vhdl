@@ -159,6 +159,7 @@ architecture behavioral of nes_de1 is
     signal sd_error      : boolean;
     signal launch_error  : boolean;
     signal keep_prg_ram  : boolean;
+    signal famicom       : boolean;
 
     signal board_cpu_in  : cart_cpu_in_t;
     signal board_cpu_out : cart_cpu_out_t;
@@ -297,6 +298,7 @@ begin
             buttons => joy_1_buttons,
 
             keep_prg_ram => keep_prg_ram,
+            famicom => famicom,
 
             cart_mem_bus_in => cart_mem_bus,
             cart_mem_bus_out => rom_cart_mem_bus,
@@ -326,6 +328,7 @@ begin
         rom_restart <= false;
         launch_error <= false;
         keep_prg_ram <= false;
+        famicom <= false;
         board_cpu_out <= CART_CPU_OUT_IDLE;
         rom_cart_mem_bus <= cart_mem_bus;
     end generate;
@@ -468,6 +471,7 @@ begin
         reset => nes_reset,
         soft_reset => nes_soft_reset,
         keep_prg_ram => keep_prg_ram,
+        famicom => famicom,
 
         nes_running => nes_running,
 

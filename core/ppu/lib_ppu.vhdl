@@ -476,8 +476,19 @@ package lib_ppu is
     -- a real NES starts at no fixed point of the PPU's frame. Games that
     -- clear RAM and seed their random numbers from CPU time left over in
     -- each frame (Blades of Steel) play differently for each start. A zero
-    -- seed starts at VBlank start, on the even frame
-    function power_up_ppu_reg(seed : ppu_power_up_seed_t) return ppu_reg_t;
+    -- seed starts at VBlank start, on the even frame.
+    --
+    -- On a Famicom the PPU's reset pin is tied high, and the CPU comes out of
+    -- reset about a frame after the PPU powers up, so the PPU's reset has
+    -- ended by the time the CPU runs and writes to $2000, $2001, $2005 and
+    -- $2006 are not ignored. Games such as Magic John write $2000 before the
+    -- reset of an NES PPU ends
+    function power_up_ppu_reg
+    (
+        seed    : ppu_power_up_seed_t;
+        famicom : boolean
+    )
+    return ppu_reg_t;
 
     -- Shifts a background pattern shift register one pixel, shifting
     -- serial_in into the low bit
@@ -672,7 +683,12 @@ package body lib_ppu is
         return ret;
     end;
 
-    function power_up_ppu_reg(seed : ppu_power_up_seed_t) return ppu_reg_t
+    function power_up_ppu_reg
+    (
+        seed    : ppu_power_up_seed_t;
+        famicom : boolean
+    )
+    return ppu_reg_t
     is
         variable line  : ppu_cycle_t;
         variable cycle : ppu_cycle_t;
@@ -696,6 +712,7 @@ package body lib_ppu is
         ret.cur_time.frame := to_integer(seed(18 downto 18));
         ret.cur_time.scanline := line;
         ret.cur_time.cycle := cycle;
+        ret.reset_flag := not famicom;
 
         return ret;
     end;

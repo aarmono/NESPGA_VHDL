@@ -19,6 +19,10 @@ port
     reset             : in boolean;
     -- The reset button. See soft_reset_ppu_reg
     soft_reset        : in boolean := false;
+    -- Behave as the PPU of a Famicom, whose reset pin is tied high: no
+    -- writes are ignored after power up (see power_up_ppu_reg), and the reset
+    -- button does not reset the PPU. Must be stable while reset is true
+    famicom           : in boolean := false;
     -- Where in the frame power up starts. See power_up_ppu_reg
     power_up_seed     : in ppu_power_up_seed_t := (others => '0');
 
@@ -63,9 +67,9 @@ begin
     if clk_en then
         if reset
         then
-            reg <= power_up_ppu_reg(power_up_seed);
+            reg <= power_up_ppu_reg(power_up_seed, famicom);
             vint <= false;
-        elsif soft_reset
+        elsif soft_reset and not famicom
         then
             reg <= soft_reset_ppu_reg(reg);
             vint <= false;

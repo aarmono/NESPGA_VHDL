@@ -116,7 +116,7 @@ open(path, "wb").write(data)
 }
 
 # run NAME IMAGE EXPECT BUTTONS...: presses each button (a, b, up, down,
-# left, right, start) in turn from frame FIRST_PRESS, PRESS_GAP frames
+# left, right, start, select) in turn from frame FIRST_PRESS, PRESS_GAP frames
 # apart. The screen is logged after the last press. EXPECT is the file that
 # a launch must load. The log is in NAME.log. The card image and state at
 # launch or after the last press are in NAME.card and NAME.state, if
@@ -314,7 +314,7 @@ want_screen 4 "  >Super Game (U) {!} & co"
 want_screen 5 "   GAME2"
 want_screen 6 "   Test ROMs/"
 want_screen 7 ""
-want_screen 27 "   A:Open  B:Back       1/1"
+want_screen 27 "   A:Open B:Back Sel:Opt 1/1"
 
 run down root.img game2.nes down a
 want_launch
@@ -338,7 +338,7 @@ want_screen 5 "  >GAME2"
 run empty_dir root.img game1.nes down down a a
 want_screen 2 "   Empty/"
 want_screen 4 "   No games here"
-want_screen 27 "   A:Open  B:Back"
+want_screen 27 "   A:Open B:Back Sel:Opt"
 
 run empty_back root.img game3.nes down down a a b down a
 want_launch
@@ -364,19 +364,19 @@ want_launch
 want_screen 2 "   /"
 want_screen 4 "  >Game number 01"
 want_screen 25 "   Game number 22"
-want_screen 27 "   A:Open  B:Back       1/3"
+want_screen 27 "   A:Open B:Back Sel:Opt 1/3"
 
 run right pages.img page25.nes right down down a
 want_launch
 want_screen 4 "   Game number 23"
 want_screen 6 "  >Game number 25"
-want_screen 27 "   A:Open  B:Back       2/3"
+want_screen 27 "   A:Open B:Back Sel:Opt 2/3"
 
 run last_page pages.img big.nes right right right a
 want_launch 2
 want_screen 10 "  >Big game"
 want_screen 11 ""
-want_screen 27 "   A:Open  B:Back       3/3"
+want_screen 27 "   A:Open B:Back Sel:Opt 3/3"
 
 run wrap_down pages.img page02.nes up down right left down a
 want_launch
@@ -397,7 +397,8 @@ want_error 19
 want_screen 2 "   Error"
 want_screen 4 "   File has over 64 fragments"
 
-SD_ERROR_CONTINUE=1 run frag_back frag.img frag.nes a a
+# Looking for the game's .cfg file in this long directory takes a while
+SD_ERROR_CONTINUE=1 PRESS_GAP=30 run frag_back frag.img frag.nes a a
 want_screen 4 "  >Fragmented"
 
 SD_FAIL=1 run card_failed root.img game1.nes
@@ -633,5 +634,101 @@ with open(sys.argv[1], "r+b") as f:
 SD_OUT=1 run short_chain short.img short.nes a
 want_error 18
 want_writes 0
+
+# Options. cfg FILE OPTIONS: a .cfg file holding OPTIONS
+cfg() {
+    python3 -c '
+import sys
+data = b"NESPGA\x01" + bytes([int(sys.argv[2])])
+open(sys.argv[1], "wb").write(data + bytes(512 - len(data)))
+' "$1" "$2"
+}
+
+# want_options N: the last run launched with options N
+want_options() {
+    if grep -q "^LAUNCH .*, options $1$" "$current.log"
+    then
+        result ok "options $1"
+    else
+        result FAIL "not options $1: $(grep -E "^(LAUNCH|ERROR|exit)" \
+            "$current.log" | tr '\n' ' ')"
+    fi
+}
+
+cfg famicom.cfg 1
+cfg nes.cfg 0
+fat opt.img 16
+mcopy -i opt.img game1.nes "::/Magic John (J).nes"
+mcopy -i opt.img game2.nes "::/Other.nes"
+mcopy -i opt.img zelda.nes "::/Zelda (U).nes"
+mcopy -i opt.img zelda.nes "::/Zelda (U).cfg"
+mmd -i opt.img ::/Games
+
+run opt_none opt.img game1.nes a
+want_launch
+want_options 0
+
+run opt_screen opt.img game1.nes select
+want_screen 2 "   Magic John (J)"
+want_screen 4 "  >Console      NES"
+want_screen 27 "   A:Change  B:Done"
+want_writes 0
+
+run opt_change opt.img game1.nes select right
+want_screen 4 "  >Console      Famicom"
+want_writes 0
+
+# Leaving the screen makes the .cfg file, and the list is back where it was
+SD_OUT=1 run opt_save opt.img game1.nes select a b
+want_screen 4 "  >Magic John (J)"
+want_file opt_save.card "Magic John (J).cfg" famicom.cfg
+want_fsck opt_save.card
+
+run opt_launch opt_save.card game1.nes a
+want_launch
+want_options 1
+
+run opt_other opt_save.card game2.nes down a
+want_launch
+want_options 0
+
+# Changed back, the file is written in place
+SD_OUT=1 run opt_clear opt_save.card game1.nes select left select
+want_writes 1
+want_file opt_clear.card "Magic John (J).cfg" nes.cfg
+want_fsck opt_clear.card
+
+# Changed and changed back, nothing is written
+run opt_same opt_save.card game1.nes select a a b
+want_writes 0
+
+# Neither Select on a directory nor B on its options screen does anything
+run opt_dir opt.img game1.nes down down down select b
+want_screen 7 "  >Games/"
+want_screen 27 "   A:Open B:Back Sel:Opt 1/1"
+
+# A battery game: the .cfg from another program is not ours, and the save
+# is made next to it
+SD_OUT=1 SD_STATE_IN=random.state run opt_foreign opt.img zelda.nes \
+    down down a
+want_launch_with 2 3
+want_options 0
+want_file opt_foreign.card "Zelda (U).sav" zeros.sav
+want_fsck opt_foreign.card
+
+# The options and the save of a battery game, with a short name .cfg
+mdel -i opt.img "::/Zelda (U).cfg"
+mcopy -i opt.img famicom.cfg "::/ZELDA (U).CFG"
+SD_OUT=1 SD_STATE_IN=random.state run opt_with_save opt.img zelda.nes \
+    down down a
+want_launch_with 2 3
+want_options 1
+want_file opt_with_save.card "Zelda (U).sav" zeros.sav
+
+# A new .cfg file next to a battery game's .sav
+SD_OUT=1 run opt_save2 opt_with_save.card game2.nes down select a b
+want_file opt_save2.card "Other.cfg" famicom.cfg
+want_file opt_save2.card "Zelda (U).sav" zeros.sav
+want_fsck opt_save2.card
 
 summary

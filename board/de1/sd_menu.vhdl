@@ -28,6 +28,8 @@ use work.sd_menu_stub.all;
 --   0x5200         W    Shifts a byte into the top of the 32 bit block
 --                       number. Write its 4 bytes, lowest first
 --   0x5201         W    Bits 1-0: the flags, which only reset clears
+--   0x5202         W    The options of the next launch. Bit 0: run as a
+--                       Famicom (see nes_soc)
 --   0x5204         W    Read the block into the buffer
 --   0x5205         W    Launch. Bit 0: stay in menu mode. Bit 1: keep PRG
 --                       RAM
@@ -61,6 +63,10 @@ use work.sd_menu_stub.all;
 -- that the menu launched runs, returns to the menu: the stub is loaded
 -- again, as at power up, and launches the menu, which finds what it left in
 -- cartridge RAM and in the flags. buttons are those the game last read.
+--
+-- The options apply to the NES from the launch on, so the menu sets them
+-- for each game before it launches it. They are cleared when the stub is
+-- loaded, so the stub and the menu run with none.
 entity sd_menu is
 generic
 (
@@ -85,6 +91,7 @@ port
 
     -- See nes_soc
     keep_prg_ram : out boolean;
+    famicom      : out boolean;
 
     -- The cartridge memory bus, from nes_soc to sdram_rom. The menu's PRG
     -- RAM bank is applied here
@@ -122,6 +129,8 @@ architecture behavioral of sd_menu is
     subtype buf_addr_t is std_logic_vector(8 downto 0);
     subtype count_t is std_logic_vector(15 downto 0);
     subtype flags_t is std_logic_vector(1 downto 0);
+    subtype options_t is std_logic_vector(0 downto 0);
+    constant OPTION_FAMICOM : natural := 0;
     -- 8 KB banks of the cartridge RAM region
     subtype bank_t is std_logic_vector(4 downto 0);
 
@@ -185,6 +194,7 @@ architecture behavioral of sd_menu is
         keep_menu  : boolean;
         keep_ram   : boolean;
         flags      : flags_t;
+        options    : options_t;
         bank       : bank_t;
         -- How long Start and Select have been held
         hold       : hold_t;
@@ -203,6 +213,7 @@ architecture behavioral of sd_menu is
         keep_menu => false,
         keep_ram => false,
         flags => (others => '0'),
+        options => (others => '0'),
         bank => (others => '0'),
         hold => 0
     );
@@ -288,6 +299,7 @@ architecture behavioral of sd_menu is
                 ret.stub_pos := STUB_POS_START;
                 ret.stub_ready := false;
                 ret.keep_ram := true;
+                ret.options := (others => '0');
                 ret.state := ST_STUB;
             when ST_STUB =>
                 -- The stub ROM's data is for the address of the clock before
@@ -311,6 +323,9 @@ architecture behavioral of sd_menu is
                                        reg.blk(31 downto 8);
                         when "001" =>
                             ret.flags := menu_in.cpu_bus.data(flags_t'range);
+                        when "010" =>
+                            ret.options :=
+                                menu_in.cpu_bus.data(options_t'range);
                         when "100" =>
                             ret.count := x"0001";
                             ret.req := true;
@@ -436,6 +451,7 @@ begin
     launch_failed <= reg.state = ST_FAILED;
     sd_failed <= sd_error;
     keep_prg_ram <= reg.keep_ram;
+    famicom <= reg.options(OPTION_FAMICOM) = '1';
 
     cart_mem_bus_out <= get_menu_cart_mem_bus(cart_mem_bus_in, reg.bank)
                             when menu_mode else
