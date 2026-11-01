@@ -43,6 +43,7 @@ port
     -- See nes_soc
     soft_reset   : in boolean := false;
     keep_prg_ram : in boolean := false;
+    famicom      : in boolean := false;
 
     nes_running : out boolean;
 
@@ -121,6 +122,7 @@ begin
         reset => reset,
         soft_reset => soft_reset,
         keep_prg_ram => keep_prg_ram,
+        famicom => famicom,
 
         nes_running => nes_running,
 

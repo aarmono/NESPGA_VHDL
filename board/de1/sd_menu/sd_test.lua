@@ -36,6 +36,7 @@ local reads = 0
 local writes = 0
 local written = {}
 local flags = 0
+local options = 0
 local bank = 0
 local ram = {}
 
@@ -141,6 +142,9 @@ emu.addMemoryCallback(function(addr, value)
   elseif reg == 1 then
     flags = value & 3
     emu.log(string.format("flags %d", flags))
+  elseif reg == 2 then
+    options = value & 1
+    emu.log(string.format("options %d", options))
   elseif reg == 4 then
     reads = reads + 1
     emu.log(string.format("read block %d", block))
@@ -176,9 +180,10 @@ emu.addMemoryCallback(function(addr, value)
     local ok = table.concat(data):sub(1, #expect) == expect
     log_screen()
     emu.log(string.format("LAUNCH value %d, %d extents, %d reads, %s, " ..
-                          "flags %d, %d writes",
+                          "flags %d, %d writes, options %d",
                           value, extents, reads,
-                          ok and "MATCH" or "MISMATCH", flags, writes))
+                          ok and "MATCH" or "MISMATCH", flags, writes,
+                          options))
     dump()
     emu.stop(ok and 0 or 1)
   end

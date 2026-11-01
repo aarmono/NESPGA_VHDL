@@ -48,6 +48,11 @@ port
     -- Reset leaves PRG RAM alone instead of filling it, because the board
     -- has loaded a save into it. Must be stable while reset is true
     keep_prg_ram : in boolean := false;
+    -- Run as a Famicom rather than a front loading NES: the PPU's reset pin
+    -- is tied high, so it ignores no writes after power up and the reset
+    -- button resets only the CPU and APU (see ppu). Must be stable while
+    -- reset is true
+    famicom : in boolean := false;
 
     nes_running : out boolean;
 
@@ -394,6 +399,7 @@ begin
         clk_sync => ppu_sync,
         reset  => int_reset,
         soft_reset => int_soft_reset,
+        famicom => famicom,
         -- The PPU reloads this on every PPU cycle of reset. The power up data
         -- last changes with the last step of the RAM fill, so the PPU starts
         -- from that value, which holds through the end of reset

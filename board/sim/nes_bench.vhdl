@@ -27,7 +27,9 @@ generic
     POWER_UP_FILL   : boolean := false;
     -- With POWER_UP_FILL, other seeds fill the RAMs with other bytes and
     -- start the PPU at another point of its frame
-    POWER_UP_SEED   : natural := 0
+    POWER_UP_SEED   : natural := 0;
+    -- Run as a Famicom rather than a front loading NES. See nes_soc
+    FAMICOM         : boolean := false
 );
 end nes_bench;
 
@@ -96,6 +98,7 @@ begin
         clk => clk,
         reset => false,
         soft_reset => soft_reset,
+        famicom => FAMICOM,
 
         nes_running => output_ready,
 

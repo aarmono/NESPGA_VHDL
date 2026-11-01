@@ -27,6 +27,13 @@
 ; linked to its chain. A FAT16 root directory cannot grow: ERR_DIR_FULL. On
 ; FAT32 the search for free clusters starts at the FSInfo sector's next free
 ; hint, and the sector's free count and hint are kept up to date.
+;
+; A game's options are kept the same way, in a .cfg file next to it, which
+; is found and made like a save. It is one block: cfg_magic, then the byte
+; written to REG_OPTIONS, then zeroes. A game without one, with an empty
+; one, or with one that does not start with cfg_magic has no options set.
+; The options are read before each launch, and written when the options
+; screen changes them.
 
 .include "fat.inc"
 .include "menu.inc"
@@ -46,6 +53,13 @@ OP_STORE = 2
 ; The extents in TABLE
 EXTENTS = 64
 
+; ext_off for the extensions in dot_ext
+EXT_SAV = 0
+EXT_CFG = 4
+
+; The offset of the options byte in a .cfg file, after cfg_magic
+CFG_OPTIONS = 7
+
 ; The directory entries being made: a long name entry, and the short entry
 ENTRY       = WRAM + $A00
 SHORT_ENTRY = WRAM + $A20
@@ -62,6 +76,9 @@ game_clus:   .res 4
 game_len:    .res 1
 launch_val:  .res 1
 flag_val:    .res 1
+options:     .res 1
+; The extension of GAMENAME: EXT_SAV or EXT_CFG
+ext_off:     .res 1
 
 ; for_blocks
 op:          .res 1
@@ -103,10 +120,12 @@ made:        .res 1
 
 ; Gets the file under the cursor, whose first cluster is clus and whose
 ; name is in FULLNAME, ready to launch: its save is read into PRG RAM, the
-; flags are set, and its extents are in TABLE. Returns the value to write
-; to REG_LAUNCH
+; flags and options are set, and its extents are in TABLE. Returns the
+; value to write to REG_LAUNCH
 prepare_launch:
     copy32 game_clus, clus
+    jsr load_options
+    copy32 clus, game_clus
     jsr read_header
     lda #0
     sta launch_val
@@ -115,7 +134,8 @@ prepare_launch:
     lda save_blocks
     beq @launch
 
-    jsr save_name
+    lda #EXT_SAV
+    jsr set_ext
     lda #0
     sta made
     jsr find_save
@@ -148,6 +168,8 @@ prepare_launch:
     copy32 clus, game_clus
     jsr build_extents
     bcs @fragmented
+    lda options
+    sta REG_OPTIONS
     lda flag_val
     sta REG_FLAGS
     lda launch_val
@@ -245,8 +267,73 @@ read_header:
     lda #ERR_NOT_INES
     jmp fail
 
-; GAMENAME = FULLNAME with .sav in place of .nes, in the case of each
-; letter replaced, or with .sav added if it does not end in .nes
+; Reads the options of the file whose name is in FULLNAME, in directory
+; cur_clus, from its .cfg file. GAMENAME is then the .cfg file's name
+load_options:
+    lda #EXT_CFG
+    sta ext_off
+    jsr save_name
+    lda #0
+    sta options
+    jsr find_cfg
+    bcs @done
+    ; An empty file has no cluster
+    lda clus + 3
+    ora clus + 2
+    ora clus + 1
+    bne @read
+    lda clus
+    cmp #2
+    bcc @done
+@read:
+    jsr clus_to_block
+    jsr read_block
+    ldx #CFG_OPTIONS - 1
+@magic:
+    lda BUF, x
+    cmp cfg_magic, x
+    bne @done
+    dex
+    bpl @magic
+    lda BUF + CFG_OPTIONS
+    sta options
+@done:
+    rts
+
+; Writes options to the .cfg file named GAMENAME in directory cur_clus,
+; making it if there is none. Making it builds TABLE, over the menu's page
+; table. An empty file fails, since it has no block to write
+write_options:
+    jsr find_cfg
+    bcc @found
+    jsr make_save
+    jmp @write
+@found:
+    jsr check_clus
+@write:
+    jsr clus_to_block
+    lda #0
+    sta cache_ok
+    fill512 BUF
+    ldx #CFG_OPTIONS - 1
+@magic:
+    lda cfg_magic, x
+    sta BUF, x
+    dex
+    bpl @magic
+    lda options
+    sta BUF + CFG_OPTIONS
+    jmp write_block
+
+; Looks in directory cur_clus for the one block .cfg file named GAMENAME,
+; as find_save does
+find_cfg:
+    lda #1
+    sta save_blocks
+    jmp find_save
+
+; GAMENAME = FULLNAME with extension ext_off in place of .nes, in the case
+; of each letter replaced, or with it added if it does not end in .nes
 save_name:
     copy512 GAMENAME, FULLNAME
     lda full_len
@@ -270,17 +357,7 @@ save_name:
     inx
     cpx #3
     bne @ext
-    ldx #2
-@replace:
-    lda (p1), y
-    and #$20
-    ora sav_ext, x
-    sta (p1), y
-    dey
-    dey
-    dex
-    bpl @replace
-    rts
+    jmp put_ext
 
 @add:
     ; Over the end of a name too long for .sav to be added
@@ -291,22 +368,51 @@ save_name:
 @room:
     sta chr
     jsr name_ptr
-    ldx #0
+    ldx ext_off
     ldy #0
 @char:
-    lda dot_sav, x
+    lda dot_ext, x
     sta (p1), y
     iny
     lda #0
     sta (p1), y
     iny
     inx
-    cpx #4
+    cpy #8
     bne @char
     clc
     lda chr
     adc #4
     sta game_len
+    rts
+
+; Gives GAMENAME, which ends in an extension, extension A instead
+set_ext:
+    sta ext_off
+    lda game_len
+    sec
+    sbc #4
+    jsr name_ptr
+    ; Falls through
+
+; Puts the letters of extension ext_off after the dot at p1, in the case of
+; the letters there
+put_ext:
+    ldx ext_off
+    ldy #2
+@char:
+    lda dot_ext + 1, x
+    and #$DF
+    sta chr
+    lda (p1), y
+    and #$20
+    ora chr
+    sta (p1), y
+    inx
+    iny
+    iny
+    cpy #8
+    bne @char
     rts
 
 ; p1 = GAMENAME + 2 * A, character A of GAMENAME
@@ -1018,6 +1124,17 @@ make_short:
     sta SHORT_ENTRY, x
     dex
     bpl @template
+    ; The extension, in upper case
+    ldx ext_off
+    ldy #8
+@ext:
+    lda dot_ext + 1, x
+    and #$DF
+    sta SHORT_ENTRY, y
+    inx
+    iny
+    cpy #11
+    bne @ext
     ; Snnnnnnn: the first cluster in hex
     ldx #3
     ldy #1
@@ -1313,8 +1430,9 @@ for_blocks:
 
 ines_magic: .byte "NES", $1A
 nes_ext:    .byte "NES"
-sav_ext:    .byte "SAV"
-dot_sav:    .byte ".sav"
+; By ext_off
+dot_ext:    .byte ".sav", ".cfg"
+cfg_magic:  .byte "NESPGA", 1
 fsi_lead:   .byte "RRaA"
 fsi_struct: .byte "rrAa"
 

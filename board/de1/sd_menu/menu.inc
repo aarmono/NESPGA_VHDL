@@ -47,5 +47,9 @@ MAX_NAME     = 255
 .globalzp cur_clus, depth, page, row
 
 .global next_item, lfn_offsets
+; The options of the game under the cursor, which load_options reads from
+; its .cfg file and write_options writes to it
+.globalzp options
+
 ; save.s
-.global prepare_launch, write_back
+.global prepare_launch, write_back, load_options, write_options

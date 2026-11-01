@@ -6,7 +6,8 @@
 ; they are on the card, with their long names. Hidden entries, names
 ; starting with '.' and MENU.NES in the root directory are left out. Up and down move the cursor, left and
 ; right move by a page, A or Start opens a directory or launches a file, and
-; B goes back up.
+; B goes back up. Select shows the options of the file under the cursor
+; (see options_screen), which save.s keeps in a .cfg file next to it.
 ;
 ; The header declares 8 KB of PRG RAM, which sd_menu maps to a bank of
 ; cartridge RAM that games do not use (see menu.inc). The stub and the menu
@@ -58,7 +59,9 @@ ROWS       = 22
 FOOTER_ROW = 27
 CURSOR_COL = 2
 NAME_COL   = 3
-PAGE_COL   = 24
+PAGE_COL   = 25
+; The column of the options' values
+VALUE_COL  = 16
 
 MAX_PAGES = 80
 
@@ -127,6 +130,10 @@ item_state:  .res DIR_STATE_BYTES
 pg_ptr:      .res 2
 str:         .res 2
 counter:     .res 1
+
+; options_screen: the options as read, and the option under the cursor
+opt_read:    .res 1
+opt_row:     .res 1
 
 .segment "HEADER"
     ; NES 2.0, mapper 0, 1 16 KB PRG ROM bank, 1 8 KB CHR ROM bank, 8 KB of
@@ -237,6 +244,11 @@ main_loop:
     beq @not_open
     jmp open_item
 @not_open:
+    lda pressed
+    and #BUTTON_SELECT
+    beq @not_options
+    jmp options_screen
+@not_options:
     lda pressed
     and #BUTTON_B
     beq @not_back
@@ -417,6 +429,146 @@ open_item:
     sta page
     sta row
     jmp open_dir
+
+; Shows the options of the file under the cursor. Up and down move the
+; cursor, and A, left and right change the option under it. B or Select goes
+; back to the directory, writing the options if they changed
+options_screen:
+    lda empty
+    bne @ignore
+    jsr select_item
+    lda kind
+    cmp #KIND_DIR
+    bne @file
+@ignore:
+    jmp main_loop
+@file:
+    jsr load_options
+    ; Which moved through the directory, so the entry is read again for
+    ; its name
+    jsr select_item
+    jsr format_name
+    lda options
+    sta opt_read
+    lda #0
+    sta opt_row
+    jsr draw_options
+
+@loop:
+    jsr wait_frame
+    jsr read_joy
+    lda pressed
+    and #BUTTON_B | BUTTON_SELECT
+    bne @done
+    lda pressed
+    and #BUTTON_UP
+    beq @not_up
+    dec opt_row
+    bpl @moved
+    lda #OPTION_ROWS - 1
+    sta opt_row
+    bpl @moved
+@not_up:
+    lda pressed
+    and #BUTTON_DOWN
+    beq @not_down
+    inc opt_row
+    lda opt_row
+    cmp #OPTION_ROWS
+    bne @moved
+    lda #0
+    sta opt_row
+@moved:
+    lda opt_row
+    jsr cursor_at
+    jmp @loop
+@not_down:
+    lda pressed
+    and #BUTTON_A | BUTTON_LEFT | BUTTON_RIGHT
+    beq @loop
+    ldx opt_row
+    lda options
+    eor option_bits, x
+    sta options
+    jsr draw_options
+    jmp @loop
+
+@done:
+    lda options
+    cmp opt_read
+    beq @back
+    jsr screen_off
+    jsr write_options
+@back:
+    ; Reading the options moved through the directory, and writing them
+    ; may have built TABLE over the page table
+    jmp open_dir
+
+; Shows the options screen: the file's name, then each option and its value
+draw_options:
+    jsr screen_off
+    jsr clear_screen
+    lda #TITLE_ROW
+    ldx #NAME_COL
+    jsr ppu_at
+    ldx #0
+@title:
+    lda NAME, x
+    beq @titled
+    sta PPU_DATA
+    inx
+    cpx #NAME_COLS
+    bne @title
+@titled:
+
+    lda #0
+    sta counter
+@option:
+    lda counter
+    clc
+    adc #FIRST_ROW
+    ldx #NAME_COL
+    jsr ppu_at
+    lda counter
+    asl a
+    tax
+    lda option_labels, x
+    sta str
+    lda option_labels + 1, x
+    sta str + 1
+    jsr print
+
+    lda counter
+    clc
+    adc #FIRST_ROW
+    ldx #VALUE_COL
+    jsr ppu_at
+    lda counter
+    asl a
+    asl a
+    tax
+    ldy counter
+    lda option_bits, y
+    and options
+    beq @off
+    inx
+    inx
+@off:
+    lda option_values, x
+    sta str
+    lda option_values + 1, x
+    sta str + 1
+    jsr print
+
+    inc counter
+    lda counter
+    cmp #OPTION_ROWS
+    bne @option
+
+    print_at FOOTER_ROW, NAME_COL, options_footer_text
+    lda opt_row
+    jsr cursor_at
+    jmp screen_on
 
 ; Goes back to the parent directory
 back:
@@ -1022,6 +1174,10 @@ place_cursor:
     rts
 @shown:
     lda row
+    ; Falls through
+
+; Puts the cursor sprite on row A of the list
+cursor_at:
     clc
     adc #FIRST_ROW
     asl a
@@ -1264,7 +1420,22 @@ palette:
     .byte $0F, $2A, $2A, $2A, $0F, $2A, $2A, $2A
 
 no_entries_text: .asciiz "No games here"
-footer_text:     .asciiz "A:Open  B:Back"
+footer_text:     .asciiz "A:Open B:Back Sel:Opt"
+options_footer_text: .asciiz "A:Change  B:Done"
+
+; The options screen's rows: the bit of the options byte, the label, and the
+; text shown while the bit is clear, then set
+OPTION_ROWS = 1
+option_bits:
+    .byte OPTION_FAMICOM
+option_labels:
+    .word console_text
+option_values:
+    .word nes_text, famicom_text
+
+console_text:    .asciiz "Console"
+nes_text:        .asciiz "NES"
+famicom_text:    .asciiz "Famicom"
 error_text:      .asciiz "Error"
 continue_text:   .asciiz "Press A"
 

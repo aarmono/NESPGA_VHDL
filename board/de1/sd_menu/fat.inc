@@ -5,6 +5,7 @@ BUF        = $5000
 REG_BLOCK  = $5200
 REG_STATUS = $5200
 REG_FLAGS  = $5201
+REG_OPTIONS = $5202
 REG_READ   = $5204
 REG_LAUNCH = $5205
 REG_WRITE  = $5206
@@ -22,6 +23,8 @@ STATUS_FAILED = $40
 ; back, and FLAG_RESUME once what it keeps in cartridge RAM is valid
 FLAG_SAVE     = $01
 FLAG_RESUME   = $02
+; The options written to REG_OPTIONS before a launch
+OPTION_FAMICOM = $01
 
 PPU_CTRL   = $2000
 PPU_MASK   = $2001
