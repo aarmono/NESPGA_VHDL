@@ -569,6 +569,46 @@ SD_OUT=1 run dir_full full.img zelda.nes a
 want_error 1B
 want_writes 0
 
+# dir_fill IMAGE DIR N: N short entries in DIR
+dir_fill() {
+    echo small > small.bin
+    for n in $(seq 1 "$3")
+    do
+        mcopy -i "$1" small.bin "::$2/F$n.BIN"
+    done
+}
+
+# A directory whose one cluster of 16 entries is full (., .., the game's
+# 2 and 12 files) grows by a cluster for the save's entries
+fat grow.img 16
+mmd -i grow.img ::/Games
+mcopy -i grow.img zelda.nes "::/Games/Zelda (U).nes"
+dir_fill grow.img /Games 12
+SD_OUT=1 SD_STATE_IN=random.state run dir_grow grow.img zelda.nes a a
+want_launch_with 2 3
+want_file dir_grow.card "Games/Zelda (U).sav" zeros.sav
+want_fsck dir_grow.card
+
+# A name of 220 characters needs 18 entries, more than a new cluster holds
+long220=$(printf 'Long%.0s' $(seq 1 54))
+fat grow2.img 16
+mmd -i grow2.img ::/Games
+mcopy -i grow2.img zelda.nes "::/Games/$long220.nes"
+dir_fill grow2.img /Games 4
+SD_OUT=1 SD_STATE_IN=random.state run dir_grow2 grow2.img zelda.nes a a
+want_launch_with 2 3
+want_file dir_grow2.card "Games/$long220.sav" zeros.sav
+want_fsck dir_grow2.card
+
+# A FAT32 root directory grows too. MENU.NES, the game's 2 and 13 files
+fat grow32.img 32
+mcopy -i grow32.img zelda.nes "::/Zelda (U).nes"
+dir_fill grow32.img "" 13
+SD_OUT=1 SD_STATE_IN=random.state run dir_grow32 grow32.img zelda.nes a
+want_launch_with 2 3
+want_file dir_grow32.card "Zelda (U).sav" zeros.sav
+want_fsck dir_grow32.card
+
 # A save whose cluster chain is shorter than its size: nothing past the
 # chain may be read or written
 fat short.img 16

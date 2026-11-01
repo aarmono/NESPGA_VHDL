@@ -22,10 +22,11 @@
 ;
 ; A new file's clusters are found before anything is written, and its
 ; cluster chain is written to every FAT before its directory entries, so
-; that a failure part way leaves at worst lost clusters. The directory is
-; not grown: if it has no room for the entries, ERR_DIR_FULL. On FAT32 the
-; search for free clusters starts at the FSInfo sector's next free hint, and
-; the sector's free count and hint are kept up to date.
+; that a failure part way leaves at worst lost clusters. A directory with no
+; room for the entries grows by clusters that are zeroed before they are
+; linked to its chain. A FAT16 root directory cannot grow: ERR_DIR_FULL. On
+; FAT32 the search for free clusters starts at the FSInfo sector's next free
+; hint, and the sector's free count and hint are kept up to date.
 
 .include "fat.inc"
 .include "menu.inc"
@@ -75,6 +76,7 @@ p2:          .res 2
 chr:         .res 1
 
 ; make_save
+dir_last:    .res 4
 lfn_count:   .res 1
 slots:       .res 1
 run:         .res 1
@@ -438,25 +440,99 @@ make_save:
     inx
     stx slots
     jsr find_slots
+    bcc @room
+    jsr grow_dir
+    jsr find_slots
+    bcc @room
+    jmp dir_full
+@room:
+    ; need = (save_blocks + sec_per_clus - 1) >> clus_shift
+    clc
+    lda save_blocks
+    adc sec_per_clus
+    sec
+    sbc #1
+    ldx clus_shift
+    beq @need
+@shift:
+    lsr a
+    dex
+    bne @shift
+@need:
     jsr alloc
 
     copy32 clus, CLIST
     jsr build_extents
-    ldx #0
-    txa
-    sta cache_ok
-    fill512 BUF
-    lda #OP_ZERO
     ldx save_blocks
-    jsr for_blocks
+    jsr zero_blocks
 
     jsr write_entries
     jsr update_fsinfo
     copy32 clus, CLIST
     rts
 
+; Zeroes blocks 0 to X - 1 of the file whose extents are in TABLE
+zero_blocks:
+    lda #0
+    sta cache_ok
+    pha
+    txa
+    pha
+    ldx #0
+    txa
+    fill512 BUF
+    pla
+    tax
+    pla
+    jmp for_blocks
+
+; Adds zeroed clusters to the end of the chain of directory cur_clus, whose
+; last cluster find_slots left in dir_last, enough for slots entries. Fails
+; on a FAT16 root directory, which has no chain
+grow_dir:
+    lda dir_last
+    ora dir_last + 1
+    ora dir_last + 2
+    ora dir_last + 3
+    beq dir_full
+    ; A block holds 16 entries and at most 21 are needed, so two clusters
+    ; are needed only with one block a cluster
+    lda #1
+    ldx clus_shift
+    bne @alloc
+    ldx slots
+    cpx #17
+    bcc @alloc
+    lda #2
+@alloc:
+    jsr alloc
+    copy32 clus, CLIST
+    jsr build_extents
+    ; need << clus_shift blocks, at most 128
+    lda need
+    ldx clus_shift
+    beq @zero
+@blocks:
+    asl a
+    dex
+    bne @blocks
+@zero:
+    tax
+    jsr zero_blocks
+    ; Then the directory's last cluster points at the first new one
+    copy32 clus, dir_last
+    copy32 val, CLIST
+    jsr set_fat
+    jsr fat_flush
+    jmp update_fsinfo
+
+dir_full:
+    lda #ERR_DIR_FULL
+    jmp fail
+
 ; Finds slots free entries in a row in directory cur_clus: slot_state is
-; the directory position before the first
+; the directory position before the first. Carry set if there are not, with
+; dir_last the directory's last cluster, 0 for a FAT16 root
 find_slots:
     copy32 clus, cur_clus
     jsr dir_open
@@ -487,27 +563,18 @@ find_slots:
     bne @entry
     lda #0
     sta dir_all
+    clc
     rts
 @full:
-    lda #ERR_DIR_FULL
-    jmp fail
-
-; Finds the free clusters for save_blocks blocks, puts them in CLIST, and
-; chains them in every FAT
-alloc:
-    ; need = (save_blocks + sec_per_clus - 1) >> clus_shift
-    clc
-    lda save_blocks
-    adc sec_per_clus
+    lda #0
+    sta dir_all
+    copy32 dir_last, dir_clus
     sec
-    sbc #1
-    ldx clus_shift
-    beq @need
-@shift:
-    lsr a
-    dex
-    bne @shift
-@need:
+    rts
+
+; Finds A free clusters, need, puts them in CLIST, and chains them in every
+; FAT
+alloc:
     sta need
 
     clc

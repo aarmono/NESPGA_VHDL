@@ -46,7 +46,7 @@ TABLE = $0300
 ;   $19  The file has more than 64 extents
 ; and, in the menu:
 ;   $1A  The file is not an iNES file
-;   $1B  There is no room in the directory for a save file
+;   $1B  There is no room in the FAT16 root directory for a save file
 ;   $1C  There is no room on the card for a save file
 ;   $1D  A save is waiting to be written back, but the card was changed
 ERR_CARD       = $11
@@ -99,7 +99,7 @@ ATTR_LFN_MASK = $3F
 .globalzp dir_all
 ; The position of dir_next in its directory, DIR_STATE_BYTES bytes, which
 ; can be saved and restored to read entries again
-.globalzp dir_state
+.globalzp dir_state, dir_clus
 DIR_STATE_BYTES = 11
 
 ; Shows error A. Each program has its own. It must not return
