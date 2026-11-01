@@ -70,6 +70,7 @@ package nes_core is
         soft_reset        : in boolean := false;
         famicom           : in boolean := false;
         power_up_seed     : in ppu_power_up_seed_t := (others => '0');
+        start_position    : out ppu_position_t;
 
         chr_bus           : out chr_bus_t;
         chr_ale           : out boolean;
@@ -152,6 +153,7 @@ package nes_core is
     (
         clk           : in std_logic;
         reset         : in boolean;
+        stretch       : in boolean := false;
         
         cpu_en        : out boolean;
         ppu_en        : out boolean;

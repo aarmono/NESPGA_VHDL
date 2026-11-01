@@ -48,6 +48,16 @@ package nes_types is
     -- Emphasis bits as they are in $2001 bits 5-7: red is the LSB
     subtype emphasis_bits_t is std_logic_vector(2 downto 0);
     
+    -- A point in the PPU's frame, numbered as the PPU numbers its time (see
+    -- lib_ppu): scanline 0 is the first line of VBlank (hardware scanline
+    -- 241), scanline 21 + n is visible scanline n, and cycle is one less than
+    -- the hardware dot. frame is 1 on odd frames
+    type ppu_position_t is record
+        frame    : natural range 0 to 1;
+        scanline : natural range 0 to 2**9-1;
+        cycle    : natural range 0 to 2**9-1;
+    end record;
+
     type palette_t is array(0 to 16#1F#) of pixel_t;
     
     type ram_t is array(0 to 16#7FF#) of data_t;

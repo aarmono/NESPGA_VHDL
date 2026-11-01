@@ -47,6 +47,12 @@ port
 
     nes_running : out boolean;
 
+    -- See nes_soc
+    stretch        : in boolean := false;
+    run            : in boolean := true;
+    waiting_to_run : out boolean;
+    ppu_start      : out ppu_position_t;
+
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
     
@@ -125,6 +131,11 @@ begin
         famicom => famicom,
 
         nes_running => nes_running,
+
+        stretch => stretch,
+        run => run,
+        waiting_to_run => waiting_to_run,
+        ppu_start => ppu_start,
 
         ppu_clk_en => ppu_clk_en,
         cpu_clk_en => cpu_clk_en,
