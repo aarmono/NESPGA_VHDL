@@ -7,6 +7,13 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.perhipheral_types.all;
 use work.platform_video.all;
+use work.lib_ppu.DOTS_PER_LINE;
+use work.lib_ppu.LINES_PER_FRAME;
+use work.lib_ppu.LAST_CYCLE;
+use work.lib_ppu.FRAME_START;
+use work.lib_ppu.FRAME_END;
+-- The pre-render line
+use work.lib_ppu.VINT_END;
 
 -- Tests frame_lock_video against a synthetic PPU, which outputs a pattern
 -- that identifies each pixel's line and column, and tags each frame. Every
@@ -73,10 +80,6 @@ architecture behavioral of frame_lock_bench is
     -- NES frames started since the last start
     signal nes_frames : natural := 0;
 
-    constant DOTS_PER_LINE   : positive := 341;
-    constant LINES_PER_FRAME : positive := 262;
-    constant FRAME_START     : natural := 21;
-    constant FRAME_END       : natural := 260;
     -- The first dot of each picture line with a pixel
     constant FIRST_PIXEL     : natural := 2;
 
@@ -231,9 +234,9 @@ begin
             end if;
 
             -- The pre-render line is a dot short on odd rendered frames
-            if cycle = DOTS_PER_LINE - 1 or
-               (RENDER and odd and line = FRAME_START - 1 and
-                cycle = DOTS_PER_LINE - 2)
+            if cycle = LAST_CYCLE or
+               (RENDER and odd and line = VINT_END and
+                cycle = LAST_CYCLE - 1)
             then
                 cycle := 0;
                 line := (line + 1) mod LINES_PER_FRAME;

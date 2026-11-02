@@ -5,6 +5,12 @@ use work.nes_types.all;
 use work.utilities.all;
 use work.perhipheral_types.all;
 use work.platform_video.all;
+-- The PPU's frame timing, in the numbering ppu_position_t uses
+use work.lib_ppu.DOTS_PER_LINE;
+use work.lib_ppu.LINES_PER_FRAME;
+use work.lib_ppu.LAST_LINE;
+use work.lib_ppu.LAST_CYCLE;
+use work.lib_ppu.FRAME_START;
 
 -- Shows the PPU's picture, doubled to 512x480, on an output whose frames are
 -- locked to the NES's, so that each NES line is shown about a line after the
@@ -251,20 +257,17 @@ architecture behavioral of frame_lock_video is
     -- }
 
     -- Lock {
-    constant DOTS_PER_LINE   : positive := 341;
-    constant LINES_PER_FRAME : positive := 262;
-    -- The PPU's line 21 is visible line 0 (see ppu_position_t)
-    constant FRAME_START     : natural := 21;
-
-    subtype ppu_line_t  is natural range 0 to LINES_PER_FRAME-1;
-    subtype ppu_cycle_t is natural range 0 to DOTS_PER_LINE-1;
+    -- A line and cycle of the PPU's frame, as ppu_position_t has them.
+    -- FRAME_START is the line of the first pixel
+    subtype frame_line_t  is natural range 0 to LAST_LINE;
+    subtype frame_cycle_t is natural range 0 to LAST_CYCLE;
 
     -- Where the PPU is at the output's reference point when locked
     constant REF_DOT   : natural :=
         (FRAME_START * DOTS_PER_LINE + START_LEAD_DOTS) mod
         (LINES_PER_FRAME * DOTS_PER_LINE);
-    constant REF_LINE  : ppu_line_t := REF_DOT / DOTS_PER_LINE;
-    constant REF_CYCLE : ppu_cycle_t := REF_DOT mod DOTS_PER_LINE;
+    constant REF_LINE  : frame_line_t := REF_DOT / DOTS_PER_LINE;
+    constant REF_CYCLE : frame_cycle_t := REF_DOT mod DOTS_PER_LINE;
 
     -- A frame is ~832,000 clocks at 50 MHz
     subtype count_t is natural range 0 to 2**21-1;
@@ -334,8 +337,8 @@ architecture behavioral of frame_lock_video is
 
         -- Where the PPU would be if it were running locked, from the
         -- reference point, to start it from
-        v_line           : ppu_line_t;
-        v_cycle          : ppu_cycle_t;
+        v_line           : frame_line_t;
+        v_cycle          : frame_cycle_t;
         v_valid          : boolean;
         go               : boolean;
     end record;
@@ -513,10 +516,10 @@ architecture behavioral of frame_lock_video is
                 ret.go := true;
             end if;
 
-            if reg.v_cycle = ppu_cycle_t'high
+            if reg.v_cycle = frame_cycle_t'high
             then
                 ret.v_cycle := 0;
-                if reg.v_line = ppu_line_t'high
+                if reg.v_line = frame_line_t'high
                 then
                     ret.v_line := 0;
                 else
