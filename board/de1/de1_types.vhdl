@@ -160,6 +160,7 @@ package de1_types is
         POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
         RETURN_HOLD_MS : positive := 2000;
         FRAME_LOCK    : boolean := true;
+        CLOCK_VGA_FREQ : real := 27.0e6 * 29.0 / 31.0;
         LOG_LOCK      : boolean := false
     );
     port

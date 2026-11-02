@@ -4,6 +4,9 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.perhipheral_types.all;
+use IEEE.math_real.all;
+use work.lib_ppu.DOTS_PER_LINE;
+use work.lib_ppu.LINES_PER_FRAME;
 
 -- Video output shared by the boards: output timings, the NES palette at 8
 -- bits per channel, and frame_lock_video, which shows the PPU's picture on an
@@ -45,6 +48,41 @@ package platform_video is
     end record;
 
     function get_timing(format : video_format_t) return video_timing_t;
+
+    -- frame_lock_video's stretch rate is in units of 2**-FRAME_LOCK_RATE_BITS
+    -- stretches per CPU cycle
+    constant FRAME_LOCK_RATE_BITS : positive := 15;
+
+    -- The least that the NES's base rate is faster than the frame lock
+    -- needs, for the oscillators' tolerances. The DE1's are +-50 ppm
+    constant FRAME_LOCK_MARGIN_PPM : positive := 200;
+
+    -- The rates that a board runs the NES at with the frame lock, for clk_en
+    -- and frame_lock_video
+    type frame_lock_rates_t is record
+        -- The NES's base rate, CPU_FREQ_NUM / CPU_FREQ_DEN Hz
+        cpu_freq_num : positive;
+        cpu_freq_den : positive;
+        -- The stretch rate that slows the base rate to the output's, for
+        -- START_RATE
+        start_rate   : natural;
+        -- For MAX_RATE, twice start_rate, so that the loop can slow the NES
+        -- as far past the output's rate as it can speed it up, to the base
+        -- rate
+        max_rate     : positive;
+    end record;
+
+    -- The frame lock's rates for an output of format on a pixel clock of
+    -- pix_freq Hz, with clk_sys at sys_freq Hz. The base rate is the
+    -- fastest whose CPU cycles are a whole number of tenths of a clock,
+    -- which keeps clk_en's fraction small, and at least
+    -- FRAME_LOCK_MARGIN_PPM faster than the locked rate. The locked rate is
+    -- for rendering off, as the NES starts. Rendering on makes odd frames a
+    -- dot shorter, 5.6 ppm, which the loop makes up
+    function get_frame_lock_rates(format   : video_format_t;
+                                  sys_freq : positive;
+                                  pix_freq : real)
+        return frame_lock_rates_t;
 
     -- A colour at 8 bits per channel, red in the top byte
     subtype rgb_t is std_logic_vector(23 downto 0);
@@ -166,6 +204,38 @@ package body platform_video is
                     lead_pix => 2116
                 );
         end case;
+    end;
+
+    function get_frame_lock_rates(format   : video_format_t;
+                                  sys_freq : positive;
+                                  pix_freq : real)
+        return frame_lock_rates_t
+    is
+        constant T : video_timing_t := get_timing(format);
+        constant FRAME_PIX : positive :=
+            (T.h_sync + T.h_back + T.h_active + T.h_front) *
+            (T.v_sync + T.v_back + T.v_active + T.v_front);
+        constant FRAME_CPU_CYCLES : real :=
+            real(DOTS_PER_LINE * LINES_PER_FRAME) / 3.0;
+        -- clk_sys clocks per CPU cycle that keep the NES's frames at the
+        -- output's rate
+        constant LOCKED_DIV : real :=
+            real(sys_freq) * real(FRAME_PIX) / (pix_freq * FRAME_CPU_CYCLES);
+        -- clk_sys clocks per CPU cycle at the base rate, in tenths
+        constant BASE_DIV_10 : positive :=
+            integer(floor(LOCKED_DIV * 10.0 *
+                          (1.0 - real(FRAME_LOCK_MARGIN_PPM) * 1.0e-6)));
+        constant START_RATE : natural :=
+            integer(round((LOCKED_DIV - real(BASE_DIV_10) / 10.0) *
+                          real(2**FRAME_LOCK_RATE_BITS)));
+    begin
+        return
+        (
+            cpu_freq_num => sys_freq * 10,
+            cpu_freq_den => BASE_DIV_10,
+            start_rate => START_RATE,
+            max_rate => 2 * START_RATE
+        );
     end;
 
     type palette_t is array(0 to 63) of rgb_t;

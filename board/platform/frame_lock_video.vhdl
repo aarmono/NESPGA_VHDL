@@ -40,7 +40,8 @@ generic
     -- The stretch rate the loop starts from, and the most it can reach, in
     -- units of 2**-15 stretches per CPU cycle. A unit is ~0.91 stretches a
     -- frame, about 1.1 ppm of the NES's rate at 50 MHz. START_RATE should be
-    -- the rate that the board's clocks need, so that the NES starts locked
+    -- the rate that the board's clocks need, so that the NES starts locked.
+    -- get_frame_lock_rates gives both
     START_RATE      : natural := 0;
     MAX_RATE        : positive := 2400;
     -- The loop's gains, in rate units per clock of phase error, are
@@ -287,8 +288,7 @@ architecture behavioral of frame_lock_video is
     -- Locked while the error is within ~5 us
     constant LOCK_TOLERANCE : positive := 256;
 
-    constant RATE_BITS : positive := 15;
-    constant RATE_ONE  : positive := 2**RATE_BITS;
+    constant RATE_ONE : positive := 2**FRAME_LOCK_RATE_BITS;
 
     subtype rate_t  is natural range 0 to MAX_RATE;
     subtype integ_t is natural range 0 to MAX_RATE * 2**KI_SHIFT;

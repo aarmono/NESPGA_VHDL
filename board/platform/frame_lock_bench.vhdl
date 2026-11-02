@@ -36,7 +36,8 @@ generic
     RELOAD_FRAME  : natural := 0;
     RELOAD_US     : positive := 3000;
     SEED          : positive := 1;
-    START_RATE    : natural := 591
+    -- The rate the loop starts from. -1 for get_frame_lock_rates's
+    START_RATE    : integer := -1
 );
 end frame_lock_bench;
 
@@ -44,6 +45,22 @@ architecture behavioral of frame_lock_bench is
 
     constant SYS_PERIOD : time := 20 ns;
     constant PIX_PERIOD : time := PIX_PERIOD_PS * 1 ps;
+
+    constant RATES : frame_lock_rates_t :=
+        get_frame_lock_rates(FORMAT_640X480,
+                             1 sec / SYS_PERIOD,
+                             1.0e12 / real(PIX_PERIOD_PS));
+
+    function get_start_rate return natural
+    is
+    begin
+        if START_RATE < 0
+        then
+            return RATES.start_rate;
+        else
+            return START_RATE;
+        end if;
+    end;
 
     signal done : boolean := false;
 
@@ -107,8 +124,8 @@ begin
     nes_clk_en : entity work.clk_en(behavioral)
     generic map
     (
-        CPU_FREQ_NUM => 500_000_000,
-        CPU_FREQ_DEN => 279
+        CPU_FREQ_NUM => RATES.cpu_freq_num,
+        CPU_FREQ_DEN => RATES.cpu_freq_den
     )
     port map
     (
@@ -129,7 +146,8 @@ begin
     generic map
     (
         VENDOR => VENDOR_SIM,
-        START_RATE => START_RATE
+        START_RATE => get_start_rate,
+        MAX_RATE => RATES.max_rate
     )
     port map
     (

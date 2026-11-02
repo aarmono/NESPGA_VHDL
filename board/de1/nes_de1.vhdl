@@ -25,6 +25,9 @@ generic
     -- frame_lock_video). Otherwise the PPU writes a frame to the SRAM,
     -- which the VGA output reads at its own rate
     FRAME_LOCK    : boolean := true;
+    -- CLOCK_VGA's frequency in Hz, which sets the NES's rates with the
+    -- frame lock. vga_pll makes 27 MHz * 29/31
+    CLOCK_VGA_FREQ : real := 27.0e6 * 29.0 / 31.0;
     -- Simulation only: report the frame lock's phase error and stretch
     -- rate once a frame
     LOG_LOCK      : boolean := false
@@ -110,17 +113,22 @@ end nes_de1;
 
 architecture behavioral of nes_de1 is
 
-    -- With the frame lock the NES runs at 27.9 clocks per CPU cycle, 1309
-    -- ppm fast, and frame_lock_video stretches cycles to slow it to the VGA
-    -- output's rate. The VGA PLL makes 27 MHz * 29/31 = 25.258 MHz, 662 ppm
-    -- faster than the 25.2415 MHz that matches the NES, which needs ~591
-    -- units of stretch rate
+    constant CLOCK_50_FREQ : positive := 50_000_000;
+
+    -- With the frame lock the NES runs a little fast, and frame_lock_video
+    -- stretches cycles to slow it to the VGA output's rate. With vga_pll's
+    -- 25.258 MHz the output's frames are 656 ppm faster than the NES's at
+    -- its NTSC rate, so this is 27.9 clocks per CPU cycle, a start rate of
+    -- 591 and a most of 1182
+    constant LOCK_RATES : frame_lock_rates_t :=
+        get_frame_lock_rates(FORMAT_640X480, CLOCK_50_FREQ, CLOCK_VGA_FREQ);
+
     function cpu_freq_num(locked : boolean) return positive
     is
     begin
         if locked
         then
-            return 500_000_000;
+            return LOCK_RATES.cpu_freq_num;
         else
             return 39_375_000;
         end if;
@@ -131,13 +139,11 @@ architecture behavioral of nes_de1 is
     begin
         if locked
         then
-            return 279;
+            return LOCK_RATES.cpu_freq_den;
         else
             return 22;
         end if;
     end;
-
-    constant LOCK_START_RATE : natural := 591;
     
     signal audio_out : mixed_audio_t;
     signal audio     : wm_audio_t;
@@ -480,7 +486,8 @@ begin
         generic map
         (
             FORMAT => FORMAT_640X480,
-            START_RATE => LOCK_START_RATE,
+            START_RATE => LOCK_RATES.start_rate,
+            MAX_RATE => LOCK_RATES.max_rate,
             LOG => LOG_LOCK
         )
         port map

@@ -101,6 +101,9 @@ architecture behavioral of nes_de1_bench is
     signal aud_initialized : boolean := false;
     signal aud_shift : std_logic_vector(15 downto 0) := x"0000";
     signal aud_count : natural range 0 to 2**4-1 := 2**4-1;
+
+    -- 27 MHz * 29/31, as vga_pll makes it, to the nearest ps
+    constant VGA_PERIOD : time := 39591 ps;
 begin
 
     nes : nes_de1
@@ -111,6 +114,8 @@ begin
         POWER_UP_MODE => POWER_UP_DETERMINISTIC,
         RETURN_HOLD_MS => RETURN_HOLD_MS,
         FRAME_LOCK => FRAME_LOCK,
+        -- The bench's VGA clock, which time's precision rounds from vga_pll's
+        CLOCK_VGA_FREQ => 1.0e12 / real(VGA_PERIOD / 1 ps),
         LOG_LOCK => LOG_LOCK
     )
     port map
@@ -335,11 +340,10 @@ begin
         done => false
     );
 
-    -- 27 MHz * 29/31, as the VGA PLL makes it
     clk_vga_gen : clock
     generic map
     (
-        PERIOD => 39591 ps
+        PERIOD => VGA_PERIOD
     )
     port map
     (
