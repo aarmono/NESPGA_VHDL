@@ -45,7 +45,7 @@ end clk_en;
 
 architecture behavioral of clk_en is
     -- A stretched long cycle starts its count at CPU_DIV + 1
-    subtype cpu_count_t is natural range 0 to 32;
+    subtype cpu_count_t is natural range 0 to 31;
     subtype nsf_count_t is natural range 0 to 63;
 
     -- Clocks per CPU cycle as the reduced fraction
@@ -142,8 +142,9 @@ architecture behavioral of clk_en is
 
 begin
 
-    assert CPU_DIV >= 6 and MAX_CPU_DIV <= 31
-        report "clk_en: CPU cycles must be 6 to 31 clocks long"
+    -- A stretch makes a cycle a clock longer still
+    assert CPU_DIV >= 6 and MAX_CPU_DIV <= 30
+        report "clk_en: CPU cycles must be 6 to 30 clocks long"
         severity failure;
 
     assert NSF_DIV >= 1 and NSF_DIV <= 64

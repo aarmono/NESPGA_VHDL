@@ -61,15 +61,9 @@ architecture behavioral of ppu is
     signal reg_next : ppu_reg_t;
 
     signal vint_next : boolean;
-
-    function to_position(t : ppu_time_t) return ppu_position_t
-    is
-    begin
-        return (frame => t.frame, scanline => t.scanline, cycle => t.cycle);
-    end;
 begin
 
-    start_position <= to_position(power_up_ppu_time(power_up_seed));
+    start_position <= power_up_ppu_time(power_up_seed);
 
     process(clk)
     begin

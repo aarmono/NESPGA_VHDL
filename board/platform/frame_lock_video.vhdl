@@ -8,9 +8,9 @@ use work.platform_video.all;
 -- The PPU's frame timing, in the numbering ppu_position_t uses
 use work.lib_ppu.DOTS_PER_LINE;
 use work.lib_ppu.LINES_PER_FRAME;
-use work.lib_ppu.LAST_LINE;
-use work.lib_ppu.LAST_CYCLE;
 use work.lib_ppu.FRAME_START;
+use work.lib_ppu.ppu_time_t;
+use work.lib_ppu.incr_time;
 
 -- Shows the PPU's picture, doubled to 512x480, on an output whose frames are
 -- locked to the NES's, so that each NES line is shown about a line after the
@@ -79,7 +79,7 @@ port
     video : out video_out_t;
 
     -- On clk_sys, for debugging. phase_error is in clocks, positive when
-    -- the NES is late, and updates once a frame
+    -- the NES is late, saturates at ~330 us and updates once a frame
     phase_error  : out integer;
     stretch_rate : out natural;
     locked       : out boolean
@@ -122,16 +122,13 @@ architecture behavioral of frame_lock_video is
         (H_TOTAL * V_TOTAL);
     constant REF_ROW : row_t := REF_POS / H_TOTAL;
     constant REF_COL : col_t := REF_POS mod H_TOTAL;
+    -- About half a frame after it
+    constant HALF_ROW : row_t := (REF_ROW + V_TOTAL / 2) mod V_TOTAL;
 
     function sync_level(active : boolean; low : boolean) return std_logic
     is
     begin
-        if active = low
-        then
-            return '0';
-        else
-            return '1';
-        end if;
+        return to_std_logic(active /= low);
     end;
 
     type pix_ctl_t is record
@@ -170,22 +167,22 @@ architecture behavioral of frame_lock_video is
         return ret;
     end;
 
+    -- Added to row and col to put the picture's first line and pixel at a
+    -- multiple of the buffer's lines and width, doubled
+    constant V_ADDR_OFFSET : natural := 2 * LINES - V_WIN_START mod (2 * LINES);
+    constant H_ADDR_OFFSET : natural :=
+        2 * NES_WIDTH - H_WIN_START mod (2 * NES_WIDTH);
+
     -- The buffer address that output pixel (row, col) shows, when it is in
-    -- the picture
+    -- the picture. Outside it the data is replaced with black, so the
+    -- address doesn't matter
     function get_read_addr(row : row_t; col : col_t) return buf_addr_t
     is
         variable line : buf_line_t;
         variable x : nes_x_t;
     begin
-        if row >= V_WIN_START and col >= H_WIN_START and
-           col < H_WIN_START + 2 * NES_WIDTH
-        then
-            line := ((row - V_WIN_START) / 2) mod LINES;
-            x := (col - H_WIN_START) / 2;
-        else
-            line := 0;
-            x := 0;
-        end if;
+        line := ((row + V_ADDR_OFFSET) / 2) mod LINES;
+        x := ((col + H_ADDR_OFFSET) / 2) mod NES_WIDTH;
 
         return line * NES_WIDTH + x;
     end;
@@ -201,7 +198,8 @@ architecture behavioral of frame_lock_video is
         ctl_3      : pix_ctl_t;
         color_2    : color_idx_t;
         color_3    : color_idx_t;
-        ref_toggle : std_logic;
+        -- High for the half frame after the reference point
+        ref_half   : std_logic;
     end record;
 
     constant PIX_REG_RESET : pix_reg_t :=
@@ -213,7 +211,7 @@ architecture behavioral of frame_lock_video is
         ctl_3 => PIX_CTL_RESET,
         color_2 => COLOR_IDX_BLACK,
         color_3 => COLOR_IDX_BLACK,
-        ref_toggle => '0'
+        ref_half => '0'
     );
 
     function cycle_pix(reg : pix_reg_t; buf_data : color_idx_t)
@@ -235,9 +233,15 @@ architecture behavioral of frame_lock_video is
         end if;
         ret.color_3 := reg.color_2;
 
-        if reg.row = REF_ROW and reg.col = REF_COL
+        if reg.col = REF_COL
         then
-            ret.ref_toggle := not reg.ref_toggle;
+            if reg.row = REF_ROW
+            then
+                ret.ref_half := '1';
+            elsif reg.row = HALF_ROW
+            then
+                ret.ref_half := '0';
+            end if;
         end if;
 
         if reg.col = col_t'high
@@ -258,31 +262,27 @@ architecture behavioral of frame_lock_video is
     -- }
 
     -- Lock {
-    -- A line and cycle of the PPU's frame, as ppu_position_t has them.
-    -- FRAME_START is the line of the first pixel
-    subtype frame_line_t  is natural range 0 to LAST_LINE;
-    subtype frame_cycle_t is natural range 0 to LAST_CYCLE;
-
     -- Where the PPU is at the output's reference point when locked
-    constant REF_DOT   : natural :=
+    constant REF_DOT  : natural :=
         (FRAME_START * DOTS_PER_LINE + START_LEAD_DOTS) mod
         (LINES_PER_FRAME * DOTS_PER_LINE);
-    constant REF_LINE  : frame_line_t := REF_DOT / DOTS_PER_LINE;
-    constant REF_CYCLE : frame_cycle_t := REF_DOT mod DOTS_PER_LINE;
+    constant REF_TIME : ppu_time_t :=
+    (
+        frame => 0,
+        scanline => REF_DOT / DOTS_PER_LINE,
+        cycle => REF_DOT mod DOTS_PER_LINE
+    );
 
-    -- A frame is ~832,000 clocks at 50 MHz
-    subtype count_t is natural range 0 to 2**21-1;
-    subtype error_t is integer range -2**21 to 2**21;
-
-    -- Errors are clamped before the gains, which bounds the widths. The
-    -- proportional term of the largest is still past MAX_RATE
+    -- The phase is measured to the nearer reference point, and saturates
+    -- here, which bounds the widths. The proportional term of the largest
+    -- error is still past MAX_RATE
     constant ERROR_CLAMP : positive := 2**14 - 1;
-    subtype clamped_error_t is integer range -ERROR_CLAMP to ERROR_CLAMP;
+    subtype error_t is integer range -ERROR_CLAMP to ERROR_CLAMP;
 
     -- The start of the NES's picture is only measured after this many dots
-    -- of VBlank, so that the PPU starting inside the picture is not taken
-    -- for its start. VBlank is 21 lines
-    constant MIN_BLANK_DOTS : positive := 4095;
+    -- outside it while running, so that frame_valid from before the PPU
+    -- started is not taken for a start
+    constant MIN_BLANK_DOTS : positive := 31;
     subtype blank_dots_t is natural range 0 to MIN_BLANK_DOTS;
 
     -- Locked while the error is within ~5 us
@@ -301,60 +301,52 @@ architecture behavioral of frame_lock_video is
         nes_running    : boolean;
         waiting_to_run : boolean;
         ppu_start      : ppu_position_t;
-        ref_toggle     : std_logic;
+        ref_half       : std_logic;
     end record;
 
     type lock_reg_t is record
-        -- ref_toggle synchronized to clk_sys
-        ref_sync         : std_logic_vector(2 downto 0);
-        -- Clocks since the reference point, and between the last two
-        since_ref        : count_t;
-        frame_len        : count_t;
-        -- Reference points seen, up to the 2 that make frame_len valid
-        refs             : natural range 0 to 2;
+        -- ref_half synchronized to clk_sys
+        ref_sync    : std_logic_vector(2 downto 0);
+        -- Clocks since the reference point. Once the NES's picture has
+        -- started in the half frame before one, the clocks to it, counted
+        -- down from the start
+        phase       : error_t;
+        early       : boolean;
 
-        prev_line_valid  : boolean;
         -- Dots the NES has run outside its picture, up to MIN_BLANK_DOTS
-        blank_dots       : blank_dots_t;
+        blank_dots  : blank_dots_t;
 
-        -- Writes to the buffer
-        write_x          : nes_x_t;
-        write_line       : buf_line_t;
-        write            : boolean;
-        write_addr       : buf_addr_t;
-        write_data       : color_idx_t;
+        -- Writes to the buffer. The address moves on after each write, and
+        -- the lines are NES_WIDTH pixels, so it moves to the next line too
+        write       : boolean;
+        write_addr  : buf_addr_t;
+        write_data  : color_idx_t;
 
         -- The loop
-        error            : error_t;
-        integ            : integ_t;
-        rate             : rate_t;
-        acc              : acc_t;
-        stretch          : boolean;
-        locked           : boolean;
-        clamped_error    : clamped_error_t;
+        error       : error_t;
+        integ       : integ_t;
+        rate        : rate_t;
+        acc         : acc_t;
+        stretch     : boolean;
+        locked      : boolean;
         -- The step of the update from a new error, 0 when none is running
-        update_step      : natural range 0 to 3;
+        update_step : natural range 0 to 2;
 
         -- Where the PPU would be if it were running locked, from the
         -- reference point, to start it from
-        v_line           : frame_line_t;
-        v_cycle          : frame_cycle_t;
-        v_valid          : boolean;
-        go               : boolean;
+        v_time      : ppu_time_t;
+        v_valid     : boolean;
+        go          : boolean;
     end record;
 
     constant LOCK_REG_RESET : lock_reg_t :=
     (
         ref_sync => (others => '0'),
-        since_ref => 0,
-        frame_len => 0,
-        refs => 0,
+        phase => 0,
+        early => false,
 
-        prev_line_valid => false,
         blank_dots => 0,
 
-        write_x => 0,
-        write_line => 0,
         write => false,
         write_addr => 0,
         write_data => COLOR_IDX_BLACK,
@@ -365,11 +357,9 @@ architecture behavioral of frame_lock_video is
         acc => 0,
         stretch => false,
         locked => false,
-        clamped_error => 0,
         update_step => 0,
 
-        v_line => 0,
-        v_cycle => 0,
+        v_time => REF_TIME,
         v_valid => false,
         go => false
     );
@@ -377,42 +367,15 @@ architecture behavioral of frame_lock_video is
     function clamp(val : integer; lo : integer; hi : integer) return integer
     is
     begin
-        if val < lo
-        then
-            return lo;
-        elsif val > hi
-        then
-            return hi;
-        else
-            return val;
-        end if;
+        return max(lo, min_int(val, hi));
     end;
 
-    -- val / 2**shift, rounded toward zero. Shifting the magnitude avoids
-    -- the divider that synthesis builds for a signed division
-    function signed_shift_right(val : integer; shift : natural) return integer
+    -- val / 2**shift, rounded down. An arithmetic shift is only wiring,
+    -- where a signed division builds a divider
+    function floor_shift_right(val : integer; shift : natural) return integer
     is
     begin
-        if val < 0
-        then
-            return -shift_right(-val, shift);
-        else
-            return shift_right(val, shift);
-        end if;
-    end;
-
-    -- The time from the reference point to the start of the NES's picture,
-    -- taken as the nearer of the reference points before and after it
-    function get_error(since_ref : count_t; frame_len : count_t)
-        return error_t
-    is
-    begin
-        if since_ref * 2 <= frame_len
-        then
-            return since_ref;
-        else
-            return since_ref - frame_len;
-        end if;
+        return to_integer(shift_right(to_signed(val, 32), shift));
     end;
 
     function cycle_lock(reg : lock_reg_t; lock_in : lock_in_t)
@@ -421,31 +384,27 @@ architecture behavioral of frame_lock_video is
         alias pixels : pixel_bus_t is lock_in.pixel_bus;
         variable ret : lock_reg_t;
         variable ref_event : boolean;
+        variable after_ref : boolean;
         variable sum : natural range 0 to 2 * RATE_ONE;
     begin
         ret := reg;
         ret.write := false;
 
-        ref_event := reg.ref_sync(2) /= reg.ref_sync(1);
-        ret.ref_sync := reg.ref_sync(1 downto 0) & lock_in.ref_toggle;
+        ref_event := reg.ref_sync(2) = '0' and reg.ref_sync(1) = '1';
+        -- phase counts from the reference point
+        after_ref := reg.ref_sync(2) = '1';
+        ret.ref_sync := reg.ref_sync(1 downto 0) & lock_in.ref_half;
 
-        -- Updates the loop from a new error over 3 clocks, which keeps
+        -- Updates the loop from a new error over 2 clocks, which keeps
         -- the arithmetic off the critical path
         case reg.update_step is
             when 1 =>
-                ret.clamped_error := clamp(reg.error,
-                                           -ERROR_CLAMP,
-                                           ERROR_CLAMP);
+                ret.integ := clamp(reg.integ - reg.error, 0, integ_t'high);
+                ret.locked := abs(reg.error) < LOCK_TOLERANCE;
                 ret.update_step := 2;
             when 2 =>
-                ret.integ := clamp(reg.integ - reg.clamped_error,
-                                   0,
-                                   integ_t'high);
-                ret.update_step := 3;
-            when 3 =>
                 ret.rate := clamp(shift_right(reg.integ, KI_SHIFT) -
-                                  signed_shift_right(reg.clamped_error,
-                                                     KP_SHIFT),
+                                  floor_shift_right(reg.error, KP_SHIFT),
                                   0,
                                   MAX_RATE);
                 ret.update_step := 0;
@@ -467,35 +426,51 @@ architecture behavioral of frame_lock_video is
             end if;
         end if;
 
+        if reg.early
+        then
+            if reg.phase /= -ERROR_CLAMP
+            then
+                ret.phase := reg.phase - 1;
+            end if;
+        elsif reg.phase /= ERROR_CLAMP
+        then
+            ret.phase := reg.phase + 1;
+        end if;
+
+        if reg.write
+        then
+            ret.write_addr := wrap(reg.write_addr + 1, buf_addr_t'high);
+        end if;
+
         if lock_in.ppu_clk_en
         then
-            -- Measures the phase at the start of the NES's picture
+            -- Measures the phase at the start of the NES's picture, now if
+            -- the reference point was before it, or at the reference point
+            -- if not
             if pixels.frame_valid and reg.blank_dots = MIN_BLANK_DOTS and
-               reg.refs = 2 and lock_in.nes_running
+               reg.v_valid
             then
-                ret.error := get_error(reg.since_ref, reg.frame_len);
-                ret.locked := abs(ret.error) < LOCK_TOLERANCE;
-                ret.update_step := 1;
+                if after_ref
+                then
+                    ret.error := reg.phase;
+                    ret.update_step := 1;
+                else
+                    ret.phase := -1;
+                    ret.early := true;
+                end if;
             end if;
 
             -- Writes the picture's lines to the buffer
             if pixels.line_valid
             then
                 ret.write := true;
-                ret.write_addr := reg.write_line * NES_WIDTH + reg.write_x;
                 ret.write_data := to_emphasis_bits(pixels.emphasis) &
                                   pixels.pixel;
-                ret.write_x := wrap(reg.write_x + 1, nes_x_t'high);
-            elsif reg.prev_line_valid
-            then
-                ret.write_x := 0;
-                ret.write_line := wrap(reg.write_line + 1, buf_line_t'high);
             end if;
 
             if not pixels.frame_valid
             then
-                ret.write_x := 0;
-                ret.write_line := 0;
+                ret.write_addr := 0;
             end if;
 
             if pixels.frame_valid
@@ -506,53 +481,39 @@ architecture behavioral of frame_lock_video is
                 ret.blank_dots := reg.blank_dots + 1;
             end if;
 
-            ret.prev_line_valid := pixels.line_valid;
-
             -- Starts the NES when the PPU would be where it starts from
             if lock_in.waiting_to_run and reg.v_valid and
-               reg.v_line = lock_in.ppu_start.scanline and
-               reg.v_cycle = lock_in.ppu_start.cycle
+               reg.v_time.scanline = lock_in.ppu_start.scanline and
+               reg.v_time.cycle = lock_in.ppu_start.cycle
             then
                 ret.go := true;
             end if;
 
-            if reg.v_cycle = frame_cycle_t'high
+            ret.v_time := incr_time(reg.v_time, false);
+        end if;
+
+        if ref_event
+        then
+            if ret.early
             then
-                ret.v_cycle := 0;
-                if reg.v_line = frame_line_t'high
-                then
-                    ret.v_line := 0;
-                else
-                    ret.v_line := reg.v_line + 1;
-                end if;
-            else
-                ret.v_cycle := reg.v_cycle + 1;
+                ret.error := ret.phase;
+                ret.update_step := 1;
+                ret.early := false;
             end if;
+            ret.phase := 0;
+
+            ret.v_time := REF_TIME;
+            ret.v_valid := true;
         end if;
 
         if not lock_in.nes_running
         then
             -- Holds the rate while the NES isn't running to measure
-            ret.rate := shift_right(reg.integ, KI_SHIFT);
+            ret.error := 0;
+            ret.update_step := 2;
             ret.locked := false;
+            ret.early := false;
             ret.blank_dots := 0;
-        end if;
-
-        if ref_event
-        then
-            ret.since_ref := 0;
-            ret.frame_len := reg.since_ref;
-            if reg.refs < 2
-            then
-                ret.refs := reg.refs + 1;
-            end if;
-
-            ret.v_line := REF_LINE;
-            ret.v_cycle := REF_CYCLE;
-            ret.v_valid := true;
-        elsif reg.since_ref < count_t'high
-        then
-            ret.since_ref := reg.since_ref + 1;
         end if;
 
         -- The position is only kept while the PPU's clock runs, which it
@@ -621,7 +582,7 @@ begin
         lock_in.nes_running := nes_running;
         lock_in.waiting_to_run := waiting_to_run;
         lock_in.ppu_start := ppu_start;
-        lock_in.ref_toggle := pix_reg.ref_toggle;
+        lock_in.ref_half := pix_reg.ref_half;
 
         if reset_sys
         then
@@ -651,7 +612,7 @@ begin
     begin
     if rising_edge(clk_pix)
     then
-        rgb <= COLOR_ROM(to_integer(unsigned(pix_reg.color_2)));
+        rgb <= COLOR_ROM(to_integer(pix_reg.color_2));
     end if;
     end process;
 

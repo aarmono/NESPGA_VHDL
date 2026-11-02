@@ -169,11 +169,7 @@ package lib_ppu is
     function decay_io_latch(latch : io_latch_t) return io_latch_t;
     
     -- Encapsulates the current time for the PPU
-    type ppu_time_t is record
-        frame    : ppu_frame_t;
-        scanline : ppu_cycle_t;
-        cycle    : ppu_cycle_t;
-    end record;
+    subtype ppu_time_t is ppu_position_t;
     
     -- Reset value for ppu_time_t registers
     constant TIME_ZERO : ppu_time_t :=
