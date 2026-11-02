@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: frame_lock_bench
 
 # Elaboration target
-frame_lock_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o /opt/ghdl/lib/ghdl/std/v08/env.o /opt/ghdl/lib/ghdl/std/v08/env-body.o utilities.o nes_types.o perhipheral_types.o platform_video.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o lib_ppu.o clk_en.o syncram_sdp.o frame_lock_video.o frame_lock_bench.o
+frame_lock_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o /opt/ghdl/lib/ghdl/std/v08/env.o /opt/ghdl/lib/ghdl/std/v08/env-body.o utilities.o nes_types.o perhipheral_types.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o lib_ppu.o platform_video.o clk_en.o syncram_sdp.o frame_lock_video.o frame_lock_bench.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -54,8 +54,6 @@ nes_types.o: ../../../core/nes_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 perhipheral_types.o: ../../../perhiperals/perhipheral_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-platform_video.o: ../../../board/platform/platform_video.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
 chr_bus_types.o: ../../../bus/chr_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 ppu_bus_types.o: ../../../bus/ppu_bus_types.vhdl
@@ -67,6 +65,8 @@ sec_oam_bus_types.o: ../../../bus/sec_oam_bus_types.vhdl
 palette_bus_types.o: ../../../bus/palette_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 lib_ppu.o: ../../../core/ppu/lib_ppu.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+platform_video.o: ../../../board/platform/platform_video.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 clk_en.o: ../../../core/clk_en/clk_en.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -91,13 +91,13 @@ frame_lock_bench.o: ../../../board/platform/frame_lock_bench.vhdl
 utilities.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 nes_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 perhipheral_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-platform_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o lib_ppu.o
 chr_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 ppu_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 oam_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 sec_oam_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 palette_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
 lib_ppu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o
+platform_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o lib_ppu.o
 clk_en.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
 syncram_sdp.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o utilities.o
 frame_lock_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o syncram_sdp.o

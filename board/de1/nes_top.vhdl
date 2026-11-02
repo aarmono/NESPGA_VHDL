@@ -109,6 +109,16 @@ begin
     
     reset_n <= aud_locked and vga_locked;
 
+    -- The SRAM isn't used. Its pins are held deselected rather than left to
+    -- Quartus's unused pin setting, which would drive CE_N and WE_N low
+    SRAM_DQ <= (others => 'Z');
+    SRAM_ADDR <= (others => '0');
+    SRAM_LB_N <= '1';
+    SRAM_UB_N <= '1';
+    SRAM_CE_N <= '1';
+    SRAM_OE_N <= '1';
+    SRAM_WE_N <= '1';
+
     -- NES controller ports on JP2 header pins 1-5 (port 1) and 6-10
     -- (port 2), each in the order CLK, latch, D0, D3, D4. Controllers must
     -- be powered from 3.3 V (pin 29), not 5 V
@@ -195,14 +205,6 @@ begin
         SD_DAT3 => SD_DAT3,
         SD_CMD  => SD_CMD,
         SD_CLK  => SD_CLK,
-        
-        SRAM_DQ   => SRAM_DQ,
-        SRAM_ADDR => SRAM_ADDR,
-        SRAM_LB_N => SRAM_LB_N,
-        SRAM_UB_N => SRAM_UB_N,
-        SRAM_CE_N => SRAM_CE_N,
-        SRAM_OE_N => SRAM_OE_N,
-        SRAM_WE_N => SRAM_WE_N,
 
         VGA_R    => VGA_R,
         VGA_G    => VGA_G,

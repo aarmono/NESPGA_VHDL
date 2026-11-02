@@ -31,7 +31,6 @@ generic
     JOY_RETURN_FROM_MS  : natural := 0;
     JOY_RETURN_UNTIL_MS : natural := 0;
     RETURN_HOLD_MS  : positive := 2000;
-    FRAME_LOCK      : boolean := true;
     -- Report the frame lock's phase error and stretch rate once a frame
     LOG_LOCK        : boolean := false
 );
@@ -77,12 +76,6 @@ architecture behavioral of nes_de1_bench is
     signal joy_1_clk   : std_logic;
     signal joy_1_data  : joy_data_t := JOY_DATA_IDLE;
 
-    signal sram_dq   : std_logic_vector(15 downto 0);
-    signal sram_addr : std_logic_vector(17 downto 0);
-    signal sram_oe_n : std_logic;
-    signal sram_we_n : std_logic;
-    signal sram_ce_n : std_logic;
-    
     signal bclk    : std_logic;
     signal dacdat  : std_logic;
     signal daclrck : std_logic;
@@ -113,7 +106,6 @@ begin
         -- The oscillators of the random number generator cannot be simulated
         POWER_UP_MODE => POWER_UP_DETERMINISTIC,
         RETURN_HOLD_MS => RETURN_HOLD_MS,
-        FRAME_LOCK => FRAME_LOCK,
         -- The bench's VGA clock, which time's precision rounds from vga_pll's
         CLOCK_VGA_FREQ => 1.0e12 / real(VGA_PERIOD / 1 ps),
         LOG_LOCK => LOG_LOCK
@@ -162,12 +154,6 @@ begin
         SD_CMD => sd_cmd,
         SD_CLK => sd_clk,
 
-        SRAM_DQ => sram_dq,
-        SRAM_ADDR => sram_addr,
-        SRAM_OE_N => sram_oe_n,
-        SRAM_WE_N => sram_we_n,
-        SRAM_CE_N => sram_ce_n,
-
         VGA_R => vga_r,
         VGA_G => vga_g,
         VGA_B => vga_b,
@@ -214,28 +200,6 @@ begin
         end if;
     end if;
     end process;
-
-    video_ram : component sram
-    generic map
-    (
-        clear_on_power_up => true,
-        download_on_power_up => false,
-        trace_ram_load => false,
-
-        size => 16#40000#,
-        adr_width => 18,
-        width => 16
-    )
-    port map
-    (
-        nCE => sram_ce_n,
-        nOE => sram_oe_n,
-        nWE => sram_we_n,
-
-        A => sram_addr,
-        D => sram_dq
-    );
-    
 
     rom_ram : entity work.sdram(behavioral)
     port map

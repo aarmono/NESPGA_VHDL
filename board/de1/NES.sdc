@@ -29,12 +29,6 @@ create_generated_clock -name {sdram_clk} \
     -source [get_pins $clk_we] \
     [get_ports {DRAM_CLK}]
 
-# ppu_video_ram_mux gates CLOCK_WE onto SRAM_WE_N during writes, so the
-# write strobe is low while CLOCK_WE is low
-create_generated_clock -name {sram_we_clk} \
-    -source [get_pins $clk_we] \
-    [get_ports {SRAM_WE_N}]
-
 derive_clock_uncertainty
 
 
@@ -45,7 +39,7 @@ derive_clock_uncertainty
 # The audio clock comes from the same PLL as CLOCK_WE, but its frequency is
 # not a simple ratio of 50 MHz and the design treats it as asynchronous
 set_clock_groups -asynchronous \
-    -group [get_clocks [list {CLOCK_50} $clk_we {sdram_clk} {sram_we_clk}]] \
+    -group [get_clocks [list {CLOCK_50} $clk_we {sdram_clk}]] \
     -group [get_clocks $clk_aud] \
     -group [get_clocks [list {CLOCK_27} $clk_vga]]
 
@@ -81,41 +75,6 @@ set_multicycle_path -hold -end 0 -from [get_clocks {sdram_clk}] -to [get_clocks 
 
 
 #**************************************************************
-# SRAM
-#**************************************************************
-
-# vga_gen presents an SRAM address and captures the pixel data on the next
-# VGA clock (39.591 ns), so the round trip through the 10 ns SRAM is split
-# into a budget of 15 ns from the VGA clock to the address pins, 1 ns of
-# board delay and 10 ns of SRAM access time, leaving the rest of the period
-# from the data pins to the capturing register.
-set sram_read_outputs [get_ports {SRAM_ADDR[*] SRAM_OE_N SRAM_CE_N}]
-
-set_output_delay -clock [get_clocks $clk_vga] -max 24.591 $sram_read_outputs
-set_output_delay -clock [get_clocks $clk_vga] -min  0.000 $sram_read_outputs
-
-set_input_delay -clock [get_clocks $clk_vga] -max 26.000 [get_ports {SRAM_DQ[*]}]
-set_input_delay -clock [get_clocks $clk_vga] -min  3.000 [get_ports {SRAM_DQ[*]}]
-
-# ppu_video_ram_mux registers the write address and data on CLOCK_50, and
-# the write strobe falls and rises within the following clock. Values are
-# for the 10 ns IS61LV25616AL:
-#   tSA 0 (address setup to write start), tHA 0 (address hold from write end)
-#   tAW 8 (address setup to write end)
-#   tSD 6 (data setup to write end), tHD 0 (data hold from write end)
-# CE_N is gated the same way as WE_N, so only WE_N is used as the reference.
-# The address must also not change before the write starts, which is never
-# close since it only changes on the CLOCK_50 edge
-set_output_delay -clock {sram_we_clk} -clock_fall -max 0.000 -add_delay [get_ports {SRAM_ADDR[*]}]
-set_output_delay -clock {sram_we_clk} -clock_fall -min 0.000 -add_delay [get_ports {SRAM_ADDR[*]}]
-set_output_delay -clock {sram_we_clk} -max 8.000 -add_delay [get_ports {SRAM_ADDR[*]}]
-set_output_delay -clock {sram_we_clk} -min 0.000 -add_delay [get_ports {SRAM_ADDR[*]}]
-
-set_output_delay -clock {sram_we_clk} -max 6.000 [get_ports {SRAM_DQ[*]}]
-set_output_delay -clock {sram_we_clk} -min 0.000 [get_ports {SRAM_DQ[*]}]
-
-
-#**************************************************************
 # Asynchronous and Slow I/O
 #**************************************************************
 
@@ -126,6 +85,9 @@ set_false_path -to [get_ports {LEDR[*] LEDG[*] PS2_CLK PS2_DAT}]
 set_false_path -to [get_ports {I2C_SCLK I2C_SDAT}]
 set_false_path -to [get_ports {AUD_BCLK AUD_DACDAT AUD_DACLRCK AUD_XCK}]
 set_false_path -to [get_ports {VGA_R[*] VGA_G[*] VGA_B[*] VGA_HS VGA_VS}]
+
+# The SRAM isn't used, its pins are held at constants
+set_false_path -to [get_ports {SRAM_*}]
 
 # sdram_rom waits FLASH_READ_CLKS clocks after changing the flash address
 # before sampling the flash data, which covers the flash access time
