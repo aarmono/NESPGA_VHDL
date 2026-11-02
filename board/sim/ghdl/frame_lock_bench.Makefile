@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: frame_lock_bench
 
 # Elaboration target
-frame_lock_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o /opt/ghdl/lib/ghdl/std/v08/env.o /opt/ghdl/lib/ghdl/std/v08/env-body.o utilities.o nes_types.o perhipheral_types.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o lib_ppu.o platform_video.o clk_en.o syncram_sdp.o frame_lock_video.o frame_lock_bench.o
+frame_lock_bench: utilities.o nes_types.o perhipheral_types.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o lib_ppu.o platform_video.o clk_en.o syncram_sdp.o frame_lock_video.o frame_lock_bench.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -18,36 +18,6 @@ run: frame_lock_bench
 	$(GHDL) -r frame_lock_bench $(GHDLRUNFLAGS)
 
 # Targets to analyze files
-/opt/ghdl/lib/ghdl/std/v08/textio.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/textio.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/std/v08/textio-body.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/textio-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/std_logic_1164.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/std_logic_1164-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/numeric_std.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/numeric_std-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/math_real.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/math_real.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/math_real-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/std/v08/env.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/env.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/std/v08/env-body.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/env-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
 utilities.o: ../../../common/utilities.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_types.o: ../../../core/nes_types.vhdl
@@ -78,27 +48,17 @@ frame_lock_bench.o: ../../../board/platform/frame_lock_bench.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 
 # Files dependences
-/opt/ghdl/lib/ghdl/std/v08/textio.o: 
-/opt/ghdl/lib/ghdl/std/v08/textio-body.o:  /opt/ghdl/lib/ghdl/std/v08/textio.o
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o:  /opt/ghdl/lib/ghdl/std/v08/textio.o
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o:  /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o:  /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-/opt/ghdl/lib/ghdl/ieee/v08/math_real.o: 
-/opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o:  /opt/ghdl/lib/ghdl/ieee/v08/math_real.o
-/opt/ghdl/lib/ghdl/std/v08/env.o: 
-/opt/ghdl/lib/ghdl/std/v08/env-body.o:  /opt/ghdl/lib/ghdl/std/v08/env.o
-utilities.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-nes_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-perhipheral_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-chr_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-ppu_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-oam_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-sec_oam_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-palette_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-lib_ppu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o
-platform_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o lib_ppu.o
-clk_en.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-syncram_sdp.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o utilities.o
-frame_lock_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o syncram_sdp.o
-frame_lock_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/std/v08/env.o nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o clk_en.o frame_lock_video.o
+utilities.o: 
+nes_types.o:  utilities.o
+perhipheral_types.o: 
+chr_bus_types.o: 
+ppu_bus_types.o: 
+oam_bus_types.o: 
+sec_oam_bus_types.o: 
+palette_bus_types.o: 
+lib_ppu.o:  nes_types.o utilities.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o
+platform_video.o:  nes_types.o utilities.o perhipheral_types.o lib_ppu.o
+clk_en.o:  utilities.o
+syncram_sdp.o:  perhipheral_types.o utilities.o
+frame_lock_video.o:  nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o syncram_sdp.o
+frame_lock_bench.o:  nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o clk_en.o frame_lock_video.o
