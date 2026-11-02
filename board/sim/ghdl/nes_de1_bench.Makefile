@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -fsynopsys -O3
 all: nes_de1_bench
 
 # Elaboration target
-nes_de1_bench: /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/std/v08/textio-body.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o utilities.o nes_types.o file_bus_types.o binary_io.o au_file.o perhipheral_types.o de1_types.o apu_bus_types.o cart_mem_bus_types.o nes_audio_mixer.o simulation.o sdram.o sd_card.o bmp_file.o vga_video_record.o nes_de1_bench.o perhipherals.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_types.o cpu_bus_types.o ram_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o ciram_bus_types.o opll_bus_types.o soc.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o /opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o ppu_bus_types.o lib_ppu.o platform_video.o sdram_ctrl.o sdram_rom.o sd_menu_stub.o sd_reader.o sd_menu.o flash_stream.o nes_de1.o file_memory.o clock.o syncram_sp.o lib_wm8731.o wm8731.o syncram_sdp.o frame_lock_video.o lib_mapper_latch.o lib_mapper_mmc1.o lib_mapper_mmc2.o lib_mapper_mmc3.o lib_sunsoft_5b_audio.o lib_irq_counter.o lib_mapper_fme7.o lib_vrc_irq.o lib_mapper_vrc4.o lib_vrc6_audio.o lib_mapper_vrc6.o lib_vrc7_audio.o lib_mapper_vrc7.o lib_apu_envelope.o lib_apu_length.o lib_apu_square.o lib_mmc5_audio.o lib_mapper_mmc5.o lib_n163_audio.o lib_mapper_n163.o lib_mapper_action53.o lib_bandai_eeprom.o lib_mapper_bandai.o lib_mapper_ss88006.o lib_mapper_taito.o lib_mapper_sunsoft.o lib_mapper_irem.o lib_mapper_nsf.o lib_cartridge.o joy_bus_types.o lib_nes_mmap.o lib_nes.o nes_core.o neoTRNG.o power_up_fill.o cart_mem_bus_mux.o cartridge.o nes_soc.o nes_soc_ocram.o joy_port.o ps2_joystick.o clk_en.o lib_cpu_types.o lib_cpu_decode_defs.o lib_cpu_decode.o lib_cpu_exec.o lib_cpu.o cpu.o lib_apu_frame_seq.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o lib_apu.o apu.o joystick_io.o ppu.o oam_dma.o ps2.o edge_detector.o counter.o ps2_bus.o ps2_keyboard.o
+nes_de1_bench: utilities.o nes_types.o file_bus_types.o binary_io.o au_file.o perhipheral_types.o de1_types.o apu_bus_types.o cart_mem_bus_types.o nes_audio_mixer.o simulation.o sdram.o sd_card.o bmp_file.o vga_video_record.o nes_de1_bench.o perhipherals.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_types.o cpu_bus_types.o ram_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o ciram_bus_types.o opll_bus_types.o soc.o ppu_bus_types.o lib_ppu.o platform_video.o sdram_ctrl.o sdram_rom.o sd_menu_stub.o sd_reader.o sd_menu.o flash_stream.o nes_de1.o file_memory.o clock.o syncram_sp.o lib_wm8731.o wm8731.o syncram_sdp.o frame_lock_video.o lib_mapper_latch.o lib_mapper_mmc1.o lib_mapper_mmc2.o lib_mapper_mmc3.o lib_sunsoft_5b_audio.o lib_irq_counter.o lib_mapper_fme7.o lib_vrc_irq.o lib_mapper_vrc4.o lib_vrc6_audio.o lib_mapper_vrc6.o lib_vrc7_audio.o lib_mapper_vrc7.o lib_apu_envelope.o lib_apu_length.o lib_apu_square.o lib_mmc5_audio.o lib_mapper_mmc5.o lib_n163_audio.o lib_mapper_n163.o lib_mapper_action53.o lib_bandai_eeprom.o lib_mapper_bandai.o lib_mapper_ss88006.o lib_mapper_taito.o lib_mapper_sunsoft.o lib_mapper_irem.o lib_mapper_nsf.o lib_cartridge.o joy_bus_types.o lib_nes_mmap.o lib_nes.o nes_core.o neoTRNG.o power_up_fill.o cart_mem_bus_mux.o cartridge.o nes_soc.o nes_soc_ocram.o joy_port.o ps2_joystick.o clk_en.o lib_cpu_types.o lib_cpu_decode_defs.o lib_cpu_decode.o lib_cpu_exec.o lib_cpu.o cpu.o lib_apu_frame_seq.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o lib_apu.o apu.o joystick_io.o ppu.o oam_dma.o ps2.o edge_detector.o counter.o ps2_bus.o ps2_keyboard.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -18,24 +18,6 @@ run: nes_de1_bench
 	$(GHDL) -r nes_de1_bench $(GHDLRUNFLAGS)
 
 # Targets to analyze files
-/opt/ghdl/lib/ghdl/std/v08/textio.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/textio.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/std/v08/textio-body.o: /opt/ghdl/lib/ghdl/std/v08/../../src/std/v08/textio-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/std_logic_1164.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/std_logic_1164-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/numeric_std.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/numeric_std-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
 utilities.o: ../../../common/utilities.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_types.o: ../../../core/nes_types.vhdl
@@ -100,12 +82,6 @@ opll_bus_types.o: ../../../bus/opll_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 soc.o: ../../../soc/soc.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-/opt/ghdl/lib/ghdl/ieee/v08/math_real.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/math_real.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
-/opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o: /opt/ghdl/lib/ghdl/ieee/v08/../../src/ieee2008/math_real-body.vhdl
-	@echo "This file was not locally built ($<)"
-	exit 1
 ppu_bus_types.o: ../../../bus/ppu_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 lib_ppu.o: ../../../core/ppu/lib_ppu.vhdl
@@ -266,122 +242,114 @@ ps2_keyboard.o: ../../../perhiperals/ps2_keyboard/ps2_keyboard.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 
 # Files dependences
-/opt/ghdl/lib/ghdl/std/v08/textio.o: 
-/opt/ghdl/lib/ghdl/std/v08/textio-body.o:  /opt/ghdl/lib/ghdl/std/v08/textio.o
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o:  /opt/ghdl/lib/ghdl/std/v08/textio.o
-/opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164-body.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o:  /opt/ghdl/lib/ghdl/std/v08/textio.o /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o
-/opt/ghdl/lib/ghdl/ieee/v08/numeric_std-body.o:  /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-utilities.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-nes_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-file_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-binary_io.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-au_file.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o binary_io.o
-perhipheral_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-de1_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o perhipheral_types.o
-apu_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-cart_mem_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-nes_audio_mixer.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o
-simulation.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
-sdram.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-sd_card.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o
-bmp_file.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o
-vga_video_record.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o de1_types.o binary_io.o bmp_file.o /opt/ghdl/lib/ghdl/std/v08/textio.o
-nes_de1_bench.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o file_bus_types.o binary_io.o au_file.o utilities.o de1_types.o perhipheral_types.o simulation.o sdram.o sd_card.o vga_video_record.o
-perhipherals.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o
-prg_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-chr_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-prg_ram_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-chr_ram_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-exram_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-chip_ram_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-cart_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o nes_types.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_mem_bus_types.o
-cpu_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-ram_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-oam_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-sec_oam_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-palette_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-ciram_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-opll_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-soc.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o ram_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o cart_mem_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o nes_types.o perhipheral_types.o cart_types.o
-/opt/ghdl/lib/ghdl/ieee/v08/math_real.o: 
-/opt/ghdl/lib/ghdl/ieee/v08/math_real-body.o:  /opt/ghdl/lib/ghdl/ieee/v08/math_real.o
-ppu_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-lib_ppu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o
-platform_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o /opt/ghdl/lib/ghdl/ieee/v08/math_real.o lib_ppu.o
-sdram_ctrl.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-sdram_rom.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
-sd_menu_stub.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o nes_types.o
-sd_reader.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o perhipheral_types.o
-sd_menu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o cart_types.o cart_mem_bus_types.o perhipherals.o perhipheral_types.o sd_menu_stub.o sd_reader.o
-flash_stream.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o file_bus_types.o
-nes_de1.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipherals.o perhipheral_types.o cart_mem_bus_types.o file_bus_types.o cart_types.o soc.o de1_types.o platform_video.o sdram_rom.o sd_menu.o sd_reader.o flash_stream.o
-file_memory.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o binary_io.o nes_types.o file_bus_types.o
-clock.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o
-syncram_sp.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o utilities.o
-lib_wm8731.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o perhipheral_types.o
-wm8731.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o lib_wm8731.o perhipheral_types.o
-syncram_sdp.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o utilities.o
-frame_lock_video.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o syncram_sdp.o
-lib_mapper_latch.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o cart_mem_bus_types.o chr_bus_types.o chr_ram_bus_types.o cart_types.o
-lib_mapper_mmc1.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o chr_bus_types.o prg_ram_bus_types.o cart_types.o
-lib_mapper_mmc2.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o chr_bus_types.o nes_types.o utilities.o cart_types.o
-lib_mapper_mmc3.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o nes_types.o utilities.o cart_types.o
-lib_sunsoft_5b_audio.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o
-lib_irq_counter.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o nes_types.o utilities.o
-lib_mapper_fme7.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_types.o lib_sunsoft_5b_audio.o lib_irq_counter.o
-lib_vrc_irq.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o
-lib_mapper_vrc4.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_types.o lib_vrc_irq.o
-lib_vrc6_audio.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o
-lib_mapper_vrc6.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o chr_bus_types.o cart_types.o lib_vrc_irq.o lib_vrc6_audio.o
-lib_vrc7_audio.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o opll_bus_types.o
-lib_mapper_vrc7.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o cart_types.o lib_vrc_irq.o opll_bus_types.o lib_vrc7_audio.o
-lib_apu_envelope.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o
-lib_apu_length.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o
-lib_apu_square.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o lib_apu_length.o lib_apu_envelope.o
-lib_mmc5_audio.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o lib_apu_envelope.o lib_apu_length.o lib_apu_square.o
-lib_mapper_mmc5.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o exram_bus_types.o cart_types.o lib_mmc5_audio.o
-lib_n163_audio.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o chip_ram_bus_types.o
-lib_mapper_n163.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chip_ram_bus_types.o cart_types.o lib_n163_audio.o lib_irq_counter.o
-lib_mapper_action53.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o prg_bus_types.o chr_ram_bus_types.o cart_types.o
-lib_bandai_eeprom.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o
-lib_mapper_bandai.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o chr_bus_types.o chip_ram_bus_types.o cart_types.o lib_bandai_eeprom.o lib_irq_counter.o
-lib_mapper_ss88006.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o cart_types.o
-lib_mapper_taito.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o cart_types.o
-lib_mapper_sunsoft.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o chr_bus_types.o cart_mem_bus_types.o cart_types.o lib_irq_counter.o
-lib_mapper_irem.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o chr_bus_types.o cart_types.o lib_irq_counter.o
-lib_mapper_nsf.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o prg_bus_types.o cart_mem_bus_types.o cart_types.o
-lib_cartridge.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o nes_types.o cart_types.o opll_bus_types.o lib_mapper_latch.o lib_mapper_mmc1.o lib_mapper_mmc2.o lib_mapper_mmc3.o lib_mapper_fme7.o lib_vrc_irq.o lib_irq_counter.o lib_mapper_vrc4.o lib_mapper_vrc6.o lib_mapper_vrc7.o lib_vrc7_audio.o lib_mapper_mmc5.o lib_mapper_n163.o lib_mapper_action53.o lib_mapper_bandai.o lib_mapper_ss88006.o lib_mapper_taito.o lib_mapper_sunsoft.o lib_mapper_irem.o lib_mapper_nsf.o
-joy_bus_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-lib_nes_mmap.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o ciram_bus_types.o nes_types.o utilities.o cart_types.o
-lib_nes.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o apu_bus_types.o ram_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o chr_bus_types.o ciram_bus_types.o oam_bus_types.o sec_oam_bus_types.o prg_bus_types.o palette_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o utilities.o perhipheral_types.o cart_types.o lib_cartridge.o lib_nes_mmap.o
-nes_core.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o apu_bus_types.o ram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o joy_bus_types.o nes_types.o utilities.o
-neoTRNG.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-power_up_fill.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o perhipheral_types.o utilities.o neoTRNG.o
-cart_mem_bus_mux.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o cart_mem_bus_types.o nes_types.o
-cartridge.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o cart_types.o opll_bus_types.o lib_cartridge.o lib_vrc7_audio.o
-nes_soc.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o perhipheral_types.o cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o cart_mem_bus_types.o chr_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o oam_bus_types.o sec_oam_bus_types.o ppu_bus_types.o palette_bus_types.o nes_types.o nes_core.o cart_types.o lib_nes_mmap.o lib_nes.o power_up_fill.o cart_mem_bus_mux.o cartridge.o
-nes_soc_ocram.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o ram_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o cpu_bus_types.o cart_mem_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o utilities.o perhipherals.o perhipheral_types.o lib_nes.o cart_types.o nes_soc.o
-joy_port.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o
-ps2_joystick.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o nes_types.o perhipheral_types.o perhipherals.o
-clk_en.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-lib_cpu_types.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o
-lib_cpu_decode_defs.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o
-lib_cpu_decode.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o lib_cpu_decode_defs.o
-lib_cpu_exec.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o
-lib_cpu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o lib_cpu_decode.o lib_cpu_exec.o
-cpu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o lib_cpu.o
-lib_apu_frame_seq.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o
-lib_apu_triangle.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o lib_apu_length.o
-lib_apu_noise.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o utilities.o lib_apu_length.o lib_apu_envelope.o
-lib_apu_dmc.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o
-lib_apu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o apu_bus_types.o cpu_bus_types.o utilities.o lib_apu_frame_seq.o lib_apu_square.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o
-apu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o nes_types.o lib_apu.o apu_bus_types.o cpu_bus_types.o utilities.o
-joystick_io.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o joy_bus_types.o nes_types.o utilities.o
-ppu.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o lib_ppu.o ppu_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o nes_types.o utilities.o
-oam_dma.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o cpu_bus_types.o nes_types.o utilities.o
-ps2.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o
-edge_detector.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o
-counter.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o
-ps2_bus.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o edge_detector.o counter.o
-ps2_keyboard.o:  /opt/ghdl/lib/ghdl/ieee/v08/std_logic_1164.o /opt/ghdl/lib/ghdl/ieee/v08/numeric_std.o utilities.o ps2.o ps2_bus.o
+utilities.o: 
+nes_types.o:  utilities.o
+file_bus_types.o: 
+binary_io.o:  utilities.o
+au_file.o:  binary_io.o
+perhipheral_types.o: 
+de1_types.o:  nes_types.o perhipheral_types.o
+apu_bus_types.o: 
+cart_mem_bus_types.o: 
+nes_audio_mixer.o:  nes_types.o
+simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
+sdram.o:  utilities.o
+sd_card.o:  utilities.o binary_io.o
+bmp_file.o:  utilities.o binary_io.o
+vga_video_record.o:  de1_types.o binary_io.o bmp_file.o
+nes_de1_bench.o:  nes_types.o file_bus_types.o binary_io.o au_file.o utilities.o de1_types.o perhipheral_types.o simulation.o sdram.o sd_card.o vga_video_record.o
+perhipherals.o:  perhipheral_types.o
+prg_bus_types.o: 
+chr_bus_types.o: 
+prg_ram_bus_types.o: 
+chr_ram_bus_types.o: 
+exram_bus_types.o: 
+chip_ram_bus_types.o: 
+cart_types.o:  utilities.o nes_types.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_mem_bus_types.o
+cpu_bus_types.o: 
+ram_bus_types.o: 
+oam_bus_types.o: 
+sec_oam_bus_types.o: 
+palette_bus_types.o: 
+ciram_bus_types.o: 
+opll_bus_types.o: 
+soc.o:  cpu_bus_types.o ram_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o cart_mem_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o nes_types.o perhipheral_types.o cart_types.o
+ppu_bus_types.o: 
+lib_ppu.o:  nes_types.o utilities.o chr_bus_types.o ppu_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o
+platform_video.o:  nes_types.o utilities.o perhipheral_types.o lib_ppu.o
+sdram_ctrl.o:  utilities.o
+sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
+sd_menu_stub.o:  nes_types.o
+sd_reader.o:  utilities.o perhipheral_types.o
+sd_menu.o:  nes_types.o utilities.o prg_bus_types.o cart_types.o cart_mem_bus_types.o perhipherals.o perhipheral_types.o sd_menu_stub.o sd_reader.o
+flash_stream.o:  nes_types.o file_bus_types.o
+nes_de1.o:  nes_types.o utilities.o perhipherals.o perhipheral_types.o cart_mem_bus_types.o file_bus_types.o cart_types.o soc.o de1_types.o platform_video.o sdram_rom.o sd_menu.o sd_reader.o flash_stream.o
+file_memory.o:  utilities.o binary_io.o nes_types.o file_bus_types.o
+clock.o: 
+syncram_sp.o:  perhipheral_types.o utilities.o
+lib_wm8731.o:  utilities.o perhipheral_types.o
+wm8731.o:  utilities.o lib_wm8731.o perhipheral_types.o
+syncram_sdp.o:  perhipheral_types.o utilities.o
+frame_lock_video.o:  nes_types.o utilities.o perhipheral_types.o platform_video.o lib_ppu.o syncram_sdp.o
+lib_mapper_latch.o:  nes_types.o utilities.o prg_bus_types.o cart_mem_bus_types.o chr_bus_types.o chr_ram_bus_types.o cart_types.o
+lib_mapper_mmc1.o:  chr_bus_types.o prg_ram_bus_types.o cart_types.o
+lib_mapper_mmc2.o:  chr_bus_types.o nes_types.o utilities.o cart_types.o
+lib_mapper_mmc3.o:  prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o nes_types.o utilities.o cart_types.o
+lib_sunsoft_5b_audio.o:  nes_types.o utilities.o
+lib_irq_counter.o:  nes_types.o utilities.o
+lib_mapper_fme7.o:  nes_types.o utilities.o cart_types.o lib_sunsoft_5b_audio.o lib_irq_counter.o
+lib_vrc_irq.o:  nes_types.o utilities.o
+lib_mapper_vrc4.o:  nes_types.o utilities.o cart_types.o lib_vrc_irq.o
+lib_vrc6_audio.o:  nes_types.o utilities.o
+lib_mapper_vrc6.o:  nes_types.o utilities.o chr_bus_types.o cart_types.o lib_vrc_irq.o lib_vrc6_audio.o
+lib_vrc7_audio.o:  nes_types.o utilities.o opll_bus_types.o
+lib_mapper_vrc7.o:  nes_types.o utilities.o cart_types.o lib_vrc_irq.o opll_bus_types.o lib_vrc7_audio.o
+lib_apu_envelope.o:  nes_types.o utilities.o
+lib_apu_length.o:  nes_types.o utilities.o
+lib_apu_square.o:  nes_types.o utilities.o lib_apu_length.o lib_apu_envelope.o
+lib_mmc5_audio.o:  nes_types.o utilities.o lib_apu_envelope.o lib_apu_length.o lib_apu_square.o
+lib_mapper_mmc5.o:  nes_types.o utilities.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o exram_bus_types.o cart_types.o lib_mmc5_audio.o
+lib_n163_audio.o:  nes_types.o utilities.o chip_ram_bus_types.o
+lib_mapper_n163.o:  nes_types.o utilities.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chip_ram_bus_types.o cart_types.o lib_n163_audio.o lib_irq_counter.o
+lib_mapper_action53.o:  nes_types.o prg_bus_types.o chr_ram_bus_types.o cart_types.o
+lib_bandai_eeprom.o:  nes_types.o
+lib_mapper_bandai.o:  nes_types.o utilities.o prg_bus_types.o chr_bus_types.o chip_ram_bus_types.o cart_types.o lib_bandai_eeprom.o lib_irq_counter.o
+lib_mapper_ss88006.o:  nes_types.o utilities.o prg_bus_types.o cart_types.o
+lib_mapper_taito.o:  nes_types.o utilities.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o cart_types.o
+lib_mapper_sunsoft.o:  nes_types.o utilities.o prg_bus_types.o chr_bus_types.o cart_mem_bus_types.o cart_types.o lib_irq_counter.o
+lib_mapper_irem.o:  nes_types.o utilities.o prg_bus_types.o chr_bus_types.o cart_types.o lib_irq_counter.o
+lib_mapper_nsf.o:  nes_types.o utilities.o prg_bus_types.o cart_mem_bus_types.o cart_types.o
+lib_cartridge.o:  nes_types.o cart_types.o opll_bus_types.o lib_mapper_latch.o lib_mapper_mmc1.o lib_mapper_mmc2.o lib_mapper_mmc3.o lib_mapper_fme7.o lib_vrc_irq.o lib_irq_counter.o lib_mapper_vrc4.o lib_mapper_vrc6.o lib_mapper_vrc7.o lib_vrc7_audio.o lib_mapper_mmc5.o lib_mapper_n163.o lib_mapper_action53.o lib_mapper_bandai.o lib_mapper_ss88006.o lib_mapper_taito.o lib_mapper_sunsoft.o lib_mapper_irem.o lib_mapper_nsf.o
+joy_bus_types.o: 
+lib_nes_mmap.o:  cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o ciram_bus_types.o nes_types.o utilities.o cart_types.o
+lib_nes.o:  cpu_bus_types.o apu_bus_types.o ram_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o chr_bus_types.o ciram_bus_types.o oam_bus_types.o sec_oam_bus_types.o prg_bus_types.o palette_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o utilities.o perhipheral_types.o cart_types.o lib_cartridge.o lib_nes_mmap.o
+nes_core.o:  cpu_bus_types.o apu_bus_types.o ram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o joy_bus_types.o nes_types.o utilities.o
+neoTRNG.o: 
+power_up_fill.o:  perhipheral_types.o utilities.o neoTRNG.o
+cart_mem_bus_mux.o:  utilities.o cart_mem_bus_types.o nes_types.o
+cartridge.o:  utilities.o cart_types.o opll_bus_types.o lib_cartridge.o lib_vrc7_audio.o
+nes_soc.o:  utilities.o perhipheral_types.o cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o cart_mem_bus_types.o chr_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o oam_bus_types.o sec_oam_bus_types.o ppu_bus_types.o palette_bus_types.o nes_types.o nes_core.o cart_types.o lib_nes_mmap.o lib_nes.o power_up_fill.o cart_mem_bus_mux.o cartridge.o
+nes_soc_ocram.o:  nes_types.o ram_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o cpu_bus_types.o cart_mem_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o utilities.o perhipherals.o perhipheral_types.o lib_nes.o cart_types.o nes_soc.o
+joy_port.o:  nes_types.o
+ps2_joystick.o:  utilities.o nes_types.o perhipheral_types.o perhipherals.o
+clk_en.o:  utilities.o
+lib_cpu_types.o:  cpu_bus_types.o nes_types.o utilities.o
+lib_cpu_decode_defs.o:  cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o
+lib_cpu_decode.o:  cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o lib_cpu_decode_defs.o
+lib_cpu_exec.o:  cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o
+lib_cpu.o:  cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o lib_cpu_decode.o lib_cpu_exec.o
+cpu.o:  cpu_bus_types.o nes_types.o utilities.o lib_cpu.o
+lib_apu_frame_seq.o:  nes_types.o utilities.o
+lib_apu_triangle.o:  nes_types.o utilities.o lib_apu_length.o
+lib_apu_noise.o:  nes_types.o utilities.o lib_apu_length.o lib_apu_envelope.o
+lib_apu_dmc.o:  cpu_bus_types.o nes_types.o utilities.o
+lib_apu.o:  nes_types.o apu_bus_types.o cpu_bus_types.o utilities.o lib_apu_frame_seq.o lib_apu_square.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o
+apu.o:  nes_types.o lib_apu.o apu_bus_types.o cpu_bus_types.o utilities.o
+joystick_io.o:  joy_bus_types.o nes_types.o utilities.o
+ppu.o:  lib_ppu.o ppu_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o nes_types.o utilities.o
+oam_dma.o:  cpu_bus_types.o nes_types.o utilities.o
+ps2.o:  utilities.o
+edge_detector.o: 
+counter.o: 
+ps2_bus.o:  utilities.o edge_detector.o counter.o
+ps2_keyboard.o:  utilities.o ps2.o ps2_bus.o
