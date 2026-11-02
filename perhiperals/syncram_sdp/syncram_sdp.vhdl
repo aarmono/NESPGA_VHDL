@@ -80,28 +80,17 @@ vendor_gen : case VENDOR generate
 
     when VENDOR_SIM =>
 
-        -- ghdl keeps a signal array of vectors as a signal per bit, which
-        -- takes hundreds of bytes each, so the memory holds integers. A
-        -- variable can't be shared between the two clocks' processes
-        subtype ram_int_t is natural range 0 to 2**DATA_BITS-1;
-        type ram_t is array(0 to RAM_SIZE-1) of ram_int_t;
-
-        signal ram : ram_t := (others => 0);
+        type ram_t is array(0 to RAM_SIZE-1) of ram_elem_t;
 
     begin
 
-        process(write_clk)
-        begin
-        if rising_edge(write_clk)
-        then
-            if write
-            then
-                ram(to_integer(write_address)) <= to_integer(data_in);
-            end if;
-        end if;
-        end process;
-
-        process(read_clk)
+        -- The memory is a variable, since ghdl keeps a signal array as a
+        -- signal per bit, which takes hundreds of bytes each. One process
+        -- serves both clocks so it can hold the variable. The read comes
+        -- first so that edges of both clocks in the same delta read the old
+        -- data, as a signal would
+        process(write_clk, read_clk)
+            variable ram : ram_t := (others => (others => '0'));
         begin
         if rising_edge(read_clk)
         then
@@ -109,8 +98,15 @@ vendor_gen : case VENDOR generate
             then
                 data_out <= (others => '-');
             else
-                data_out <= to_std_logic_vector(
-                    ram(to_integer(read_address)), DATA_BITS);
+                data_out <= ram(to_integer(read_address));
+            end if;
+        end if;
+
+        if rising_edge(write_clk)
+        then
+            if write
+            then
+                ram(to_integer(write_address)) := data_in;
             end if;
         end if;
         end process;
