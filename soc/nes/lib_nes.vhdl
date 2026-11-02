@@ -32,6 +32,9 @@ package lib_nes is
         STATE_LOAD,
         STATE_RESET,
         STATE_CLEAR,
+        -- The RAMs are ready, and the NES waits in reset for the board to
+        -- start it (nes_in_t.run)
+        STATE_WAIT,
         STATE_RUN,
         -- The reset button is held. The NES runs as in STATE_RUN, with the
         -- CPU, APU and PPU held in reset. Like the other reset states, the
@@ -142,6 +145,8 @@ package lib_nes is
         soft_reset         : boolean;
         -- Reset leaves PRG RAM alone, as it holds a save the board loaded
         keep_prg_ram       : boolean;
+        -- Leave reset once the RAMs are ready. Otherwise wait in STATE_WAIT
+        run                : boolean;
     end record;
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t;
@@ -283,6 +288,18 @@ package body lib_nes is
             return get_save_ram_fill(config);
         else
             return power_up_data;
+        end if;
+    end;
+
+    -- The state after the RAMs are ready
+    function run_state(run : boolean) return state_t
+    is
+    begin
+        if run
+        then
+            return STATE_RUN;
+        else
+            return STATE_WAIT;
         end if;
     end;
 
@@ -490,7 +507,7 @@ package body lib_nes is
                         ret.reg.cur_cycle := unsigned(DEFAULT_RAM_MASK) + 1;
                         ret.reg.cur_state := STATE_CLEAR;
                     else
-                        ret.reg.cur_state := STATE_RUN;
+                        ret.reg.cur_state := run_state(nes_in.run);
                     end if;
                 else
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
@@ -535,10 +552,14 @@ package body lib_nes is
                    (nes_in.reg.cart_config.prg_ram_mask or
                     nes_in.reg.cart_config.chr_ram_mask)
                 then
-                    ret.reg.cur_state := STATE_RUN;
+                    ret.reg.cur_state := run_state(nes_in.run);
                 else
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
+
+            when STATE_WAIT =>
+                ret.reset := true;
+                ret.reg.cur_state := run_state(nes_in.run);
                 
             when STATE_RUN | STATE_SOFT_RESET =>
                 ret.soft_reset := nes_in.reg.cur_state = STATE_SOFT_RESET;

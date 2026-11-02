@@ -137,9 +137,9 @@ BEGIN
 
 	altpll_component : altpll
 	GENERIC MAP (
-		clk0_divide_by => 1080,
+		clk0_divide_by => 31,
 		clk0_duty_cycle => 50,
-		clk0_multiply_by => 1007,
+		clk0_multiply_by => 29,
 		clk0_phase_shift => "0",
 		compensate_clock => "CLK0",
 		gate_lock_counter => 1048575,
@@ -225,7 +225,7 @@ END SYN;
 -- Retrieval info: PRIVATE: DEVICE_SPEED_GRADE STRING "7"
 -- Retrieval info: PRIVATE: DIV_FACTOR0 NUMERIC "1"
 -- Retrieval info: PRIVATE: DUTY_CYCLE0 STRING "50.00000000"
--- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "25.174999"
+-- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "25.258064"
 -- Retrieval info: PRIVATE: EXPLICIT_SWITCHOVER_COUNTER STRING "0"
 -- Retrieval info: PRIVATE: EXT_FEEDBACK_RADIO STRING "0"
 -- Retrieval info: PRIVATE: GLOCKED_COUNTER_EDIT_CHANGED STRING "1"
@@ -250,7 +250,7 @@ END SYN;
 -- Retrieval info: PRIVATE: MIRROR_CLK0 STRING "0"
 -- Retrieval info: PRIVATE: MULT_FACTOR0 NUMERIC "1"
 -- Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "1"
--- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "25.17500000"
+-- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "25.25806452"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE0 STRING "1"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_UNIT0 STRING "MHz"
 -- Retrieval info: PRIVATE: PHASE_RECONFIG_FEATURE_ENABLED STRING "0"
@@ -289,9 +289,9 @@ END SYN;
 -- Retrieval info: PRIVATE: USE_MIL_SPEED_GRADE NUMERIC "0"
 -- Retrieval info: PRIVATE: ZERO_DELAY_RADIO STRING "0"
 -- Retrieval info: LIBRARY: altera_mf altera_mf.altera_mf_components.all
--- Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "1080"
+-- Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "31"
 -- Retrieval info: CONSTANT: CLK0_DUTY_CYCLE NUMERIC "50"
--- Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "1007"
+-- Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "29"
 -- Retrieval info: CONSTANT: CLK0_PHASE_SHIFT STRING "0"
 -- Retrieval info: CONSTANT: COMPENSATE_CLOCK STRING "CLK0"
 -- Retrieval info: CONSTANT: GATE_LOCK_COUNTER NUMERIC "1048575"

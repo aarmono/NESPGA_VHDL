@@ -52,7 +52,6 @@ report_timing -setup -to $nes_ram_regs -npaths 20 -detail summary \
 # I/O paths for the external memories
 foreach {label ports} {
     sdram {DRAM_*}
-    sram  {SRAM_*}
 } {
     report_timing -setup -to [get_ports $ports] -npaths 20 -detail full_path \
         -file timing/${label}_out_setup.txt
@@ -80,7 +79,6 @@ report_timing -hold -npaths 20 -nworst 1 -detail summary \
 
 foreach {label ports} {
     sdram {DRAM_*}
-    sram  {SRAM_*}
 } {
     report_timing -hold -to [get_ports $ports] -npaths 20 -detail full_path \
         -file timing/fast_${label}_out_hold.txt

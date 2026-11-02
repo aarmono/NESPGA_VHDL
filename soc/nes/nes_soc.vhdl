@@ -56,6 +56,19 @@ port
 
     nes_running : out boolean;
 
+    -- Lengthens a CPU cycle by one clock, to slow the NES down a little so a
+    -- board can keep it in step with something else. See clk_en
+    stretch : in boolean := false;
+    -- Once its RAMs are ready after reset, the NES leaves reset when run is
+    -- true. Until then it waits with waiting_to_run true, and the PPU is held
+    -- where it will start, ppu_start, so that a board can start the NES when
+    -- it chooses. Sampled on cpu_clk_en
+    run            : in boolean := true;
+    waiting_to_run : out boolean;
+    -- Where in its frame the PPU starts when the NES leaves reset. Final
+    -- once waiting_to_run is true
+    ppu_start      : out ppu_position_t;
+
     cpu_clk_en : out boolean;
     ppu_clk_en : out boolean;
 
@@ -208,6 +221,7 @@ is
 begin
 
     nes_running <= not int_reset;
+    waiting_to_run <= reg.cur_state = STATE_WAIT;
 
     dma_joy_reset <= int_reset or int_soft_reset;
 
@@ -319,6 +333,7 @@ begin
     (
         clk => clk,
         reset => reset,
+        stretch => stretch,
         
         cpu_en => cpu_en,
         ppu_en => ppu_en,
@@ -404,6 +419,7 @@ begin
         -- last changes with the last step of the RAM fill, so the PPU starts
         -- from that value, which holds through the end of reset
         power_up_seed => fill_data(ppu_power_up_seed_t'range),
+        start_position => ppu_start,
 
         chr_bus             => chr_bus,
         chr_ale             => chr_ale,
@@ -519,6 +535,7 @@ begin
 
         nes_in.soft_reset := soft_reset;
         nes_in.keep_prg_ram := keep_prg_ram;
+        nes_in.run := run;
         
         nes_out := cycle_nes(nes_in);
         

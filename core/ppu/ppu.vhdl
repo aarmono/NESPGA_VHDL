@@ -25,6 +25,9 @@ port
     famicom           : in boolean := false;
     -- Where in the frame power up starts. See power_up_ppu_reg
     power_up_seed     : in ppu_power_up_seed_t := (others => '0');
+    -- Where power_up_seed starts the frame, which is where the PPU is held
+    -- through reset
+    start_position    : out ppu_position_t;
 
     chr_bus           : out chr_bus_t;
     chr_ale           : out boolean;
@@ -59,6 +62,8 @@ architecture behavioral of ppu is
 
     signal vint_next : boolean;
 begin
+
+    start_position <= power_up_ppu_time(power_up_seed);
 
     process(clk)
     begin

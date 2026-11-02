@@ -169,11 +169,7 @@ package lib_ppu is
     function decay_io_latch(latch : io_latch_t) return io_latch_t;
     
     -- Encapsulates the current time for the PPU
-    type ppu_time_t is record
-        frame    : ppu_frame_t;
-        scanline : ppu_cycle_t;
-        cycle    : ppu_cycle_t;
-    end record;
+    subtype ppu_time_t is ppu_position_t;
     
     -- Reset value for ppu_time_t registers
     constant TIME_ZERO : ppu_time_t :=
@@ -504,6 +500,9 @@ package lib_ppu is
     )
     return ppu_reg_t;
 
+    -- Where in the frame power_up_ppu_reg starts the PPU
+    function power_up_ppu_time(seed : ppu_power_up_seed_t) return ppu_time_t;
+
     -- Shifts a background pattern shift register one pixel, shifting
     -- serial_in into the low bit
     function shift_pattern_table
@@ -696,6 +695,29 @@ package body lib_ppu is
         return ret;
     end;
 
+    function power_up_ppu_time(seed : ppu_power_up_seed_t) return ppu_time_t
+    is
+        variable ret : ppu_time_t;
+    begin
+        -- 9 bits each, folded into range with one subtract. The lower lines
+        -- and cycles are twice as likely, which costs less than a modulo
+        ret.scanline := to_integer(seed(8 downto 0));
+        if ret.scanline >= LINES_PER_FRAME
+        then
+            ret.scanline := ret.scanline - LINES_PER_FRAME;
+        end if;
+
+        ret.cycle := to_integer(seed(17 downto 9));
+        if ret.cycle >= DOTS_PER_LINE
+        then
+            ret.cycle := ret.cycle - DOTS_PER_LINE;
+        end if;
+
+        ret.frame := to_integer(seed(18 downto 18));
+
+        return ret;
+    end;
+
     function power_up_ppu_reg
     (
         seed    : ppu_power_up_seed_t;
@@ -703,28 +725,10 @@ package body lib_ppu is
     )
     return ppu_reg_t
     is
-        variable line  : ppu_cycle_t;
-        variable cycle : ppu_cycle_t;
-        variable ret   : ppu_reg_t;
+        variable ret : ppu_reg_t;
     begin
-        -- 9 bits each, folded into range with one subtract. The lower lines
-        -- and cycles are twice as likely, which costs less than a modulo
-        line := to_integer(seed(8 downto 0));
-        if line >= LINES_PER_FRAME
-        then
-            line := line - LINES_PER_FRAME;
-        end if;
-
-        cycle := to_integer(seed(17 downto 9));
-        if cycle >= DOTS_PER_LINE
-        then
-            cycle := cycle - DOTS_PER_LINE;
-        end if;
-
         ret := RESET_PPU_REG;
-        ret.cur_time.frame := to_integer(seed(18 downto 18));
-        ret.cur_time.scanline := line;
-        ret.cur_time.cycle := cycle;
+        ret.cur_time := power_up_ppu_time(seed);
         if famicom
         then
             ret.reset_dots := 0;

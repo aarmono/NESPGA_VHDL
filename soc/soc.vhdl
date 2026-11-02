@@ -37,6 +37,17 @@ package soc is
 
         nes_running : out boolean;
 
+        -- Lengthens a CPU cycle by one clock. See clk_en
+        stretch : in boolean := false;
+        -- Once its RAMs are ready after reset, the NES leaves reset when run
+        -- is true, and waits with waiting_to_run true until then, with the
+        -- PPU held at ppu_start. Sampled on cpu_clk_en
+        run            : in boolean := true;
+        waiting_to_run : out boolean;
+        -- Where in its frame the PPU starts when the NES leaves reset. Final
+        -- once waiting_to_run is true
+        ppu_start      : out ppu_position_t;
+
         cpu_clk_en : out boolean;
         ppu_clk_en : out boolean;
 
@@ -117,6 +128,12 @@ package soc is
         famicom : in boolean := false;
 
         nes_running : out boolean;
+
+        -- See nes_soc
+        stretch        : in boolean := false;
+        run            : in boolean := true;
+        waiting_to_run : out boolean;
+        ppu_start      : out ppu_position_t;
 
         cpu_clk_en : out boolean;
         ppu_clk_en : out boolean;

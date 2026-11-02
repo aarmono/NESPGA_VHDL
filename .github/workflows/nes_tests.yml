@@ -76,7 +76,7 @@ jobs:
           ./run_nes_tests.sh -r "$GITHUB_WORKSPACE"/results/*/results.txt \
             >> "$GITHUB_STEP_SUMMARY"
 
-  # Smoke tests of the DE1 board interop (SD card, SDRAM, SRAM, VGA, audio)
+  # Smoke tests of the DE1 board interop (SD card, SDRAM, VGA, audio)
   # from nes_de1_tests.txt. nes_de1_bench is ~5.5x slower than nes_bench, so
   # only a few short tests are run
   nes-de1-tests:

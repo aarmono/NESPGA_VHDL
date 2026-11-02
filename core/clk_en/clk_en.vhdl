@@ -23,6 +23,13 @@ port
 (
     clk   : in std_logic;
     reset : in boolean;
+    -- Lengthens a CPU cycle by one clock, to slow the NES down a little.
+    -- Sampled once per CPU cycle, when the length of the next cycle is
+    -- chosen, between two cpu_en. Held from one cpu_en to the next, it
+    -- lengthens the time to the following cpu_en by one clock. Cycles are
+    -- only ever lengthened, so the enables are never closer together than
+    -- without it
+    stretch : in boolean := false;
 
     cpu_en : out boolean;
     ppu_en : out boolean;
@@ -37,6 +44,7 @@ port
 end clk_en;
 
 architecture behavioral of clk_en is
+    -- A stretched long cycle starts its count at CPU_DIV + 1
     subtype cpu_count_t is natural range 0 to 31;
     subtype nsf_count_t is natural range 0 to 63;
 
@@ -120,10 +128,23 @@ architecture behavioral of clk_en is
 
     signal reg_odd_cpu_cycle : boolean := false;
 
+    -- Clocks added to the next CPU cycle
+    function stretch_count(en : boolean) return natural
+    is
+    begin
+        if en
+        then
+            return 1;
+        else
+            return 0;
+        end if;
+    end;
+
 begin
 
-    assert CPU_DIV >= 6 and MAX_CPU_DIV <= 31
-        report "clk_en: CPU cycles must be 6 to 31 clocks long"
+    -- A stretch makes a cycle a clock longer still
+    assert CPU_DIV >= 6 and MAX_CPU_DIV <= 30
+        report "clk_en: CPU cycles must be 6 to 30 clocks long"
         severity failure;
 
     assert NSF_DIV >= 1 and NSF_DIV <= 64
@@ -195,10 +216,10 @@ begin
             then
                 if cpu_frac >= LONG_CPU_FRAC
                 then
-                    cpu_count <= MAX_CPU_COUNT + 1;
+                    cpu_count <= MAX_CPU_COUNT + 1 + stretch_count(stretch);
                     cpu_frac <= cpu_frac - LONG_CPU_FRAC;
                 else
-                    cpu_count <= MAX_CPU_COUNT;
+                    cpu_count <= MAX_CPU_COUNT + stretch_count(stretch);
                     cpu_frac <= cpu_frac + LONG_CYCLES;
                 end if;
             else
