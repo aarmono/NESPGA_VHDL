@@ -19,7 +19,9 @@ package platform_video is
     type video_format_t is
     (
         -- CEA-861 VIC 1, 640x480 with 800x525 totals, at a pixel clock about
-        -- 0.26% fast (~25.24 MHz) so that frames come at the NES's 60.0988 Hz
+        -- 0.26% fast (~25.24 MHz) so that frames come at the NES's 60.0988 Hz.
+        -- When the pixel clock can't make that rate, the totals can move by
+        -- a dot or two and a line or two (see frame_lock_rates_t)
         FORMAT_640X480
     );
 
@@ -49,9 +51,21 @@ package platform_video is
 
     function get_timing(format : video_format_t) return video_timing_t;
 
+    -- The NES's NTSC CPU clock, 236.25 MHz / 132, and its frames with
+    -- rendering on, when odd frames are a dot short. The frame lock keeps
+    -- the NES at this rate
+    constant NES_CPU_FREQ : real := 39_375_000.0 / 22.0;
+    constant NES_FRAME_FREQ : real :=
+        NES_CPU_FREQ * 3.0 / (real(DOTS_PER_LINE * LINES_PER_FRAME) - 0.5);
+
     -- frame_lock_video's stretch rate is in units of 2**-FRAME_LOCK_RATE_BITS
     -- stretches per CPU cycle
     constant FRAME_LOCK_RATE_BITS : positive := 15;
+
+    -- How far get_frame_lock_rates may move the output's totals from the
+    -- format's
+    constant FRAME_LOCK_MAX_DOTS  : natural := 2;
+    constant FRAME_LOCK_MAX_LINES : natural := 2;
 
     -- The least that the NES's base rate is faster than the frame lock
     -- needs, for the oscillators' tolerances. The DE1's are +-50 ppm
@@ -70,15 +84,24 @@ package platform_video is
         -- as far past the output's rate as it can speed it up, to the base
         -- rate
         max_rate     : positive;
+        -- The output's line and frame totals, for LINE_PIXELS and
+        -- FRAME_LINES. They are the format's, or the nearest to them that
+        -- bring the frames closer to NES_FRAME_FREQ, by at most
+        -- FRAME_LOCK_MAX_DOTS and FRAME_LOCK_MAX_LINES, taken from the
+        -- front porches. Every frame has the same timing, since monitors
+        -- may resync on a frame whose line count changes
+        line_pixels  : positive;
+        frame_lines  : positive;
     end record;
 
     -- The frame lock's rates for an output of format on a pixel clock of
-    -- pix_freq Hz, with clk_sys at sys_freq Hz. The base rate is the
-    -- fastest whose CPU cycles are a whole number of tenths of a clock,
-    -- which keeps clk_en's fraction small, and at least
-    -- FRAME_LOCK_MARGIN_PPM faster than the locked rate. The locked rate is
-    -- for rendering off, as the NES starts. Rendering on makes odd frames a
-    -- dot shorter, 5.6 ppm, which the loop makes up
+    -- pix_freq Hz, with clk_sys at sys_freq Hz. The output's totals are
+    -- chosen so that its frames come nearest to NES_FRAME_FREQ. The base
+    -- rate is the fastest whose CPU cycles are a whole number of tenths of
+    -- a clock, which keeps clk_en's fraction small, and at least
+    -- FRAME_LOCK_MARGIN_PPM faster than the locked rate. The start rate is
+    -- for rendering off, as the NES starts, when frames are a dot longer
+    -- than at NES_FRAME_FREQ, 5.6 ppm, which the loop makes up
     function get_frame_lock_rates(format   : video_format_t;
                                   sys_freq : positive;
                                   pix_freq : real)
@@ -143,6 +166,8 @@ package platform_video is
         KP_SHIFT        : natural := 1;
         KI_SHIFT        : natural := 3;
         START_LEAD_DOTS : natural := 4;
+        LINE_PIXELS     : natural := 0;
+        FRAME_LINES     : natural := 0;
         LOG             : boolean := false
     );
     port
@@ -212,15 +237,55 @@ package body platform_video is
         return frame_lock_rates_t
     is
         constant T : video_timing_t := get_timing(format);
-        constant FRAME_PIX : positive :=
-            (T.h_sync + T.h_back + T.h_active + T.h_front) *
-            (T.v_sync + T.v_back + T.v_active + T.v_front);
+        constant H_TOTAL : positive :=
+            T.h_sync + T.h_back + T.h_active + T.h_front;
+        constant V_TOTAL : positive :=
+            T.v_sync + T.v_back + T.v_active + T.v_front;
+
+        -- How far frames of h x v pixels are from NES_FRAME_FREQ, as a
+        -- ratio
+        function frame_error(h : positive; v : positive) return real
+        is
+        begin
+            return abs(pix_freq / (real(h * v) * NES_FRAME_FREQ) - 1.0);
+        end;
+
+        type totals_t is record
+            line_pixels : positive;
+            frame_lines : positive;
+        end record;
+
+        -- The totals nearest NES_FRAME_FREQ, keeping the format's on a tie
+        function find_totals return totals_t
+        is
+            variable ret : totals_t;
+        begin
+            ret.line_pixels := H_TOTAL;
+            ret.frame_lines := V_TOTAL;
+            for dh in -FRAME_LOCK_MAX_DOTS to FRAME_LOCK_MAX_DOTS
+            loop
+                for dv in -FRAME_LOCK_MAX_LINES to FRAME_LOCK_MAX_LINES
+                loop
+                    if frame_error(H_TOTAL + dh, V_TOTAL + dv) <
+                       frame_error(ret.line_pixels, ret.frame_lines)
+                    then
+                        ret.line_pixels := H_TOTAL + dh;
+                        ret.frame_lines := V_TOTAL + dv;
+                    end if;
+                end loop;
+            end loop;
+            return ret;
+        end;
+
+        constant TOTALS : totals_t := find_totals;
+        constant FRAME_PIX : real :=
+            real(TOTALS.line_pixels * TOTALS.frame_lines);
         constant FRAME_CPU_CYCLES : real :=
             real(DOTS_PER_LINE * LINES_PER_FRAME) / 3.0;
         -- clk_sys clocks per CPU cycle that keep the NES's frames at the
         -- output's rate
         constant LOCKED_DIV : real :=
-            real(sys_freq) * real(FRAME_PIX) / (pix_freq * FRAME_CPU_CYCLES);
+            real(sys_freq) * FRAME_PIX / (pix_freq * FRAME_CPU_CYCLES);
         -- clk_sys clocks per CPU cycle at the base rate, in tenths
         constant BASE_DIV_10 : positive :=
             integer(floor(LOCKED_DIV * 10.0 *
@@ -234,7 +299,9 @@ package body platform_video is
             cpu_freq_num => sys_freq * 10,
             cpu_freq_den => BASE_DIV_10,
             start_rate => START_RATE,
-            max_rate => 2 * START_RATE
+            max_rate => 2 * START_RATE,
+            line_pixels => TOTALS.line_pixels,
+            frame_lines => TOTALS.frame_lines
         );
     end;
 

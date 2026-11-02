@@ -52,6 +52,11 @@ generic
     -- PPU dots that the NES lags its start position by, from the clock that
     -- run is set on to the PPU starting
     START_LEAD_DOTS : natural := 4;
+    -- The output's line and frame totals, 0 for the format's. A difference
+    -- from the format's is taken from its front porch. get_frame_lock_rates
+    -- gives both
+    LINE_PIXELS     : natural := 0;
+    FRAME_LINES     : natural := 0;
     -- Simulation only: report the phase error and stretch rate each frame
     LOG             : boolean := false
 );
@@ -101,8 +106,35 @@ architecture behavioral of frame_lock_video is
     subtype nes_x_t    is natural range 0 to NES_WIDTH-1;
 
     -- Output timing {
-    constant H_TOTAL : positive := T.h_sync + T.h_back + T.h_active + T.h_front;
-    constant V_TOTAL : positive := T.v_sync + T.v_back + T.v_active + T.v_front;
+    function total_or(total : natural; format_total : positive) return positive
+    is
+    begin
+        if total = 0
+        then
+            return format_total;
+        else
+            return total;
+        end if;
+    end;
+
+    constant FORMAT_H_TOTAL : positive :=
+        T.h_sync + T.h_back + T.h_active + T.h_front;
+    constant FORMAT_V_TOTAL : positive :=
+        T.v_sync + T.v_back + T.v_active + T.v_front;
+
+    constant H_TOTAL : positive := total_or(LINE_PIXELS, FORMAT_H_TOTAL);
+    constant V_TOTAL : positive := total_or(FRAME_LINES, FORMAT_V_TOTAL);
+
+    -- The output gains on the NES down the picture by the difference
+    -- between an NES line and an output line pair. lead_pix allows for it
+    -- with the format's totals, and this changes it for the totals used, to
+    -- keep the same margin. The frames take the same time either way, so an
+    -- NES line is a 262nd of a frame's pixels
+    constant LEAD_PIX : positive :=
+        T.lead_pix +
+        NES_HEIGHT * (H_TOTAL * V_TOTAL - FORMAT_H_TOTAL * FORMAT_V_TOTAL) /
+            LINES_PER_FRAME -
+        2 * NES_HEIGHT * (H_TOTAL - FORMAT_H_TOTAL);
 
     constant H_ACTIVE_START : natural := T.h_sync + T.h_back;
     constant V_ACTIVE_START : natural := T.v_sync + T.v_back;
@@ -118,7 +150,7 @@ architecture behavioral of frame_lock_video is
 
     -- Where in the output frame the NES's picture should start
     constant REF_POS : natural :=
-        (V_WIN_START * H_TOTAL + H_WIN_START - T.lead_pix) mod
+        (V_WIN_START * H_TOTAL + H_WIN_START - LEAD_PIX) mod
         (H_TOTAL * V_TOTAL);
     constant REF_ROW : row_t := REF_POS / H_TOTAL;
     constant REF_COL : col_t := REF_POS mod H_TOTAL;
@@ -541,6 +573,12 @@ architecture behavioral of frame_lock_video is
     signal rgb : rgb_t := (others => '0');
 
 begin
+
+    assert H_TOTAL > H_ACTIVE_START + T.h_active and
+           V_TOTAL > V_ACTIVE_START + T.v_active
+        report "frame_lock_video: LINE_PIXELS or FRAME_LINES leaves no " &
+               "front porch"
+        severity failure;
 
     stretch <= lock_reg.stretch;
     run <= lock_reg.go;

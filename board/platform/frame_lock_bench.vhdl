@@ -28,6 +28,9 @@ generic
     -- The output's pixel clock period in ps. 27 MHz * 29/31 on the DE1.
     -- ghdl can't override time generics
     PIX_PERIOD_PS : positive := 39591;
+    -- Added to the pixel clock's period, but not to the rates computed from
+    -- it, as an oscillator's error would be
+    PIX_ERROR_PS  : integer := 0;
     -- Output frames to run for
     FRAMES        : positive := 60;
     -- Odd frames skip a dot, as when rendering is enabled
@@ -44,7 +47,7 @@ end frame_lock_bench;
 architecture behavioral of frame_lock_bench is
 
     constant SYS_PERIOD : time := 20 ns;
-    constant PIX_PERIOD : time := PIX_PERIOD_PS * 1 ps;
+    constant PIX_PERIOD : time := (PIX_PERIOD_PS + PIX_ERROR_PS) * 1 ps;
 
     constant RATES : frame_lock_rates_t :=
         get_frame_lock_rates(FORMAT_640X480,
@@ -97,6 +100,11 @@ architecture behavioral of frame_lock_bench is
     -- NES frames started since the last start
     signal nes_frames : natural := 0;
 
+    -- The time of an even number of NES frames, from the 10th after the
+    -- last start, once the loop has settled
+    signal nes_timed_frames : natural := 0;
+    signal nes_timed_time   : delay_length := 0 fs;
+
     -- The first dot of each picture line with a pixel
     constant FIRST_PIXEL     : natural := 2;
 
@@ -147,7 +155,9 @@ begin
     (
         VENDOR => VENDOR_SIM,
         START_RATE => get_start_rate,
-        MAX_RATE => RATES.max_rate
+        MAX_RATE => RATES.max_rate,
+        LINE_PIXELS => RATES.line_pixels,
+        FRAME_LINES => RATES.frame_lines
     )
     port map
     (
@@ -290,7 +300,11 @@ begin
         variable errors : natural := 0;
         variable checked_frames : natural := 0;
         variable expected : color_idx_t;
+        variable period : real;
     begin
+        report "Output totals " & integer'image(RATES.line_pixels) & "x" &
+               integer'image(RATES.frame_lines) & ", start rate " &
+               integer'image(RATES.start_rate);
         loop
             wait until rising_edge(clk_pix);
 
@@ -348,6 +362,16 @@ begin
                            " of " & integer'image(out_frames) &
                            " frames, " & integer'image(errors) &
                            " pixel errors";
+                    if nes_timed_frames > 0
+                    then
+                        period := real(nes_timed_time / 1 ps) /
+                                  real(nes_timed_frames);
+                        report "NES frames " &
+                               real'image(1.0e12 / period) & " Hz, " &
+                               real'image((1.0e12 / period / NES_FRAME_FREQ -
+                                           1.0) * 1.0e6) &
+                               " ppm from NTSC";
+                    end if;
                     if errors = 0 and checked_frames > 0
                     then
                         report "PASS";
@@ -362,6 +386,23 @@ begin
             prev_lval := video.lval;
             prev_fval := video.fval;
         end loop;
+    end process;
+
+    -- Times the NES's frames, in pairs, since odd frames are a dot short
+    -- with rendering on
+    nes_rate : process
+        variable first : time;
+    begin
+        wait on nes_frames;
+        if nes_frames = 10
+        then
+            first := now;
+            nes_timed_frames <= 0;
+        elsif nes_frames > 10 and nes_frames mod 2 = 0
+        then
+            nes_timed_frames <= nes_frames - 10;
+            nes_timed_time <= now - first;
+        end if;
     end process;
 
     -- Logs the loop once a frame

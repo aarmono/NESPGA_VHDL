@@ -6,8 +6,8 @@
 # each VGA frame shows one whole NES frame, but the NES only starts after the
 # ROM is loaded from the SD card, so frame numbers and hashes don't match
 # nes_tests.txt. The hashed frame is one after the screen settles, and the
-# run time is one VGA frame (16.6282ms at the bench's 25.258 MHz pixel clock)
-# after it: ceil((N+1) * 16.6282) ms for frame N.
+# run time is one VGA frame after it: ceil((N+1) * 16.6391) ms for frame N.
+# VGA frames are 16.6391ms, 799x526 at the bench's 25.258 MHz pixel clock.
 #
 # NES file path                                                     | run time  | Hash
 # NROM, CHR ROM
@@ -17,10 +17,10 @@ nes-test-roms/instr_test-v5/rom_singles/01-basics.nes               | 367ms     
 nes-test-roms/sprite_hit_tests_2005.10.05/01.basics.nes             | 616ms     | 0e684fbde0c1f98ade5fb0c0c9e823b2165303bde442be50cb8c17dba6436453 *frame_00036.bmp
 
 # MMC1, 128KB PRG ROM
-nes-test-roms/MMC1_A12/mmc1_a12.nes                                 | 632ms     | 9b6ad5d8d076acc500c6089710e01671e1c3a8fb101658af3dce0322052e6943 *frame_00037.bmp
+nes-test-roms/MMC1_A12/mmc1_a12.nes                                 | 633ms     | 9b6ad5d8d076acc500c6089710e01671e1c3a8fb101658af3dce0322052e6943 *frame_00037.bmp
 
 # MMC3
 nes-test-roms/mmc3_test_2/rom_singles/1-clocking.nes                | 501ms     | a252d147dcf09a1deb356097d46300310738df3d9a18a4a3aac126c68b2cdcb3 *frame_00029.bmp
 
 # Audio (DMC DMA reads from SDRAM)
-nes-test-roms/dmc_tests/latency.nes                                 | 350ms     | a2b1c0ada4735c8328a8e37283dbb4cfd8e7168d8a32b0ae0f6327b00d4b3c3e *audio.au
+nes-test-roms/dmc_tests/latency.nes                                 | 350ms     | ccda3b0ef49702fb4a197a3c91a4a782eca070e2ec8c76858ab3ccde0700b181 *audio.au

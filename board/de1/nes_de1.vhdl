@@ -104,9 +104,9 @@ architecture behavioral of nes_de1 is
 
     -- The NES runs a little fast, and frame_lock_video stretches cycles to
     -- slow it to the VGA output's rate, so that each line is shown about a
-    -- line after the PPU draws it. With vga_pll's 25.258 MHz the output's
-    -- frames are 656 ppm faster than the NES's at its NTSC rate, so this is
-    -- 27.9 clocks per CPU cycle, a start rate of 591 and a most of 1182
+    -- line after the PPU draws it. vga_pll's 25.258 MHz would make 800x525
+    -- frames 656 ppm faster than the NES's at its NTSC rate, so the totals
+    -- are 799x526, 4 ppm fast
     constant LOCK_RATES : frame_lock_rates_t :=
         get_frame_lock_rates(FORMAT_640X480, CLOCK_50_FREQ, CLOCK_VGA_FREQ);
 
@@ -438,6 +438,8 @@ begin
         FORMAT => FORMAT_640X480,
         START_RATE => LOCK_RATES.start_rate,
         MAX_RATE => LOCK_RATES.max_rate,
+        LINE_PIXELS => LOCK_RATES.line_pixels,
+        FRAME_LINES => LOCK_RATES.frame_lines,
         LOG => LOG_LOCK
     )
     port map
