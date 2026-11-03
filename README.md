@@ -38,7 +38,7 @@ The green LEDs show the buttons the game last read from port 1.
 
 Joystick keymap
 * wsad for directional buttons
-* ; = B Button
+* ' = B Button
 * Enter = A Button
 * [ = Select
 * ] = Start

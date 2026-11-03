@@ -137,9 +137,9 @@ begin
                      x"44" =>
                     idx := KEY_IDX_RIGHT;
                     update := true;
-                -- ; (b)
-                when x"3B" |
-                     x"3A" =>
+                -- ' (b)
+                when x"27" |
+                     x"22" =>
                     idx := KEY_IDX_B;
                     update := true;
                 -- Enter (a)
