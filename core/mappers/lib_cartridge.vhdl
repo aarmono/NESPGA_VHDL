@@ -270,25 +270,72 @@ package body lib_cartridge is
     )
     return cart_cycle_out_t
     is
-        variable ret : cart_cycle_out_t;
+        -- These have initial values because without one ghdl fills in every
+        -- element of every board's output on each call, which is slow to
+        -- simulate. Copying an initial value is much cheaper
+        variable ret : cart_cycle_out_t :=
+            (reg => reg,
+             cart => CART_OUT_IDLE);
 
-        variable latch_out : mapper_latch_out_t;
-        variable mmc1_out  : mapper_mmc1_out_t;
-        variable mmc2_out  : mapper_mmc2_out_t;
-        variable mmc3_out  : mapper_mmc3_out_t;
-        variable fme7_out  : mapper_fme7_out_t;
-        variable vrc4_out  : mapper_vrc4_out_t;
-        variable vrc6_out  : mapper_vrc6_out_t;
-        variable vrc7_out  : mapper_vrc7_out_t;
-        variable mmc5_out  : mapper_mmc5_out_t;
-        variable n163_out  : mapper_n163_out_t;
-        variable action53_out : mapper_action53_out_t;
-        variable bandai_out : mapper_bandai_out_t;
-        variable ss88006_out : mapper_ss88006_out_t;
-        variable taito_out : mapper_taito_out_t;
-        variable sunsoft_out : mapper_sunsoft_out_t;
-        variable irem_out : mapper_irem_out_t;
-        variable nsf_out : mapper_nsf_out_t;
+        variable latch_out : mapper_latch_out_t :=
+            (reg => reg.latch,
+             cart => CART_OUT_IDLE);
+        variable mmc1_out : mapper_mmc1_out_t :=
+            (reg => reg.mmc1,
+             cart => CART_OUT_IDLE);
+        variable mmc2_out : mapper_mmc2_out_t :=
+            (reg => reg.mmc2,
+             cart => CART_OUT_IDLE);
+        variable mmc3_out : mapper_mmc3_out_t :=
+            (reg => reg.mmc3,
+             cart => CART_OUT_IDLE);
+        variable fme7_out : mapper_fme7_out_t :=
+            (reg => reg.fme7,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
+        variable vrc4_out : mapper_vrc4_out_t :=
+            (reg => reg.vrc4,
+             cart => CART_OUT_IDLE,
+             irq_write => VRC_IRQ_NO_WRITE);
+        variable vrc6_out : mapper_vrc6_out_t :=
+            (reg => reg.vrc6,
+             cart => CART_OUT_IDLE,
+             irq_write => VRC_IRQ_NO_WRITE);
+        variable vrc7_out : mapper_vrc7_out_t :=
+            (reg => reg.vrc7,
+             cart => CART_OUT_IDLE,
+             irq_write => VRC_IRQ_NO_WRITE);
+        variable mmc5_out : mapper_mmc5_out_t :=
+            (reg => reg.mmc5,
+             cart => CART_OUT_IDLE);
+        variable n163_out : mapper_n163_out_t :=
+            (reg => reg.n163,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
+        variable action53_out : mapper_action53_out_t :=
+            (reg => reg.action53,
+             cart => CART_OUT_IDLE);
+        variable bandai_out : mapper_bandai_out_t :=
+            (reg => reg.bandai,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
+        variable ss88006_out : mapper_ss88006_out_t :=
+            (reg => reg.ss88006,
+             cart => CART_OUT_IDLE);
+        variable taito_out : mapper_taito_out_t :=
+            (reg => reg.taito,
+             cart => CART_OUT_IDLE);
+        variable sunsoft_out : mapper_sunsoft_out_t :=
+            (reg => reg.sunsoft,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
+        variable irem_out : mapper_irem_out_t :=
+            (reg => reg.irem,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
+        variable nsf_out : mapper_nsf_out_t :=
+            (reg => reg.nsf,
+             cart => CART_OUT_IDLE);
 
         -- The board uses the VRC IRQ counter and its write this cycle
         variable vrc_irq : boolean;
@@ -297,8 +344,6 @@ package body lib_cartridge is
         variable irq_counter : boolean;
         variable irq_counter_op : irq_counter_op_t;
     begin
-        ret.reg := reg;
-        ret.cart := CART_OUT_IDLE;
         vrc_irq := false;
         vrc_irq_write := VRC_IRQ_NO_WRITE;
         irq_counter := false;
