@@ -137,24 +137,23 @@ begin
                      x"44" =>
                     idx := KEY_IDX_RIGHT;
                     update := true;
-                -- j (b)
-                when x"6A" |
-                     x"4A" =>
+                -- ' (b)
+                when x"27" |
+                     x"22" =>
                     idx := KEY_IDX_B;
                     update := true;
-                -- k (a)
-                when x"6B" |
-                     x"4B" =>
+                -- Enter (a)
+                when x"0A" =>
                     idx := KEY_IDX_A;
                     update := true;
-                -- u (Select)
-                when x"75" |
-                     x"55" =>
+                -- [ (Select)
+                when x"5B" |
+                     x"7B" =>
                     idx := KEY_IDX_SELECT;
                     update := true;
-                -- i (Start)
-                when x"69" |
-                     x"49" =>
+                -- ] (Start)
+                when x"5D" |
+                     x"7D" =>
                     idx := KEY_IDX_START;
                     update := true;
                 -- Escape (Reset)

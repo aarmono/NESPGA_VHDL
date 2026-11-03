@@ -38,10 +38,10 @@ The green LEDs show the buttons the game last read from port 1.
 
 Joystick keymap
 * wsad for directional buttons
-* j = B Button
-* k = A Button
-* u = Select
-* i = Start
+* ' = B Button
+* Enter = A Button
+* [ = Select
+* ] = Start
 * Escape = Reset
 
 KEY0 on the board is also the reset button.
