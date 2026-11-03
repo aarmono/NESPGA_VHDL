@@ -188,16 +188,16 @@ package body lib_nes is
         offset_16kb : rom_blocks_t;
         has_trainer : boolean
     )
-    return unsigned
+    return natural
     is
-        variable ret : unsigned(cart_mem_addr_t'range);
+        variable ret : natural;
     begin
-        ret := resize(offset_16kb &
-                      "0000" &
-                      to_std_logic(has_trainer) &
-                      b"0_0001_0000",
-                      ret'length);
-        
+        ret := to_integer(std_logic_vector(offset_16kb)) * 16384 + 16;
+        if has_trainer
+        then
+            ret := ret + 512;
+        end if;
+
         return ret;
     end;
 
@@ -205,14 +205,16 @@ package body lib_nes is
     function get_cart_mem_bus
     (
         rom_bus     : cart_mem_bus_t;
-        file_offset : unsigned
+        file_offset : natural
     )
     return cart_mem_bus_t
     is
     begin
         if is_bus_active(rom_bus)
         then
-            return bus_read(unsigned(rom_bus.address) + file_offset);
+            return bus_read(
+                to_std_logic_vector(to_integer(rom_bus.address) + file_offset,
+                                    cart_mem_addr_t'length));
         else
             return CART_MEM_BUS_IDLE;
         end if;
