@@ -34,7 +34,9 @@ generic
     -- What the RAMs contain after power up. See power_up_mode_t
     POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
     -- See power_up_fill
-    POWER_UP_SEED : natural := 0
+    POWER_UP_SEED : natural := 0;
+    -- See clk_en
+    INVERT_CYCLE_PARITY : boolean := false
 );
 port
 (
@@ -327,7 +329,8 @@ begin
     (
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
-        CPU_FREQ_DEN => CPU_FREQ_DEN
+        CPU_FREQ_DEN => CPU_FREQ_DEN,
+        INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
     )
     port map
     (

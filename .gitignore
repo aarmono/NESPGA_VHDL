@@ -11,9 +11,11 @@
 **/*.bin
 **/*.bak
 **/*.py
+**/__pycache__/
 !simulation/test_roms/*.py
 !simulation/sd_card/*.py
 !board/de1/sd_menu/*.py
+!board/sim/trace/*.py
 **/*.dmp
 **/*.png
 NES
