@@ -1,0 +1,234 @@
+diff --git a/src/AprVisual.S1/Test/TestRunner.PinTrace.cs b/src/AprVisual.S1/Test/TestRunner.PinTrace.cs
+new file mode 100644
+index 0000000..197bdd2
+--- /dev/null
++++ b/src/AprVisual.S1/Test/TestRunner.PinTrace.cs
+@@ -0,0 +1,193 @@
++using System;
++using System.Collections.Generic;
++using System.IO;
++using AprVisual.Rom;
++using AprVisual.Sim;
++
++namespace AprVisual.Test
++{
++    internal static partial class TestRunner
++    {
++        // ── --pin-trace <rom> --pin-out <file> --pin-cycles N: 2A03 pin-level bus trace ──
++        // One line per CPU cycle (one M2 period): the 2A03's external A0-A15, R/W and D0-D7 as
++        // they stand in the last half-cycle of M2 high, plus the 6502 core's SYNC. These are the
++        // console-side pins (DMA cycles included), for diffing against another implementation.
++        // Format: "<cycle> <AB hex4> <R|W> <DB hex2> <sync 0|1> <PPU vpos> <PPU hpos>". Test-mode power-up state and
++        // shims are applied unless --no-shims is given.
++        //
++        // --pin-video <file> also writes the 2C02's video output, one little-endian uint32 per PPU dot:
++        // bits 0-8 hpos, 9-17 vpos, 18-23 the colour, 24-26 the emphasis bits (R, G, B as $2001 bits 5-7).
++        // The colour is the last stage of the palette output pipeline, +++pal_dN_out_2, which feeds the
++        // hue and luma decoders that switch the DAC (so after grayscale, and with the pipeline's delay,
++        // unlike the frame buffer, which reads palette RAM at hpos), and the emphasis is /emphN_out.
++        // Each dot is sampled as pclk1 falls, when the last stage has latched. hpos and vpos are the
++        // counters' values then, so pixels lag them by the pipeline's delay.
++        //
++        // --pin-probe "<node or bus>,..." prints those nodes (e.g. ppu.vramaddr_v[14:0], ppu./w2006) in hex
++        // to stdout every half-cycle of CPU cycles --pin-probe-from to --pin-probe-to (the trace's numbering),
++        // with M2 (cpu.phi2), pclk0, pclk1, vpos and hpos, for looking inside a divergence the traces show.
++        //
++        // --pin-fm2 <file> plays controller 1 of an FM2 movie as nes_bench's fm2_joystick does with its
++        // default offset of 2: input line 3 from the start, then line L from the (L-3)th time vpos goes
++        // from 239 to 240 (the end of the bench's frame_valid). It uses the behavioral joypad (--joypad).
++        // As in --test mode, --ac-verdict arms the PPU ALE/read feedback shim for AccuracyCoin and the
++        // ALEREAD_MUX environment variable its ALERead $2007 phase mux.
++        private static unsafe int PinTrace(string romPath, string outPath, string? videoPath,
++                                           string? probe, long probeFrom, long probeTo, string? fm2Path, long cycles)
++        {
++            var rom = NesRom.LoadFromFile(romPath);
++            if (rom is null) { Console.Error.WriteLine($"failed to load ROM: {romPath}"); return 2; }
++
++            WireCore.PowerUpStateShim = !_noShims;
++            WireCore.RegisterRawIdAliases = true;
++            WireCore.EnableJoypadHandler = _joypad || fm2Path != null;
++            WireCore.PpuAleReadFeedbackShim = _acVerdict && !_noShims && !_noPpuAleReadFeedbackShim;
++            WireCore.AleReadMuxShim = Environment.GetEnvironmentVariable("ALEREAD_MUX") != null;
++            var fm2 = new List<byte>();
++            if (fm2Path != null)
++                foreach (string line in File.ReadLines(fm2Path))
++                {
++                    // |commands|RLDUTSBA|port 1|port 2|; button bit i of AprVisual's pads is FM2 column 7-i
++                    var f = line.Split('|');
++                    if (f.Length < 3 || f[0].Length != 0) continue;
++                    byte b = 0;
++                    for (int c = 0; c < 8 && c < f[2].Length; c++)
++                        if (f[2][c] != '.' && f[2][c] != ' ') b |= (byte)(1 << (7 - c));
++                    fm2.Add(b);
++                }
++            try
++            {
++                WireCore.LoadSystem(rom);
++                if (fm2Path != null && !WireCore.PadInit()) throw new InvalidOperationException("joypad not armed");
++                if (!_noShims)
++                {
++                    WireCore.EnableDmcLatchShim();
++                    if (!_noAluShim) WireCore.EnableAluLatchShim();
++                    WireCore.EnableLxaMagicShim();
++                    WireCore.EnableFrameIrqShim();
++                    WireCore.EnablePpuWriteDelay(_ppuWriteDelayHc);
++                    WireCore.EnablePpuWriteDelayGlobal(_ppuWriteDelayGlobalHc);
++                    if (!_noDbl2007Shim) WireCore.EnableDbl2007Shim();
++                    if (_oamDmaPpuBusShim) WireCore.EnableOamDmaPpuBusShim();
++                    WireCore.EnableOpenBusShim();
++                    WireCore.EnableDlShim();
++                    WireCore.EnableDmc4015AbortShim();
++                    WireCore.EnableOamBlankEdgeShim();
++                    WireCore.EnableBgSerialReloadShim();
++                    if (WireCore.AleReadMuxShim) WireCore.EnableAleReadMux();
++                }
++
++                int[] Bus(string expr, int width)
++                {
++                    var l = new List<int>();
++                    WireCore.ResolveNodes(expr, l, quiet: true);
++                    if (l.Count != width) throw new InvalidOperationException($"{expr}: resolved {l.Count} nodes, expected {width}");
++                    return l.ToArray();
++                }
++                int Node(string name)
++                {
++                    int n = WireCore.LookupNode(name);
++                    if (n == WireCore.EmptyNode) throw new InvalidOperationException($"node {name} not found");
++                    return n;
++                }
++
++                int phi2 = Node("cpu.phi2");
++                int rw = Node("cpu.rw");
++                int sync = Node("cpu.sync");
++                int[] abN = Bus("cpu.ab[15:0]", 16), dbN = Bus("cpu.db[7:0]", 8);
++                int[] vpN = Bus("ppu.vpos[8:0]", 9), hpN = Bus("ppu.hpos[8:0]", 9);
++                int pclk1 = Node("ppu.pclk1");
++                var colN = new int[6];
++                for (int b = 0; b < 6; b++) colN[b] = Node($"ppu.+++pal_d{b}_out_2");
++                var emphN = new int[3];
++                for (int b = 0; b < 3; b++) emphN[b] = Node($"ppu./emph{b}_out");
++                using var video = videoPath != null ? new BinaryWriter(new BufferedStream(File.Create(videoPath), 1 << 20)) : null;
++                int prevPclk1 = WireCore.NodeStates[pclk1];
++                int fm2Line = 2, prevVpos = WireCore.ReadBits(vpN);
++                void Fm2Apply()
++                {
++                    byte b = fm2Line < fm2.Count ? fm2[fm2Line] : (byte)0;
++                    for (int i = 0; i < 8; i++) WireCore.PadSetButton(0, i, (b >> i & 1) != 0);
++                    fm2Line++;
++                }
++                if (fm2Path != null) Fm2Apply();
++                int pclk0 = Node("ppu.pclk0");
++                var probeNames = probe?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? new string[0];
++                var probeN = new int[probeNames.Length][];
++                for (int p = 0; p < probeNames.Length; p++)
++                {
++                    var l = new List<int>();
++                    WireCore.ResolveNodes(probeNames[p], l, quiet: true);
++                    if (l.Count == 0) throw new InvalidOperationException($"{probeNames[p]}: no nodes");
++                    probeN[p] = l.ToArray();
++                }
++                if (probeNames.Length > 0)
++                    Console.WriteLine("# probe: half-cycle cycle m2 pclk0 pclk1 vpos hpos " + string.Join(' ', probeNames));
++
++                using var w = new StreamWriter(outPath, false, System.Text.Encoding.ASCII, 1 << 20);
++                w.WriteLine($"# aprvisual pin trace: {Path.GetFileName(romPath)} shims={(!_noShims ? 1 : 0)}");
++
++                int ab = 0, db = 0, r = 1, s = 0, vp = 0, hp = 0;
++                int prev = WireCore.NodeStates[phi2];
++                long cyc = 0;
++                while (cyc < cycles)
++                {
++                    WireCore.Step(1);
++                    if (fm2Path != null)
++                    {
++                        int v = WireCore.ReadBits(vpN);
++                        if (prevVpos == 239 && v == 240) Fm2Apply();
++                        prevVpos = v;
++                    }
++                    if (probeNames.Length > 0 && cyc >= probeFrom && cyc <= probeTo)
++                    {
++                        var sb = new System.Text.StringBuilder($"# probe {WireCore.Time} {cyc} {WireCore.NodeStates[phi2]} " +
++                            $"{WireCore.NodeStates[pclk0]} {WireCore.NodeStates[pclk1]} {WireCore.ReadBits(vpN)} {WireCore.ReadBits(hpN)}");
++                        foreach (var n in probeN) sb.Append(' ').Append(WireCore.ReadBits(n).ToString("X"));
++                        Console.WriteLine(sb.ToString());
++                    }
++                    if (video != null)
++                    {
++                        int pc = WireCore.NodeStates[pclk1];
++                        if (prevPclk1 == 1 && pc == 0)
++                        {
++                            uint dot = (uint)WireCore.ReadBits(hpN) | (uint)WireCore.ReadBits(vpN) << 9;
++                            for (int b = 0; b < 6; b++) dot |= (uint)WireCore.NodeStates[colN[b]] << (18 + b);
++                            for (int b = 0; b < 3; b++) dot |= (uint)(WireCore.NodeStates[emphN[b]] ^ 1) << (24 + b);
++                            video.Write(dot);
++                        }
++                        prevPclk1 = pc;
++                    }
++                    int ph = WireCore.NodeStates[phi2];
++                    if (prev == 1 && ph == 0)
++                    {
++                        w.Write(cyc.ToString("D8"));
++                        w.Write(' ');
++                        w.Write(ab.ToString("X4"));
++                        w.Write(r != 0 ? " R " : " W ");
++                        w.Write(db.ToString("X2"));
++                        w.Write(s != 0 ? " 1 " : " 0 ");
++                        w.Write(vp);
++                        w.Write(' ');
++                        w.Write(hp);
++                        w.Write('\n');
++                        cyc++;
++                    }
++                    else if (ph == 1)
++                    {
++                        ab = WireCore.ReadBits(abN);
++                        db = WireCore.ReadBits(dbN);
++                        r = WireCore.NodeStates[rw];
++                        s = WireCore.NodeStates[sync];
++                        vp = WireCore.ReadBits(vpN);
++                        hp = WireCore.ReadBits(hpN);
++                    }
++                    prev = ph;
++                }
++                Console.WriteLine($"# {cyc} cycles, {WireCore.Time} half-cycles");
++                return 0;
++            }
++            finally { WireCore.Shutdown(); }
++        }
++    }
++}
+diff --git a/src/AprVisual.S1/Test/TestRunner.cs b/src/AprVisual.S1/Test/TestRunner.cs
+index 965e509..0b06ac5 100644
+--- a/src/AprVisual.S1/Test/TestRunner.cs
++++ b/src/AprVisual.S1/Test/TestRunner.cs
+@@ -50,6 +50,7 @@ namespace AprVisual.Test
+             string? dumpModule = null, tracePath = null, shotPath = null, ppuDumpPath = null;
+             string? probePath = null, probeVblPath = null, probe2001Path = null, dumpNodeName = null, benchPath = null;
+             string? frameDumpPath = null, payloadHistPath = null, fcTaintPath = null, namesArg = null;
++            string? pinTracePath = null, pinOutPath = "pin_trace.txt", pinVideoPath = null, pinProbe = null, pinFm2 = null; long pinCycles = 100_000, pinProbeFrom = 0, pinProbeTo = -1;
+             string? phaseProbePath = null;   // --phase-probe: per-hc cpu/ppu clock-phase dump (phase-alignment experiment)
+             string? rdyProbePath = null;     // --rdy-probe: per-frame cpu.rdy transition counts (DMC-DMA study)
+             string? busTracePath = null;
+@@ -76,6 +77,14 @@ namespace AprVisual.Test
+                     case "--rom":             if (i + 1 < args.Length) romPath      = args[++i]; break;
+                     case "--test":            if (i + 1 < args.Length) testPath     = args[++i]; break;
+                     case "--test-dir":        if (i + 1 < args.Length) testDir      = args[++i]; break;
++                    case "--pin-trace":       if (i + 1 < args.Length) pinTracePath = args[++i]; break;
++                    case "--pin-out":         if (i + 1 < args.Length) pinOutPath = args[++i]; break;
++                    case "--pin-cycles":      if (i + 1 < args.Length) long.TryParse(args[++i], out pinCycles); break;
++                    case "--pin-video":       if (i + 1 < args.Length) pinVideoPath = args[++i]; break;
++                    case "--pin-probe":       if (i + 1 < args.Length) pinProbe = args[++i]; break;
++                    case "--pin-fm2":         if (i + 1 < args.Length) pinFm2 = args[++i]; break;
++                    case "--pin-probe-from":  if (i + 1 < args.Length) long.TryParse(args[++i], out pinProbeFrom); break;
++                    case "--pin-probe-to":    if (i + 1 < args.Length) long.TryParse(args[++i], out pinProbeTo); break;
+                     case "--trace":           if (i + 1 < args.Length) tracePath    = args[++i]; break;
+                     case "--cycles":          if (i + 1 < args.Length) int.TryParse(args[++i], out traceCycles); break;
+                     case "--screenshot":      if (i + 1 < args.Length) shotPath     = args[++i]; break;
+@@ -193,6 +202,7 @@ namespace AprVisual.Test
+             if (payloadHistPath != null) return PayloadHist(payloadHistPath);
+             if (fcTaintPath   != null) return FcTaintStats(fcTaintPath);
+             if (namesArg      != null) return NamesLookup(namesArg);
++            if (pinTracePath  != null) return PinTrace(pinTracePath, pinOutPath, pinVideoPath, pinProbe, pinProbeFrom, pinProbeTo, pinFm2, pinCycles);
+             if (tracePath     != null) return Trace(tracePath, traceCycles);
+             if (shotPath      != null) return Screenshot(shotPath, shotFrames, shotOut);
+             if (frameDumpPath != null) return FrameDump(frameDumpPath, frameDumpCount, frameOutDir);

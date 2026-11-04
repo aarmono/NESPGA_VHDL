@@ -227,7 +227,7 @@ apu_bus_types.o:
 file_bus_types.o: 
 nes_audio_mixer.o:  nes_types.o
 simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
-nes_bench.o:  nes_types.o ram_bus_types.o chr_bus_types.o cpu_bus_types.o cart_mem_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o utilities.o perhipheral_types.o soc.o simulation.o
+nes_bench.o:  nes_types.o ram_bus_types.o chr_bus_types.o cpu_bus_types.o cart_mem_bus_types.o cart_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o utilities.o perhipheral_types.o soc.o simulation.o binary_io.o
 perhipherals.o:  perhipheral_types.o
 lib_mapper_latch.o:  nes_types.o utilities.o prg_bus_types.o cart_mem_bus_types.o chr_bus_types.o chr_ram_bus_types.o cart_types.o
 lib_mapper_mmc1.o:  chr_bus_types.o prg_ram_bus_types.o cart_types.o
