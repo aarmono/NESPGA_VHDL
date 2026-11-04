@@ -44,7 +44,9 @@ package lib_ppu is
     -- Dots from a $2007 read to the PPUDATA state machine reading memory
     constant PPU_DATA_READ_DELAY : positive := 5;
     -- Dots from the second $2006 write to v being loaded from t
-    constant PPU_ADDR_WRITE_DELAY : positive := 3;
+    constant PPU_ADDR_WRITE_DELAY : positive := 2;
+    -- Dots from a $2007 write to the PPU writing memory and incrementing v
+    constant PPU_DATA_WRITE_DELAY : positive := 5;
 
     subtype vram_addr_t     is unsigned(14 downto 0);
     subtype palette_idx_t   is std_logic_vector(3 downto 0);
@@ -312,6 +314,10 @@ package lib_ppu is
         -- Dots until v is loaded from t after the second $2006 write, or 0
         -- if there is none pending
         ppu_addr_delay   : natural range 0 to PPU_ADDR_WRITE_DELAY;
+        -- Dots until the PPU writes ppu_data_write to memory and increments
+        -- v after a $2007 write, or 0 if there is none pending
+        ppu_data_write_delay : natural range 0 to PPU_DATA_WRITE_DELAY;
+        ppu_data_write   : data_t;
         -- The low 8 address lines share pins with the data bus. ALE is set
         -- on the first dot of each 2 dot rendering read, latching them in
         -- the octal latch, so the second dot only drives the high 6 lines.
@@ -430,6 +436,8 @@ package lib_ppu is
         ppu_data => (others => '0'),
         ppu_data_delay => 0,
         ppu_addr_delay => 0,
+        ppu_data_write_delay => 0,
+        ppu_data_write => (others => '0'),
         addr_latch => (others => '0'),
         addr_latched => false,
         chr_data => (others => '0'),
@@ -2143,6 +2151,42 @@ package body lib_ppu is
             end if;
         end if;
 
+        -- The PPU writes memory and increments v a few dots after a $2007
+        -- write, or at once if another $2007 write comes first (the two
+        -- writes of a read-modify-write instruction)
+        if render_in.reg.ppu_data_write_delay /= 0
+        then
+            render_out.reg.ppu_data_write_delay :=
+                render_in.reg.ppu_data_write_delay - 1;
+            if render_in.reg.ppu_data_write_delay = 1 or
+               (is_bus_write(render_in.cpu_bus) and
+                render_in.cpu_bus.address = "111")
+            then
+                render_out.reg.ppu_data_write_delay := 0;
+
+                if v_ppu_chr_addr >= PALETTE_ADDR_START
+                then
+                    render_out.palette_bus :=
+                        bus_write(to_palette_addr(v_ppu_chr_addr));
+                    render_out.data_to_palette :=
+                        render_in.reg.ppu_data_write(pixel_t'range);
+                else
+                    render_out.chr_bus := bus_write(v_ppu_chr_addr);
+                    render_out.data_to_chr := render_in.reg.ppu_data_write;
+                end if;
+
+                -- After access, the video memory address will increment
+                -- by an amount determined by bit 2 of $2000.
+                render_out.reg.ppu_addr :=
+                    incr_ppu_addr(render_in.reg.ppu_addr,
+                                  render_in.reg.control.ppu_incr_32,
+                                  v_rendering);
+
+                render_out.reg.chr_bus :=
+                    bus_read_scroll(render_out.reg.ppu_addr);
+            end if;
+        end if;
+
         -- External memory access from CPU. {
         -- NOTE: from most of the documentation I've read
         -- on conflicts between CPU bus access and regular
@@ -2243,26 +2287,9 @@ package body lib_ppu is
                     end if;
                 -- PPU Data
                 when "111" =>
-                    if v_ppu_chr_addr >= PALETTE_ADDR_START
-                    then
-                        render_out.palette_bus :=
-                            bus_write(to_palette_addr(v_ppu_chr_addr));
-                        render_out.data_to_palette :=
-                            render_in.data_from_cpu(pixel_t'range);
-                    else
-                        render_out.chr_bus := bus_write(v_ppu_chr_addr);
-                        render_out.data_to_chr := render_in.data_from_cpu;
-                    end if;
-
-                    -- After access, the video memory address will increment
-                    -- by an amount determined by bit 2 of $2000.
-                    render_out.reg.ppu_addr :=
-                        incr_ppu_addr(render_in.reg.ppu_addr,
-                                      render_in.reg.control.ppu_incr_32,
-                                      v_rendering);
-
-                    render_out.reg.chr_bus :=
-                        bus_read_scroll(render_out.reg.ppu_addr);
+                    render_out.reg.ppu_data_write := render_in.data_from_cpu;
+                    render_out.reg.ppu_data_write_delay :=
+                        PPU_DATA_WRITE_DELAY;
                 when others =>
                     null;
             end case;
