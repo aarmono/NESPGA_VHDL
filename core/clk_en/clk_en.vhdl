@@ -17,7 +17,13 @@ generic
     -- length. At 50MHz, 59 of every 63 cycles are 28 clocks long and the
     -- other 4 are 27. CPU cycles must be 6 to 31 clocks long.
     CPU_FREQ_NUM : positive := 39_375_000;
-    CPU_FREQ_DEN : positive := 22
+    CPU_FREQ_DEN : positive := 22;
+    -- Inverts odd_cpu_cycle. DMA reads are on even cycles, so this swaps
+    -- which cycles are APU get cycles. Which ones they are once the NES runs
+    -- depends on how many CPU cycles came before (the RAM fill and ROM load
+    -- run on them), and a real 2A03 comes out of reset in either alignment.
+    -- For matching another simulation
+    INVERT_CYCLE_PARITY : boolean := false
 );
 port
 (
@@ -126,7 +132,7 @@ architecture behavioral of clk_en is
     -- different counts
     signal cpu_cycle_start : boolean := true;
 
-    signal reg_odd_cpu_cycle : boolean := false;
+    signal reg_odd_cpu_cycle : boolean := INVERT_CYCLE_PARITY;
 
     -- Clocks added to the next CPU cycle
     function stretch_count(en : boolean) return natural
@@ -174,7 +180,7 @@ begin
 
             ppu_sync <= false;
             cpu_cycle_start <= true;
-            reg_odd_cpu_cycle <= true;
+            reg_odd_cpu_cycle <= not INVERT_CYCLE_PARITY;
         else
             if cpu_cycle_start
             then
