@@ -727,9 +727,8 @@ package body lib_apu_dmc is
 
     function soft_reset_dmc(dmc : dmc_t) return dmc_t
     is
-        variable ret : dmc_t;
+        variable ret : dmc_t := RESET_DMC;
     begin
-        ret := RESET_DMC;
         ret.dma.dma_xfer_parms := dmc.dma.dma_xfer_parms;
         ret.dma.irq_enable := dmc.dma.irq_enable;
         ret.dma.loop_enable := dmc.dma.loop_enable;

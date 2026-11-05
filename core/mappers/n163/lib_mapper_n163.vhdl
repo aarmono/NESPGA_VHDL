@@ -183,10 +183,9 @@ package body lib_mapper_n163 is
 
     function get_reset_n163_reg(board : n163_board_t) return mapper_n163_reg_t
     is
-        variable ret : mapper_n163_reg_t;
+        variable ret : mapper_n163_reg_t := RESET_MAPPER_N163_REG;
         variable addr : chr_addr_t;
     begin
-        ret := RESET_MAPPER_N163_REG;
         ret.chip := board.chip;
         ret.mirror := board.mirror;
 
@@ -452,9 +451,8 @@ package body lib_mapper_n163 is
     )
     return irq_counter_op_t
     is
-        variable ret : irq_counter_op_t;
+        variable ret : irq_counter_op_t := IRQ_COUNTER_IDLE;
     begin
-        ret := IRQ_COUNTER_IDLE;
         ret.clock := clk_sync and is_irq_counting(irq_count);
         ret.invert := true;
 
@@ -665,7 +663,14 @@ package body lib_mapper_n163 is
     )
     return mapper_n163_out_t
     is
-        variable ret : mapper_n163_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_n163_out_t :=
+            (reg => RESET_MAPPER_N163_REG,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
         variable banks : cart_banks_t;
     begin
         -- The IRQ counter and the audio are clocked before the write of the

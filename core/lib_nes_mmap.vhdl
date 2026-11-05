@@ -195,18 +195,22 @@ package body lib_nes_mmap is
     
     function mmap_cpu_memory(map_in : cpu_mmap_in_t) return cpu_mmap_out_t
     is
-        variable map_out : cpu_mmap_out_t;
+        -- map_out has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable map_out : cpu_mmap_out_t :=
+            (reg => RESET_CPU_MMAP_REG,
+             bus_out => CPU_MMAP_BUS_IDLE);
         variable address : natural range 0 to 16#FFFF#;
         variable v_regs_enabled : boolean;
         variable v_reg_range    : boolean;
         variable v_reg_conflict : boolean;
         -- Value on the external data bus
-        variable v_ext_data     : data_t;
+        variable v_ext_data     : data_t := (others => '-');
     begin
         map_out.reg := map_in.reg;
-        map_out.bus_out := CPU_MMAP_BUS_IDLE;
         v_reg_conflict := false;
-        v_ext_data := (others => '-');
         
         -- The APU and joypad registers are selected by the low 5 bits of the
         -- bus address and enabled by the CPU's own address bus, which still
@@ -383,10 +387,8 @@ package body lib_nes_mmap is
     )
     return ppu_mmap_bus_out_t
     is
-        variable ret : ppu_mmap_bus_out_t;
+        variable ret : ppu_mmap_bus_out_t := PPU_MMAP_BUS_IDLE;
     begin
-        ret := PPU_MMAP_BUS_IDLE;
-
         if cart.ciram_ce
         then
             ret.ciram_bus.address :=
@@ -413,16 +415,15 @@ package body lib_nes_mmap is
     )
     return cart_cpu_in_t
     is
-        variable ret : cart_cpu_in_t;
     begin
-        ret.prg_bus.address := cpu_bus.address(prg_addr_t'range);
-        ret.prg_bus.read := cpu_bus.read;
-        ret.prg_bus.write := cpu_bus.write;
-        -- M2 is high for all of an access here, so /ROMSEL is just A15
-        ret.romsel := is_bus_active(cpu_bus) and cpu_bus.address(15) = '1';
-        ret.data := data;
-
-        return ret;
+        return (prg_bus => (address => cpu_bus.address(prg_addr_t'range),
+                            read => cpu_bus.read,
+                            write => cpu_bus.write),
+                -- M2 is high for all of an access here, so /ROMSEL is just
+                -- A15
+                romsel => is_bus_active(cpu_bus) and
+                          cpu_bus.address(15) = '1',
+                data => data);
     end;
 
     function get_ram_addr(addr : cpu_addr_t) return ram_addr_t

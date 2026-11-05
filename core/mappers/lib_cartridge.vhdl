@@ -240,9 +240,8 @@ package body lib_cartridge is
 
     function get_reset_cart_reg(boards : cart_boards_t) return cart_reg_t
     is
-        variable ret : cart_reg_t;
+        variable ret : cart_reg_t := RESET_CART_REG;
     begin
-        ret := RESET_CART_REG;
         ret.latch := get_reset_latch_reg(boards.latch);
         ret.mmc1 := get_reset_mmc1_reg(boards.mmc1);
         ret.n163 := get_reset_n163_reg(boards.n163);
@@ -339,15 +338,13 @@ package body lib_cartridge is
 
         -- The board uses the VRC IRQ counter and its write this cycle
         variable vrc_irq : boolean;
-        variable vrc_irq_write : vrc_irq_write_t;
+        variable vrc_irq_write : vrc_irq_write_t := VRC_IRQ_NO_WRITE;
         -- The board uses the 16-bit IRQ counter, and what it does to it
         variable irq_counter : boolean;
-        variable irq_counter_op : irq_counter_op_t;
+        variable irq_counter_op : irq_counter_op_t := IRQ_COUNTER_IDLE;
     begin
         vrc_irq := false;
-        vrc_irq_write := VRC_IRQ_NO_WRITE;
         irq_counter := false;
-        irq_counter_op := IRQ_COUNTER_IDLE;
 
         -- A board left out of the build is never cycled, so neither its
         -- logic nor its registers are built

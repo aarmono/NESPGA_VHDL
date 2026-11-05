@@ -42,13 +42,10 @@ package body oam_bus_types is
     
     function bus_read(addr_in : oam_addr_t) return oam_bus_t
     is
-        variable ret : oam_bus_t;
     begin
-        ret.address := addr_in;
-        ret.read := true;
-        ret.write := false;
-        
-        return ret;
+        return (address => addr_in,
+                read => true,
+                write => false);
     end;
     
     function bus_write(addr_in : unsigned(oam_addr_t'RANGE)) return oam_bus_t
@@ -59,24 +56,18 @@ package body oam_bus_types is
     
     function bus_write(addr_in : oam_addr_t) return oam_bus_t
     is
-        variable ret : oam_bus_t;
     begin
-        ret.address := addr_in;
-        ret.read := false;
-        ret.write := true;
-        
-        return ret;
+        return (address => addr_in,
+                read => false,
+                write => true);
     end;
     
     function bus_idle(bus_in : oam_bus_t) return oam_bus_t
     is
-        variable ret : oam_bus_t;
     begin
-        ret.address := (others => '-');
-        ret.read := false;
-        ret.write := false;
-        
-        return ret;
+        return (address => (others => '-'),
+                read => false,
+                write => false);
     end;
     
     function is_bus_active(bus_in : oam_bus_t) return boolean

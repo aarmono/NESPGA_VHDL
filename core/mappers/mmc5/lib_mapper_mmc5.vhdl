@@ -1176,7 +1176,13 @@ package body lib_mapper_mmc5 is
     )
     return mapper_mmc5_out_t
     is
-        variable ret : mapper_mmc5_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc5_out_t :=
+            (reg => RESET_MAPPER_MMC5_REG,
+             cart => CART_OUT_IDLE);
         variable reg_addr : integer;
         variable banks : cart_banks_t;
         variable prg_reg : prg_reg_t;

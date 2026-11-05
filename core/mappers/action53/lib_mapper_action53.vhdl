@@ -247,7 +247,13 @@ package body lib_mapper_action53 is
     )
     return mapper_action53_out_t
     is
-        variable ret : mapper_action53_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_action53_out_t :=
+            (reg => RESET_MAPPER_ACTION53_REG,
+             cart => CART_OUT_IDLE);
         variable banks : cart_banks_t;
     begin
         ret.reg := cycle_write(reg, clk_sync, cart_in);
