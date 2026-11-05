@@ -594,7 +594,11 @@ package body cart_types is
     )
     return cart_out_t
     is
-        variable ret : cart_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : cart_out_t := CART_OUT_IDLE;
     begin
         ret := cart_out;
 
@@ -620,7 +624,11 @@ package body cart_types is
     )
     return cart_out_t
     is
-        variable ret : cart_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : cart_out_t := CART_OUT_IDLE;
         variable address : unsigned(cart_mem_addr_t'range);
     begin
         ret := cart_out;
@@ -646,7 +654,11 @@ package body cart_types is
     )
     return cart_out_t
     is
-        variable ret : cart_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : cart_out_t := CART_OUT_IDLE;
         variable address : unsigned(cart_mem_addr_t'range);
     begin
         ret := cart_out;
@@ -701,7 +713,11 @@ package body cart_types is
     )
     return cart_out_t
     is
-        variable ret : cart_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : cart_out_t := CART_OUT_IDLE;
         variable addr : chr_addr_t;
     begin
         ret := cart_out;
@@ -727,10 +743,8 @@ package body cart_types is
     )
     return cart_out_t
     is
-        variable ret : cart_out_t;
+        variable ret : cart_out_t := CART_OUT_IDLE;
     begin
-        ret := CART_OUT_IDLE;
-
         if cart_in.cpu.romsel and banks.prg_ram_8000
         then
             ret := map_prg_ram(config, cart_in, banks.prg_ram_bank, ret);

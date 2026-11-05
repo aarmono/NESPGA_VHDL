@@ -690,9 +690,8 @@ package body lib_ppu is
 
     function soft_reset_ppu_reg(reg : ppu_reg_t) return ppu_reg_t
     is
-        variable ret : ppu_reg_t;
+        variable ret : ppu_reg_t := RESET_PPU_REG;
     begin
-        ret := RESET_PPU_REG;
         ret.ppu_addr := reg.ppu_addr;
         ret.oam_addr := reg.oam_addr;
         ret.status := reg.status;
@@ -733,9 +732,8 @@ package body lib_ppu is
     )
     return ppu_reg_t
     is
-        variable ret : ppu_reg_t;
+        variable ret : ppu_reg_t := RESET_PPU_REG;
     begin
-        ret := RESET_PPU_REG;
         ret.cur_time := power_up_ppu_time(seed);
         if famicom
         then
@@ -1310,7 +1308,11 @@ package body lib_ppu is
     )
     return sprite_buffer_arr_t
     is
-        variable spr_out : sprite_buffer_arr_t;
+        -- spr_out has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable spr_out : sprite_buffer_arr_t := RESET_SPRITE_BUFFER_ARR;
     begin
         spr_out := spr_in;
         
@@ -1338,7 +1340,11 @@ package body lib_ppu is
     )
     return sprite_buffer_arr_t
     is
-        variable spr_out : sprite_buffer_arr_t;
+        -- spr_out has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable spr_out : sprite_buffer_arr_t := RESET_SPRITE_BUFFER_ARR;
     begin
         spr_out := spr_in;
 
@@ -1465,7 +1471,27 @@ package body lib_ppu is
     
     function cycle_ppu(render_in : ppu_render_in_t) return ppu_render_out_t
     is
-        variable render_out : ppu_render_out_t;
+        -- render_out has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable render_out : ppu_render_out_t :=
+            (reg => RESET_PPU_REG,
+             data_to_cpu => (others => '-'),
+             oam_bus => OAM_BUS_IDLE,
+             data_to_oam => (others => '-'),
+             sec_oam_bus => SEC_OAM_BUS_IDLE,
+             data_to_sec_oam => (others => '-'),
+             chr_bus => CHR_BUS_IDLE,
+             chr_ale => false,
+             data_to_chr => (others => '-'),
+             palette_bus => PALETTE_BUS_IDLE,
+             data_to_palette => (others => '-'),
+             vint => false,
+             pixel_bus => (pixel => (others => '-'),
+                           emphasis => (others => false),
+                           line_valid => false,
+                           frame_valid => false));
         
         -- Shared variables
         variable v_pattern_table_addr : chr_addr_t;
@@ -1500,17 +1526,6 @@ package body lib_ppu is
             resize(x"3F00", chr_addr_t'length);
     begin
         render_out.reg := render_in.reg;
-        
-        render_out.chr_bus := CHR_BUS_IDLE;
-        render_out.oam_bus := OAM_BUS_IDLE;
-        render_out.sec_oam_bus := SEC_OAM_BUS_IDLE;
-        render_out.palette_bus := PALETTE_BUS_IDLE;
-        
-        render_out.data_to_chr := (others => '-');
-        render_out.data_to_oam := (others => '-');
-        render_out.data_to_sec_oam := (others => '-');
-        render_out.data_to_cpu := (others => '-');
-        render_out.data_to_palette := (others => '-');
         
         v_ppu_chr_addr :=
             scroll_to_vram_addr(render_in.reg.ppu_addr)(chr_addr_t'range);

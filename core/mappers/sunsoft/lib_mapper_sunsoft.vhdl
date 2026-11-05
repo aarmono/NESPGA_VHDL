@@ -319,12 +319,11 @@ package body lib_mapper_sunsoft is
     )
     return irq_counter_op_t
     is
-        variable ret : irq_counter_op_t;
+        variable ret : irq_counter_op_t := IRQ_COUNTER_IDLE;
         variable addr : prg_addr_t;
     begin
         addr := cart_in.cpu.prg_bus.address;
 
-        ret := IRQ_COUNTER_IDLE;
         ret.clock := clk_sync and reg.irq_enable;
         ret.reload := board = VRC3;
         ret.low_byte := board = VRC3 and reg.irq_8bit;
@@ -462,14 +461,20 @@ package body lib_mapper_sunsoft is
     )
     return mapper_sunsoft_out_t
     is
-        variable ret : mapper_sunsoft_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_sunsoft_out_t :=
+            (reg => RESET_MAPPER_SUNSOFT_REG,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
         variable banks : cart_banks_t;
         variable window : prg_window_t;
     begin
         -- The counters are clocked before the write of the CPU cycle, so a
         -- write to them is not undone by the clock
         ret.reg := reg;
-        ret.irq_counter := IRQ_COUNTER_IDLE;
         case board is
             when SUNSOFT_3 | VRC3 =>
                 ret.reg := cycle_irq(ret.reg, irq_count, board, clk_sync);

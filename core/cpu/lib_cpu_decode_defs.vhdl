@@ -407,9 +407,8 @@ package body lib_cpu_decode_defs is
 
     function decode_sbi(instruction : instruction_t) return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_SBI_INIT;
     begin
-        ret := DECODE_SBI_INIT;
         ret.instruction := instruction;
 
         return ret;
@@ -417,9 +416,8 @@ package body lib_cpu_decode_defs is
 
     function decode_imm(instruction : instruction_t) return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_IMM_INIT;
     begin
-        ret := DECODE_IMM_INIT;
         ret.instruction := instruction;
 
         return ret;
@@ -434,9 +432,8 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_ZERO_INIT;
     begin
-        ret := DECODE_ZERO_INIT;
         ret.read := read;
         ret.write := write;
         ret.instruction := instruction;
@@ -472,9 +469,8 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_ABS_INIT;
     begin
-        ret := DECODE_ABS_INIT;
         ret.read := read;
         ret.write := write;
         ret.instruction := instruction;
@@ -511,9 +507,8 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_ABS_IDX_INIT;
     begin
-        ret := DECODE_ABS_IDX_INIT;
         ret.read := read;
         ret.write := write;
         ret.instruction := instruction;
@@ -615,9 +610,8 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_ZERO_IDX_INIT;
     begin
-        ret := DECODE_ZERO_IDX_INIT;
         ret.read := read;
         ret.write := write;
         ret.instruction := instruction;
@@ -692,9 +686,8 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_IND_X_INIT;
     begin
-        ret := DECODE_IND_X_INIT;
         ret.read := read;
         ret.write := write;
         ret.instruction := instruction;
@@ -730,9 +723,8 @@ package body lib_cpu_decode_defs is
     )
     return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_IND_Y_INIT;
     begin
-        ret := DECODE_IND_Y_INIT;
         ret.read := read;
         ret.write := write;
         ret.instruction := instruction;
@@ -771,9 +763,8 @@ package body lib_cpu_decode_defs is
 
     function decode_brk(incr_pc : boolean) return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_BRK_INIT;
     begin
-        ret := DECODE_BRK_INIT;
         ret.incr_pc := incr_pc;
 
         return ret;
@@ -781,9 +772,8 @@ package body lib_cpu_decode_defs is
 
     function decode_push(reg : reg_t) return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_PUSH_INIT;
     begin
-        ret := DECODE_PUSH_INIT;
         ret.reg := reg;
 
         return ret;
@@ -791,9 +781,8 @@ package body lib_cpu_decode_defs is
 
     function decode_pull(instruction : instruction_t) return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_PULL_INIT;
     begin
-        ret := DECODE_PULL_INIT;
         ret.instruction := instruction;
 
         return ret;
@@ -801,9 +790,8 @@ package body lib_cpu_decode_defs is
 
     function decode_branch(reg : reg_t) return decode_state_t
     is
-        variable ret : decode_state_t;
+        variable ret : decode_state_t := DECODE_BRANCH_INIT;
     begin
-        ret := DECODE_BRANCH_INIT;
         ret.reg := reg;
 
         return ret;

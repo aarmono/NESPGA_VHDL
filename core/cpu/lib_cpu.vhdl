@@ -87,9 +87,8 @@ package body lib_cpu is
 
     function soft_reset_registers(reg : registers_t) return registers_t
     is
-        variable ret : registers_t;
+        variable ret : registers_t := RESET_REGISTERS;
     begin
-        ret := RESET_REGISTERS;
         ret.opstate := reg.opstate;
         return ret;
     end;
@@ -210,23 +209,21 @@ package body lib_cpu is
     is
         -- Internal variables
         variable v_decoded       : decode_state_t;
-        variable v_arith_scratch : unsigned(8 downto 0);
+        variable v_arith_scratch : unsigned(8 downto 0) := (others => '-');
         variable v_exec          : boolean;
         variable v_irq           : boolean;
         variable v_int           : boolean;
 
         -- Variables which affect state or outputs
         variable v_sync     : boolean;
-        variable v_data_out : reg_t;
-        variable v_data_bus : cpu_bus_t;
-        variable v_reg      : registers_t;
-
-        -- Return variable
-        variable ret : cpu_output_t;
+        variable v_data_out : reg_t := (others => '-');
+        -- v_reg has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable v_data_bus : cpu_bus_t := CPU_BUS_IDLE;
+        variable v_reg      : registers_t := RESET_REGISTERS;
     begin
-        v_arith_scratch := (others => '-');
-        v_data_out := (others => '-');
-        v_data_bus := bus_idle(v_data_bus);
         v_reg := reg;
         v_sync := false;
         v_exec := false;
@@ -886,12 +883,10 @@ package body lib_cpu is
             end if;
         end if;
 
-        ret.reg := v_reg;
-        ret.data_bus := v_data_bus;
-        ret.data_out := std_logic_vector(v_data_out);
-        ret.sync := v_sync;
-
-        return ret;
+        return (reg => v_reg,
+                data_out => std_logic_vector(v_data_out),
+                data_bus => v_data_bus,
+                sync => v_sync);
     end;
 
 end package body;

@@ -278,7 +278,13 @@ package body lib_mapper_mmc2 is
     )
     return mapper_mmc2_out_t
     is
-        variable ret : mapper_mmc2_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc2_out_t :=
+            (reg => RESET_MAPPER_MMC2_REG,
+             cart => CART_OUT_IDLE);
         variable banks : cart_banks_t;
     begin
         -- The PPU sees the registers written by the CPU this cycle, and the

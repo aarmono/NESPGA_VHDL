@@ -496,9 +496,8 @@ package body lib_vrc7_audio is
 
     function to_channel_word(ch : opll_channel_t) return opll_ram_data_t
     is
-        variable ret : opll_ram_data_t;
+        variable ret : opll_ram_data_t := (others => '0');
     begin
-        ret := (others => '0');
         ret(8 downto 0) := to_std_logic_vector(ch.fnum, 9);
         ret(11 downto 9) := to_std_logic_vector(ch.octave, 3);
         ret(12) := to_std_logic(ch.kon);
@@ -1066,7 +1065,7 @@ package body lib_vrc7_audio is
         variable rate_lo : natural range 0 to 3;
         variable sum : opll_nibble_t;
         variable state_rate : opll_eg_state_t;
-        variable rate : opll_nibble_t;
+        variable rate : opll_nibble_t := 0;
         variable ksr : opll_nibble_t;
         variable kon_1 : boolean;
         variable off_1 : boolean;
@@ -1256,7 +1255,6 @@ package body lib_vrc7_audio is
             ret.eg_off := ret.eg_off + 1;
         end if;
 
-        rate := 0;
         ret.eg_dokon := (audio.eg_dokon * 2) mod 2**16;
         state_rate := slot.state;
         if state_rate = EG_RELEASE and kon_1 and off_1

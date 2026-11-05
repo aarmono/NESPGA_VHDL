@@ -144,9 +144,8 @@ package body utilities is
     )
     return std_logic_vector
     is
-        variable ret : std_logic_vector(size-1 downto 0);
+        variable ret : std_logic_vector(size-1 downto 0) := (others => '0');
     begin
-        ret := (others => '0');
         ret(0) := val;
         
         return ret;

@@ -42,13 +42,10 @@ package body chip_ram_bus_types is
     
     function bus_read(addr_in : chip_ram_addr_t) return chip_ram_bus_t
     is
-        variable ret : chip_ram_bus_t;
     begin
-        ret.address := addr_in;
-        ret.read := true;
-        ret.write := false;
-        
-        return ret;
+        return (address => addr_in,
+                read => true,
+                write => false);
     end;
     
     function bus_write(addr_in : unsigned(chip_ram_addr_t'RANGE)) return chip_ram_bus_t
@@ -59,24 +56,18 @@ package body chip_ram_bus_types is
     
     function bus_write(addr_in : chip_ram_addr_t) return chip_ram_bus_t
     is
-        variable ret : chip_ram_bus_t;
     begin
-        ret.address := addr_in;
-        ret.read := false;
-        ret.write := true;
-        
-        return ret;
+        return (address => addr_in,
+                read => false,
+                write => true);
     end;
     
     function bus_idle(bus_in : chip_ram_bus_t) return chip_ram_bus_t
     is
-        variable ret : chip_ram_bus_t;
     begin
-        ret.address := (others => '-');
-        ret.read := false;
-        ret.write := false;
-        
-        return ret;
+        return (address => (others => '-'),
+                read => false,
+                write => false);
     end;
     
     function is_bus_active(bus_in : chip_ram_bus_t) return boolean

@@ -380,9 +380,8 @@ package body lib_apu_frame_seq is
     
     function soft_reset_frame_seq(seq : frame_seq_t) return frame_seq_t
     is
-        variable ret : frame_seq_t;
+        variable ret : frame_seq_t := RESET_FRAME_SEQ;
     begin
-        ret := RESET_FRAME_SEQ;
         ret.mode := seq.mode;
         ret.irq_disable := seq.irq_disable;
 

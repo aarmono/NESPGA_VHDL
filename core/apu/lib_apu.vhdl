@@ -78,17 +78,17 @@ package body lib_apu is
         variable v_audio           : apu_out_t;
         variable v_update_envelope : boolean;
         variable v_update_length   : boolean;
-        variable v_reg             : reg_t;
-        variable v_cpu_data_out    : data_t;
+        -- v_reg has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable v_reg             : reg_t := RESET_REG;
+        variable v_cpu_data_out    : data_t := (others => '-');
         variable v_ready           : boolean;
         variable v_frame_irq       : boolean;
         variable v_dmc_irq         : boolean;
         variable v_dma_bus         : cpu_bus_t;
-
-        -- Return value
-        variable ret : apu_output_t;
     begin
-        v_cpu_data_out   := (others => '-');
         v_reg            := reg;
         v_audio.square_1 := get_audio(reg.square_1, 0);
         v_audio.square_2 := get_audio(reg.square_2, 1);
@@ -251,14 +251,12 @@ package body lib_apu is
         v_reg.frame_seq := next_frame_irq_clear(v_reg.frame_seq, odd_cycle);
         v_reg.frame_seq := update_frame_irq(v_reg.frame_seq);
         
-        ret.reg := v_reg;
-        ret.audio := v_audio;
-        ret.cpu_data_out := v_cpu_data_out;
-        ret.ready := v_ready;
-        ret.irq := frame_irq_asserted(reg.frame_seq) or v_dmc_irq;
-        ret.dma_bus := v_dma_bus;
-
-        return ret;
+        return (reg => v_reg,
+                audio => v_audio,
+                cpu_data_out => v_cpu_data_out,
+                dma_bus => v_dma_bus,
+                irq => frame_irq_asserted(reg.frame_seq) or v_dmc_irq,
+                ready => v_ready);
     end;
 
     function soft_reset_apu(reg : reg_t) return reg_t

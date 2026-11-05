@@ -307,38 +307,42 @@ package body lib_nes is
 
     function cycle_nes(nes_in : nes_in_t) return nes_out_t
     is
-        variable ret : nes_out_t;
-        
-        variable cpu_map_in  : cpu_mmap_in_t;
-        variable cpu_map_out : cpu_mmap_out_t;
+        -- These have initial values because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. They are constants
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : nes_out_t :=
+            (reg => RESET_REG,
+             cpu_bus => CPU_MMAP_BUS_IDLE,
+             ppu_bus => PPU_MMAP_BUS_IDLE,
+             prg_cart_mem_bus => CART_MEM_BUS_IDLE,
+             data_to_prg_cart_mem => (others => '-'),
+             chr_cart_mem_bus => CART_MEM_BUS_IDLE,
+             data_to_chr_cart_mem => (others => '-'),
+             chip_ram_bus => CHIP_RAM_BUS_IDLE,
+             data_to_chip_ram => (others => '-'),
+             oam_bus => OAM_BUS_IDLE,
+             data_to_oam => (others => '-'),
+             sec_oam_bus => SEC_OAM_BUS_IDLE,
+             data_to_sec_oam => (others => '-'),
+             palette_bus => PALETTE_BUS_IDLE,
+             data_to_palette => (others => '-'),
+             audio => (others => '-'),
+             reset => false,
+             soft_reset => false,
+             irq => false,
+             power_up_enable => false);
+
+        variable cpu_map_out : cpu_mmap_out_t :=
+            (reg => RESET_CPU_MMAP_REG,
+             bus_out => CPU_MMAP_BUS_IDLE);
         
         variable mirror : std_logic_vector(1 downto 0);
     begin
         ret.reg := nes_in.reg;
-        
-        ret.cpu_bus := CPU_MMAP_BUS_IDLE;
-        ret.ppu_bus := PPU_MMAP_BUS_IDLE;
-
-        ret.prg_cart_mem_bus := CART_MEM_BUS_IDLE;
-        ret.data_to_prg_cart_mem := (others => '-');
-        ret.chr_cart_mem_bus := CART_MEM_BUS_IDLE;
-        ret.data_to_chr_cart_mem := (others => '-');
 
         ret.chip_ram_bus := nes_in.cart.mem.chip_ram_bus;
         ret.data_to_chip_ram := nes_in.cart.mem.data_to_chip_ram;
-        
-        ret.oam_bus := OAM_BUS_IDLE;
-        ret.sec_oam_bus := SEC_OAM_BUS_IDLE;
-        ret.palette_bus := PALETTE_BUS_IDLE;
-        ret.data_to_oam := (others => '-');
-        ret.data_to_sec_oam := (others => '-');
-        ret.data_to_palette := (others => '-');
-        
-        ret.audio := (others => '-');
-        ret.reset := false;
-        ret.soft_reset := false;
-        ret.irq   := false;
-        ret.power_up_enable := false;
         
         case nes_in.reg.cur_state is
             when STATE_LOAD =>
@@ -583,10 +587,10 @@ package body lib_nes is
                 ret.palette_bus := nes_in.palette_bus;
                 ret.data_to_palette := nes_in.data_to_palette;
                 
-                cpu_map_in.reg := nes_in.reg.mmap_reg;
-                cpu_map_in.bus_in := nes_in.cpu_bus;
-                cpu_map_in.cart := nes_in.cart.cpu;
-                cpu_map_out := mmap_cpu_memory(cpu_map_in);
+                cpu_map_out :=
+                    mmap_cpu_memory((reg => nes_in.reg.mmap_reg,
+                                     bus_in => nes_in.cpu_bus,
+                                     cart => nes_in.cart.cpu));
                 
                 ret.reg.mmap_reg := cpu_map_out.reg;
                 ret.cpu_bus := cpu_map_out.bus_out;

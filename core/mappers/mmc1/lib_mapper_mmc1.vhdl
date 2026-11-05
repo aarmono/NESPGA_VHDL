@@ -251,10 +251,8 @@ package body lib_mapper_mmc1 is
 
     function get_reset_mmc1_reg(board : mmc1_board_t) return mapper_mmc1_reg_t
     is
-        variable ret : mapper_mmc1_reg_t;
+        variable ret : mapper_mmc1_reg_t := RESET_MAPPER_MMC1_REG;
     begin
-        ret := RESET_MAPPER_MMC1_REG;
-
         -- The timer of NES-EVENT does not run on power up
         if board = MMC1_EVENT
         then
@@ -562,7 +560,13 @@ package body lib_mapper_mmc1 is
     )
     return mapper_mmc1_out_t
     is
-        variable ret : mapper_mmc1_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc1_out_t :=
+            (reg => RESET_MAPPER_MMC1_REG,
+             cart => CART_OUT_IDLE);
         variable banks : cart_banks_t;
     begin
         ret.reg := cycle_write(reg, clk_sync, cart_in);

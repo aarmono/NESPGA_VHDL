@@ -240,9 +240,8 @@ package body lib_mapper_taito is
     )
     return prg_bank_8kb_t
     is
-        variable ret : prg_bank_8kb_t;
+        variable ret : prg_bank_8kb_t := (others => '0');
     begin
-        ret := (others => '0');
         if board = TAITO_X1_017_552
         then
             ret(5 downto 0) := unsigned(reverse_vector(data(5 downto 0)));
@@ -638,7 +637,13 @@ package body lib_mapper_taito is
     )
     return mapper_taito_out_t
     is
-        variable ret : mapper_taito_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_taito_out_t :=
+            (reg => RESET_MAPPER_TAITO_REG,
+             cart => CART_OUT_IDLE);
         variable banks : cart_banks_t;
     begin
         -- The X1-017 clocks its counter before the write of the CPU cycle,

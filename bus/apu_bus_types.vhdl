@@ -42,13 +42,10 @@ package body apu_bus_types is
     
     function bus_read(addr_in : apu_addr_t) return apu_bus_t
     is
-        variable ret : apu_bus_t;
     begin
-        ret.address := addr_in;
-        ret.read := true;
-        ret.write := false;
-        
-        return ret;
+        return (address => addr_in,
+                read => true,
+                write => false);
     end;
     
     function bus_write(addr_in : unsigned(apu_addr_t'RANGE)) return apu_bus_t
@@ -59,24 +56,18 @@ package body apu_bus_types is
     
     function bus_write(addr_in : apu_addr_t) return apu_bus_t
     is
-        variable ret : apu_bus_t;
     begin
-        ret.address := addr_in;
-        ret.read := false;
-        ret.write := true;
-        
-        return ret;
+        return (address => addr_in,
+                read => false,
+                write => true);
     end;
     
     function bus_idle(bus_in : apu_bus_t) return apu_bus_t
     is
-        variable ret : apu_bus_t;
     begin
-        ret.address := (others => '-');
-        ret.read := false;
-        ret.write := false;
-        
-        return ret;
+        return (address => (others => '-'),
+                read => false,
+                write => false);
     end;
     
     function is_bus_active(bus_in : apu_bus_t) return boolean

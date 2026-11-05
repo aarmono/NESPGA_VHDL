@@ -65,7 +65,13 @@ package body lib_mapper_nsf is
     )
     return mapper_nsf_out_t
     is
-        variable ret : mapper_nsf_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_nsf_out_t :=
+            (reg => RESET_MAPPER_NSF_REG,
+             cart => CART_OUT_IDLE);
         variable banks : cart_banks_t;
         variable addr : prg_addr_t;
         variable bank : nsf_bank_t;

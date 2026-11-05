@@ -297,9 +297,8 @@ package body lib_mapper_irem is
     )
     return irq_counter_op_t
     is
-        variable ret : irq_counter_op_t;
+        variable ret : irq_counter_op_t := IRQ_COUNTER_IDLE;
     begin
-        ret := IRQ_COUNTER_IDLE;
         ret.clock := clk_sync and reg.irq_enable and irq_count /= 0;
 
         if is_rom_write(cart_in.cpu, clk_sync) and
@@ -384,13 +383,19 @@ package body lib_mapper_irem is
     )
     return mapper_irem_out_t
     is
-        variable ret : mapper_irem_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_irem_out_t :=
+            (reg => RESET_MAPPER_IREM_REG,
+             cart => CART_OUT_IDLE,
+             irq_counter => IRQ_COUNTER_IDLE);
         variable banks : cart_banks_t;
     begin
         -- The counter is clocked before the write of the CPU cycle, so a
         -- write to it is not undone by the clock
         ret.reg := reg;
-        ret.irq_counter := IRQ_COUNTER_IDLE;
         if board = H3001
         then
             ret.reg := cycle_h3001_irq(ret.reg, irq_count, clk_sync);

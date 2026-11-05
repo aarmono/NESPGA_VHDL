@@ -345,7 +345,11 @@ package body lib_mapper_mmc3 is
     )
     return mapper_mmc3_reg_t
     is
-        variable ret : mapper_mmc3_reg_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
         variable addr : prg_addr_t;
         variable data : data_t;
         variable prg_ram_write : boolean;
@@ -624,7 +628,11 @@ package body lib_mapper_mmc3 is
     )
     return mapper_mmc3_reg_t
     is
-        variable ret : mapper_mmc3_reg_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
     begin
         ret := reg;
 
@@ -748,7 +756,11 @@ package body lib_mapper_mmc3 is
     )
     return mapper_mmc3_reg_t
     is
-        variable ret : mapper_mmc3_reg_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
     begin
         ret := reg;
 
@@ -802,7 +814,11 @@ package body lib_mapper_mmc3 is
     )
     return mapper_mmc3_reg_t
     is
-        variable ret : mapper_mmc3_reg_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
         variable clock : boolean;
     begin
         ret := reg;
@@ -962,8 +978,14 @@ package body lib_mapper_mmc3 is
     )
     return mapper_mmc3_out_t
     is
-        variable ret : mapper_mmc3_out_t;
-        variable written : mapper_mmc3_reg_t;
+        -- ret and written have initial values because without one ghdl
+        -- fills in every element on each call, which is slow to simulate.
+        -- They are constants because Quartus 13 can fail to infer registers
+        -- from a variable whose initial value isn't
+        variable ret : mapper_mmc3_out_t :=
+            (reg => RESET_MAPPER_MMC3_REG,
+             cart => CART_OUT_IDLE);
+        variable written : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
         variable banks : cart_banks_t;
         variable prg_bank : bank_t;
         variable chr_window : chr_window_t;

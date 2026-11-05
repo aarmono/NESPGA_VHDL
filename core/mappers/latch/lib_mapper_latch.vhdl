@@ -342,9 +342,8 @@ package body lib_mapper_latch is
     -- The bits inverted
     function inv(b : latch_bits_t) return latch_bits_t
     is
-        variable ret : latch_bits_t(b'range);
+        variable ret : latch_bits_t(b'range) := b;
     begin
-        ret := b;
         for i in ret'range
         loop
             ret(i).inv := not ret(i).inv;
@@ -372,9 +371,8 @@ package body lib_mapper_latch is
     function to_latch(b : latch_bits_t) return latch_t
     is
         variable v : latch_bits_t(0 to b'length - 1) := b;
-        variable ret : latch_t;
+        variable ret : latch_t := LATCH_NONE;
     begin
-        ret := LATCH_NONE;
         for i in v'range
         loop
             ret(v'high - i) := v(i);
@@ -920,10 +918,9 @@ package body lib_mapper_latch is
     )
     return mapper_latch_reg_t
     is
-        variable ret : mapper_latch_reg_t;
+        variable ret : mapper_latch_reg_t := RESET_MAPPER_LATCH_REG;
         variable wiring : latch_bit_t;
     begin
-        ret := RESET_MAPPER_LATCH_REG;
         for i in latch_id_t
         loop
             for b in latch_value_t'range
@@ -1219,7 +1216,13 @@ package body lib_mapper_latch is
     )
     return mapper_latch_out_t
     is
-        variable ret : mapper_latch_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_latch_out_t :=
+            (reg => RESET_MAPPER_LATCH_REG,
+             cart => CART_OUT_IDLE);
         variable banks : cart_banks_t;
         variable chr_window : chr_window_t;
         variable prg_open_bus : boolean;

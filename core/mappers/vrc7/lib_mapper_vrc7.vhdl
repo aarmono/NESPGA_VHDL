@@ -285,7 +285,14 @@ package body lib_mapper_vrc7 is
     )
     return mapper_vrc7_out_t
     is
-        variable ret : mapper_vrc7_out_t;
+        -- ret has an initial value because without one ghdl fills in every
+        -- element on each call, which is slow to simulate. It is a constant
+        -- because Quartus 13 can fail to infer registers from a variable
+        -- whose initial value isn't
+        variable ret : mapper_vrc7_out_t :=
+            (reg => RESET_MAPPER_VRC7_REG,
+             cart => CART_OUT_IDLE,
+             irq_write => VRC_IRQ_NO_WRITE);
         variable banks : cart_banks_t;
         variable window : chr_window_t;
         variable run : boolean;
