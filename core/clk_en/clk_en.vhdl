@@ -132,7 +132,11 @@ architecture behavioral of clk_en is
     -- different counts
     signal cpu_cycle_start : boolean := true;
 
-    signal reg_odd_cpu_cycle : boolean := INVERT_CYCLE_PARITY;
+    -- Toggles on cpu_en, so that it holds for a whole CPU cycle and the
+    -- buses that depend on it (the DMC DMA read) don't move partway through
+    -- one. The power up and reset values differ so that the cycles see the
+    -- same parity as when this toggled at the start of the count
+    signal reg_odd_cpu_cycle : boolean := not INVERT_CYCLE_PARITY;
 
     -- Clocks added to the next CPU cycle
     function stretch_count(en : boolean) return natural
@@ -180,9 +184,9 @@ begin
 
             ppu_sync <= false;
             cpu_cycle_start <= true;
-            reg_odd_cpu_cycle <= not INVERT_CYCLE_PARITY;
+            reg_odd_cpu_cycle <= INVERT_CYCLE_PARITY;
         else
-            if cpu_cycle_start
+            if cpu_en
             then
                 reg_odd_cpu_cycle <= not reg_odd_cpu_cycle;
             end if;
