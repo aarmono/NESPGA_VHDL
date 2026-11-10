@@ -6,6 +6,7 @@ use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.chr_bus_types.all;
 use work.cpu_bus_types.all;
+use work.prg_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.cart_types.all;
 use work.oam_bus_types.all;
@@ -42,7 +43,16 @@ generic
     -- When set, write the visible pixels to this file from the first frame
     -- that starts once the NES is running, 2 bytes each: the colour, then
     -- the emphasis bits. See board/sim/trace/video_diff.py
-    VIDEO_TRACE_FILEPATH : string := ""
+    VIDEO_TRACE_FILEPATH : string := "";
+    -- When set, write to this file each change of the CPU side of the
+    -- cartridge connector that comes LATE_CLOCKS or more clocks after the
+    -- start of a CPU cycle, once the NES is running: CPU cycle, clocks into
+    -- the cycle (CPU_DIV is when the cycle ends), what changed (A for the
+    -- address, /ROMSEL or R/W, D for write data) and the bus before and
+    -- after. A connector on pins needs the address stable before M2 rises,
+    -- about 3/8 of the way into the cycle, and write data before M2 falls
+    BUS_CHECK_FILEPATH : string := "";
+    BUS_CHECK_LATE_CLOCKS : positive := 2
 );
 end nes_bench;
 
@@ -174,6 +184,92 @@ begin
         end process;
     end generate;
     
+    gen_bus_check : if BUS_CHECK_FILEPATH'length > 0 generate
+        file check_file : text open write_mode is BUS_CHECK_FILEPATH;
+
+        function bus_image(cpu_in : cart_cpu_in_t) return string
+        is
+        begin
+            if cpu_in.prg_bus.write
+            then
+                return to_hstring(std_logic_vector'(
+                           to_std_logic(cpu_in.romsel) &
+                           cpu_in.prg_bus.address)) &
+                       " W " & to_hstring(cpu_in.data);
+            elsif cpu_in.prg_bus.read
+            then
+                return to_hstring(std_logic_vector'(
+                           to_std_logic(cpu_in.romsel) &
+                           cpu_in.prg_bus.address)) & " R --";
+            else
+                return "---- I --";
+            end if;
+        end;
+    begin
+        process(clk)
+        is
+            variable cycle   : natural := 0;
+            -- Clocks since the clock enable that started the CPU cycle
+            variable clocks  : natural := 0;
+            variable prev    : cart_cpu_in_t;
+            variable started : boolean := false;
+            variable addr_changed : boolean;
+            variable data_changed : boolean;
+            variable l       : line;
+        begin
+        if rising_edge(clk)
+        then
+            clocks := clocks + 1;
+
+            -- The bus sampled on a clock is what the clock before it left
+            if started and output_ready
+            then
+                -- The address of an idle bus is a don't care
+                addr_changed :=
+                    prev.prg_bus.read /= board_cpu_in.prg_bus.read or
+                    prev.prg_bus.write /= board_cpu_in.prg_bus.write or
+                    (is_bus_active(board_cpu_in.prg_bus) and
+                     (prev.prg_bus.address /= board_cpu_in.prg_bus.address or
+                      prev.romsel /= board_cpu_in.romsel));
+                data_changed :=
+                    board_cpu_in.prg_bus.write and
+                    prev.prg_bus.write and
+                    prev.data /= board_cpu_in.data;
+
+                if clocks >= BUS_CHECK_LATE_CLOCKS and
+                   (addr_changed or data_changed)
+                then
+                    write(l, cycle, right, 8);
+                    write(l, ' ');
+                    write(l, clocks, right, 2);
+                    if addr_changed
+                    then
+                        write(l, string'(" A "));
+                    else
+                        write(l, string'(" D "));
+                    end if;
+                    write(l, bus_image(prev));
+                    write(l, string'(" -> "));
+                    write(l, bus_image(board_cpu_in));
+                    writeline(check_file, l);
+                end if;
+            end if;
+
+            prev := board_cpu_in;
+
+            if cpu_clk_en
+            then
+                started := true;
+                clocks := 0;
+                if output_ready
+                then
+                    cycle := cycle + 1;
+                end if;
+            end if;
+        end if;
+        end process;
+    end generate;
+
     gen_video_trace : if VIDEO_TRACE_FILEPATH'length > 0 generate
         file video_file : byte_file_t open write_mode is VIDEO_TRACE_FILEPATH;
     begin
