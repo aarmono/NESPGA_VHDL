@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 use work.lib_vrc_irq.all;
 use work.opll_bus_types.all;

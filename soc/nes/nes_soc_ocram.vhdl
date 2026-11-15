@@ -15,6 +15,7 @@ use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.lib_nes.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 
 entity nes_soc_ocram is

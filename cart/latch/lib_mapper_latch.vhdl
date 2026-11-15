@@ -7,6 +7,7 @@ use work.prg_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.chr_bus_types.all;
 use work.chr_ram_bus_types.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 
 -- Boards built from discrete logic: one or more latches that hold bits of

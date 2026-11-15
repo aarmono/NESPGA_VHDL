@@ -20,6 +20,7 @@
 ../../../bus/joy_bus_types.vhdl
 
 ../../../core/nes_types.vhdl
+../../../bus/cart_connector_types.vhdl
 ../../../core/nes_audio_mixer.vhdl
 
 ../../../perhiperals/perhipheral_types.vhdl

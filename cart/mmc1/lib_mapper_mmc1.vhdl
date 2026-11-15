@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 
 -- Boards built around the MMC1. The CPU writes its registers one bit at a

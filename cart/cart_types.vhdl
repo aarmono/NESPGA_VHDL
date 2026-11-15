@@ -11,11 +11,12 @@ use work.chr_ram_bus_types.all;
 use work.exram_bus_types.all;
 use work.chip_ram_bus_types.all;
 use work.cart_mem_bus_types.all;
+use work.cart_connector_types.all;
 
 -- Types shared by the cartridge and the boards (mappers) it can hold. The
--- cart_cpu_* and cart_ppu_* records follow the pins of the cartridge
--- connector. The memories on the board (PRG ROM, CHR ROM, PRG RAM and
--- CHR RAM) are not on the connector, so they have records of their own.
+-- signals of the cartridge connector are in cart_connector_types, since the
+-- console uses them too. The memories on the board (PRG ROM, CHR ROM,
+-- PRG RAM and CHR RAM) are not on the connector, so they have records here.
 -- So does RAM inside a mapper chip (the ExRAM of the MMC5 and the chip RAM
 -- of the Namco 163), which is kept with the memories of the board rather than
 -- in the board, as are the contents of the serial EEPROMs of the Bandai FCG
@@ -154,75 +155,6 @@ package cart_types is
 
         prg_ram_mask => DEFAULT_RAM_MASK,
         chr_ram_mask => DEFAULT_RAM_MASK
-    );
-
-    -- CPU side of the connector, driven by the console
-    type cart_cpu_in_t is record
-        -- CPU A0-A14 and R/W. The board sees every access, including those
-        -- to the console's own registers and RAM. Neither read nor write is
-        -- set when the bus is idle
-        prg_bus : prg_bus_t;
-        -- /ROMSEL, active high: set for an access to 0x8000-0xFFFF
-        romsel  : boolean;
-        -- CPU D0-D7 during a write
-        data    : data_t;
-    end record;
-
-    -- CPU side of the connector, driven by the board
-    type cart_cpu_out_t is record
-        -- CPU D0-D7. When the board does not drive them the console reads
-        -- open bus
-        data    : data_t;
-        data_oe : boolean;
-        -- The bits of data the board leaves floating when it drives the
-        -- others: the console reads open bus there
-        data_float : data_t;
-        -- /IRQ, active high
-        irq     : boolean;
-    end record;
-
-    constant CART_CPU_OUT_IDLE : cart_cpu_out_t :=
-    (
-        data => (others => '-'),
-        data_oe => false,
-        data_float => (others => '0'),
-        irq => false
-    );
-
-    -- PPU side of the connector, driven by the console
-    type cart_ppu_in_t is record
-        -- PPU A0-A13, /RD and /WR
-        chr_bus : chr_bus_t;
-        -- Set on the first dot of each access. On the console /RD and /WR
-        -- go high between back-to-back accesses, which chr_bus does not
-        -- show, so this stands in for their falling edges
-        ale     : boolean;
-        -- PPU D0-D7 during a write
-        data    : data_t;
-    end record;
-
-    -- PPU side of the connector, driven by the board
-    type cart_ppu_out_t is record
-        -- PPU D0-D7, when CIRAM is not enabled
-        data      : data_t;
-        data_oe   : boolean;
-        -- CIRAM /CE, active high, and CIRAM A10. The console addresses CIRAM
-        -- with these and PPU A0-A9
-        ciram_ce  : boolean;
-        ciram_a10 : std_logic;
-        -- Not on the connector. A four-screen board carries 2KB of VRAM of
-        -- its own; here the console's CIRAM is 4KB, and this selects the
-        -- half that stands in for the board's VRAM
-        ciram_a11 : std_logic;
-    end record;
-
-    constant CART_PPU_OUT_IDLE : cart_ppu_out_t :=
-    (
-        data => (others => '-'),
-        data_oe => false,
-        ciram_ce => false,
-        ciram_a10 => '-',
-        ciram_a11 => '-'
     );
 
     -- The memories on the board. ROM addresses are relative to the start of

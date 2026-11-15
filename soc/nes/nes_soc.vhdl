@@ -18,6 +18,7 @@ use work.ppu_bus_types.all;
 use work.palette_bus_types.all;
 use work.nes_types.all;
 use work.nes_core.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 use work.lib_nes_mmap.all;
 use work.lib_nes.all;

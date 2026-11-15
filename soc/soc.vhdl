@@ -12,6 +12,7 @@ use work.chip_ram_bus_types.all;
 use work.opll_bus_types.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 
 package soc is

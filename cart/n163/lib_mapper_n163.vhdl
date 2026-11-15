@@ -7,6 +7,7 @@ use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chip_ram_bus_types.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 use work.lib_n163_audio.all;
 use work.lib_irq_counter.all;

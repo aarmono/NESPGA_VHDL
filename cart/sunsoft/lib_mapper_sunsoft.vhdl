@@ -6,6 +6,7 @@ use work.utilities.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.cart_mem_bus_types.all;
+use work.cart_connector_types.all;
 use work.cart_types.all;
 use work.lib_irq_counter.all;
 

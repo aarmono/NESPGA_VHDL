@@ -11,7 +11,7 @@ use work.chr_bus_types.all;
 use work.ciram_bus_types.all;
 use work.nes_types.all;
 use work.utilities.all;
-use work.cart_types.all;
+use work.cart_connector_types.all;
 
 -- The memory maps of the console. Anything the console does not decode
 -- itself is on the cartridge
