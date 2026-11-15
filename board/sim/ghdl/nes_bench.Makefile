@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: nes_bench
 
 # Elaboration target
-nes_bench: utilities.o nes_types.o ram_bus_types.o chr_bus_types.o cpu_bus_types.o prg_bus_types.o cart_mem_bus_types.o cart_connector_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o perhipheral_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o cart_types.o soc.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o binary_io.o nes_bench.o perhipherals.o lib_mapper_latch.o lib_mapper_mmc1.o lib_mapper_mmc2.o lib_mapper_mmc3.o lib_sunsoft_5b_audio.o lib_irq_counter.o lib_mapper_fme7.o lib_vrc_irq.o lib_mapper_vrc4.o lib_vrc6_audio.o lib_mapper_vrc6.o lib_vrc7_audio.o lib_mapper_vrc7.o lib_apu_envelope.o lib_apu_length.o lib_apu_square.o lib_mmc5_audio.o lib_mapper_mmc5.o lib_n163_audio.o lib_mapper_n163.o lib_mapper_action53.o lib_bandai_eeprom.o lib_mapper_bandai.o lib_mapper_ss88006.o lib_mapper_taito.o lib_mapper_sunsoft.o lib_mapper_irem.o lib_mapper_nsf.o lib_cartridge.o joy_bus_types.o ppu_bus_types.o lib_nes_mmap.o lib_nes.o nes_core.o neoTRNG.o power_up_fill.o cart_mem_bus_mux.o cartridge.o nes_soc.o nes_soc_ocram.o bmp_file.o ppu_video_record.o au_file.o apu_audio_record.o fm2_file.o fm2_joystick.o file_memory.o clock.o clk_en.o lib_cpu_types.o lib_cpu_decode_defs.o lib_cpu_decode.o lib_cpu_exec.o lib_cpu.o cpu.o lib_apu_frame_seq.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o lib_apu.o apu.o joystick_io.o lib_ppu.o ppu.o oam_dma.o syncram_sp.o
+nes_bench: utilities.o nes_types.o ram_bus_types.o chr_bus_types.o cpu_bus_types.o prg_bus_types.o cart_mem_bus_types.o cart_connector_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o perhipheral_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o cart_types.o soc.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o binary_io.o nes_bench.o perhipherals.o lib_mapper_latch.o lib_mapper_mmc1.o lib_mapper_mmc2.o lib_mapper_mmc3.o lib_sunsoft_5b_audio.o lib_irq_counter.o lib_mapper_fme7.o lib_vrc_irq.o lib_mapper_vrc4.o lib_vrc6_audio.o lib_mapper_vrc6.o lib_vrc7_audio.o lib_mapper_vrc7.o lib_apu_envelope.o lib_apu_length.o lib_apu_square.o lib_mmc5_audio.o lib_mapper_mmc5.o lib_n163_audio.o lib_mapper_n163.o lib_mapper_action53.o lib_bandai_eeprom.o lib_mapper_bandai.o lib_mapper_ss88006.o lib_mapper_taito.o lib_mapper_sunsoft.o lib_mapper_irem.o lib_mapper_nsf.o lib_cartridge.o joy_bus_types.o ppu_bus_types.o lib_nes_mmap.o lib_nes.o nes_core.o cart.o neoTRNG.o power_up_fill.o cart_mem_bus_mux.o nes_soc.o nes_soc_ocram.o bmp_file.o ppu_video_record.o au_file.o apu_audio_record.o fm2_file.o fm2_joystick.o file_memory.o clock.o cartridge.o clk_en.o lib_cpu_types.o lib_cpu_decode_defs.o lib_cpu_decode.o lib_cpu_exec.o lib_cpu.o cpu.o lib_apu_frame_seq.o lib_apu_triangle.o lib_apu_noise.o lib_apu_dmc.o lib_apu.o apu.o joystick_io.o lib_ppu.o ppu.o oam_dma.o syncram_sp.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -140,13 +140,13 @@ lib_nes.o: ../../../soc/nes/lib_nes.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_core.o: ../../../core/nes_core.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+cart.o: ../../../cart/cart.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 neoTRNG.o: ../../../perhiperals/neotrng/neoTRNG.vhd
 	$(GHDL) -a $(GHDLFLAGS) $<
 power_up_fill.o: ../../../perhiperals/neotrng/power_up_fill.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 cart_mem_bus_mux.o: ../../../soc/nes/cart_mem_bus_mux.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
-cartridge.o: ../../../cart/cartridge.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_soc.o: ../../../soc/nes/nes_soc.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -167,6 +167,8 @@ fm2_joystick.o: ../../../simulation/fm2_joystick/fm2_joystick.vhdl
 file_memory.o: ../../../simulation/file_memory/file_memory.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 clock.o: ../../../simulation/clock/clock.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+cartridge.o: ../../../cart/cartridge.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 clk_en.o: ../../../core/clk_en/clk_en.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -267,11 +269,11 @@ ppu_bus_types.o:
 lib_nes_mmap.o:  cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o ciram_bus_types.o nes_types.o utilities.o cart_connector_types.o
 lib_nes.o:  cpu_bus_types.o apu_bus_types.o ram_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o chr_bus_types.o ciram_bus_types.o oam_bus_types.o sec_oam_bus_types.o prg_bus_types.o palette_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o utilities.o perhipheral_types.o cart_types.o lib_cartridge.o lib_nes_mmap.o
 nes_core.o:  cpu_bus_types.o apu_bus_types.o ram_bus_types.o ppu_bus_types.o prg_bus_types.o chr_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o joy_bus_types.o nes_types.o utilities.o
+cart.o:  opll_bus_types.o cart_types.o
 neoTRNG.o: 
 power_up_fill.o:  perhipheral_types.o utilities.o neoTRNG.o
 cart_mem_bus_mux.o:  utilities.o cart_mem_bus_types.o nes_types.o
-cartridge.o:  utilities.o cart_types.o opll_bus_types.o lib_cartridge.o lib_vrc7_audio.o
-nes_soc.o:  utilities.o perhipheral_types.o cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o cart_mem_bus_types.o chr_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o oam_bus_types.o sec_oam_bus_types.o ppu_bus_types.o palette_bus_types.o nes_types.o nes_core.o cart_connector_types.o cart_types.o lib_nes_mmap.o lib_nes.o power_up_fill.o cart_mem_bus_mux.o cartridge.o
+nes_soc.o:  utilities.o perhipheral_types.o cpu_bus_types.o apu_bus_types.o joy_bus_types.o ram_bus_types.o cart_mem_bus_types.o chr_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o oam_bus_types.o sec_oam_bus_types.o ppu_bus_types.o palette_bus_types.o nes_types.o nes_core.o cart_connector_types.o cart_types.o cart.o lib_nes_mmap.o lib_nes.o power_up_fill.o cart_mem_bus_mux.o
 nes_soc_ocram.o:  nes_types.o ram_bus_types.o ciram_bus_types.o chip_ram_bus_types.o opll_bus_types.o cpu_bus_types.o cart_mem_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o utilities.o perhipherals.o perhipheral_types.o lib_nes.o cart_connector_types.o cart_types.o nes_soc.o
 bmp_file.o:  utilities.o binary_io.o
 ppu_video_record.o:  nes_types.o utilities.o binary_io.o bmp_file.o
@@ -281,6 +283,7 @@ fm2_file.o:
 fm2_joystick.o:  fm2_file.o nes_types.o
 file_memory.o:  utilities.o binary_io.o nes_types.o file_bus_types.o
 clock.o: 
+cartridge.o:  utilities.o cart_types.o opll_bus_types.o lib_cartridge.o lib_vrc7_audio.o
 clk_en.o:  utilities.o
 lib_cpu_types.o:  cpu_bus_types.o nes_types.o utilities.o
 lib_cpu_decode_defs.o:  cpu_bus_types.o nes_types.o utilities.o lib_cpu_types.o

@@ -403,6 +403,7 @@ set_global_assignment -name VHDL_FILE ../../core/ppu/lib_ppu.vhdl
 set_global_assignment -name VHDL_FILE ../../core/oam_dma/oam_dma.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/lib_cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cartridge.vhdl
+set_global_assignment -name VHDL_FILE ../../cart/cart.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/mmc2/lib_mapper_mmc2.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/mmc3/lib_mapper_mmc3.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/fme7/lib_mapper_fme7.vhdl

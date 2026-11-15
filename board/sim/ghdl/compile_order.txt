@@ -121,6 +121,7 @@
 ../../../cart/nsf/lib_mapper_nsf.vhdl
 ../../../cart/lib_cartridge.vhdl
 ../../../cart/cartridge.vhdl
+../../../cart/cart.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../soc/nes/lib_nes.vhdl

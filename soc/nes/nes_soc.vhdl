@@ -20,6 +20,7 @@ use work.nes_types.all;
 use work.nes_core.all;
 use work.cart_connector_types.all;
 use work.cart_types.all;
+use work.cart.all;
 use work.lib_nes_mmap.all;
 use work.lib_nes.all;
 
@@ -308,7 +309,7 @@ begin
     header_data <= data_from_cart_mem_prg when reg.cur_state = STATE_LOAD else
                    (others => '-');
 
-    nes_cart : entity work.cartridge(behavioral)
+    nes_cart : cartridge
     generic map
     (
         CART_BOARDS => CART_BOARDS
