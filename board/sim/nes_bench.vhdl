@@ -15,6 +15,8 @@ use work.palette_bus_types.all;
 use work.utilities.all;
 use work.perhipheral_types.all;
 use work.soc.all;
+use work.console.all;
+use work.cart_pin_types.all;
 use work.simulation.all;
 use work.binary_io.all;
 
@@ -52,9 +54,19 @@ generic
     -- side (P), it is any change after the clock that starts a dot. Each
     -- line has the CPU cycle, the side, clocks into its cycle or dot (CPU_DIV
     -- or 2 is when it ends), what changed (A for the address, /ROMSEL, /RD
-    -- or /WR, D for write data, L for ALE) and the bus before and after
+    -- or /WR, D for write data, L for ALE) and the bus before and after.
+    -- A CPU cycle where the bus neither reads nor writes is logged as I
     BUS_CHECK_FILEPATH : string := "";
-    BUS_CHECK_LATE_CLOCKS : positive := 2
+    BUS_CHECK_LATE_CLOCKS : positive := 2;
+    -- Clocks in a CPU cycle. The clock runs at 50MHz * CPU_CYCLE_CLOCKS / 28,
+    -- so the CPU cycle is as long as 28 clocks of a 50MHz clock whatever
+    -- this is. 28 runs the 50MHz clock of the DE1
+    CPU_CYCLE_CLOCKS : positive := 6;
+    -- Run the cartridge as a real NROM cartridge at the pins of a cart_slot
+    -- (see nrom_cart), instead of the emulated cartridge. Needs
+    -- CPU_CYCLE_CLOCKS = 28, and only runs NROM ROMs with the RAMs zeroed.
+    -- Timing violations at the pins are written to the output
+    NROM_SLOT : boolean := false
 );
 end nes_bench;
 
@@ -78,7 +90,7 @@ architecture behavioral of nes_bench is
     -- 50MHz clock. That is the rate the core ran at before clk_en supported
     -- the exact NTSC rate. Keeping it keeps the run times in nes_tests.txt,
     -- and there are fewer clock events to simulate than at 50MHz
-    constant CLK_FREQ : positive := 50_000_000 * 6 / 28;
+    constant CLK_FREQ : positive := 50_000_000 * CPU_CYCLE_CLOCKS / 28;
     constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
 
     signal cart_mem_bus       : cart_mem_bus_t;
@@ -113,6 +125,7 @@ architecture behavioral of nes_bench is
     
 begin
 
+    gen_soc : if not NROM_SLOT generate
     soc : nes_soc_ocram
     generic map
     (
@@ -121,7 +134,7 @@ begin
         VENDOR => VENDOR_SIM,
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CLK_FREQ,
-        CPU_FREQ_DEN => 6,
+        CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
         POWER_UP_MODE => POWER_UP_MODE,
         POWER_UP_SEED => POWER_UP_SEED,
         INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
@@ -155,6 +168,183 @@ begin
         board_cpu_in => board_cpu_in,
         board_ppu_in => board_ppu_in
     );
+    end generate;
+
+    gen_slot : if NROM_SLOT generate
+        signal clk_sync       : boolean;
+        signal cart_cpu_in    : cart_cpu_in_t;
+        signal cart_cpu_out   : cart_cpu_out_t;
+        signal cpu_data_bus   : data_t;
+        signal cart_ppu_in    : cart_ppu_in_t;
+        signal cart_ppu_out   : cart_ppu_out_t;
+        signal cart_loaded    : boolean := false;
+
+        signal console_pins   : cart_console_pins_t;
+        signal board_pins     : cart_board_pins_t;
+
+        signal cart_cpu_data    : data_t;
+        signal cart_cpu_data_oe : boolean;
+        signal cart_ppu_data    : data_t;
+        signal cart_ppu_data_oe : boolean;
+    begin
+        assert CPU_CYCLE_CLOCKS = 28
+            report "nes_bench: NROM_SLOT needs CPU_CYCLE_CLOCKS = 28"
+            severity failure;
+
+        console : nes_console_ocram
+        generic map
+        (
+            VENDOR => VENDOR_SIM,
+            CLK_FREQ => CLK_FREQ,
+            CPU_FREQ_NUM => CLK_FREQ,
+            CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
+            POWER_UP_MODE => POWER_UP_MODE,
+            POWER_UP_SEED => POWER_UP_SEED,
+            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
+        )
+        port map
+        (
+            clk => clk,
+            reset => false,
+            soft_reset => soft_reset,
+            famicom => FAMICOM,
+
+            nes_running => output_ready,
+
+            cpu_clk_en => cpu_clk_en,
+            ppu_clk_en => ppu_clk_en,
+            clk_sync => clk_sync,
+
+            pixel_bus => pixel_bus,
+            audio => audio_out,
+
+            joy_strobe => joy_strobe,
+
+            joy_1_clk => joy_1_clk,
+            joy_1_data => joy_1_data,
+
+            joy_2_clk => joy_2_clk,
+            joy_2_data => joy_2_data,
+
+            cart_cpu_in => cart_cpu_in,
+            cart_cpu_out => cart_cpu_out,
+            cpu_data_bus => cpu_data_bus,
+            cart_ppu_in => cart_ppu_in,
+            cart_ppu_out => cart_ppu_out,
+
+            cart_loaded => cart_loaded,
+            cart_ready => true
+        );
+
+        -- A real cartridge has no header to load. cart_system has loaded the
+        -- header on its 16th CPU cycle, so the console starts its fill on the
+        -- same cycle as with the emulated cartridge, and the CPU cycles keep
+        -- their parity
+        process(clk)
+        is
+            variable cycles : natural := 0;
+        begin
+        if rising_edge(clk) and cpu_clk_en and not cart_loaded
+        then
+            cycles := cycles + 1;
+            cart_loaded <= cycles = 15;
+        end if;
+        end process;
+
+        slot : cart_slot
+        port map
+        (
+            clk => clk,
+            reset => false,
+
+            cpu_en => cpu_clk_en,
+            ppu_en => ppu_clk_en,
+
+            cpu_in => cart_cpu_in,
+            cpu_out => cart_cpu_out,
+            cpu_data_bus => cpu_data_bus,
+            ppu_in => cart_ppu_in,
+            ppu_out => cart_ppu_out,
+
+            pins_out => console_pins,
+            pins_in => board_pins
+        );
+
+        cart : entity work.nrom_cart
+        generic map
+        (
+            NES_FILEPATH => NES_FILEPATH,
+            NES_FILE_BYTES => NES_FILE_BYTES,
+            -- cart_slot samples on every clock, and the console takes the
+            -- sample of the clock before M2 falls, or two clocks before /RD
+            -- rises
+            CPU_SAMPLE_LEAD => CLK_PERIOD,
+            PPU_SAMPLE_LEAD => 2 * CLK_PERIOD,
+            PPU_DOT => CLK_PERIOD * CPU_CYCLE_CLOCKS / 3
+        )
+        port map
+        (
+            pins => console_pins,
+
+            cpu_data => cart_cpu_data,
+            cpu_data_oe => cart_cpu_data_oe,
+            irq_n => board_pins.irq_n,
+
+            ppu_data => cart_ppu_data,
+            ppu_data_oe => cart_ppu_data_oe,
+            ciram_ce_n => board_pins.ciram_ce_n,
+            ciram_a10 => board_pins.ciram_a10
+        );
+
+        -- The shared data buses. An undriven bus keeps its last value, which
+        -- a board would do with bus hold
+        process(console_pins, cart_cpu_data, cart_cpu_data_oe)
+        is
+            variable value : data_t := (others => '0');
+            variable l     : line;
+        begin
+            if console_pins.cpu_data_oe and cart_cpu_data_oe
+            then
+                write(l, string'("nes_bench: "));
+                write(l, now);
+                write(l, string'(" CPU data bus driven by both sides"));
+                writeline(output, l);
+                value := (others => 'X');
+            elsif console_pins.cpu_data_oe
+            then
+                value := console_pins.cpu_data;
+            elsif cart_cpu_data_oe
+            then
+                value := cart_cpu_data;
+            end if;
+            board_pins.cpu_data <= value;
+        end process;
+
+        process(console_pins, cart_ppu_data, cart_ppu_data_oe)
+        is
+            variable value : data_t := (others => '0');
+            variable l     : line;
+        begin
+            if console_pins.ppu_data_oe and cart_ppu_data_oe
+            then
+                write(l, string'("nes_bench: "));
+                write(l, now);
+                write(l, string'(" PPU data bus driven by both sides"));
+                writeline(output, l);
+                value := (others => 'X');
+            elsif console_pins.ppu_data_oe
+            then
+                value := console_pins.ppu_data;
+            elsif cart_ppu_data_oe
+            then
+                value := cart_ppu_data;
+            end if;
+            board_pins.ppu_data <= value;
+        end process;
+
+        board_cpu_in <= cart_cpu_in;
+        board_ppu_in <= cart_ppu_in;
+    end generate;
 
     gen_trace : if TRACE_FILEPATH'length > 0 generate
         file trace_file : text open write_mode is TRACE_FILEPATH;
@@ -306,6 +496,14 @@ begin
             end if;
 
             prev := board_cpu_in;
+
+            -- A real bus always reads or writes
+            if cpu_clk_en and output_ready and
+               not is_bus_active(board_cpu_in.prg_bus)
+            then
+                write_change(cycle, clocks, 'C', 'I',
+                             bus_image(board_cpu_in), bus_image(board_cpu_in));
+            end if;
 
             if cpu_clk_en
             then

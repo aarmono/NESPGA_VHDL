@@ -65,6 +65,7 @@ port
     -- See nes_console
     cart_cpu_in  : out cart_cpu_in_t;
     cart_cpu_out : in cart_cpu_out_t;
+    cpu_data_bus : out data_t;
     cart_ppu_in  : out cart_ppu_in_t;
     cart_ppu_out : in cart_ppu_out_t;
     cart_audio   : in cart_audio_t := 0;
@@ -167,6 +168,7 @@ begin
 
         cart_cpu_in => cart_cpu_in,
         cart_cpu_out => cart_cpu_out,
+        cpu_data_bus => cpu_data_bus,
         cart_ppu_in => cart_ppu_in,
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,

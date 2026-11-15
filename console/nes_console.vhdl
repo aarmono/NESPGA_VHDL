@@ -111,6 +111,13 @@ port
     -- valid at cpu_clk_en
     cart_cpu_in  : out cart_cpu_in_t;
     cart_cpu_out : in cart_cpu_out_t;
+    -- The value on the CPU data bus, which the connector shares: the write
+    -- data, the read data of the console's own registers and RAM, or what
+    -- the cartridge drove. Where nothing drove it, the value it held: the
+    -- open bus value. Valid at cpu_clk_en. A connector on pins (cart_slot)
+    -- drives it on reads of the console's own addresses, as the console's
+    -- chips drive the shared bus
+    cpu_data_bus : out data_t;
     -- The PPU side of the cartridge connector. Only valid at ppu_clk_en
     cart_ppu_in  : out cart_ppu_in_t;
     cart_ppu_out : in cart_ppu_out_t;
@@ -469,6 +476,7 @@ begin
         oam_dma_cpu_write <= nes_out.cpu_bus.oam_dma_write;
         
         data_to_cpu <= nes_out.cpu_bus.data_to_cpu;
+        cpu_data_bus <= nes_out.cpu_bus.ext_data;
         data_to_oam_dma <= nes_out.cpu_bus.data_to_cpu;
         data_to_joy <= nes_out.cpu_bus.data_to_joy;
         

@@ -22,6 +22,7 @@
 
 ../../../core/nes_types.vhdl
 ../../../bus/cart_connector_types.vhdl
+../../../bus/cart_pin_types.vhdl
 ../../../core/nes_audio_mixer.vhdl
 
 ../../../perhiperals/perhipheral_types.vhdl
@@ -54,6 +55,7 @@
 ../../../simulation/bmp_file.vhdl
 ../../../simulation/fm2_file.vhdl
 ../../../simulation/file_memory/file_memory.vhdl
+../../../simulation/nrom_cart/nrom_cart.vhdl
 ../../../simulation/clock/clock.vhdl
 ../../../simulation/apu_audio_record/apu_audio_record.vhdl
 ../../../simulation/sram/sram.vhdl
@@ -132,6 +134,7 @@
 ../../../console/lib_nes.vhdl
 ../../../console/nes_console.vhdl
 ../../../console/nes_console_ocram.vhdl
+../../../console/cart_slot.vhdl
 ../../../console/console.vhdl
 ../../../soc/nes_soc_ocram.vhdl
 

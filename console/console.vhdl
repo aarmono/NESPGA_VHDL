@@ -9,6 +9,7 @@ use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.ciram_bus_types.all;
 use work.cart_connector_types.all;
+use work.cart_pin_types.all;
 
 -- The components of the console subsystem, for use outside of it
 package console is
@@ -78,6 +79,7 @@ package console is
 
         cart_cpu_in  : out cart_cpu_in_t;
         cart_cpu_out : in cart_cpu_out_t;
+        cpu_data_bus : out data_t;
         cart_ppu_in  : out cart_ppu_in_t;
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
@@ -134,6 +136,7 @@ package console is
 
         cart_cpu_in  : out cart_cpu_in_t;
         cart_cpu_out : in cart_cpu_out_t;
+        cpu_data_bus : out data_t;
         cart_ppu_in  : out cart_ppu_in_t;
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
@@ -145,6 +148,33 @@ package console is
         power_up_data  : out power_up_data_t
     );
     end component nes_console_ocram;
+
+    -- The cartridge connector on pins, for a real cartridge. See cart_slot
+    component cart_slot is
+    generic
+    (
+        M2_LOW_CLOCKS    : positive := 10;
+        PRECHARGE_CLOCKS : natural := 3;
+        ALE_CLOCKS       : positive := 4
+    );
+    port
+    (
+        clk    : in std_logic;
+        reset  : in boolean;
+
+        cpu_en : in boolean;
+        ppu_en : in boolean;
+
+        cpu_in       : in  cart_cpu_in_t;
+        cpu_out      : out cart_cpu_out_t;
+        cpu_data_bus : in  data_t;
+        ppu_in       : in  cart_ppu_in_t;
+        ppu_out      : out cart_ppu_out_t;
+
+        pins_out : out cart_console_pins_t;
+        pins_in  : in  cart_board_pins_t
+    );
+    end component cart_slot;
 
 end console;
 

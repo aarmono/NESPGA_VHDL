@@ -65,6 +65,13 @@ package lib_nes_mmap is
         data_to_joy     : data_t;
         data_to_ram     : data_t;
         data_to_ppu     : data_t;
+
+        -- The value on the external data bus, which is on the cartridge
+        -- connector too: the write data, or what the read put there. Where
+        -- nothing drives the bus, as for a read of 0x4015 (internal to the
+        -- CPU) or of a write-only register, the value it held. It becomes
+        -- the open bus value at the end of the cycle
+        ext_data        : data_t;
     end record;
     
     constant CPU_MMAP_BUS_IDLE : cpu_mmap_bus_out_t :=
@@ -79,7 +86,9 @@ package lib_nes_mmap is
         data_to_apu => (others => '-'),
         data_to_joy => (others => '-'),
         data_to_ram => (others => '-'),
-        data_to_ppu => (others => '-')
+        data_to_ppu => (others => '-'),
+
+        ext_data => (others => '-')
     );
 
     type cpu_mmap_in_t is record
@@ -348,6 +357,23 @@ package body lib_nes_mmap is
             end if;
         end if;
         
+        if is_bus_write(map_in.bus_in.cpu_bus)
+        then
+            map_out.bus_out.ext_data := map_in.bus_in.data_from_cpu;
+        -- 0x4015 is internal to the CPU, so it does not drive the external
+        -- data bus
+        elsif v_reg_conflict and
+              map_in.bus_in.cpu_bus.address(4 downto 0) = "10101"
+        then
+            map_out.bus_out.ext_data := v_ext_data;
+        elsif is_bus_read(map_in.bus_in.cpu_bus) and
+              address /= 16#4015#
+        then
+            map_out.bus_out.ext_data := map_out.bus_out.data_to_cpu;
+        else
+            map_out.bus_out.ext_data := map_in.reg.open_bus;
+        end if;
+
         if map_in.bus_in.clk_sync
         then
             if not map_in.bus_in.dma_cycle
@@ -361,20 +387,7 @@ package body lib_nes_mmap is
                 end if;
             end if;
 
-            if is_bus_write(map_in.bus_in.cpu_bus)
-            then
-                map_out.reg.open_bus := map_in.bus_in.data_from_cpu;
-            -- 0x4015 is internal to the CPU, so it does not drive the
-            -- external data bus
-            elsif v_reg_conflict and
-                  map_in.bus_in.cpu_bus.address(4 downto 0) = "10101"
-            then
-                map_out.reg.open_bus := v_ext_data;
-            elsif is_bus_read(map_in.bus_in.cpu_bus) and
-                  address /= 16#4015#
-            then
-                map_out.reg.open_bus := map_out.bus_out.data_to_cpu;
-            end if;
+            map_out.reg.open_bus := map_out.bus_out.ext_data;
         end if;
 
         return map_out;
