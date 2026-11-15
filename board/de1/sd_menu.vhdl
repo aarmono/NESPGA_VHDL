@@ -29,7 +29,7 @@ use work.sd_menu_stub.all;
 --                       number. Write its 4 bytes, lowest first
 --   0x5201         W    Bits 1-0: the flags, which only reset clears
 --   0x5202         W    The options of the next launch. Bit 0: run as a
---                       Famicom (see nes_soc)
+--                       Famicom (see nes_console)
 --   0x5204         W    Read the block into the buffer
 --   0x5205         W    Launch. Bit 0: stay in menu mode. Bit 1: keep PRG
 --                       RAM
@@ -92,7 +92,7 @@ port
 
     -- See cart_system
     keep_prg_ram : out boolean;
-    -- See nes_soc
+    -- See nes_console
     famicom      : out boolean;
 
     -- The cartridge memory bus, from nes_soc_ocram to sdram_rom. The menu's PRG

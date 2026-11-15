@@ -13,7 +13,7 @@ goes straight from the fill to running (no PRG or CHR RAM to clear, and the
 bench never holds the NES in STATE_WAIT), the last fill step and the end of
 reset are the same clock edge, so the PPU starts from the state one step
 before the last. Boards that clear RAM after the fill (--clear) start from
-the last state, which is also what nes_soc's ppu_start port shows.
+the last state, which is also what nes_console's ppu_start port shows.
 
 Positions are lib_ppu's numbering: line 0 is the start of VBL (hardware
 scanline 241), line 21 is visible scanline 0, and cycle c is hardware dot

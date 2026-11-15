@@ -19,7 +19,11 @@ use work.cart_connector_types.all;
 use work.lib_nes_mmap.all;
 use work.lib_nes.all;
 
-entity nes_soc is
+-- The NES console: the CPU, APU and PPU, OAM DMA and the joystick ports, with
+-- its RAMs on buses. It talks to the cartridge only through the cartridge
+-- connector, the clock enables, the cartridge audio and the reset handshake.
+-- See cart_system
+entity nes_console is
 generic
 (
     -- See clk_en
@@ -130,7 +134,7 @@ port
 );
 end entity;
 
-architecture behavioral of nes_soc
+architecture behavioral of nes_console
 is
 
     signal reg      : reg_t := RESET_REG;

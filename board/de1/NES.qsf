@@ -378,9 +378,11 @@ set_global_assignment -name VHDL_FILE joy_port.vhdl
 set_global_assignment -name VHDL_FILE de1_types.vhdl
 set_global_assignment -name VHDL_FILE ../platform/platform_video.vhdl
 set_global_assignment -name VHDL_FILE ../platform/frame_lock_video.vhdl
-set_global_assignment -name VHDL_FILE ../../soc/nes/nes_soc_ocram.vhdl
-set_global_assignment -name VHDL_FILE ../../soc/nes/nes_soc.vhdl
-set_global_assignment -name VHDL_FILE ../../soc/nes/lib_nes.vhdl
+set_global_assignment -name VHDL_FILE ../../soc/nes_soc_ocram.vhdl
+set_global_assignment -name VHDL_FILE ../../console/console.vhdl
+set_global_assignment -name VHDL_FILE ../../console/nes_console_ocram.vhdl
+set_global_assignment -name VHDL_FILE ../../console/nes_console.vhdl
+set_global_assignment -name VHDL_FILE ../../console/lib_nes.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/soc.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2_keyboard.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2_bus.vhdl

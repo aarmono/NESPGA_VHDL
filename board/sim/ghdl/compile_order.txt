@@ -128,9 +128,11 @@
 ../../../cart/cart.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
-../../../soc/nes/lib_nes.vhdl
-../../../soc/nes/nes_soc.vhdl
-../../../soc/nes/nes_soc_ocram.vhdl
+../../../console/lib_nes.vhdl
+../../../console/nes_console.vhdl
+../../../console/nes_console_ocram.vhdl
+../../../console/console.vhdl
+../../../soc/nes_soc_ocram.vhdl
 
 ../../../soc/soc.vhdl
 

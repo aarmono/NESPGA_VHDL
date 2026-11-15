@@ -34,7 +34,7 @@ generic
     POWER_UP_SEED   : natural := 0;
     -- Swaps which CPU cycles are APU get cycles. See clk_en
     INVERT_CYCLE_PARITY : boolean := false;
-    -- Run as a Famicom rather than a front loading NES. See nes_soc
+    -- Run as a Famicom rather than a front loading NES. See nes_console
     FAMICOM         : boolean := false;
     -- When set, write the CPU's external bus to this file, a line per CPU
     -- cycle once the NES is running: cycle, A0-A15, R/W (I when the bus is
