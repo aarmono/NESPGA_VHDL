@@ -99,7 +99,8 @@ package soc is
         joy_2_data : in joy_data_t := JOY_DATA_IDLE;
 
         board_cpu_in  : out cart_cpu_in_t;
-        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
+        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE;
+        board_ppu_in  : out cart_ppu_in_t
     );
     end component nes_soc;
 
@@ -155,7 +156,8 @@ package soc is
         joy_2_data : in joy_data_t := JOY_DATA_IDLE;
 
         board_cpu_in  : out cart_cpu_in_t;
-        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
+        board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE;
+        board_ppu_in  : out cart_ppu_in_t
     );
     end component nes_soc_ocram;
 

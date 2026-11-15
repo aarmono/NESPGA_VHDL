@@ -44,13 +44,15 @@ generic
     -- that starts once the NES is running, 2 bytes each: the colour, then
     -- the emphasis bits. See board/sim/trace/video_diff.py
     VIDEO_TRACE_FILEPATH : string := "";
-    -- When set, write to this file each change of the CPU side of the
-    -- cartridge connector that comes LATE_CLOCKS or more clocks after the
-    -- start of a CPU cycle, once the NES is running: CPU cycle, clocks into
-    -- the cycle (CPU_DIV is when the cycle ends), what changed (A for the
-    -- address, /ROMSEL or R/W, D for write data) and the bus before and
-    -- after. A connector on pins needs the address stable before M2 rises,
-    -- about 3/8 of the way into the cycle, and write data before M2 falls
+    -- When set, write to this file each late change of the cartridge
+    -- connector once the NES is running. On the CPU side (C), that is a
+    -- change LATE_CLOCKS or more clocks after the start of a CPU cycle. A
+    -- connector on pins needs the address stable before M2 rises, about 3/8
+    -- of the way into the cycle, and write data before M2 falls. On the PPU
+    -- side (P), it is any change after the clock that starts a dot. Each
+    -- line has the CPU cycle, the side, clocks into its cycle or dot (CPU_DIV
+    -- or 2 is when it ends), what changed (A for the address, /ROMSEL, /RD
+    -- or /WR, D for write data, L for ALE) and the bus before and after
     BUS_CHECK_FILEPATH : string := "";
     BUS_CHECK_LATE_CLOCKS : positive := 2
 );
@@ -107,6 +109,7 @@ architecture behavioral of nes_bench is
     signal output_ready : boolean;
 
     signal board_cpu_in : cart_cpu_in_t;
+    signal board_ppu_in : cart_ppu_in_t;
     
 begin
 
@@ -149,7 +152,8 @@ begin
         joy_2_clk => joy_2_clk,
         joy_2_data => joy_2_data,
 
-        board_cpu_in => board_cpu_in
+        board_cpu_in => board_cpu_in,
+        board_ppu_in => board_ppu_in
     );
 
     gen_trace : if TRACE_FILEPATH'length > 0 generate
@@ -187,6 +191,10 @@ begin
     gen_bus_check : if BUS_CHECK_FILEPATH'length > 0 generate
         file check_file : text open write_mode is BUS_CHECK_FILEPATH;
 
+        -- Counted by the CPU side's process, so both sides' lines can be
+        -- matched up
+        signal cycle : natural := 0;
+
         function bus_image(cpu_in : cart_cpu_in_t) return string
         is
         begin
@@ -205,17 +213,67 @@ begin
                 return "---- I --";
             end if;
         end;
+
+        function bus_image(ppu_in : cart_ppu_in_t) return string
+        is
+            function ale_image(ale : boolean) return string
+            is
+            begin
+                if ale
+                then
+                    return " L";
+                else
+                    return " -";
+                end if;
+            end;
+        begin
+            if ppu_in.chr_bus.write
+            then
+                return to_hstring(ppu_in.chr_bus.address) &
+                       " W " & to_hstring(ppu_in.data) &
+                       ale_image(ppu_in.ale);
+            elsif ppu_in.chr_bus.read
+            then
+                return to_hstring(ppu_in.chr_bus.address) & " R --" &
+                       ale_image(ppu_in.ale);
+            else
+                return "---- I --" & ale_image(ppu_in.ale);
+            end if;
+        end;
+
+        procedure write_change
+        (
+            at_cycle : natural;
+            clocks   : natural;
+            side     : character;
+            what     : character;
+            old_bus  : string;
+            new_bus  : string
+        )
+        is
+            variable l : line;
+        begin
+            write(l, at_cycle, right, 8);
+            write(l, ' ');
+            write(l, side);
+            write(l, clocks, right, 2);
+            write(l, ' ');
+            write(l, what);
+            write(l, ' ');
+            write(l, old_bus);
+            write(l, string'(" -> "));
+            write(l, new_bus);
+            writeline(check_file, l);
+        end;
     begin
         process(clk)
         is
-            variable cycle   : natural := 0;
             -- Clocks since the clock enable that started the CPU cycle
             variable clocks  : natural := 0;
             variable prev    : cart_cpu_in_t;
             variable started : boolean := false;
             variable addr_changed : boolean;
             variable data_changed : boolean;
-            variable l       : line;
         begin
         if rising_edge(clk)
         then
@@ -236,22 +294,14 @@ begin
                     prev.prg_bus.write and
                     prev.data /= board_cpu_in.data;
 
-                if clocks >= BUS_CHECK_LATE_CLOCKS and
-                   (addr_changed or data_changed)
+                if clocks >= BUS_CHECK_LATE_CLOCKS and addr_changed
                 then
-                    write(l, cycle, right, 8);
-                    write(l, ' ');
-                    write(l, clocks, right, 2);
-                    if addr_changed
-                    then
-                        write(l, string'(" A "));
-                    else
-                        write(l, string'(" D "));
-                    end if;
-                    write(l, bus_image(prev));
-                    write(l, string'(" -> "));
-                    write(l, bus_image(board_cpu_in));
-                    writeline(check_file, l);
+                    write_change(cycle, clocks, 'C', 'A',
+                                 bus_image(prev), bus_image(board_cpu_in));
+                elsif clocks >= BUS_CHECK_LATE_CLOCKS and data_changed
+                then
+                    write_change(cycle, clocks, 'C', 'D',
+                                 bus_image(prev), bus_image(board_cpu_in));
                 end if;
             end if;
 
@@ -263,8 +313,62 @@ begin
                 clocks := 0;
                 if output_ready
                 then
-                    cycle := cycle + 1;
+                    cycle <= cycle + 1;
                 end if;
+            end if;
+        end if;
+        end process;
+
+        -- The PPU side changes once a dot, at the clock of ppu_clk_en. A
+        -- change on any later clock of the dot is late: a connector on pins
+        -- needs the address stable through /RD and /WR, and the write data
+        -- through /WR
+        process(clk)
+        is
+            -- Clocks since the clock enable that started the PPU dot
+            variable clocks  : natural := 0;
+            variable prev    : cart_ppu_in_t;
+            variable started : boolean := false;
+            variable addr_changed : boolean;
+            variable data_changed : boolean;
+        begin
+        if rising_edge(clk)
+        then
+            clocks := clocks + 1;
+
+            if started and output_ready and clocks >= 2
+            then
+                addr_changed :=
+                    prev.chr_bus.read /= board_ppu_in.chr_bus.read or
+                    prev.chr_bus.write /= board_ppu_in.chr_bus.write or
+                    (is_bus_active(board_ppu_in.chr_bus) and
+                     prev.chr_bus.address /= board_ppu_in.chr_bus.address);
+                data_changed :=
+                    board_ppu_in.chr_bus.write and
+                    prev.chr_bus.write and
+                    prev.data /= board_ppu_in.data;
+
+                if addr_changed
+                then
+                    write_change(cycle, clocks, 'P', 'A',
+                                 bus_image(prev), bus_image(board_ppu_in));
+                elsif data_changed
+                then
+                    write_change(cycle, clocks, 'P', 'D',
+                                 bus_image(prev), bus_image(board_ppu_in));
+                elsif prev.ale /= board_ppu_in.ale
+                then
+                    write_change(cycle, clocks, 'P', 'L',
+                                 bus_image(prev), bus_image(board_ppu_in));
+                end if;
+            end if;
+
+            prev := board_ppu_in;
+
+            if ppu_clk_en
+            then
+                started := true;
+                clocks := 0;
             end if;
         end if;
         end process;

@@ -129,7 +129,11 @@ port
     -- The board's side of the same connector. When it drives the data bus it
     -- answers the read instead of the cartridge. Its IRQ is ORed with the
     -- cartridge's, as /IRQ is shared
-    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
+    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE;
+
+    -- The PPU side of the cartridge connector, as the cartridge sees it.
+    -- Only valid at ppu_clk_en. For nes_bench to check its timing
+    board_ppu_in  : out cart_ppu_in_t
 );
 end entity;
 
@@ -472,6 +476,7 @@ begin
 
     -- Outside the main process, so it only wakes when the CPU side changes
     board_cpu_in <= cart_in.cpu;
+    board_ppu_in <= cart_in.ppu;
 
     process(all)
     is

@@ -75,7 +75,8 @@ port
 
     -- See nes_soc
     board_cpu_in  : out cart_cpu_in_t;
-    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE
+    board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE;
+    board_ppu_in  : out cart_ppu_in_t
 );
 end nes_soc_ocram;
 
@@ -190,7 +191,8 @@ begin
         joy_2_data => joy_2_data,
 
         board_cpu_in => board_cpu_in,
-        board_cpu_out => board_cpu_out
+        board_cpu_out => board_cpu_out,
+        board_ppu_in => board_ppu_in
     );
     
     prg_ram : syncram_sp
