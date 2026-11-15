@@ -368,6 +368,8 @@ package body lib_nes is
                         ret.reg.cart_config.mirror_pads := mirror;
                         ret.reg.cart_config.battery :=
                             nes_in.data_from_cart_mem(1) = '1';
+                        ret.reg.cart_config.has_trainer :=
+                            nes_in.data_from_cart_mem(2) = '1';
                         ret.reg.cart_config.mapper_num(3 downto 0) :=
                             nes_in.data_from_cart_mem(7 downto 4);
                     -- Flags 7
