@@ -42,16 +42,23 @@ is
         joy_strobe  : std_logic;
         -- Last value written to the strobe bit
         strobe_val  : std_logic;
-        joy_1_clk   : std_logic;
-        joy_2_clk   : std_logic;
     end record;
 
     constant RESET_REG : reg_t :=
     (
         joy_strobe => '0',
-        strobe_val => '0',
-        joy_1_clk  => '1',
-        joy_2_clk  => '1'
+        strobe_val => '0'
+    );
+
+    type clk_reg_t is record
+        joy_1_clk : std_logic;
+        joy_2_clk : std_logic;
+    end record;
+
+    constant RESET_CLK_REG : clk_reg_t :=
+    (
+        joy_1_clk => '1',
+        joy_2_clk => '1'
     );
 
     -- The CLK line of each controller port is R/W nand
@@ -59,9 +66,8 @@ is
     -- $4016/$4017, since R/W high means read). Consecutive reads hold it low,
     -- so they only clock the controller once.
     --
-    -- The bus is only valid at the end of the cycle, so the line is
-    -- registered then, which delays it by a cycle. It rises before the CPU
-    -- can read the port again, other than in a consecutive read
+    -- The line is registered on every clock, so it is low for the read cycle
+    -- (one clock late) and rises just after the CPU samples the data lines
     function get_joy_clk(bus_in : joy_bus_t; port_addr : joy_addr_t)
     return std_logic
     is
@@ -98,10 +104,14 @@ is
             ret.joy_strobe := ret.strobe_val;
         end if;
 
-        ret.joy_1_clk := get_joy_clk(joy_in.cpu_bus, "0");
-        ret.joy_2_clk := get_joy_clk(joy_in.cpu_bus, "1");
-
         return ret;
+    end;
+
+    function cycle_joy_clk(bus_in : joy_bus_t) return clk_reg_t
+    is
+    begin
+        return (joy_1_clk => get_joy_clk(bus_in, "0"),
+                joy_2_clk => get_joy_clk(bus_in, "1"));
     end;
 
     -- The data lines are read through inverting buffers: a high signal from
@@ -120,12 +130,13 @@ is
     end;
 
     signal reg : reg_t := RESET_REG;
+    signal clk_reg : clk_reg_t := RESET_CLK_REG;
 
 begin
 
     joy_strobe <= reg.joy_strobe;
-    joy_1_clk <= reg.joy_1_clk;
-    joy_2_clk <= reg.joy_2_clk;
+    joy_1_clk <= clk_reg.joy_1_clk;
+    joy_2_clk <= clk_reg.joy_2_clk;
 
     -- The CPU samples the data lines at the end of the read cycle
     data_from_joy <= read_joy(cpu_bus, joy_1_data, joy_2_data);
@@ -135,6 +146,13 @@ begin
     begin
     -- double-IF required for synthesis
     if rising_edge(clk) then
+    if reset
+    then
+        clk_reg <= RESET_CLK_REG;
+    else
+        clk_reg <= cycle_joy_clk(cpu_bus);
+    end if;
+
     if clk_en then
         if reset
         then
