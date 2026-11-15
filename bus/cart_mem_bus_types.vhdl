@@ -20,7 +20,8 @@ package cart_mem_bus_types is
 
     -- The ROM file is in the lower half of the cartridge memory bus, from
     -- address 0. The cartridge RAMs are in the upper half, each in its own
-    -- fixed 64 KB window: PRG RAM, then CHR RAM, then ExRAM
+    -- fixed 64 KB window: PRG RAM, then CHR RAM, then ExRAM, then the VRAM of
+    -- a four-screen board
     constant CART_RAM_BASE : natural := 2**(cart_mem_addr_t'length - 1);
     -- The address bits within a window
     subtype cart_ram_window_bits_t is natural range 15 downto 0;
@@ -34,6 +35,9 @@ package cart_mem_bus_types is
                                      cart_mem_addr_t'length));
     constant EXRAM_WINDOW : cart_mem_addr_t :=
         std_logic_vector(to_unsigned(CART_RAM_BASE + 2 * CART_RAM_WINDOW_BYTES,
+                                     cart_mem_addr_t'length));
+    constant VRAM_WINDOW : cart_mem_addr_t :=
+        std_logic_vector(to_unsigned(CART_RAM_BASE + 3 * CART_RAM_WINDOW_BYTES,
                                      cart_mem_addr_t'length));
 
     -- The address is in the given cartridge RAM window

@@ -164,7 +164,8 @@ is
     -- A write that memory serves through one channel is also made to the
     -- entry for its address in the cache of the other channel, if it has
     -- one, so that both caches keep holding what memory holds. Only ExRAM
-    -- can be accessed through both channels
+    -- can be accessed through both channels, and the VRAM of a four-screen
+    -- board, which the fill writes through the PRG channel
     function follow_write
     (
         cache_in : cache_t;

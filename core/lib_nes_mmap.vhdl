@@ -392,9 +392,7 @@ package body lib_nes_mmap is
         if cart.ciram_ce
         then
             ret.ciram_bus.address :=
-                cart.ciram_a11 &
-                cart.ciram_a10 &
-                bus_in.chr_bus.address(9 downto 0);
+                cart.ciram_a10 & bus_in.chr_bus.address(9 downto 0);
             ret.ciram_bus.read := bus_in.chr_bus.read;
             ret.ciram_bus.write := bus_in.chr_bus.write;
 

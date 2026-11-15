@@ -7,6 +7,7 @@ use work.perhipheral_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
 use work.exram_bus_types.all;
+use work.vram_bus_types.all;
 use work.chip_ram_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.cart_types.all;
@@ -21,11 +22,12 @@ package lib_cart_system is
     type cart_system_state_t is
     (
         STATE_LOAD,
-        -- The first 8KB of PRG RAM and CHR RAM, ExRAM and chip RAM are filled
+        -- The first 8KB of PRG RAM and CHR RAM, ExRAM, chip RAM and VRAM are
+        -- filled
         STATE_FILL,
         -- RAM past the first 8KB is cleared, or a save RAM fill is redone
         STATE_CLEAR,
-        -- The RAMs are ready. The board runs once the console leaves reset
+        -- The RAMs are ready, and the board runs
         STATE_READY
     );
 
@@ -54,8 +56,6 @@ package lib_cart_system is
         power_up_data      : power_up_data_t;
         -- The fill leaves PRG RAM alone, as it holds a save the board loaded
         keep_prg_ram       : boolean;
-        -- The console is in reset, and so is the board
-        console_reset      : boolean;
     end record;
 
     type cart_system_out_t is record
@@ -186,6 +186,20 @@ package body lib_cart_system is
     begin
         ret.address := EXRAM_WINDOW;
         ret.address(exram_addr_t'range) := ram_bus.address;
+        ret.read := ram_bus.read;
+        ret.write := ram_bus.write;
+
+        return ret;
+    end;
+
+    -- The cartridge memory bus access for an access to the VRAM of a
+    -- four-screen board
+    function get_vram_bus(ram_bus : vram_bus_t) return cart_mem_bus_t
+    is
+        variable ret : cart_mem_bus_t;
+    begin
+        ret.address := VRAM_WINDOW;
+        ret.address(vram_addr_t'range) := ram_bus.address;
         ret.read := ram_bus.read;
         ret.write := ram_bus.write;
 
@@ -358,16 +372,23 @@ package body lib_cart_system is
                                              chr_ram_addr_t'length)));
                     ret.data_to_chr_cart_mem := sys_in.power_up_data(39 downto 32);
 
-                    -- ExRAM is filled alongside the first 1KB of CHR RAM
-                    -- writes, on the PRG channel, which is otherwise idle in
-                    -- these cycles. Two writes fit in a whole CPU cycle, and
-                    -- these are never the first or last cycle of the fill.
-                    -- Every board gets this, so it costs no time in reset
+                    -- ExRAM, then the VRAM of a four-screen board, are filled
+                    -- alongside the CHR RAM writes, on the PRG channel, which
+                    -- is otherwise idle in these cycles. Two writes fit in a
+                    -- whole CPU cycle, and these are never the first or last
+                    -- cycle of the fill. Every board gets this, so it costs
+                    -- no time in reset
                     if sys_in.reg.cur_cycle(13 downto 11) = "000"
                     then
                         ret.prg_cart_mem_bus :=
                             get_exram_bus(
                                 bus_write(sys_in.reg.cur_cycle(10 downto 1)));
+                        ret.data_to_prg_cart_mem := sys_in.power_up_data(47 downto 40);
+                    elsif sys_in.reg.cur_cycle(13 downto 12) = "01"
+                    then
+                        ret.prg_cart_mem_bus :=
+                            get_vram_bus(
+                                bus_write(sys_in.reg.cur_cycle(11 downto 1)));
                         ret.data_to_prg_cart_mem := sys_in.power_up_data(47 downto 40);
                     end if;
                 end if;
@@ -436,75 +457,79 @@ package body lib_cart_system is
                 end if;
 
             when STATE_READY =>
-                -- The board is held in reset with the console, and the
-                -- channels are idle until it runs
-                if not sys_in.console_reset
+                -- PRG ROM, PRG RAM and the CPU's ExRAM accesses share the
+                -- PRG channel of the cartridge memory bus, since the CPU
+                -- only accesses one at a time
+                assert not ((is_bus_active(sys_in.mem.prg_rom_bus) and
+                             is_bus_active(sys_in.mem.prg_ram_bus)) or
+                            (is_bus_active(sys_in.mem.prg_rom_bus) and
+                             is_bus_active(sys_in.mem.cpu_exram_bus)) or
+                            (is_bus_active(sys_in.mem.prg_ram_bus) and
+                             is_bus_active(sys_in.mem.cpu_exram_bus)))
+                    report "PRG ROM, PRG RAM and ExRAM accessed together"
+                    severity failure;
+
+                if is_bus_active(sys_in.mem.prg_ram_bus)
                 then
-                    -- PRG ROM, PRG RAM and the CPU's ExRAM accesses share the
-                    -- PRG channel of the cartridge memory bus, since the CPU
-                    -- only accesses one at a time
-                    assert not ((is_bus_active(sys_in.mem.prg_rom_bus) and
-                                 is_bus_active(sys_in.mem.prg_ram_bus)) or
-                                (is_bus_active(sys_in.mem.prg_rom_bus) and
-                                 is_bus_active(sys_in.mem.cpu_exram_bus)) or
-                                (is_bus_active(sys_in.mem.prg_ram_bus) and
-                                 is_bus_active(sys_in.mem.cpu_exram_bus)))
-                        report "PRG ROM, PRG RAM and ExRAM accessed together"
-                        severity failure;
+                    ret.prg_cart_mem_bus :=
+                        get_prg_ram_bus(sys_in.mem.prg_ram_bus);
+                    ret.data_to_prg_cart_mem :=
+                        sys_in.mem.data_to_prg_ram;
+                elsif is_bus_active(sys_in.mem.cpu_exram_bus)
+                then
+                    ret.prg_cart_mem_bus :=
+                        get_exram_bus(sys_in.mem.cpu_exram_bus);
+                    ret.data_to_prg_cart_mem :=
+                        sys_in.mem.data_to_cpu_exram;
+                else
+                    ret.prg_cart_mem_bus :=
+                        get_cart_mem_bus(
+                            sys_in.mem.prg_rom_bus,
+                            get_file_offset(
+                                x"00",
+                                sys_in.reg.config.has_trainer));
+                end if;
 
-                    if is_bus_active(sys_in.mem.prg_ram_bus)
-                    then
-                        ret.prg_cart_mem_bus :=
-                            get_prg_ram_bus(sys_in.mem.prg_ram_bus);
-                        ret.data_to_prg_cart_mem :=
-                            sys_in.mem.data_to_prg_ram;
-                    elsif is_bus_active(sys_in.mem.cpu_exram_bus)
-                    then
-                        ret.prg_cart_mem_bus :=
-                            get_exram_bus(sys_in.mem.cpu_exram_bus);
-                        ret.data_to_prg_cart_mem :=
-                            sys_in.mem.data_to_cpu_exram;
-                    else
-                        ret.prg_cart_mem_bus :=
-                            get_cart_mem_bus(
-                                sys_in.mem.prg_rom_bus,
-                                get_file_offset(
-                                    x"00",
-                                    sys_in.reg.config.has_trainer));
-                    end if;
+                -- CHR ROM, CHR RAM, the PPU's ExRAM accesses and VRAM share
+                -- the CHR channel, since the board maps each PPU address to
+                -- one of them
+                assert not ((is_bus_active(sys_in.mem.chr_rom_bus) and
+                             is_bus_active(sys_in.mem.chr_ram_bus)) or
+                            (is_bus_active(sys_in.mem.chr_rom_bus) and
+                             is_bus_active(sys_in.mem.ppu_exram_bus)) or
+                            (is_bus_active(sys_in.mem.chr_ram_bus) and
+                             is_bus_active(sys_in.mem.ppu_exram_bus)) or
+                            (is_bus_active(sys_in.mem.vram_bus) and
+                             (is_bus_active(sys_in.mem.chr_rom_bus) or
+                              is_bus_active(sys_in.mem.chr_ram_bus) or
+                              is_bus_active(sys_in.mem.ppu_exram_bus))))
+                    report "CHR ROM, CHR RAM, ExRAM and VRAM accessed together"
+                    severity failure;
 
-                    -- CHR ROM, CHR RAM and the PPU's ExRAM accesses share the
-                    -- CHR channel, since the board maps each PPU address to
-                    -- one of them
-                    assert not ((is_bus_active(sys_in.mem.chr_rom_bus) and
-                                 is_bus_active(sys_in.mem.chr_ram_bus)) or
-                                (is_bus_active(sys_in.mem.chr_rom_bus) and
-                                 is_bus_active(sys_in.mem.ppu_exram_bus)) or
-                                (is_bus_active(sys_in.mem.chr_ram_bus) and
-                                 is_bus_active(sys_in.mem.ppu_exram_bus)))
-                        report "CHR ROM, CHR RAM and ExRAM accessed together"
-                        severity failure;
-
-                    if is_bus_active(sys_in.mem.chr_ram_bus)
-                    then
-                        ret.chr_cart_mem_bus :=
-                            get_chr_ram_bus(sys_in.mem.chr_ram_bus);
-                        ret.data_to_chr_cart_mem :=
-                            sys_in.mem.data_to_chr_ram;
-                    elsif is_bus_active(sys_in.mem.ppu_exram_bus)
-                    then
-                        ret.chr_cart_mem_bus :=
-                            get_exram_bus(sys_in.mem.ppu_exram_bus);
-                        ret.data_to_chr_cart_mem :=
-                            sys_in.mem.data_to_ppu_exram;
-                    else
-                        ret.chr_cart_mem_bus :=
-                            get_cart_mem_bus(
-                                sys_in.mem.chr_rom_bus,
-                                get_file_offset(
-                                    sys_in.reg.config.prg_rom_16kb_blocks,
-                                    sys_in.reg.config.has_trainer));
-                    end if;
+                if is_bus_active(sys_in.mem.chr_ram_bus)
+                then
+                    ret.chr_cart_mem_bus :=
+                        get_chr_ram_bus(sys_in.mem.chr_ram_bus);
+                    ret.data_to_chr_cart_mem :=
+                        sys_in.mem.data_to_chr_ram;
+                elsif is_bus_active(sys_in.mem.ppu_exram_bus)
+                then
+                    ret.chr_cart_mem_bus :=
+                        get_exram_bus(sys_in.mem.ppu_exram_bus);
+                    ret.data_to_chr_cart_mem :=
+                        sys_in.mem.data_to_ppu_exram;
+                elsif is_bus_active(sys_in.mem.vram_bus)
+                then
+                    ret.chr_cart_mem_bus :=
+                        get_vram_bus(sys_in.mem.vram_bus);
+                    ret.data_to_chr_cart_mem := sys_in.mem.data_to_vram;
+                else
+                    ret.chr_cart_mem_bus :=
+                        get_cart_mem_bus(
+                            sys_in.mem.chr_rom_bus,
+                            get_file_offset(
+                                sys_in.reg.config.prg_rom_16kb_blocks,
+                                sys_in.reg.config.has_trainer));
                 end if;
         end case;
 

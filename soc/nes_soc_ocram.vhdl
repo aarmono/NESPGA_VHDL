@@ -96,7 +96,6 @@ architecture behavioral of nes_soc_ocram is
     signal cart_ppu_out    : cart_ppu_out_t;
     signal cart_audio      : cart_audio_t;
 
-    signal cart_reset     : boolean := true;
     signal cart_loaded    : boolean;
     signal cart_ready     : boolean;
     signal power_up_ready : boolean;
@@ -154,7 +153,6 @@ begin
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,
 
-        cart_reset => cart_reset,
         cart_loaded => cart_loaded,
         cart_ready => cart_ready,
 
@@ -179,7 +177,6 @@ begin
         clk_sync => clk_sync,
         ram_en => ppu_ram_en,
 
-        console_reset => cart_reset,
         keep_prg_ram => keep_prg_ram,
 
         power_up_ready => power_up_ready,

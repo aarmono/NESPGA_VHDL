@@ -117,9 +117,6 @@ port
     -- The audio of the chips on the cartridge, mixed with the console's
     cart_audio   : in cart_audio_t := 0;
 
-    -- The console is in reset. See cart_system: console_reset. Set from
-    -- power up, like int_reset
-    cart_reset  : out boolean := true;
     -- See cart_system: loaded and ready. The console fills its RAMs on the
     -- same CPU cycles as the cartridge, and leaves reset once both are
     -- ready
@@ -241,8 +238,6 @@ begin
     cpu_clk_en <= cpu_en;
     ppu_clk_en <= ppu_en;
     clk_sync <= ppu_sync;
-
-    cart_reset <= int_reset;
 
     ppu_ram_en <= sig_ppu_ram_en;
     cpu_ram_en <= sig_cpu_ram_en;

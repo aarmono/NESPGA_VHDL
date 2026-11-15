@@ -39,7 +39,6 @@ port
     ram_en   : in boolean;
 
     -- See cart_system
-    console_reset : in boolean;
     keep_prg_ram  : in boolean := false;
 
     power_up_ready : in boolean;
@@ -90,7 +89,6 @@ begin
         ppu_en => ppu_en,
         clk_sync => clk_sync,
 
-        console_reset => console_reset,
         keep_prg_ram => keep_prg_ram,
 
         power_up_ready => power_up_ready,

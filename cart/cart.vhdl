@@ -27,7 +27,6 @@ package cart is
         ppu_en   : in boolean;
         clk_sync : in boolean;
 
-        console_reset : in boolean;
         keep_prg_ram  : in boolean := false;
 
         power_up_ready : in boolean;
@@ -74,7 +73,6 @@ package cart is
         clk_sync : in boolean;
         ram_en   : in boolean;
 
-        console_reset : in boolean;
         keep_prg_ram  : in boolean := false;
 
         power_up_ready : in boolean;

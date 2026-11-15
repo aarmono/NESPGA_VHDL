@@ -82,7 +82,6 @@ package console is
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
 
-        cart_reset  : out boolean := true;
         cart_loaded : in boolean;
         cart_ready  : in boolean;
 
@@ -139,7 +138,6 @@ package console is
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
 
-        cart_reset  : out boolean := true;
         cart_loaded : in boolean;
         cart_ready  : in boolean;
 

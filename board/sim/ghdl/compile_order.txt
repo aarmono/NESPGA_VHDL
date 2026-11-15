@@ -10,6 +10,7 @@
 ../../../bus/prg_ram_bus_types.vhdl
 ../../../bus/chr_ram_bus_types.vhdl
 ../../../bus/exram_bus_types.vhdl
+../../../bus/vram_bus_types.vhdl
 ../../../bus/chip_ram_bus_types.vhdl
 ../../../bus/opll_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl

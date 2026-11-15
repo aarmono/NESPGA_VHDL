@@ -69,7 +69,6 @@ port
     cart_ppu_out : in cart_ppu_out_t;
     cart_audio   : in cart_audio_t := 0;
 
-    cart_reset  : out boolean := true;
     cart_loaded : in boolean;
     cart_ready  : in boolean;
 
@@ -172,7 +171,6 @@ begin
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,
 
-        cart_reset => cart_reset,
         cart_loaded => cart_loaded,
         cart_ready => cart_ready,
 

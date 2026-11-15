@@ -9,6 +9,7 @@ use work.chr_bus_types.all;
 use work.prg_ram_bus_types.all;
 use work.chr_ram_bus_types.all;
 use work.exram_bus_types.all;
+use work.vram_bus_types.all;
 use work.chip_ram_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.cart_connector_types.all;
@@ -168,6 +169,7 @@ package cart_types is
         data_from_cpu_exram : data_t;
         data_from_ppu_exram : data_t;
         data_from_chip_ram  : data_t;
+        data_from_vram      : data_t;
     end record;
 
     type cart_mem_out_t is record
@@ -191,6 +193,10 @@ package cart_types is
         -- The chip RAM is on a bus of its own, with one access per PPU cycle
         chip_ram_bus      : chip_ram_bus_t;
         data_to_chip_ram  : data_t;
+
+        -- The VRAM of a four-screen board
+        vram_bus          : vram_bus_t;
+        data_to_vram      : data_t;
     end record;
 
     constant CART_MEM_OUT_IDLE : cart_mem_out_t :=
@@ -211,7 +217,10 @@ package cart_types is
         data_to_ppu_exram => (others => '-'),
 
         chip_ram_bus => CHIP_RAM_BUS_IDLE,
-        data_to_chip_ram => (others => '-')
+        data_to_chip_ram => (others => '-'),
+
+        vram_bus => VRAM_BUS_IDLE,
+        data_to_vram => (others => '-')
     );
 
     type cart_in_t is record
@@ -636,7 +645,8 @@ package body cart_types is
         end case;
     end;
 
-    -- The PPU accesses the nametables in CIRAM
+    -- The PPU accesses the nametables in CIRAM. A four-screen board has the
+    -- nametables at 0x2800-0x2FFF in VRAM of its own instead
     function map_ciram
     (
         cart_in  : cart_in_t;
@@ -655,13 +665,18 @@ package body cart_types is
         ret := cart_out;
         addr := cart_in.ppu.chr_bus.address;
 
-        ret.ppu.ciram_ce := true;
-        ret.ppu.ciram_a10 := get_ciram_a10(mirror, addr);
-        if mirror = MIRROR_FOUR
+        if mirror = MIRROR_FOUR and addr(11) = '1'
         then
-            ret.ppu.ciram_a11 := addr(11);
+            ret.mem.vram_bus.address := addr(vram_addr_t'range);
+            ret.mem.vram_bus.read := cart_in.ppu.chr_bus.read;
+            ret.mem.vram_bus.write := cart_in.ppu.chr_bus.write;
+            ret.mem.data_to_vram := cart_in.ppu.data;
+
+            ret.ppu.data := cart_in.mem.data_from_vram;
+            ret.ppu.data_oe := true;
         else
-            ret.ppu.ciram_a11 := '0';
+            ret.ppu.ciram_ce := true;
+            ret.ppu.ciram_a10 := get_ciram_a10(mirror, addr);
         end if;
 
         return ret;

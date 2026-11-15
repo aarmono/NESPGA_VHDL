@@ -33,10 +33,6 @@ port
     ppu_en   : in boolean;
     clk_sync : in boolean;
 
-    -- The console is in reset. The board is held in reset with it, as the
-    -- connector has no reset pin and it only sees the CPU's accesses once
-    -- the console runs
-    console_reset : in boolean;
     -- The fill leaves PRG RAM alone, because the board has loaded a save
     -- into it. Must be stable while reset is true
     keep_prg_ram  : in boolean := false;
@@ -53,7 +49,7 @@ port
     -- the same CPU cycle
     loaded : out boolean;
     -- The RAMs are filled by the end of this CPU cycle, so the console can
-    -- leave reset after it
+    -- leave reset after it. The board leaves reset then too
     ready  : out boolean;
 
     cpu_in  : in  cart_cpu_in_t;
@@ -87,6 +83,10 @@ is
 
     signal reg      : cart_system_reg_t := RESET_CART_SYSTEM_REG;
     signal reg_next : cart_system_reg_t;
+
+    -- The board is held in reset until the RAMs are filled. The connector
+    -- has no reset pin, so the board does not see the console's reset
+    signal board_reset : boolean := true;
 
     signal cart_in  : cart_in_t;
     signal cart_out : cart_out_t;
@@ -139,7 +139,8 @@ begin
         data_from_chr_ram => data_from_cart_mem_chr,
         data_from_cpu_exram => data_from_cart_mem_prg,
         data_from_ppu_exram => data_from_cart_mem_chr,
-        data_from_chip_ram => data_from_chip_ram
+        data_from_chip_ram => data_from_chip_ram,
+        data_from_vram => data_from_cart_mem_chr
     );
 
     cpu_out <= cart_out.cpu;
@@ -154,6 +155,8 @@ begin
     header_data <= data_from_cart_mem_prg when reg.cur_state = STATE_LOAD else
                    (others => '-');
 
+    board_reset <= reg.cur_state /= STATE_READY;
+
     board : entity work.cartridge(behavioral)
     generic map
     (
@@ -164,7 +167,7 @@ begin
         clk => clk,
         clk_en => ppu_en,
         clk_sync => clk_sync,
-        reset => console_reset,
+        reset => board_reset,
 
         config => reg.config,
 
@@ -186,7 +189,6 @@ begin
         sys_in.power_up_ready := power_up_ready;
         sys_in.power_up_data := power_up_data;
         sys_in.keep_prg_ram := keep_prg_ram;
-        sys_in.console_reset := console_reset;
 
         sys_out := cycle_cart_system(sys_in);
 

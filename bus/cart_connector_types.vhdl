@@ -77,10 +77,6 @@ package cart_connector_types is
         -- with these and PPU A0-A9
         ciram_ce  : boolean;
         ciram_a10 : std_logic;
-        -- Not on the connector. A four-screen board carries 2KB of VRAM of
-        -- its own; here the console's CIRAM is 4KB, and this selects the
-        -- half that stands in for the board's VRAM
-        ciram_a11 : std_logic;
     end record;
 
     constant CART_PPU_OUT_IDLE : cart_ppu_out_t :=
@@ -88,8 +84,7 @@ package cart_connector_types is
         data => (others => '-'),
         data_oe => false,
         ciram_ce => false,
-        ciram_a10 => '-',
-        ciram_a11 => '-'
+        ciram_a10 => '-'
     );
 
 end package cart_connector_types;
