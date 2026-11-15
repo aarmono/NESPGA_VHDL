@@ -132,6 +132,10 @@ architecture behavioral of clk_en is
     -- different counts
     signal cpu_cycle_start : boolean := true;
 
+    -- cpu_en, which reg_odd_cpu_cycle reads. Quartus 13 can't read an out
+    -- port
+    signal reg_cpu_en : boolean;
+
     -- Toggles on cpu_en, so that it holds for a whole CPU cycle and the
     -- buses that depend on it (the DMC DMA read) don't move partway through
     -- one. The power up and reset values differ so that the cycles see the
@@ -161,6 +165,7 @@ begin
         report "clk_en: CLK_FREQ out of range for NSF clock"
         severity failure;
 
+    cpu_en <= reg_cpu_en;
     odd_cpu_cycle <= reg_odd_cpu_cycle;
 
     process(clk)
@@ -175,7 +180,7 @@ begin
             cpu_frac <= RESET_CPU_FRAC;
             nsf_count <= RESET_NSF_COUNT;
 
-            cpu_en <= false;
+            reg_cpu_en <= false;
             ppu_en <= false;
             nsf_en <= false;
 
@@ -186,12 +191,12 @@ begin
             cpu_cycle_start <= true;
             reg_odd_cpu_cycle <= INVERT_CYCLE_PARITY;
         else
-            if cpu_en
+            if reg_cpu_en
             then
                 reg_odd_cpu_cycle <= not reg_odd_cpu_cycle;
             end if;
 
-            cpu_en <= cpu_count = CPU_EN_COUNT;
+            reg_cpu_en <= cpu_count = CPU_EN_COUNT;
             cpu_ram_en <= cpu_count = CPU_RAM_EN_COUNT;
 
             is_ppu_en := false;
