@@ -381,7 +381,6 @@ set_global_assignment -name VHDL_FILE ../platform/frame_lock_video.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/nes/nes_soc_ocram.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/nes/nes_soc.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/nes/lib_nes.vhdl
-set_global_assignment -name VHDL_FILE ../../soc/nes/cart_mem_bus_mux.vhdl
 set_global_assignment -name VHDL_FILE ../../soc/soc.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2_keyboard.vhdl
 set_global_assignment -name VHDL_FILE ../../perhiperals/ps2_keyboard/ps2_bus.vhdl
@@ -404,6 +403,10 @@ set_global_assignment -name VHDL_FILE ../../core/oam_dma/oam_dma.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/lib_cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cart.vhdl
+set_global_assignment -name VHDL_FILE ../../cart/cart_mem_bus_mux.vhdl
+set_global_assignment -name VHDL_FILE ../../cart/lib_cart_system.vhdl
+set_global_assignment -name VHDL_FILE ../../cart/cart_system.vhdl
+set_global_assignment -name VHDL_FILE ../../cart/cart_system_ocram.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/mmc2/lib_mapper_mmc2.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/mmc3/lib_mapper_mmc3.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/fme7/lib_mapper_fme7.vhdl

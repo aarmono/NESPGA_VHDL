@@ -56,8 +56,9 @@ use work.sd_menu_stub.all;
 --
 -- In menu mode, CPU accesses to PRG RAM, which the menu has 8 KB of at
 -- 0x6000-0x7FFF, go to the selected 8 KB bank of the 256 KB of cartridge
--- RAM instead (see lib_nes): 0-7 are PRG RAM, 8-15 CHR RAM, 16 ExRAM, and
--- the rest are not used by games, so the menu keeps its own data there.
+-- RAM instead (see cart_mem_bus_types): 0-7 are PRG RAM, 8-15 CHR RAM,
+-- 16 ExRAM, and the rest are not used by games, so the menu keeps its own
+-- data there.
 --
 -- Holding Start and Select on controller 1 for RETURN_HOLD_MS, while a game
 -- that the menu launched runs, returns to the menu: the stub is loaded
@@ -81,7 +82,7 @@ port
     clk   : in std_logic;
     reset : in boolean;
 
-    -- The cartridge connector. See nes_soc
+    -- The cartridge connector. See nes_soc_ocram
     cpu_clk_en    : in boolean;
     board_cpu_in  : in cart_cpu_in_t;
     board_cpu_out : out cart_cpu_out_t;
@@ -89,11 +90,12 @@ port
     -- Controller 1, low while pressed, with A in bit 0. See joy_port
     buttons : in std_logic_vector(7 downto 0);
 
-    -- See nes_soc
+    -- See cart_system
     keep_prg_ram : out boolean;
+    -- See nes_soc
     famicom      : out boolean;
 
-    -- The cartridge memory bus, from nes_soc to sdram_rom. The menu's PRG
+    -- The cartridge memory bus, from nes_soc_ocram to sdram_rom. The menu's PRG
     -- RAM bank is applied here
     cart_mem_bus_in  : in cart_mem_bus_t;
     cart_mem_bus_out : out cart_mem_bus_t;

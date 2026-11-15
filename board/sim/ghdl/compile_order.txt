@@ -121,11 +121,14 @@
 ../../../cart/nsf/lib_mapper_nsf.vhdl
 ../../../cart/lib_cartridge.vhdl
 ../../../cart/cartridge.vhdl
+../../../cart/cart_mem_bus_mux.vhdl
+../../../cart/lib_cart_system.vhdl
+../../../cart/cart_system.vhdl
+../../../cart/cart_system_ocram.vhdl
 ../../../cart/cart.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../soc/nes/lib_nes.vhdl
-../../../soc/nes/cart_mem_bus_mux.vhdl
 ../../../soc/nes/nes_soc.vhdl
 ../../../soc/nes/nes_soc_ocram.vhdl
 

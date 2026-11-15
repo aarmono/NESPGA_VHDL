@@ -4,8 +4,6 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.ram_bus_types.all;
 use work.ciram_bus_types.all;
-use work.chip_ram_bus_types.all;
-use work.opll_bus_types.all;
 use work.cpu_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.oam_bus_types.all;
@@ -14,15 +12,14 @@ use work.palette_bus_types.all;
 use work.utilities.all;
 use work.perhipherals.all;
 use work.perhipheral_types.all;
-use work.lib_nes.all;
 use work.cart_connector_types.all;
 use work.cart_types.all;
+use work.cart.all;
 
 entity nes_soc_ocram is
 generic
 (
-    -- Leave the cartridge RAMs on the cartridge memory bus. Otherwise they
-    -- are on chip, and only reads of the ROM file are on the bus
+    -- See cart_system_ocram
     USE_EXT_CART_RAM : boolean := false;
     -- Vendor of the on-chip RAMs. See syncram_sp
     VENDOR           : vendor_t := VENDOR_ALTERA;
@@ -30,7 +27,7 @@ generic
     CLK_FREQ         : positive := 50_000_000;
     CPU_FREQ_NUM     : positive := 39_375_000;
     CPU_FREQ_DEN     : positive := 22;
-    -- See nes_soc
+    -- See cart_system
     CART_BOARDS      : board_set_t := ALL_BOARDS;
     -- See nes_soc
     POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO;
@@ -45,7 +42,9 @@ port
     reset : in boolean;
     -- See nes_soc
     soft_reset   : in boolean := false;
+    -- See cart_system
     keep_prg_ram : in boolean := false;
+    -- See nes_soc
     famicom      : in boolean := false;
 
     nes_running : out boolean;
@@ -74,21 +73,40 @@ port
     joy_2_clk  : out std_logic;
     joy_2_data : in joy_data_t := JOY_DATA_IDLE;
 
-    -- See nes_soc
+    -- The CPU side of the cartridge connector, as the cartridge sees it, for
+    -- the board to decode too. Like the CPU bus, it is only valid at
+    -- cpu_clk_en
     board_cpu_in  : out cart_cpu_in_t;
+    -- The board's side of the same connector. When it drives the data bus it
+    -- answers the read instead of the cartridge. Its IRQ is ORed with the
+    -- cartridge's, as /IRQ is shared
     board_cpu_out : in cart_cpu_out_t := CART_CPU_OUT_IDLE;
+    -- The PPU side of the cartridge connector, as the cartridge sees it.
+    -- Only valid at ppu_clk_en. For nes_bench to check its timing
     board_ppu_in  : out cart_ppu_in_t
 );
 end nes_soc_ocram;
 
 architecture behavioral of nes_soc_ocram is
 
+    signal sig_cpu_clk_en : boolean;
+    signal sig_ppu_clk_en : boolean;
+    signal clk_sync       : boolean;
     signal sig_cpu_ram_en : boolean;
     signal sig_ppu_ram_en : boolean;
-    
-    signal soc_cart_mem_bus       : cart_mem_bus_t;
-    signal soc_data_to_cart_mem   : data_t;
-    signal soc_data_from_cart_mem : data_t;
+
+    signal cart_cpu_in      : cart_cpu_in_t;
+    signal cart_cpu_out     : cart_cpu_out_t;
+    signal console_cpu_out  : cart_cpu_out_t;
+    signal cart_ppu_in      : cart_ppu_in_t;
+    signal cart_ppu_out     : cart_ppu_out_t;
+    signal cart_audio       : cart_audio_t;
+
+    signal cart_reset     : boolean := true;
+    signal cart_loaded    : boolean;
+    signal cart_ready     : boolean;
+    signal power_up_ready : boolean;
+    signal power_up_data  : power_up_data_t;
 
     signal prg_ram_bus  : ram_bus_t;
     signal oam_bus      : oam_bus_t;
@@ -106,20 +124,15 @@ architecture behavioral of nes_soc_ocram is
     signal data_from_palette  : pixel_t;
     signal data_from_ciram    : data_t;
     signal data_to_ciram      : data_t;
-    signal chip_ram_bus       : chip_ram_bus_t;
-    signal data_to_chip_ram   : data_t;
-    signal data_from_chip_ram : data_t;
-
-    signal opll_ram_bus       : opll_ram_bus_t;
-    signal data_to_opll_ram   : opll_ram_data_t;
-    signal data_from_opll_ram : opll_ram_data_t;
     
 begin
+
+    cpu_clk_en <= sig_cpu_clk_en;
+    ppu_clk_en <= sig_ppu_clk_en;
 
     soc : entity work.nes_soc(behavioral)
     generic map
     (
-        CART_BOARDS => CART_BOARDS,
         POWER_UP_MODE => POWER_UP_MODE,
         POWER_UP_SEED => POWER_UP_SEED,
         INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
@@ -132,7 +145,6 @@ begin
         clk => clk,
         reset => reset,
         soft_reset => soft_reset,
-        keep_prg_ram => keep_prg_ram,
         famicom => famicom,
 
         nes_running => nes_running,
@@ -142,15 +154,12 @@ begin
         waiting_to_run => waiting_to_run,
         ppu_start => ppu_start,
 
-        ppu_clk_en => ppu_clk_en,
-        cpu_clk_en => cpu_clk_en,
+        ppu_clk_en => sig_ppu_clk_en,
+        cpu_clk_en => sig_cpu_clk_en,
+        clk_sync => clk_sync,
 
         cpu_ram_en => sig_cpu_ram_en,
         ppu_ram_en => sig_ppu_ram_en,
-        
-        cart_mem_bus => soc_cart_mem_bus,
-        data_to_cart_mem => soc_data_to_cart_mem,
-        data_from_cart_mem => soc_data_from_cart_mem,
         
         prg_ram_bus => prg_ram_bus,
         data_to_prg_ram => data_to_prg_ram,
@@ -171,14 +180,6 @@ begin
         ciram_bus => ciram_bus,
         data_to_ciram => data_to_ciram,
         data_from_ciram => data_from_ciram,
-
-        chip_ram_bus => chip_ram_bus,
-        data_to_chip_ram => data_to_chip_ram,
-        data_from_chip_ram => data_from_chip_ram,
-
-        opll_ram_bus => opll_ram_bus,
-        data_to_opll_ram => data_to_opll_ram,
-        data_from_opll_ram => data_from_opll_ram,
         
         pixel_bus => pixel_bus,
         audio => audio,
@@ -191,10 +192,61 @@ begin
         joy_2_clk => joy_2_clk,
         joy_2_data => joy_2_data,
 
-        board_cpu_in => board_cpu_in,
-        board_cpu_out => board_cpu_out,
-        board_ppu_in => board_ppu_in
+        cart_cpu_in => cart_cpu_in,
+        cart_cpu_out => console_cpu_out,
+        cart_ppu_in => cart_ppu_in,
+        cart_ppu_out => cart_ppu_out,
+        cart_audio => cart_audio,
+
+        cart_reset => cart_reset,
+        cart_loaded => cart_loaded,
+        cart_ready => cart_ready,
+
+        power_up_ready => power_up_ready,
+        power_up_data => power_up_data
     );
+
+    cart_sys : cart_system_ocram
+    generic map
+    (
+        USE_EXT_CART_RAM => USE_EXT_CART_RAM,
+        VENDOR => VENDOR,
+        CART_BOARDS => CART_BOARDS
+    )
+    port map
+    (
+        clk => clk,
+        reset => reset,
+
+        cpu_en => sig_cpu_clk_en,
+        ppu_en => sig_ppu_clk_en,
+        clk_sync => clk_sync,
+        ram_en => sig_ppu_ram_en,
+
+        console_reset => cart_reset,
+        keep_prg_ram => keep_prg_ram,
+
+        power_up_ready => power_up_ready,
+        power_up_data => power_up_data,
+
+        loaded => cart_loaded,
+        ready => cart_ready,
+
+        cpu_in => cart_cpu_in,
+        cpu_out => cart_cpu_out,
+        ppu_in => cart_ppu_in,
+        ppu_out => cart_ppu_out,
+        audio => cart_audio,
+
+        cart_mem_bus => cart_mem_bus,
+        data_to_cart_mem => data_to_cart_mem,
+        data_from_cart_mem => data_from_cart_mem
+    );
+
+    board_cpu_in <= cart_cpu_in;
+    board_ppu_in <= cart_ppu_in;
+
+    console_cpu_out <= merge_cart_cpu_out(cart_cpu_out, board_cpu_out);
     
     prg_ram : syncram_sp
     generic map
@@ -216,52 +268,6 @@ begin
         data_out => data_from_prg_ram
     );
 
-    gen_cart_ram : if USE_EXT_CART_RAM generate
-    begin
-        cart_mem_bus <= soc_cart_mem_bus;
-        data_to_cart_mem <= soc_data_to_cart_mem;
-        soc_data_from_cart_mem <= data_from_cart_mem;
-    else generate
-        signal ram_read      : boolean;
-        signal ram_write     : boolean;
-        signal data_from_ram : data_t;
-    begin
-        -- The cartridge memory bus has at most one access per PPU cycle, so
-        -- one RAM holds all of the cartridge RAMs. Like the SDRAM, the access
-        -- is complete by the next PPU clock enable
-        ram_read <= is_cart_ram(soc_cart_mem_bus) and
-                    is_bus_read(soc_cart_mem_bus);
-        ram_write <= is_cart_ram(soc_cart_mem_bus) and
-                     is_bus_write(soc_cart_mem_bus);
-
-        cart_mem_bus <= CART_MEM_BUS_IDLE when is_cart_ram(soc_cart_mem_bus)
-                        else soc_cart_mem_bus;
-        data_to_cart_mem <= (others => '-');
-        soc_data_from_cart_mem <= data_from_ram
-                                  when is_cart_ram(soc_cart_mem_bus)
-                                  else data_from_cart_mem;
-
-        cart_ram : syncram_sp
-        generic map
-        (
-            VENDOR => VENDOR,
-            ADDR_BITS => cart_ram_addr_t'length,
-            DATA_BITS => data_t'length
-        )
-        port map
-        (
-            clk => clk,
-            clk_en => sig_ppu_ram_en,
-
-            address => soc_cart_mem_bus.address(cart_ram_addr_t'range),
-            read => ram_read,
-            write => ram_write,
-
-            data_in => soc_data_to_cart_mem,
-            data_out => data_from_ram
-        );
-    end generate;
-
     ciram : syncram_sp
     generic map
     (
@@ -281,64 +287,6 @@ begin
         data_in => data_to_ciram,
         data_out => data_from_ciram
     );
-
-    -- RAM inside the mapper chip, which has a bus of its own so that the
-    -- chip can access it in every PPU cycle. It also holds the contents of
-    -- the serial EEPROMs of the Bandai FCG boards
-    gen_chip_ram : if CART_BOARDS(BOARD_N163) or CART_BOARDS(BOARD_BANDAI)
-    generate
-    begin
-        chip_ram : syncram_sp
-        generic map
-        (
-            VENDOR => VENDOR,
-            ADDR_BITS => chip_ram_addr_t'length,
-            DATA_BITS => data_t'length
-        )
-        port map
-        (
-            clk => clk,
-            clk_en => sig_ppu_ram_en,
-
-            address => chip_ram_bus.address,
-            read => chip_ram_bus.read,
-            write => chip_ram_bus.write,
-
-            data_in => data_to_chip_ram,
-            data_out => data_from_chip_ram
-        );
-    else generate
-    begin
-        data_from_chip_ram <= (others => '-');
-    end generate;
-
-    -- The state of the FM synthesizer of the VRC7, which the cartridge
-    -- accesses once per PPU cycle
-    gen_opll_ram : if CART_BOARDS(BOARD_VRC7_AUDIO) generate
-    begin
-        opll_ram : syncram_sp
-        generic map
-        (
-            VENDOR => VENDOR,
-            ADDR_BITS => opll_ram_addr_t'length,
-            DATA_BITS => opll_ram_data_t'length
-        )
-        port map
-        (
-            clk => clk,
-            clk_en => sig_ppu_ram_en,
-
-            address => opll_ram_bus.address,
-            read => opll_ram_bus.read,
-            write => opll_ram_bus.write,
-
-            data_in => data_to_opll_ram,
-            data_out => data_from_opll_ram
-        );
-    else generate
-    begin
-        data_from_opll_ram <= (others => '-');
-    end generate;
 
     oam : syncram_sp
     generic map

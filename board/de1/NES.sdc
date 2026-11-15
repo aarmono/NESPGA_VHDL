@@ -126,6 +126,7 @@ set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to 
 # ppu_sync and odd_cpu_cycle, which only change on the clocks where a PPU
 # enable is consumed. RAM to RAM paths are left at 1 clock.
 set nes_soc {*|nes_soc_ocram:nes|nes_soc:soc}
+set cart_system {*|nes_soc_ocram:nes|cart_system_ocram:cart_sys|cart_system:sys}
 
 set nes_core_regs [get_registers [list \
     "$nes_soc|cpu:nes_cpu|*" \
@@ -133,9 +134,10 @@ set nes_core_regs [get_registers [list \
     "$nes_soc|ppu:nes_ppu|*" \
     "$nes_soc|oam_dma:nes_oam_dma|*" \
     "$nes_soc|joystick_io:nes_joystick_io|*" \
-    "$nes_soc|cart_mem_bus_mux:cart_mem_mux|*" \
-    "$nes_soc|cartridge:nes_cart|*" \
     "$nes_soc|reg.*" \
+    "$cart_system|cart_mem_bus_mux:cart_mem_mux|*" \
+    "$cart_system|cartridge:board|*" \
+    "$cart_system|reg.*" \
     "$nes_soc|cart_irq" \
     "$nes_soc|clk_en:nes_clk_en|ppu_sync" \
     "$nes_soc|clk_en:nes_clk_en|reg_odd_cpu_cycle" \
@@ -151,7 +153,7 @@ set_multicycle_path -setup -end 4 -from $nes_ram_regs -to $nes_core_regs
 set_multicycle_path -hold -end 3 -from $nes_ram_regs -to $nes_core_regs
 # While the RAMs are filled the power up data only steps on cpu_en, so paths
 # from it to the NES core and the on-chip RAMs have 4 clocks like the core's
-# own. Before the fill, while nes_soc is held in reset or reads the header,
+# own. Before the fill, while the NES is held in reset or reads the header,
 # it mixes in TRNG bytes on any clock, so its path to itself keeps 1
 set fill_regs [get_registers {*|power_up_fill:*|*lfsr*}]
 set_multicycle_path -setup -end 4 -from $fill_regs -to $nes_core_regs

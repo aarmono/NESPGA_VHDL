@@ -45,6 +45,17 @@ package cart_connector_types is
         irq => false
     );
 
+    -- The CPU side of the connector driven by the cartridge and by another
+    -- device on it, as the console sees it. When the device drives the data
+    -- bus it answers the read instead of the cartridge. /IRQ is shared, so
+    -- the IRQs are ORed
+    function merge_cart_cpu_out
+    (
+        cart   : cart_cpu_out_t;
+        device : cart_cpu_out_t
+    )
+    return cart_cpu_out_t;
+
     -- PPU side of the connector, driven by the console
     type cart_ppu_in_t is record
         -- PPU A0-A13, /RD and /WR
@@ -82,3 +93,28 @@ package cart_connector_types is
     );
 
 end package cart_connector_types;
+
+package body cart_connector_types is
+
+    function merge_cart_cpu_out
+    (
+        cart   : cart_cpu_out_t;
+        device : cart_cpu_out_t
+    )
+    return cart_cpu_out_t
+    is
+        variable ret : cart_cpu_out_t;
+    begin
+        ret := cart;
+        if device.data_oe
+        then
+            ret.data := device.data;
+            ret.data_oe := true;
+            ret.data_float := device.data_float;
+        end if;
+        ret.irq := cart.irq or device.irq;
+
+        return ret;
+    end;
+
+end package body cart_connector_types;
