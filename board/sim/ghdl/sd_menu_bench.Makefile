@@ -36,7 +36,7 @@ chip_ram_bus_types.o: ../../../bus/chip_ram_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 cart_mem_bus_types.o: ../../../bus/cart_mem_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-cart_types.o: ../../../core/mappers/cart_types.vhdl
+cart_types.o: ../../../cart/cart_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 perhipheral_types.o: ../../../perhiperals/perhipheral_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<

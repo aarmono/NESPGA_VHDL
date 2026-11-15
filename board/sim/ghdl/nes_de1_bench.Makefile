@@ -64,7 +64,7 @@ exram_bus_types.o: ../../../bus/exram_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 chip_ram_bus_types.o: ../../../bus/chip_ram_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-cart_types.o: ../../../core/mappers/cart_types.vhdl
+cart_types.o: ../../../cart/cart_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 cpu_bus_types.o: ../../../bus/cpu_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -116,31 +116,31 @@ syncram_sdp.o: ../../../perhiperals/syncram_sdp/syncram_sdp.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 frame_lock_video.o: ../../../board/platform/frame_lock_video.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_latch.o: ../../../core/mappers/latch/lib_mapper_latch.vhdl
+lib_mapper_latch.o: ../../../cart/latch/lib_mapper_latch.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_mmc1.o: ../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
+lib_mapper_mmc1.o: ../../../cart/mmc1/lib_mapper_mmc1.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_mmc2.o: ../../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
+lib_mapper_mmc2.o: ../../../cart/mmc2/lib_mapper_mmc2.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_mmc3.o: ../../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
+lib_mapper_mmc3.o: ../../../cart/mmc3/lib_mapper_mmc3.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_sunsoft_5b_audio.o: ../../../core/mappers/fme7/lib_sunsoft_5b_audio.vhdl
+lib_sunsoft_5b_audio.o: ../../../cart/fme7/lib_sunsoft_5b_audio.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_irq_counter.o: ../../../core/mappers/lib_irq_counter.vhdl
+lib_irq_counter.o: ../../../cart/lib_irq_counter.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_fme7.o: ../../../core/mappers/fme7/lib_mapper_fme7.vhdl
+lib_mapper_fme7.o: ../../../cart/fme7/lib_mapper_fme7.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_vrc_irq.o: ../../../core/mappers/lib_vrc_irq.vhdl
+lib_vrc_irq.o: ../../../cart/lib_vrc_irq.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_vrc4.o: ../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
+lib_mapper_vrc4.o: ../../../cart/vrc4/lib_mapper_vrc4.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_vrc6_audio.o: ../../../core/mappers/vrc6/lib_vrc6_audio.vhdl
+lib_vrc6_audio.o: ../../../cart/vrc6/lib_vrc6_audio.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_vrc6.o: ../../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
+lib_mapper_vrc6.o: ../../../cart/vrc6/lib_mapper_vrc6.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_vrc7_audio.o: ../../../core/mappers/vrc7/lib_vrc7_audio.vhdl
+lib_vrc7_audio.o: ../../../cart/vrc7/lib_vrc7_audio.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_vrc7.o: ../../../core/mappers/vrc7/lib_mapper_vrc7.vhdl
+lib_mapper_vrc7.o: ../../../cart/vrc7/lib_mapper_vrc7.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 lib_apu_envelope.o: ../../../core/apu/lib_apu_envelope.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -148,31 +148,31 @@ lib_apu_length.o: ../../../core/apu/lib_apu_length.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 lib_apu_square.o: ../../../core/apu/lib_apu_square.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mmc5_audio.o: ../../../core/mappers/mmc5/lib_mmc5_audio.vhdl
+lib_mmc5_audio.o: ../../../cart/mmc5/lib_mmc5_audio.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_mmc5.o: ../../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
+lib_mapper_mmc5.o: ../../../cart/mmc5/lib_mapper_mmc5.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_n163_audio.o: ../../../core/mappers/n163/lib_n163_audio.vhdl
+lib_n163_audio.o: ../../../cart/n163/lib_n163_audio.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_n163.o: ../../../core/mappers/n163/lib_mapper_n163.vhdl
+lib_mapper_n163.o: ../../../cart/n163/lib_mapper_n163.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_action53.o: ../../../core/mappers/action53/lib_mapper_action53.vhdl
+lib_mapper_action53.o: ../../../cart/action53/lib_mapper_action53.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_bandai_eeprom.o: ../../../core/mappers/bandai/lib_bandai_eeprom.vhdl
+lib_bandai_eeprom.o: ../../../cart/bandai/lib_bandai_eeprom.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_bandai.o: ../../../core/mappers/bandai/lib_mapper_bandai.vhdl
+lib_mapper_bandai.o: ../../../cart/bandai/lib_mapper_bandai.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_ss88006.o: ../../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
+lib_mapper_ss88006.o: ../../../cart/ss88006/lib_mapper_ss88006.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_taito.o: ../../../core/mappers/taito/lib_mapper_taito.vhdl
+lib_mapper_taito.o: ../../../cart/taito/lib_mapper_taito.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_sunsoft.o: ../../../core/mappers/sunsoft/lib_mapper_sunsoft.vhdl
+lib_mapper_sunsoft.o: ../../../cart/sunsoft/lib_mapper_sunsoft.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_irem.o: ../../../core/mappers/irem/lib_mapper_irem.vhdl
+lib_mapper_irem.o: ../../../cart/irem/lib_mapper_irem.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_mapper_nsf.o: ../../../core/mappers/nsf/lib_mapper_nsf.vhdl
+lib_mapper_nsf.o: ../../../cart/nsf/lib_mapper_nsf.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-lib_cartridge.o: ../../../core/mappers/lib_cartridge.vhdl
+lib_cartridge.o: ../../../cart/lib_cartridge.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 joy_bus_types.o: ../../../bus/joy_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -188,7 +188,7 @@ power_up_fill.o: ../../../perhiperals/neotrng/power_up_fill.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 cart_mem_bus_mux.o: ../../../soc/nes/cart_mem_bus_mux.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-cartridge.o: ../../../core/mappers/cartridge.vhdl
+cartridge.o: ../../../cart/cartridge.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_soc.o: ../../../soc/nes/nes_soc.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
