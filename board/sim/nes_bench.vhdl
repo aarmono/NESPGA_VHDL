@@ -80,6 +80,15 @@ generic
     -- gives a real NES's 27.94 clocks per CPU cycle, and a phase between the
     -- two clocks that keeps moving
     EDGE_CLK_PERIOD_PS : natural := 0;
+    -- With LOOPBACK_SLOT, the clocks after M2 falls that the console's dots
+    -- start, at most 8. The console starts them as M2 falls, but a real
+    -- NES's sit 0 to 3 master clocks after it: 0 to 7 clocks. M2 and
+    -- /ROMSEL move this many clocks earlier and the other pins keep their
+    -- timing, so the address changes this much closer to M2 rising and
+    -- write data comes this much after it. The console sees CPU D0-D7 and
+    -- /IRQ this many clocks late, so that it samples them where it would
+    -- with M2 in its place
+    LOOPBACK_DOT_OFFSET : natural := 0;
     -- With NROM_SLOT or LOOPBACK_SLOT, give the console its timing for a real
     -- cartridge (see nes_console CART_SLOT). False keeps the timing it has
     -- with the emulated cartridge, for comparison
@@ -128,6 +137,9 @@ architecture behavioral of nes_bench is
     end;
 
     constant EDGE_CLK_PERIOD : time := get_edge_clk_period;
+
+    -- cart_slot's M2_LOW_CLOCKS with LOOPBACK_SLOT
+    constant SLOT_M2_LOW_CLOCKS : positive := 10;
 
     signal cart_mem_bus       : cart_mem_bus_t;
     signal data_from_cart_mem : data_t;
@@ -405,9 +417,19 @@ begin
         signal power_up_data  : power_up_data_t;
 
         -- The pins
+        signal slot_pins    : cart_console_pins_t;
         signal console_pins : cart_console_pins_t;
         signal board_pins   : cart_board_pins_t;
+        signal slot_board_pins : cart_board_pins_t;
         signal board_drive  : cart_board_drive_t;
+
+        -- M2 and /ROMSEL moved for LOOPBACK_DOT_OFFSET
+        signal early_m2       : std_logic := '1';
+        signal early_romsel_n : std_logic := '1';
+        -- CPU D0-D7 and /IRQ as the console sees them for
+        -- LOOPBACK_DOT_OFFSET
+        signal delayed_cpu_data : data_t := (others => '0');
+        signal delayed_irq_n    : std_logic := '1';
 
         -- The cartridge's side
         signal edge_clk      : std_logic;
@@ -426,6 +448,10 @@ begin
     begin
         assert CPU_CYCLE_CLOCKS = 28
             report "nes_bench: LOOPBACK_SLOT needs CPU_CYCLE_CLOCKS = 28"
+            severity failure;
+
+        assert LOOPBACK_DOT_OFFSET <= SLOT_M2_LOW_CLOCKS - 2
+            report "nes_bench: LOOPBACK_DOT_OFFSET is too large"
             severity failure;
 
         console : nes_console_ocram
@@ -479,6 +505,10 @@ begin
         );
 
         slot : cart_slot
+        generic map
+        (
+            M2_LOW_CLOCKS => SLOT_M2_LOW_CLOCKS
+        )
         port map
         (
             clk => clk,
@@ -493,9 +523,105 @@ begin
             ppu_in => cart_ppu_in,
             ppu_out => cart_ppu_out,
 
-            pins_out => console_pins,
-            pins_in => board_pins
+            pins_out => slot_pins,
+            pins_in => slot_board_pins
         );
+
+        -- M2 and /ROMSEL LOOPBACK_DOT_OFFSET clocks earlier than the slot's.
+        -- A CPU cycle is always CPU_CYCLE_CLOCKS here, so where M2 is comes
+        -- from the clocks since cpu_clk_en
+        process(clk)
+        is
+            variable position : natural range 0 to CPU_CYCLE_CLOCKS - 1 := 0;
+            variable m2       : std_logic;
+        begin
+        if rising_edge(clk)
+        then
+            if cpu_clk_en
+            then
+                position := 0;
+            elsif position < CPU_CYCLE_CLOCKS - 1
+            then
+                position := position + 1;
+            end if;
+
+            -- The slot's M2 is high after the clock edges SLOT_M2_LOW_CLOCKS
+            -- to CPU_CYCLE_CLOCKS - 1 after cpu_clk_en
+            if position >= SLOT_M2_LOW_CLOCKS - LOOPBACK_DOT_OFFSET and
+               position < CPU_CYCLE_CLOCKS - LOOPBACK_DOT_OFFSET
+            then
+                m2 := '1';
+            else
+                m2 := '0';
+            end if;
+
+            early_m2 <= m2;
+            if m2 = '1' and cart_cpu_in.romsel
+            then
+                early_romsel_n <= '0';
+            else
+                early_romsel_n <= '1';
+            end if;
+        end if;
+        end process;
+
+        -- The console's CPU samples CPU D0-D7 and /IRQ as its cycle ends,
+        -- LOOPBACK_DOT_OFFSET clocks after M2 falls, so it sees them as
+        -- late
+        process(clk)
+        is
+            type cpu_pins_t is record
+                cpu_data : data_t;
+                irq_n    : std_logic;
+            end record;
+            -- With the signal's register, LOOPBACK_DOT_OFFSET clocks
+            constant LAST : natural := maximum(LOOPBACK_DOT_OFFSET - 1, 0);
+            type delay_t is array(0 to LAST) of cpu_pins_t;
+            variable delay : delay_t := (others => ((others => '0'), '1'));
+        begin
+        if rising_edge(clk)
+        then
+            for i in LAST downto 1
+            loop
+                delay(i) := delay(i - 1);
+            end loop;
+            delay(0) := (board_pins.cpu_data, board_pins.irq_n);
+            delayed_cpu_data <= delay(LAST).cpu_data;
+            delayed_irq_n <= delay(LAST).irq_n;
+        end if;
+        end process;
+
+        process(board_pins, delayed_cpu_data, delayed_irq_n)
+        is
+            variable pins : cart_board_pins_t;
+        begin
+            pins := board_pins;
+            if LOOPBACK_DOT_OFFSET > 0
+            then
+                pins.cpu_data := delayed_cpu_data;
+                pins.irq_n := delayed_irq_n;
+            end if;
+            slot_board_pins <= pins;
+        end process;
+
+        process(slot_pins, early_m2, early_romsel_n)
+        is
+            variable pins : cart_console_pins_t;
+        begin
+            pins := slot_pins;
+            if LOOPBACK_DOT_OFFSET > 0
+            then
+                pins.m2 := early_m2;
+                pins.romsel_n := early_romsel_n;
+                -- The slot precharges the bus until its own M2 rises, but
+                -- the cartridge may answer a read once this one has
+                if early_m2 = '1' and slot_pins.m2 = '0'
+                then
+                    pins.cpu_data_oe := false;
+                end if;
+            end if;
+            console_pins <= pins;
+        end process;
 
         -- The shared data buses. A bit nobody drives keeps its last value,
         -- which a board would do with bus hold
