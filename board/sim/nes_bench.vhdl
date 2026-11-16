@@ -74,6 +74,12 @@ generic
     -- CPU_CYCLE_CLOCKS = 28. Both sides driving a data bus is written to the
     -- output
     LOOPBACK_SLOT : boolean := false;
+    -- With LOOPBACK_SLOT, the period in ps of the clock cart_edge and the
+    -- cartridge run on, as in a real console, where the cartridge's clock
+    -- has nothing to do with M2. 0 runs them on the console's clock. 20043
+    -- gives a real NES's 27.94 clocks per CPU cycle, and a phase between the
+    -- two clocks that keeps moving
+    EDGE_CLK_PERIOD_PS : natural := 0;
     -- With NROM_SLOT or LOOPBACK_SLOT, give the console its timing for a real
     -- cartridge (see nes_console CART_SLOT). False keeps the timing it has
     -- with the emulated cartridge, for comparison
@@ -109,6 +115,19 @@ architecture behavioral of nes_bench is
     -- and there are fewer clock events to simulate than at 50MHz
     constant CLK_FREQ : positive := 50_000_000 * CPU_CYCLE_CLOCKS / 28;
     constant CLK_PERIOD : time := 1 sec / CLK_FREQ;
+
+    function get_edge_clk_period return time
+    is
+    begin
+        if EDGE_CLK_PERIOD_PS = 0
+        then
+            return CLK_PERIOD;
+        else
+            return EDGE_CLK_PERIOD_PS * 1 ps;
+        end if;
+    end;
+
+    constant EDGE_CLK_PERIOD : time := get_edge_clk_period;
 
     signal cart_mem_bus       : cart_mem_bus_t;
     signal data_from_cart_mem : data_t;
@@ -391,6 +410,7 @@ begin
         signal board_drive  : cart_board_drive_t;
 
         -- The cartridge's side
+        signal edge_clk      : std_logic;
         signal edge_cpu_en   : boolean;
         signal edge_ppu_en   : boolean;
         signal edge_clk_sync : boolean;
@@ -536,14 +556,28 @@ begin
         board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
         board_pins.ciram_a10 <= board_drive.ciram_a10;
 
-        edge : cart_edge
+        -- A clock of its own even at the console's period: assigning clk
+        -- to edge_clk would delay it by a delta, and the edge would sample
+        -- the pins the console's registers have just changed
+        edge_clk_gen : clock
         generic map
         (
-            DOT_CLOCKS => CPU_CYCLE_CLOCKS / 3
+            PERIOD => EDGE_CLK_PERIOD
         )
         port map
         (
-            clk => clk,
+            clk => edge_clk,
+            done => false
+        );
+
+        edge : cart_edge
+        generic map
+        (
+            DOT_CLOCKS => (CPU_CYCLE_CLOCKS * CLK_PERIOD) / (3 * EDGE_CLK_PERIOD)
+        )
+        port map
+        (
+            clk => edge_clk,
             reset => false,
 
             pins_in => console_pins,
@@ -581,7 +615,7 @@ begin
         )
         port map
         (
-            clk => clk,
+            clk => edge_clk,
             reset => false,
 
             cpu_en => edge_cpu_en,

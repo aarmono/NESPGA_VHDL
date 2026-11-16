@@ -18,14 +18,26 @@ use work.cart_pin_types.all;
 -- falls is still a clock of hold time here.
 --
 -- Clock enables. cpu_en is the first clock M2 is low (after the
--- synchronizer). The console's dots split a CPU cycle into two of
--- DOT_CLOCKS, starting on its CPU clock enable, and a last one that takes
--- what is left: the sync dot. So ppu_en is at cpu_en and DOT_CLOCKS and
--- 2 * DOT_CLOCKS clocks after it, ram_en RAM_EN_CLOCKS into each dot, and
--- clk_sync is set through the sync dot. With the console's clock at the
--- same frequency, as in nes_bench, they are the console's enables, 3 clocks
--- later. In a real console, the PPU's dots can sit up to 3 master clocks off
--- M2, and these are only the nearest whole clocks.
+-- synchronizer). The connector carries no dot clock, so the dots are placed
+-- from M2: the CPU cycle is split into two dots of a third of the last
+-- measured M2 period, rounded down, starting on cpu_en, and a last one that
+-- takes what is left: the sync dot. So ppu_en is at cpu_en and one and two
+-- thirds after it, ram_en RAM_EN_CLOCKS into each dot, and clk_sync is set
+-- through the sync dot. The boards count CPU cycles and PPU accesses, not
+-- dots (but for the MMC3's and TC0690's A12 filters), so the dots need not
+-- line up with the console's: in a real console those sit up to 3 master
+-- clocks off M2. With the console's clock at the same frequency, as in
+-- nes_bench, they are the console's enables, 3 clocks later. A period that
+-- is cut short or far too long (no M2) is not measured, and until one is
+-- the dots are DOT_CLOCKS.
+--
+-- The cartridge sees the buses change only early in a dot. Its RAMs take an
+-- access on ram_en and the memory mux counts it as served on the ppu_en that
+-- ends the dot, so both must see the same one, as they do with the console,
+-- whose buses only change as a dot starts. Pins don't keep to the dots here:
+-- M2 can rise, and /RD or /WR fall, on any clock. So the buses the cartridge
+-- sees are held from ram_en to the end of the dot, and a change in that time
+-- shows in the next dot. A fall of /RD or /WR in it is that dot's ALE.
 --
 -- CPU side. Write data is only on the pins while M2 is high, and /ROMSEL is
 -- only low then, so the cartridge sees the bus as idle until M2 rises. Then
@@ -48,7 +60,9 @@ use work.cart_pin_types.all;
 entity cart_edge is
 generic
 (
-    -- Clocks in each of the first two dots of a CPU cycle
+    -- The nominal clocks in a dot: a third of the M2 period in clocks.
+    -- The dots are this until M2 has been measured, and periods of up to
+    -- twice the nominal one are measured
     DOT_CLOCKS    : positive := 9;
     -- Clocks from the start of a dot to ram_en. Less than DOT_CLOCKS
     RAM_EN_CLOCKS : positive := 4
@@ -85,8 +99,12 @@ architecture behavioral of cart_edge
 is
 
     -- Saturates while there is no M2
-    constant MAX_COUNT : positive := 3 * DOT_CLOCKS + 8;
+    constant MAX_COUNT : positive := 6 * DOT_CLOCKS;
     subtype edge_count_t is natural range 0 to MAX_COUNT;
+
+    -- The shortest M2 period measured: each dot is longer than
+    -- RAM_EN_CLOCKS
+    constant MIN_PERIOD : positive := 3 * (RAM_EN_CLOCKS + 1);
 
     -- The pins the cartridge reads
     type edge_pins_t is record
@@ -126,9 +144,15 @@ is
         cpu_hold : cart_cpu_in_t;
         -- Clocks since cpu_en
         count    : edge_count_t;
-        -- /RD or /WR fell in this dot
+        -- The counts that start the second and third dots
+        dot_2    : edge_count_t;
+        dot_3    : edge_count_t;
+        -- /RD or /WR fell since the buses were last held
         rd_fell  : boolean;
         wr_fell  : boolean;
+        -- The buses held from ram_en to the end of the dot
+        cpu_held : cart_cpu_in_t;
+        ppu_held : cart_ppu_in_t;
         -- PPU write data while /WR was low
         ppu_wr_data : data_t;
     end record;
@@ -149,8 +173,26 @@ is
             data => (others => '0')
         ),
         count => MAX_COUNT,
+        dot_2 => DOT_CLOCKS,
+        dot_3 => 2 * DOT_CLOCKS,
         rd_fell => false,
         wr_fell => false,
+        cpu_held =>
+        (
+            prg_bus => (address => (others => '0'),
+                        read => false,
+                        write => false),
+            romsel => false,
+            data => (others => '0')
+        ),
+        ppu_held =>
+        (
+            chr_bus => (address => (others => '0'),
+                        read => false,
+                        write => false),
+            ale => false,
+            data => (others => '0')
+        ),
         ppu_wr_data => (others => '0')
     );
 
@@ -187,16 +229,16 @@ is
     is
     begin
         return is_cpu_en(reg) or
-               reg.count = DOT_CLOCKS or
-               reg.count = 2 * DOT_CLOCKS;
+               reg.count = reg.dot_2 or
+               reg.count = reg.dot_3;
     end;
 
     function is_ram_en(reg : edge_reg_t) return boolean
     is
     begin
         return reg.count = RAM_EN_CLOCKS or
-               reg.count = DOT_CLOCKS + RAM_EN_CLOCKS or
-               reg.count = 2 * DOT_CLOCKS + RAM_EN_CLOCKS;
+               reg.count = reg.dot_2 + RAM_EN_CLOCKS or
+               reg.count = reg.dot_3 + RAM_EN_CLOCKS;
     end;
 
     function is_rd_fall(reg : edge_reg_t) return boolean
@@ -225,7 +267,20 @@ is
         );
     end;
 
-    function get_cpu_in(reg : edge_reg_t) return cart_cpu_in_t
+    -- From ram_en to the end of the dot, when the cartridge sees the held
+    -- buses
+    function is_held(reg : edge_reg_t) return boolean
+    is
+    begin
+        return (reg.count > RAM_EN_CLOCKS and
+                reg.count <= reg.dot_2) or
+               (reg.count > reg.dot_2 + RAM_EN_CLOCKS and
+                reg.count <= reg.dot_3) or
+               reg.count > reg.dot_3 + RAM_EN_CLOCKS;
+    end;
+
+    -- The CPU bus as the pins show it now
+    function get_pin_cpu_in(reg : edge_reg_t) return cart_cpu_in_t
     is
     begin
         if reg.sync_2.m2 = '1'
@@ -246,7 +301,8 @@ is
         end if;
     end;
 
-    function get_ppu_in(reg : edge_reg_t) return cart_ppu_in_t
+    -- The PPU bus as the pins show it now
+    function get_pin_ppu_in(reg : edge_reg_t) return cart_ppu_in_t
     is
         variable write : boolean;
         variable data  : data_t;
@@ -269,6 +325,28 @@ is
                    is_rd_fall(reg) or is_wr_fall(reg),
             data => data
         );
+    end;
+
+    function get_cpu_in(reg : edge_reg_t) return cart_cpu_in_t
+    is
+    begin
+        if is_held(reg)
+        then
+            return reg.cpu_held;
+        else
+            return get_pin_cpu_in(reg);
+        end if;
+    end;
+
+    function get_ppu_in(reg : edge_reg_t) return cart_ppu_in_t
+    is
+    begin
+        if is_held(reg)
+        then
+            return reg.ppu_held;
+        else
+            return get_pin_ppu_in(reg);
+        end if;
     end;
 
     function get_pins_out
@@ -320,7 +398,9 @@ is
 
     function cycle_cart_edge(edge_in : edge_in_t) return edge_reg_t
     is
-        variable reg : edge_reg_t;
+        variable reg    : edge_reg_t;
+        variable period : edge_count_t;
+        variable third  : edge_count_t;
     begin
         reg := edge_in.reg;
 
@@ -340,13 +420,24 @@ is
         if is_cpu_en(edge_in.reg)
         then
             reg.count := 1;
+
+            -- The CPU cycle that ends here sets the dots of the next one
+            period := edge_in.reg.count;
+            if period >= MIN_PERIOD and period < MAX_COUNT
+            then
+                third := period / 3;
+                reg.dot_2 := third;
+                reg.dot_3 := 2 * third;
+            end if;
         elsif edge_in.reg.count < MAX_COUNT
         then
             reg.count := edge_in.reg.count + 1;
         end if;
 
-        if is_ppu_en(edge_in.reg)
+        if is_ram_en(edge_in.reg)
         then
+            reg.cpu_held := get_pin_cpu_in(edge_in.reg);
+            reg.ppu_held := get_pin_ppu_in(edge_in.reg);
             reg.rd_fell := false;
             reg.wr_fell := false;
         else
@@ -372,7 +463,7 @@ begin
 
     cpu_en <= is_cpu_en(reg);
     ppu_en <= is_ppu_en(reg);
-    clk_sync <= reg.count > 2 * DOT_CLOCKS;
+    clk_sync <= reg.count > reg.dot_3;
     ram_en <= is_ram_en(reg);
 
     cpu_in <= get_cpu_in(reg);
