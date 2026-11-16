@@ -407,6 +407,9 @@ package lib_ppu is
         sprite_start     : boolean;
         -- Bus address used for $2007 reads
         chr_bus          : chr_bus_t;
+        -- The dot drove the address of a $2007 read before the read. See
+        -- early_data_read
+        data_read_early  : boolean;
         -- Register copy of rendering_enabled(mask). A $2001 write
         -- takes an extra cycle to affect the odd frame skipped clock
         render_enabled : boolean;
@@ -469,6 +472,7 @@ package lib_ppu is
         sprite_0_buffer => false,
         sprite_start => false,
         chr_bus => CHR_BUS_IDLE,
+        data_read_early => false,
         render_enabled => false,
         render_fetch => false,
         reset_dots => RESET_DOTS,
@@ -655,6 +659,14 @@ package lib_ppu is
         data_from_sec_oam : data_t;
         data_from_chr     : data_t;
         data_from_palette : pixel_t;
+
+        -- A $2007 read is on the CPU bus, and this isn't the dot that makes
+        -- it. While not rendering, the PPU drives the read's address from the
+        -- first dot of the CPU cycle, and the read continues that access, so
+        -- a real cartridge's memories get the whole CPU cycle rather than
+        -- one dot to answer. The emulated PPU makes the read in the last
+        -- dot, where a real PPU reads over 2 dots after the CPU's read
+        early_data_read   : boolean;
     end record;
     
     
@@ -2572,6 +2584,21 @@ package body lib_ppu is
         -- cycle it would be output
         render_out.vint := render_out.reg.status.vbl and
                            render_out.reg.control.vbl_enable;
+
+        render_out.reg.data_read_early := false;
+        if not v_rendering
+        then
+            if render_in.early_data_read and
+               not is_bus_active(render_out.chr_bus)
+            then
+                render_out.chr_bus := bus_read(v_ppu_chr_addr);
+                v_chr_second_dot := render_in.reg.data_read_early;
+                render_out.reg.data_read_early := true;
+            elsif v_ppu_data_read and render_in.reg.data_read_early
+            then
+                v_chr_second_dot := true;
+            end if;
+        end if;
 
         if is_bus_active(render_in.reg.chr_bus)
         then

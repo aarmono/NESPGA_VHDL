@@ -11,6 +11,12 @@ use work.nes_types.all;
 use work.utilities.all;
 
 entity ppu is
+generic
+(
+    -- Drive the address of a $2007 read made while not rendering from the
+    -- first dot of its CPU cycle, for a real cartridge. See early_data_read
+    EARLY_DATA_READ : boolean := false
+);
 port
 (
     clk               : in std_logic;
@@ -101,6 +107,9 @@ begin
         -- the CPU and PPU will be clocked
         render_in.cpu_bus.write := render_in.cpu_bus.write and clk_sync;
         render_in.cpu_bus.read := render_in.cpu_bus.read and clk_sync;
+        render_in.early_data_read := EARLY_DATA_READ and not clk_sync and
+                                     is_bus_read(cpu_bus) and
+                                     cpu_bus.address = "111";
         render_in.data_from_cpu := prg_data_to_ppu;
         
         render_in.data_from_oam := data_from_oam;

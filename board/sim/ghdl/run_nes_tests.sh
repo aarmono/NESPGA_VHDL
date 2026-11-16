@@ -83,13 +83,19 @@ check_hash() {
 test_name() {
     TEST_PATH=`echo "$1" | cut -f 1 -d '|' | xargs`
     FM2_PATH=`echo "$1" | cut -f 4 -d '|' | xargs`
+    # Bench args name the test too, so that a ROM can run with several
+    BENCH_ARGS=`echo "$1" | cut -f 5 -d '|' -s | xargs | sed -e 's/-g//g' -e 's/ /,/g'`
 
+    NAME="$TEST_PATH"
     if [ "$FM2_PATH" != "" ]
     then
-        echo "$TEST_PATH"/`basename "$FM2_PATH" .fm2`
-    else
-        echo "$TEST_PATH"
+        NAME="$NAME"/`basename "$FM2_PATH" .fm2`
     fi
+    if [ "$BENCH_ARGS" != "" ]
+    then
+        NAME="$NAME"+"$BENCH_ARGS"
+    fi
+    echo "$NAME"
 }
 
 run_nes_test() {

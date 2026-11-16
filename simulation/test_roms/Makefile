@@ -88,7 +88,7 @@ ROMS := $(ACTION53_ROMS) $(BANDAI_ROMS) $(FME7_ROMS) $(IREM_ROMS) \
         $(SS88006_ROMS) $(SUNSOFT_ROMS) $(TAITO_ROMS) $(VRC4_ROMS) \
         $(VRC6_ROMS) \
         $(VRC7_ROMS) \
-        $(OUT)/mmc5_split.nes $(NES2_ROMS)
+        $(OUT)/mmc5_split.nes $(OUT)/slot_ppu.nes $(NES2_ROMS)
 
 .PHONY: all clean
 .DELETE_ON_ERROR:
@@ -171,6 +171,9 @@ $(VRC7_ROMS): $(OUT)/vrc7_%.nes: vrc7.py | $(OUT)
 
 $(OUT)/mmc5_split.nes: mmc5_split.py mmc5.py | $(OUT)
 	$(PYTHON) mmc5_split.py $@
+
+$(OUT)/slot_ppu.nes: slot_ppu.py latch.py | $(OUT)
+	$(PYTHON) slot_ppu.py $@
 
 # NEC MMC3
 $(OUT)/nes2_mmc3_alt.nes: $(NES_TEST_ROMS)/mmc3_test_2/rom_singles/6-MMC3_alt.nes \

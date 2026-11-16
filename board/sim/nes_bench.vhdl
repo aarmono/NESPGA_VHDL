@@ -73,7 +73,17 @@ generic
     -- clock enables of the cartridge, which only has the pins. Needs
     -- CPU_CYCLE_CLOCKS = 28. Both sides driving a data bus is written to the
     -- output
-    LOOPBACK_SLOT : boolean := false
+    LOOPBACK_SLOT : boolean := false;
+    -- With NROM_SLOT or LOOPBACK_SLOT, give the console its timing for a real
+    -- cartridge (see nes_console CART_SLOT). False keeps the timing it has
+    -- with the emulated cartridge, for comparison
+    SLOT_TIMING : boolean := true;
+    -- NROM_SLOT access times in ns: address to data for the PRG and CHR
+    -- ROMs, and PPU A10, A11 and /A13 to CIRAM A10 and /CE, level shifters
+    -- included. See nrom_cart
+    SLOT_PRG_ACCESS_NS  : natural := 150;
+    SLOT_CHR_ACCESS_NS  : natural := 150;
+    SLOT_CIRAM_DELAY_NS : natural := 30
 );
 end nes_bench;
 
@@ -211,7 +221,8 @@ begin
             CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
             POWER_UP_MODE => POWER_UP_MODE,
             POWER_UP_SEED => POWER_UP_SEED,
-            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
+            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
+            CART_SLOT => SLOT_TIMING
         )
         port map
         (
@@ -286,6 +297,9 @@ begin
         (
             NES_FILEPATH => NES_FILEPATH,
             NES_FILE_BYTES => NES_FILE_BYTES,
+            PRG_ACCESS => SLOT_PRG_ACCESS_NS * 1 ns,
+            CHR_ACCESS => SLOT_CHR_ACCESS_NS * 1 ns,
+            CIRAM_DELAY => SLOT_CIRAM_DELAY_NS * 1 ns,
             -- cart_slot samples on every clock, and the console takes the
             -- sample of the clock before M2 falls, or two clocks before /RD
             -- rises
@@ -403,7 +417,8 @@ begin
             CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
             POWER_UP_MODE => POWER_UP_MODE,
             POWER_UP_SEED => POWER_UP_SEED,
-            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
+            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
+            CART_SLOT => SLOT_TIMING
         )
         port map
         (
