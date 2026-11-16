@@ -312,7 +312,7 @@ ciram_bus_types.o:
 cart_pin_types.o:  nes_types.o prg_bus_types.o chr_bus_types.o
 console.o:  nes_types.o perhipheral_types.o ram_bus_types.o oam_bus_types.o sec_oam_bus_types.o palette_bus_types.o ciram_bus_types.o cart_connector_types.o cart_pin_types.o
 opll_bus_types.o: 
-cart.o:  nes_types.o perhipheral_types.o cart_mem_bus_types.o chip_ram_bus_types.o opll_bus_types.o cart_connector_types.o cart_types.o
+cart.o:  nes_types.o perhipheral_types.o cart_mem_bus_types.o chip_ram_bus_types.o opll_bus_types.o cart_connector_types.o cart_types.o cart_pin_types.o
 nes_soc_ocram.o:  nes_types.o cart_mem_bus_types.o perhipheral_types.o cart_connector_types.o cart_types.o console.o cart.o
 joy_port.o:  nes_types.o
 ps2_joystick.o:  utilities.o nes_types.o perhipheral_types.o perhipherals.o

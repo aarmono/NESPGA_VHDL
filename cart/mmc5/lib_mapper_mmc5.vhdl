@@ -1088,6 +1088,13 @@ package body lib_mapper_mmc5 is
 
         ret := map_cart(config, cart_in, v_banks);
 
+        -- A nametable in ExRAM or fill mode isn't in CIRAM, whether or not
+        -- the bus is active: map_cart decodes CIRAM /CE from the address
+        if addr(13) = '1' and (source = NT_EXRAM or source = NT_FILL)
+        then
+            ret.ppu.ciram_ce := false;
+        end if;
+
         if is_bus_active(cart_in.ppu.chr_bus) and addr(13) = '1'
         then
             if is_split_fetch(reg)

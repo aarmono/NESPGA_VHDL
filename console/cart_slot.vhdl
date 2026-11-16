@@ -101,9 +101,11 @@ is
 
     constant RESET_SLOT_REG : slot_reg_t :=
     (
+        -- M2 starts high, as though a cycle had already started, so that the
+        -- console's first CPU cycle ends with M2 falling
         pins =>
         (
-            m2 => '0',
+            m2 => '1',
             romsel_n => '1',
             cpu_rw => '1',
             cpu_addr => (others => '0'),
@@ -116,7 +118,7 @@ is
             ppu_data => (others => '0'),
             ppu_data_oe => false
         ),
-        m2_low_count => 1,
+        m2_low_count => 0,
         dot_count => ALE_CLOCKS,
         bus_value => (others => '0'),
         board =>

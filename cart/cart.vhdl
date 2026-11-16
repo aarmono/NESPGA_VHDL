@@ -8,6 +8,7 @@ use work.chip_ram_bus_types.all;
 use work.opll_bus_types.all;
 use work.cart_connector_types.all;
 use work.cart_types.all;
+use work.cart_pin_types.all;
 
 -- The components of the cartridge subsystem, for use outside of it
 package cart is
@@ -92,6 +93,36 @@ package cart is
         data_from_cart_mem : in data_t
     );
     end component cart_system_ocram;
+
+    -- The connector on pins, for a cartridge in a real console. See
+    -- cart_edge
+    component cart_edge is
+    generic
+    (
+        DOT_CLOCKS    : positive := 9;
+        RAM_EN_CLOCKS : positive := 4
+    );
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean;
+
+        pins_in      : in cart_console_pins_t;
+        cpu_data_bus : in data_t;
+        ppu_data_bus : in data_t;
+        pins_out     : out cart_board_drive_t;
+
+        cpu_en   : out boolean;
+        ppu_en   : out boolean;
+        clk_sync : out boolean;
+        ram_en   : out boolean;
+
+        cpu_in  : out cart_cpu_in_t;
+        cpu_out : in  cart_cpu_out_t;
+        ppu_in  : out cart_ppu_in_t;
+        ppu_out : in  cart_ppu_out_t
+    );
+    end component cart_edge;
 
 end cart;
 

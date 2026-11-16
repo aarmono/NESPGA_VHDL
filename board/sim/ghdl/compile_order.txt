@@ -129,6 +129,7 @@
 ../../../cart/cart_system.vhdl
 ../../../cart/cart_system_ocram.vhdl
 ../../../cart/cart.vhdl
+../../../cart/cart_edge.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../console/lib_nes.vhdl

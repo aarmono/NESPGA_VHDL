@@ -720,6 +720,15 @@ package body cart_types is
             else
                 ret := map_ciram(cart_in, banks.mirror, ret);
             end if;
+        -- CIRAM /CE and A10 follow the address while the bus is idle too, as
+        -- on a real board, so that they are ready when an access to a held
+        -- address starts. On pins (cart_edge), a one-dot write is only seen
+        -- once /WR falls, after the console's CIRAM has sampled them. The
+        -- console only uses them for its own accesses
+        elsif banks.ciram or
+              (cart_in.ppu.chr_bus.address(13) = '1' and not banks.nt_chr)
+        then
+            ret := map_ciram(cart_in, banks.mirror, ret);
         end if;
 
         return ret;

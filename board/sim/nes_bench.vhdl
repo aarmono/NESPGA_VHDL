@@ -16,6 +16,7 @@ use work.utilities.all;
 use work.perhipheral_types.all;
 use work.soc.all;
 use work.console.all;
+use work.cart.all;
 use work.cart_pin_types.all;
 use work.simulation.all;
 use work.binary_io.all;
@@ -66,7 +67,13 @@ generic
     -- (see nrom_cart), instead of the emulated cartridge. Needs
     -- CPU_CYCLE_CLOCKS = 28, and only runs NROM ROMs with the RAMs zeroed.
     -- Timing violations at the pins are written to the output
-    NROM_SLOT : boolean := false
+    NROM_SLOT : boolean := false;
+    -- Run the emulated cartridge through the pins: the console's cart_slot
+    -- drives them, and cart_edge turns them back into the connector and
+    -- clock enables of the cartridge, which only has the pins. Needs
+    -- CPU_CYCLE_CLOCKS = 28. Both sides driving a data bus is written to the
+    -- output
+    LOOPBACK_SLOT : boolean := false
 );
 end nes_bench;
 
@@ -125,7 +132,11 @@ architecture behavioral of nes_bench is
     
 begin
 
-    gen_soc : if not NROM_SLOT generate
+    assert not (NROM_SLOT and LOOPBACK_SLOT)
+        report "nes_bench: NROM_SLOT and LOOPBACK_SLOT can't both be set"
+        severity failure;
+
+    gen_soc : if not NROM_SLOT and not LOOPBACK_SLOT generate
     soc : nes_soc_ocram
     generic map
     (
@@ -341,6 +352,244 @@ begin
             end if;
             board_pins.ppu_data <= value;
         end process;
+
+        board_cpu_in <= cart_cpu_in;
+        board_ppu_in <= cart_ppu_in;
+    end generate;
+
+    gen_loopback : if LOOPBACK_SLOT generate
+        -- The console's side
+        signal clk_sync       : boolean;
+        signal cart_cpu_in    : cart_cpu_in_t;
+        signal cart_cpu_out   : cart_cpu_out_t;
+        signal cpu_data_bus   : data_t;
+        signal cart_ppu_in    : cart_ppu_in_t;
+        signal cart_ppu_out   : cart_ppu_out_t;
+        signal cart_audio     : cart_audio_t;
+        signal cart_loaded    : boolean;
+        signal cart_ready     : boolean;
+        signal power_up_ready : boolean;
+        signal power_up_data  : power_up_data_t;
+
+        -- The pins
+        signal console_pins : cart_console_pins_t;
+        signal board_pins   : cart_board_pins_t;
+        signal board_drive  : cart_board_drive_t;
+
+        -- The cartridge's side
+        signal edge_cpu_en   : boolean;
+        signal edge_ppu_en   : boolean;
+        signal edge_clk_sync : boolean;
+        signal edge_ram_en   : boolean;
+        signal edge_cpu_in   : cart_cpu_in_t;
+        signal edge_cpu_out  : cart_cpu_out_t;
+        signal edge_ppu_in   : cart_ppu_in_t;
+        signal edge_ppu_out  : cart_ppu_out_t;
+
+        -- The power up data as it was on the console's last CPU clock enable
+        signal cart_power_up_ready : boolean := false;
+        signal cart_power_up_data  : power_up_data_t;
+    begin
+        assert CPU_CYCLE_CLOCKS = 28
+            report "nes_bench: LOOPBACK_SLOT needs CPU_CYCLE_CLOCKS = 28"
+            severity failure;
+
+        console : nes_console_ocram
+        generic map
+        (
+            VENDOR => VENDOR_SIM,
+            CLK_FREQ => CLK_FREQ,
+            CPU_FREQ_NUM => CLK_FREQ,
+            CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
+            POWER_UP_MODE => POWER_UP_MODE,
+            POWER_UP_SEED => POWER_UP_SEED,
+            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
+        )
+        port map
+        (
+            clk => clk,
+            reset => false,
+            soft_reset => soft_reset,
+            famicom => FAMICOM,
+
+            nes_running => output_ready,
+
+            cpu_clk_en => cpu_clk_en,
+            ppu_clk_en => ppu_clk_en,
+            clk_sync => clk_sync,
+
+            pixel_bus => pixel_bus,
+            audio => audio_out,
+
+            joy_strobe => joy_strobe,
+
+            joy_1_clk => joy_1_clk,
+            joy_1_data => joy_1_data,
+
+            joy_2_clk => joy_2_clk,
+            joy_2_data => joy_2_data,
+
+            cart_cpu_in => cart_cpu_in,
+            cart_cpu_out => cart_cpu_out,
+            cpu_data_bus => cpu_data_bus,
+            cart_ppu_in => cart_ppu_in,
+            cart_ppu_out => cart_ppu_out,
+            cart_audio => cart_audio,
+
+            cart_loaded => cart_loaded,
+            cart_ready => cart_ready,
+
+            power_up_ready => power_up_ready,
+            power_up_data => power_up_data
+        );
+
+        slot : cart_slot
+        port map
+        (
+            clk => clk,
+            reset => false,
+
+            cpu_en => cpu_clk_en,
+            ppu_en => ppu_clk_en,
+
+            cpu_in => cart_cpu_in,
+            cpu_out => cart_cpu_out,
+            cpu_data_bus => cpu_data_bus,
+            ppu_in => cart_ppu_in,
+            ppu_out => cart_ppu_out,
+
+            pins_out => console_pins,
+            pins_in => board_pins
+        );
+
+        -- The shared data buses. A bit nobody drives keeps its last value,
+        -- which a board would do with bus hold
+        process(console_pins, board_drive)
+        is
+            variable value : data_t := (others => '0');
+            variable l     : line;
+        begin
+            for i in value'range
+            loop
+                if console_pins.cpu_data_oe and board_drive.cpu_data_oe(i) = '1'
+                then
+                    value(i) := 'X';
+                elsif console_pins.cpu_data_oe
+                then
+                    value(i) := console_pins.cpu_data(i);
+                elsif board_drive.cpu_data_oe(i) = '1'
+                then
+                    value(i) := board_drive.cpu_data(i);
+                end if;
+            end loop;
+
+            if console_pins.cpu_data_oe and board_drive.cpu_data_oe /= x"00"
+            then
+                write(l, string'("nes_bench: "));
+                write(l, now);
+                write(l, string'(" CPU data bus driven by both sides"));
+                writeline(output, l);
+            end if;
+
+            board_pins.cpu_data <= value;
+        end process;
+
+        process(console_pins, board_drive)
+        is
+            variable value : data_t := (others => '0');
+            variable l     : line;
+        begin
+            if console_pins.ppu_data_oe and board_drive.ppu_data_oe
+            then
+                write(l, string'("nes_bench: "));
+                write(l, now);
+                write(l, string'(" PPU data bus driven by both sides"));
+                writeline(output, l);
+                value := (others => 'X');
+            elsif console_pins.ppu_data_oe
+            then
+                value := console_pins.ppu_data;
+            elsif board_drive.ppu_data_oe
+            then
+                value := board_drive.ppu_data;
+            end if;
+            board_pins.ppu_data <= value;
+        end process;
+
+        -- /IRQ is pulled up by the console
+        board_pins.irq_n <= '0' when board_drive.irq_n = '0' else '1';
+        board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
+        board_pins.ciram_a10 <= board_drive.ciram_a10;
+
+        edge : cart_edge
+        generic map
+        (
+            DOT_CLOCKS => CPU_CYCLE_CLOCKS / 3
+        )
+        port map
+        (
+            clk => clk,
+            reset => false,
+
+            pins_in => console_pins,
+            cpu_data_bus => board_pins.cpu_data,
+            ppu_data_bus => board_pins.ppu_data,
+            pins_out => board_drive,
+
+            cpu_en => edge_cpu_en,
+            ppu_en => edge_ppu_en,
+            clk_sync => edge_clk_sync,
+            ram_en => edge_ram_en,
+
+            cpu_in => edge_cpu_in,
+            cpu_out => edge_cpu_out,
+            ppu_in => edge_ppu_in,
+            ppu_out => edge_ppu_out
+        );
+
+        -- The console steps the power up data on its CPU clock enable, and
+        -- the cartridge's comes a few clocks later
+        process(clk)
+        is
+        begin
+        if rising_edge(clk) and cpu_clk_en
+        then
+            cart_power_up_ready <= power_up_ready;
+            cart_power_up_data <= power_up_data;
+        end if;
+        end process;
+
+        cart_sys : cart_system_ocram
+        generic map
+        (
+            VENDOR => VENDOR_SIM
+        )
+        port map
+        (
+            clk => clk,
+            reset => false,
+
+            cpu_en => edge_cpu_en,
+            ppu_en => edge_ppu_en,
+            clk_sync => edge_clk_sync,
+            ram_en => edge_ram_en,
+
+            power_up_ready => cart_power_up_ready,
+            power_up_data => cart_power_up_data,
+
+            loaded => cart_loaded,
+            ready => cart_ready,
+
+            cpu_in => edge_cpu_in,
+            cpu_out => edge_cpu_out,
+            ppu_in => edge_ppu_in,
+            ppu_out => edge_ppu_out,
+            audio => cart_audio,
+
+            cart_mem_bus => cart_mem_bus,
+            data_to_cart_mem => open,
+            data_from_cart_mem => data_from_cart_mem
+        );
 
         board_cpu_in <= cart_cpu_in;
         board_ppu_in <= cart_ppu_in;

@@ -54,4 +54,22 @@ package cart_pin_types is
         ciram_a10  : std_logic;
     end record;
 
+    -- Driven by the cartridge, before the shared data buses are resolved.
+    -- A board can leave some CPU data bits floating while it drives the
+    -- others, so each bit has its own enable
+    type cart_board_drive_t is record
+        -- CPU D0-D7, driven where cpu_data_oe is '1'
+        cpu_data    : data_t;
+        cpu_data_oe : data_t;
+        -- /IRQ: '0' or 'Z'
+        irq_n       : std_logic;
+
+        -- PPU D0-D7
+        ppu_data    : data_t;
+        ppu_data_oe : boolean;
+        -- CIRAM /CE and CIRAM A10
+        ciram_ce_n  : std_logic;
+        ciram_a10   : std_logic;
+    end record;
+
 end package cart_pin_types;
