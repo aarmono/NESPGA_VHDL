@@ -14,6 +14,7 @@ use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
 use work.utilities.all;
 use work.perhipheral_types.all;
+use work.perhipherals.all;
 use work.soc.all;
 use work.console.all;
 use work.cart.all;
@@ -227,6 +228,11 @@ begin
         signal cart_ppu_out   : cart_ppu_out_t;
         signal cart_loaded    : boolean := false;
 
+        signal power_up_ready : boolean;
+        signal power_up_data  : console_power_up_data_t;
+        signal power_up_step  : boolean;
+        signal console_power_up_ready : boolean;
+
         signal console_pins   : cart_console_pins_t;
         signal board_pins     : cart_board_pins_t;
 
@@ -246,8 +252,6 @@ begin
             CLK_FREQ => CLK_FREQ,
             CPU_FREQ_NUM => CLK_FREQ,
             CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
-            POWER_UP_MODE => POWER_UP_MODE,
-            POWER_UP_SEED => POWER_UP_SEED,
             INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
         )
         port map
@@ -280,8 +284,30 @@ begin
             cart_ppu_in => cart_ppu_in,
             cart_ppu_out => cart_ppu_out,
 
-            power_up_start => cart_loaded
+            power_up_ready => console_power_up_ready,
+            power_up_data => power_up_data,
+            power_up_step => power_up_step
         );
+
+        -- The console has the power up fill to itself. The component is
+        -- named in full, because the POWER_UP_FILL generic hides it
+        fill : component work.perhipherals.power_up_fill
+        generic map
+        (
+            MODE => POWER_UP_MODE,
+            DATA_BITS => console_power_up_data_t'length,
+            SEED => POWER_UP_SEED
+        )
+        port map
+        (
+            clk => clk,
+            enable => false,
+            step => power_up_step,
+            ready => power_up_ready,
+            data => power_up_data
+        );
+
+        console_power_up_ready <= power_up_ready and cart_loaded;
 
         -- A real cartridge has no header to load. cart_system has loaded the
         -- header on its 16th CPU cycle, so the console starts its fill on the
@@ -409,6 +435,8 @@ begin
         signal cart_ready     : boolean;
         signal power_up_ready : boolean;
         signal power_up_data  : power_up_data_t;
+        signal power_up_step  : boolean;
+        signal console_power_up_ready : boolean;
 
         -- The pins
         signal slot_pins    : cart_console_pins_t;
@@ -438,7 +466,7 @@ begin
 
         -- The power up data as it was on the console's last CPU clock enable
         signal cart_power_up_ready : boolean := false;
-        signal cart_power_up_data  : power_up_data_t;
+        signal cart_power_up_data  : cart_power_up_data_t;
     begin
         assert CPU_CYCLE_CLOCKS = 28
             report "nes_bench: LOOPBACK_SLOT needs CPU_CYCLE_CLOCKS = 28"
@@ -455,8 +483,6 @@ begin
             CLK_FREQ => CLK_FREQ,
             CPU_FREQ_NUM => CLK_FREQ,
             CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
-            POWER_UP_MODE => POWER_UP_MODE,
-            POWER_UP_SEED => POWER_UP_SEED,
             INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
         )
         port map
@@ -491,11 +517,29 @@ begin
             cart_audio => cart_audio,
 
             run => cart_ready,
-            power_up_start => cart_loaded,
-
-            power_up_ready => power_up_ready,
-            power_up_data => power_up_data
+            power_up_ready => console_power_up_ready,
+            power_up_data => power_up_data(console_power_up_data_t'range),
+            power_up_step => power_up_step
         );
+
+        -- Shared by the console and the cartridge, as in nes_soc_ocram
+        fill : component work.perhipherals.power_up_fill
+        generic map
+        (
+            MODE => POWER_UP_MODE,
+            DATA_BITS => power_up_data_t'length,
+            SEED => POWER_UP_SEED
+        )
+        port map
+        (
+            clk => clk,
+            enable => false,
+            step => power_up_step,
+            ready => power_up_ready,
+            data => power_up_data
+        );
+
+        console_power_up_ready <= power_up_ready and cart_loaded;
 
         slot : cart_slot
         generic map
@@ -723,7 +767,9 @@ begin
         if rising_edge(clk) and cpu_clk_en
         then
             cart_power_up_ready <= power_up_ready;
-            cart_power_up_data <= power_up_data;
+            cart_power_up_data <=
+                power_up_data(power_up_data_t'high downto
+                              console_power_up_data_t'length);
         end if;
         end process;
 

@@ -21,9 +21,6 @@ generic
     CLK_FREQ     : positive := 50_000_000;
     CPU_FREQ_NUM : positive := 39_375_000;
     CPU_FREQ_DEN : positive := 22;
-    -- See nes_console
-    POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
-    POWER_UP_SEED : natural := 0;
     -- See clk_en
     INVERT_CYCLE_PARITY : boolean := false
 );
@@ -70,10 +67,9 @@ port
     cart_ppu_out : in cart_ppu_out_t;
     cart_audio   : in cart_audio_t := 0;
 
-    power_up_start : in boolean := true;
-
-    power_up_ready : out boolean;
-    power_up_data  : out power_up_data_t
+    power_up_ready : in boolean := true;
+    power_up_data  : in console_power_up_data_t := (others => '0');
+    power_up_step  : out boolean
 );
 end nes_console_ocram;
 
@@ -109,8 +105,6 @@ begin
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
         CPU_FREQ_DEN => CPU_FREQ_DEN,
-        POWER_UP_MODE => POWER_UP_MODE,
-        POWER_UP_SEED => POWER_UP_SEED,
         INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
     )
     port map
@@ -172,10 +166,9 @@ begin
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,
 
-        power_up_start => power_up_start,
-
         power_up_ready => power_up_ready,
-        power_up_data => power_up_data
+        power_up_data => power_up_data,
+        power_up_step => power_up_step
     );
 
     prg_ram : syncram_sp

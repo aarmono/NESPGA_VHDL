@@ -37,12 +37,12 @@ port
     -- into it. Must be stable while reset is true
     keep_prg_ram  : in boolean := false;
 
-    -- The data the RAMs are filled with, from the console's power_up_fill,
-    -- which steps it once per CPU cycle of the console's own fill. The
-    -- cartridge fills its RAMs on the same CPU cycles, so it takes the same
-    -- data the console's RAMs did before they were split
+    -- The data the RAMs are filled with, from a power_up_fill. Shared with
+    -- a console, it is the console that steps it, once per CPU cycle of its
+    -- own fill. The cartridge fills its RAMs on the same CPU cycles, so it
+    -- takes the same data the console's RAMs did before they were split
     power_up_ready : in boolean;
-    power_up_data  : in power_up_data_t;
+    power_up_data  : in cart_power_up_data_t;
 
     -- The header is loaded. Once the power up data is ready as well, the
     -- fill starts on the next CPU cycle. The console starts its own fill on

@@ -29,10 +29,6 @@ generic
     CLK_FREQ     : positive := 50_000_000;
     CPU_FREQ_NUM : positive := 39_375_000;
     CPU_FREQ_DEN : positive := 22;
-    -- What the RAMs contain after power up. See power_up_mode_t
-    POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
-    -- See power_up_fill
-    POWER_UP_SEED : natural := 0;
     -- See clk_en
     INVERT_CYCLE_PARITY : boolean := false
 );
@@ -123,17 +119,16 @@ port
     -- The audio of the chips on the cartridge, mixed with the console's
     cart_audio   : in cart_audio_t := 0;
 
-    -- The fill of the RAMs after reset starts on the CPU cycle after this
-    -- is true and the power up data is ready. A board that fills RAMs of
-    -- its own from the power up data holds it false until they can start
-    -- on the same CPU cycle. Sampled on cpu_clk_en
-    power_up_start : in boolean := true;
-
-    -- The data the RAMs are filled with after power up, for a board that
-    -- fills RAMs of its own with it too. It steps once per CPU cycle of
-    -- the fill. See power_up_fill
-    power_up_ready : out boolean;
-    power_up_data  : out power_up_data_t
+    -- The data the RAMs are filled with after reset, from a power_up_fill.
+    -- All zero without one. The fill starts on the CPU cycle after
+    -- power_up_ready is true, and power_up_step is true on the clock that
+    -- ends each of its CPU cycles, when the data must change. The PPU's
+    -- start position comes from the data the fill ends with. A board that
+    -- fills RAMs of its own from the same power up fill does it on the
+    -- same CPU cycles. power_up_ready is sampled on cpu_clk_en
+    power_up_ready : in boolean := true;
+    power_up_data  : in console_power_up_data_t := (others => '0');
+    power_up_step  : out boolean
 );
 end entity;
 
@@ -203,9 +198,6 @@ is
     signal irq      : boolean;
     
     signal fill_enable : boolean;
-    signal fill_step   : boolean;
-    signal fill_ready  : boolean;
-    signal fill_data   : power_up_data_t;
 
     signal apu_ready : boolean;
     signal dma_ready : boolean;
@@ -218,28 +210,9 @@ begin
 
     dma_joy_reset <= int_reset or int_soft_reset;
 
-    fill : entity work.power_up_fill
-    generic map
-    (
-        MODE => POWER_UP_MODE,
-        SEED => POWER_UP_SEED
-    )
-    port map
-    (
-        clk => clk,
-        enable => reset,
-        step => fill_step,
-        ready => fill_ready,
-        data => fill_data
-    );
-
     -- The power up data steps once per CPU cycle, so that it holds for the
-    -- whole CPU cycle reset holds each write to the cartridge memory bus,
-    -- which is served in any of its PPU cycles
-    fill_step <= fill_enable and cpu_en;
-
-    power_up_ready <= fill_ready;
-    power_up_data <= fill_data;
+    -- whole CPU cycle of each write
+    power_up_step <= fill_enable and cpu_en;
 
     cpu_clk_en <= cpu_en;
     ppu_clk_en <= ppu_en;
@@ -353,7 +326,7 @@ begin
         -- The PPU reloads this on every PPU cycle of reset. The power up data
         -- last changes with the last step of the RAM fill, so the PPU starts
         -- from that value, which holds through the end of reset
-        power_up_seed => fill_data(ppu_power_up_seed_t'range),
+        power_up_seed => power_up_data(ppu_power_up_seed_t'range),
         start_position => ppu_start,
 
         chr_bus             => chr_bus,
@@ -456,8 +429,8 @@ begin
         
         nes_in.audio := audio_out;
 
-        nes_in.power_up_ready := fill_ready and power_up_start;
-        nes_in.power_up_data := fill_data;
+        nes_in.power_up_ready := power_up_ready;
+        nes_in.power_up_data := power_up_data;
 
         nes_in.soft_reset := soft_reset;
         nes_in.run := run;

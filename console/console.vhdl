@@ -21,8 +21,6 @@ package console is
         CLK_FREQ     : positive := 50_000_000;
         CPU_FREQ_NUM : positive := 39_375_000;
         CPU_FREQ_DEN : positive := 22;
-        POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
-        POWER_UP_SEED : natural := 0;
         INVERT_CYCLE_PARITY : boolean := false
     );
     port
@@ -84,10 +82,9 @@ package console is
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
 
-        power_up_start : in boolean := true;
-
-        power_up_ready : out boolean;
-        power_up_data  : out power_up_data_t
+        power_up_ready : in boolean := true;
+        power_up_data  : in console_power_up_data_t := (others => '0');
+        power_up_step  : out boolean
     );
     end component nes_console;
 
@@ -99,8 +96,6 @@ package console is
         CLK_FREQ     : positive := 50_000_000;
         CPU_FREQ_NUM : positive := 39_375_000;
         CPU_FREQ_DEN : positive := 22;
-        POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
-        POWER_UP_SEED : natural := 0;
         INVERT_CYCLE_PARITY : boolean := false
     );
     port
@@ -140,10 +135,9 @@ package console is
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
 
-        power_up_start : in boolean := true;
-
-        power_up_ready : out boolean;
-        power_up_data  : out power_up_data_t
+        power_up_ready : in boolean := true;
+        power_up_data  : in console_power_up_data_t := (others => '0');
+        power_up_step  : out boolean
     );
     end component nes_console_ocram;
 

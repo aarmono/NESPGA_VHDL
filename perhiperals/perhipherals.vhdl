@@ -43,6 +43,24 @@ package perhipherals is
     );
     end component syncram_sp;
 
+    component power_up_fill is
+    generic
+    (
+        MODE      : power_up_mode_t;
+        DATA_BITS : positive := 56;
+        SEED      : natural := 0
+    );
+    port
+    (
+        clk : in std_logic;
+
+        enable : in boolean;
+        step   : in boolean;
+        ready  : out boolean;
+        data   : out std_logic_vector(DATA_BITS-1 downto 0)
+    );
+    end component power_up_fill;
+
     component ps2_keyboard is
     port
     (

@@ -123,7 +123,7 @@ package lib_nes is
         audio              : apu_out_t;
         -- The power up data is valid, and the fill can start
         power_up_ready     : boolean;
-        power_up_data      : power_up_data_t;
+        power_up_data      : console_power_up_data_t;
         -- The reset button is held
         soft_reset         : boolean;
         -- Leave reset once the RAMs are ready. Otherwise wait in STATE_WAIT

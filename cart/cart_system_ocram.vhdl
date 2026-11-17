@@ -42,7 +42,7 @@ port
     keep_prg_ram  : in boolean := false;
 
     power_up_ready : in boolean;
-    power_up_data  : in power_up_data_t;
+    power_up_data  : in cart_power_up_data_t;
 
     loaded : out boolean;
     ready  : out boolean;

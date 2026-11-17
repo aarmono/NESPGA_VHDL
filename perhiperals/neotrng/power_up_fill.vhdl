@@ -4,18 +4,19 @@ use IEEE.numeric_std.all;
 use work.perhipheral_types.all;
 use work.utilities.all;
 
--- Makes the random bytes the RAMs of the console power up with, as the RAMs
--- of a real NES contain whatever they powered up with. Bytes from a neoTRNG
--- are mixed into a LFSR, which makes the data.
+-- Makes the random bytes RAMs power up with, as the RAMs of a real NES and
+-- its cartridge contain whatever they powered up with. Bytes from a neoTRNG
+-- are mixed into a LFSR of DATA_BITS, which makes the data: a byte for each
+-- RAM that is filled at once.
 --
--- The TRNG runs while enable is true, which is while the console is held in
+-- The TRNG runs while enable is true, which is while the NES is held in
 -- reset to load the ROM, and until enough bytes are mixed in to fill the
 -- LFSR. The ring oscillators of the TRNG start in the same state every time,
 -- so the bytes they make soon after they start are close to the same in
 -- every power up, and the longer they run the more random they get.
 --
 -- ready is true once enough bytes are mixed in. The LFSR steps when step is
--- true, which is when the console is filling its RAMs. It holds its state
+-- true, which is when the RAMs are being filled. It holds its state
 -- otherwise, so a later fill gets other bytes, mixed with more from the TRNG.
 --
 -- With POWER_UP_ZERO the data is zero and ready is always true
@@ -23,6 +24,8 @@ entity power_up_fill is
 generic
 (
     MODE : power_up_mode_t;
+    -- The width of the data: 24, 32 or 56
+    DATA_BITS : positive := 56;
     -- What the LFSR holds before the TRNG bytes are mixed in. With
     -- POWER_UP_DETERMINISTIC the bytes are the same every time, so this is
     -- how simulations power up in other ways
@@ -35,7 +38,7 @@ port
     enable : in boolean;
     step   : in boolean;
     ready  : out boolean;
-    data   : out power_up_data_t
+    data   : out std_logic_vector(DATA_BITS-1 downto 0)
 );
 end power_up_fill;
 
@@ -50,10 +53,25 @@ begin
 
 else generate
 
-    constant SEED_BYTES : positive := power_up_data_t'length / 8;
+    subtype power_up_data_t is std_logic_vector(DATA_BITS-1 downto 0);
 
-    -- x^56 + x^55 + x^35 + x^34 + 1
-    constant LFSR_TAPS : power_up_data_t := x"C0000600000000";
+    constant SEED_BYTES : positive := DATA_BITS / 8;
+
+    -- A polynomial of maximal length for each width
+    function get_lfsr_taps return power_up_data_t
+    is
+    begin
+        case DATA_BITS is
+            -- x^24 + x^23 + x^22 + x^17 + 1
+            when 24 => return resize(x"E10000", DATA_BITS);
+            -- x^32 + x^22 + x^2 + x + 1
+            when 32 => return resize(x"80200003", DATA_BITS);
+            -- x^56 + x^55 + x^35 + x^34 + 1
+            when others => return resize(x"C0000600000000", DATA_BITS);
+        end case;
+    end;
+
+    constant LFSR_TAPS : power_up_data_t := get_lfsr_taps;
 
     -- Steps the LFSR once for each of its bits, so that none of them is
     -- still in the state. Each RAM takes its own byte of the state, and
@@ -91,6 +109,10 @@ else generate
     signal trng_data   : std_ulogic_vector(7 downto 0);
 
 begin
+
+    assert DATA_BITS = 24 or DATA_BITS = 32 or DATA_BITS = 56
+        report "power_up_fill: DATA_BITS must be 24, 32 or 56"
+        severity failure;
 
     ready <= absorbed = SEED_BYTES;
     data <= lfsr;

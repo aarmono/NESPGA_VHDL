@@ -53,7 +53,7 @@ package lib_cart_system is
         mem                : cart_mem_out_t;
         -- The power up data is valid
         power_up_ready     : boolean;
-        power_up_data      : power_up_data_t;
+        power_up_data      : cart_power_up_data_t;
         -- The fill leaves PRG RAM alone, as it holds a save the board loaded
         keep_prg_ram       : boolean;
     end record;
@@ -345,7 +345,7 @@ package body lib_cart_system is
                     bus_write(sys_in.reg.cur_cycle(chip_ram_addr_t'range));
                 ret.data_to_chip_ram :=
                     get_cart_ram_fill(sys_in.reg.config,
-                                      sys_in.power_up_data(55 downto 48));
+                                      sys_in.power_up_data(23 downto 16));
 
                 -- PRG RAM and CHR RAM share the cartridge memory bus, so their
                 -- first 8KB are filled on alternate CPU cycles, from the same
@@ -363,14 +363,14 @@ package body lib_cart_system is
                                                  prg_ram_addr_t'length)));
                         ret.data_to_prg_cart_mem :=
                             get_cart_ram_fill(sys_in.reg.config,
-                                              sys_in.power_up_data(39 downto 32));
+                                              sys_in.power_up_data(7 downto 0));
                     end if;
                 else
                     ret.chr_cart_mem_bus :=
                         get_chr_ram_bus(
                             bus_write(resize(sys_in.reg.cur_cycle(13 downto 1),
                                              chr_ram_addr_t'length)));
-                    ret.data_to_chr_cart_mem := sys_in.power_up_data(39 downto 32);
+                    ret.data_to_chr_cart_mem := sys_in.power_up_data(7 downto 0);
 
                     -- ExRAM, then the VRAM of a four-screen board, are filled
                     -- alongside the CHR RAM writes, on the PRG channel, which
@@ -383,13 +383,13 @@ package body lib_cart_system is
                         ret.prg_cart_mem_bus :=
                             get_exram_bus(
                                 bus_write(sys_in.reg.cur_cycle(10 downto 1)));
-                        ret.data_to_prg_cart_mem := sys_in.power_up_data(47 downto 40);
+                        ret.data_to_prg_cart_mem := sys_in.power_up_data(15 downto 8);
                     elsif sys_in.reg.cur_cycle(13 downto 12) = "01"
                     then
                         ret.prg_cart_mem_bus :=
                             get_vram_bus(
                                 bus_write(sys_in.reg.cur_cycle(11 downto 1)));
-                        ret.data_to_prg_cart_mem := sys_in.power_up_data(47 downto 40);
+                        ret.data_to_prg_cart_mem := sys_in.power_up_data(15 downto 8);
                     end if;
                 end if;
 

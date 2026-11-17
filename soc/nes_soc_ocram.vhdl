@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.cart_mem_bus_types.all;
 use work.perhipheral_types.all;
+use work.perhipherals.all;
 use work.cart_connector_types.all;
 use work.cart_types.all;
 use work.console.all;
@@ -24,9 +25,9 @@ generic
     CPU_FREQ_DEN     : positive := 22;
     -- See cart_system
     CART_BOARDS      : board_set_t := ALL_BOARDS;
-    -- See nes_console
+    -- What the RAMs contain after power up. See power_up_mode_t
     POWER_UP_MODE    : power_up_mode_t := POWER_UP_ZERO;
-    -- See nes_console
+    -- See power_up_fill
     POWER_UP_SEED    : natural := 0;
     -- See clk_en
     INVERT_CYCLE_PARITY : boolean := false
@@ -103,11 +104,36 @@ architecture behavioral of nes_soc_ocram is
     signal cart_ready     : boolean;
     signal power_up_ready : boolean;
     signal power_up_data  : power_up_data_t;
+    signal power_up_step  : boolean;
+    signal console_power_up_ready : boolean;
 
 begin
 
     cpu_clk_en <= sig_cpu_clk_en;
     ppu_clk_en <= sig_ppu_clk_en;
+
+    -- The console and the cartridge share a power up fill, each with its
+    -- own part of the data. The console steps it on the CPU cycles of its
+    -- fill, so the cartridge fills its RAMs on the same ones: the console
+    -- starts its fill once the cartridge has loaded its header, which is
+    -- when the cartridge starts
+    fill : power_up_fill
+    generic map
+    (
+        MODE => POWER_UP_MODE,
+        DATA_BITS => power_up_data_t'length,
+        SEED => POWER_UP_SEED
+    )
+    port map
+    (
+        clk => clk,
+        enable => reset,
+        step => power_up_step,
+        ready => power_up_ready,
+        data => power_up_data
+    );
+
+    console_power_up_ready <= power_up_ready and cart_loaded;
 
     -- The NES leaves reset once both have filled their RAMs. The cartridge
     -- can take longer, and the board isn't told the NES is waiting for it
@@ -122,8 +148,6 @@ begin
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
         CPU_FREQ_DEN => CPU_FREQ_DEN,
-        POWER_UP_MODE => POWER_UP_MODE,
-        POWER_UP_SEED => POWER_UP_SEED,
         INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
     )
     port map
@@ -162,12 +186,9 @@ begin
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,
 
-        -- The console starts its fill once the cartridge has loaded its
-        -- header, which is when the cartridge starts its own
-        power_up_start => cart_loaded,
-
-        power_up_ready => power_up_ready,
-        power_up_data => power_up_data
+        power_up_ready => console_power_up_ready,
+        power_up_data => power_up_data(console_power_up_data_t'range),
+        power_up_step => power_up_step
     );
 
     cart_sys : cart_system_ocram
@@ -190,7 +211,8 @@ begin
         keep_prg_ram => keep_prg_ram,
 
         power_up_ready => power_up_ready,
-        power_up_data => power_up_data,
+        power_up_data => power_up_data(power_up_data_t'high downto
+                                       console_power_up_data_t'length),
 
         loaded => cart_loaded,
         ready => cart_ready,
