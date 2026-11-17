@@ -3,6 +3,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
+use work.cart_pin_types.all;
 
 package de1_types is
     
@@ -86,6 +87,7 @@ package de1_types is
     generic
     (
         ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
+        USE_CART_SLOT : boolean := false;
         POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
         RETURN_HOLD_MS : positive := 2000;
         CLOCK_VGA_FREQ : real := 27.0e6 * 29.0 / 31.0;
@@ -158,7 +160,10 @@ package de1_types is
         AUD_BCLK    : out std_logic;
         AUD_DACDAT  : out std_logic;
         AUD_DACLRCK : out std_logic;
-        AUD_XCK     : out std_logic
+        AUD_XCK     : out std_logic;
+
+        CART_PINS_OUT : out cart_console_pins_t;
+        CART_PINS_IN  : in cart_board_pins_t := CART_BOARD_PINS_IDLE
     );
     end component nes_de1;
     

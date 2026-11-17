@@ -110,10 +110,10 @@ set_false_path -from [get_ports {SD_DAT}]
 # updates the cartridge memory bus address and write data, and the read data
 # is registered at least 2 clocks before the next PPU clock enable, so paths
 # between the NES core and the SDRAM controller have 2 clocks
-set_multicycle_path -setup -end 2 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
-set_multicycle_path -hold -end 1 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
-set_multicycle_path -setup -end 2 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]
-set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]
+set_multicycle_path -setup -end 2 -from [get_registers {*nes_soc_ocram:*nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
+set_multicycle_path -hold -end 1 -from [get_registers {*nes_soc_ocram:*nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
+set_multicycle_path -setup -end 2 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:*nes|*}]
+set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:*nes|*}]
 
 # The NES core registers only update on cpu_en or ppu_en, which are at least
 # 9 clocks apart (clk_en). The on-chip RAMs only write on cpu_ram_en or
@@ -125,8 +125,8 @@ set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to 
 # itself updates every clock and is deliberately left out, except for
 # ppu_sync and odd_cpu_cycle, which only change on the clocks where a PPU
 # enable is consumed. RAM to RAM paths are left at 1 clock.
-set nes_console {*|nes_soc_ocram:nes|nes_console_ocram:console_sys|nes_console:sys}
-set cart_system {*|nes_soc_ocram:nes|cart_system_ocram:cart_sys|cart_system:sys}
+set nes_console {*|nes_soc_ocram:*nes|nes_console_ocram:console_sys|nes_console:sys}
+set cart_system {*|nes_soc_ocram:*nes|cart_system_ocram:cart_sys|cart_system:sys}
 
 set nes_core_regs [get_registers [list \
     "$nes_console|cpu:nes_cpu|*" \
@@ -143,7 +143,7 @@ set nes_core_regs [get_registers [list \
     "$nes_console|clk_en:nes_clk_en|reg_odd_cpu_cycle" \
     {*nes_de1:nes|reg_audio_cpu_clk*}]]
 
-set nes_ram_regs [get_registers {*|nes_soc_ocram:nes|*syncram_sp:*}]
+set nes_ram_regs [get_registers {*|nes_soc_ocram:*nes|*syncram_sp:*}]
 
 set_multicycle_path -setup -end 4 -from $nes_core_regs -to $nes_core_regs
 set_multicycle_path -hold -end 3 -from $nes_core_regs -to $nes_core_regs

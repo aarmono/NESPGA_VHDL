@@ -8,7 +8,9 @@ use work.perhipheral_types.all;
 use work.cart_mem_bus_types.all;
 use work.file_bus_types.all;
 use work.cart_connector_types.all;
+use work.cart_pin_types.all;
 use work.soc.all;
+use work.console.all;
 use work.de1_types.all;
 use work.platform_video.all;
 
@@ -16,6 +18,11 @@ entity nes_de1 is
 generic
 (
     ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
+    -- The cartridge is a real one on the cartridge pins, not the emulated
+    -- one, whose ROM loader, SDRAM and SD card are then unused. The console
+    -- doesn't know when a cartridge that loads itself is ready (see
+    -- cart_de1): hold the reset button until it is
+    USE_CART_SLOT : boolean := false;
     POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
     -- How long Start and Select are held to return to the SD menu. See
     -- sd_menu
@@ -94,7 +101,13 @@ port
     AUD_BCLK    : out std_logic;
     AUD_DACDAT  : out std_logic;
     AUD_DACLRCK : out std_logic;
-    AUD_XCK     : out std_logic
+    AUD_XCK     : out std_logic;
+
+    -- The cartridge connector, with USE_CART_SLOT. See cart_slot. The board
+    -- level shifts the pins and makes the data buses, which the console
+    -- drives while its output enables are true
+    CART_PINS_OUT : out cart_console_pins_t;
+    CART_PINS_IN  : in cart_board_pins_t := CART_BOARD_PINS_IDLE
 );
 end nes_de1;
 
@@ -248,150 +261,316 @@ begin
 
     nes_reset <= reset_50 or rom_loading;
 
-    -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
-    -- clock output delay to the SDRAM
-    DRAM_CLK <= CLOCK_WE;
-
-    rom : entity work.sdram_rom(behavioral)
-    generic map
-    (
-        REQUIRE_INES => ROM_CONFIG = ROM_SD_MENU
-    )
-    port map
-    (
-        clk => CLOCK_50,
-        reset => reset_50,
-
-        restart => rom_restart,
-
-        loading => rom_loading,
-        no_header => rom_no_header,
-
-        load_valid => load_valid,
-        load_data => load_data,
-        load_ready => load_ready,
-
-        ppu_clk_en => ppu_clk_en,
-        cart_mem_bus => rom_cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
-        data_from_cart_mem => data_from_cart_mem,
-
-        dram_addr => DRAM_ADDR,
-        dram_ba => dram_ba,
-        dram_cs_n => DRAM_CS_N,
-        dram_ras_n => DRAM_RAS_N,
-        dram_cas_n => DRAM_CAS_N,
-        dram_we_n => DRAM_WE_N,
-        dram_cke => DRAM_CKE,
-        dram_ldqm => DRAM_LDQM,
-        dram_udqm => DRAM_UDQM,
-        dram_dq => DRAM_DQ
-    );
-
-    gen_sd_menu : if ROM_CONFIG = ROM_SD_MENU generate
+    -- The emulated cartridge, with its ROM file loaded into SDRAM
+    gen_emulated : if not USE_CART_SLOT generate
     begin
-        flash_bus <= FILE_BUS_IDLE;
+        CART_PINS_OUT <= CART_CONSOLE_PINS_IDLE;
 
-        sd : entity work.sd_menu(behavioral)
+        -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
+        -- clock output delay to the SDRAM
+        DRAM_CLK <= CLOCK_WE;
+
+        rom : entity work.sdram_rom(behavioral)
         generic map
         (
-            RETURN_HOLD_MS => RETURN_HOLD_MS
+            REQUIRE_INES => ROM_CONFIG = ROM_SD_MENU
         )
         port map
         (
             clk => CLOCK_50,
             reset => reset_50,
 
-            cpu_clk_en => cpu_clk_en,
-            board_cpu_in => board_cpu_in,
-            board_cpu_out => board_cpu_out,
+            restart => rom_restart,
 
-            buttons => joy_1_buttons,
-
-            keep_prg_ram => keep_prg_ram,
-            famicom => famicom,
-
-            cart_mem_bus_in => cart_mem_bus,
-            cart_mem_bus_out => rom_cart_mem_bus,
-
-            rom_loading => rom_loading,
-            rom_no_header => rom_no_header,
-            rom_restart => rom_restart,
+            loading => rom_loading,
+            no_header => rom_no_header,
 
             load_valid => load_valid,
             load_data => load_data,
             load_ready => load_ready,
 
-            sd_failed => sd_error,
-            launch_failed => launch_error,
+            ppu_clk_en => ppu_clk_en,
+            cart_mem_bus => rom_cart_mem_bus,
+            data_to_cart_mem => data_to_cart_mem,
+            data_from_cart_mem => data_from_cart_mem,
 
-            sd_clk => SD_CLK,
-            sd_cs_n => SD_DAT3,
-            sd_mosi => SD_CMD,
-            sd_miso => SD_DAT
+            dram_addr => DRAM_ADDR,
+            dram_ba => dram_ba,
+            dram_cs_n => DRAM_CS_N,
+            dram_ras_n => DRAM_RAS_N,
+            dram_cas_n => DRAM_CAS_N,
+            dram_we_n => DRAM_WE_N,
+            dram_cke => DRAM_CKE,
+            dram_ldqm => DRAM_LDQM,
+            dram_udqm => DRAM_UDQM,
+            dram_dq => DRAM_DQ
         );
-    end generate;
 
-    -- Without the menu, the ROM is loaded once and the board does not touch
-    -- the CPU or cartridge memory buses
-    gen_no_menu : if ROM_CONFIG /= ROM_SD_MENU generate
-    begin
-        rom_restart <= false;
-        launch_error <= false;
-        keep_prg_ram <= false;
-        famicom <= false;
-        board_cpu_out <= CART_CPU_OUT_IDLE;
-        rom_cart_mem_bus <= cart_mem_bus;
-    end generate;
+        gen_sd_menu : if ROM_CONFIG = ROM_SD_MENU generate
+        begin
+            flash_bus <= FILE_BUS_IDLE;
 
-    gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
-    begin
-        flash_bus <= FILE_BUS_IDLE;
+            sd : entity work.sd_menu(behavioral)
+            generic map
+            (
+                RETURN_HOLD_MS => RETURN_HOLD_MS
+            )
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset_50,
 
-        sd : entity work.sd_reader(behavioral)
+                cpu_clk_en => cpu_clk_en,
+                board_cpu_in => board_cpu_in,
+                board_cpu_out => board_cpu_out,
+
+                buttons => joy_1_buttons,
+
+                keep_prg_ram => keep_prg_ram,
+                famicom => famicom,
+
+                cart_mem_bus_in => cart_mem_bus,
+                cart_mem_bus_out => rom_cart_mem_bus,
+
+                rom_loading => rom_loading,
+                rom_no_header => rom_no_header,
+                rom_restart => rom_restart,
+
+                load_valid => load_valid,
+                load_data => load_data,
+                load_ready => load_ready,
+
+                sd_failed => sd_error,
+                launch_failed => launch_error,
+
+                sd_clk => SD_CLK,
+                sd_cs_n => SD_DAT3,
+                sd_mosi => SD_CMD,
+                sd_miso => SD_DAT
+            );
+        end generate;
+
+        -- Without the menu, the ROM is loaded once and the board does not touch
+        -- the CPU or cartridge memory buses
+        gen_no_menu : if ROM_CONFIG /= ROM_SD_MENU generate
+        begin
+            rom_restart <= false;
+            launch_error <= false;
+            keep_prg_ram <= false;
+            famicom <= false;
+            board_cpu_out <= CART_CPU_OUT_IDLE;
+            rom_cart_mem_bus <= cart_mem_bus;
+        end generate;
+
+        gen_sd_card : if ROM_CONFIG = ROM_SD_TO_SDRAM generate
+        begin
+            flash_bus <= FILE_BUS_IDLE;
+
+            sd : entity work.sd_reader(behavioral)
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset_50,
+
+                failed => sd_error,
+
+                req_ready => open,
+
+                stop => not rom_loading,
+                data => load_data,
+                offset => open,
+                valid => load_valid,
+                ready => load_ready,
+
+                sd_clk => SD_CLK,
+                sd_cs_n => SD_DAT3,
+                sd_mosi => SD_CMD,
+                sd_miso => SD_DAT
+            );
+        end generate;
+
+        gen_flash : if ROM_CONFIG = ROM_FLASH_TO_SDRAM generate
+        begin
+            sd_error <= false;
+
+            SD_CLK <= '0';
+            SD_DAT3 <= '1';
+            SD_CMD <= '1';
+
+            flash : entity work.flash_stream(behavioral)
+            port map
+            (
+                clk => CLOCK_50,
+                reset => reset_50,
+
+                flash_bus => flash_bus,
+                data_from_flash => FL_DQ,
+
+                stop => not rom_loading,
+                data => load_data,
+                valid => load_valid,
+                ready => load_ready
+            );
+        end generate;
+
+        nes : nes_soc_ocram
+        generic map
+        (
+            USE_EXT_CART_RAM => true,
+            POWER_UP_MODE => POWER_UP_MODE,
+            CPU_FREQ_NUM => LOCK_RATES.cpu_freq_num,
+            CPU_FREQ_DEN => LOCK_RATES.cpu_freq_den
+        )
         port map
         (
             clk => CLOCK_50,
-            reset => reset_50,
+            reset => nes_reset,
+            soft_reset => nes_soft_reset,
+            keep_prg_ram => keep_prg_ram,
+            famicom => famicom,
 
-            failed => sd_error,
+            nes_running => nes_running,
 
-            req_ready => open,
+            stretch => nes_stretch,
+            run => nes_run,
+            waiting_to_run => nes_waiting_to_run,
+            ppu_start => nes_ppu_start,
 
-            stop => not rom_loading,
-            data => load_data,
-            offset => open,
-            valid => load_valid,
-            ready => load_ready,
+            cpu_clk_en => cpu_clk_en,
+            ppu_clk_en => ppu_clk_en,
 
-            sd_clk => SD_CLK,
-            sd_cs_n => SD_DAT3,
-            sd_mosi => SD_CMD,
-            sd_miso => SD_DAT
+            cart_mem_bus => cart_mem_bus,
+            data_to_cart_mem => data_to_cart_mem,
+            data_from_cart_mem => data_from_cart_mem,
+
+            pixel_bus => pixel_bus,
+            audio => audio_out,
+        
+            joy_strobe => joy_strobe,
+        
+            joy_1_clk => nes_joy_1_clk,
+            joy_1_data => nes_joy_1_data,
+        
+            joy_2_clk => nes_joy_2_clk,
+            joy_2_data => nes_joy_2_data,
+
+            board_cpu_in => board_cpu_in,
+            board_cpu_out => board_cpu_out
         );
     end generate;
 
-    gen_flash : if ROM_CONFIG = ROM_FLASH_TO_SDRAM generate
+    gen_slot : if USE_CART_SLOT generate
+        signal clk_sync       : boolean;
+        signal cart_cpu_in    : cart_cpu_in_t;
+        signal cart_cpu_out   : cart_cpu_out_t;
+        signal cpu_data_bus   : data_t;
+        signal cart_ppu_in    : cart_ppu_in_t;
+        signal cart_ppu_out   : cart_ppu_out_t;
+
+        signal power_up_ready : boolean;
+        signal power_up_data  : console_power_up_data_t;
+        signal power_up_step  : boolean;
     begin
+        rom_loading <= false;
         sd_error <= false;
+        launch_error <= false;
+        flash_bus <= FILE_BUS_IDLE;
 
         SD_CLK <= '0';
         SD_DAT3 <= '1';
         SD_CMD <= '1';
 
-        flash : entity work.flash_stream(behavioral)
+        DRAM_CLK <= '0';
+        DRAM_CKE <= '0';
+        DRAM_CS_N <= '1';
+        DRAM_RAS_N <= '1';
+        DRAM_CAS_N <= '1';
+        DRAM_WE_N <= '1';
+        DRAM_LDQM <= '1';
+        DRAM_UDQM <= '1';
+        DRAM_ADDR <= (others => '0');
+        dram_ba <= (others => '0');
+        DRAM_DQ <= (others => 'Z');
+
+        -- The console has the power up fill to itself
+        fill : power_up_fill
+        generic map
+        (
+            MODE => POWER_UP_MODE,
+            DATA_BITS => console_power_up_data_t'length
+        )
+        port map
+        (
+            clk => CLOCK_50,
+            enable => reset_50,
+            step => power_up_step,
+            ready => power_up_ready,
+            data => power_up_data
+        );
+
+        nes : nes_console_ocram
+        generic map
+        (
+            CPU_FREQ_NUM => LOCK_RATES.cpu_freq_num,
+            CPU_FREQ_DEN => LOCK_RATES.cpu_freq_den
+        )
+        port map
+        (
+            clk => CLOCK_50,
+            reset => nes_reset,
+            soft_reset => nes_soft_reset,
+
+            nes_running => nes_running,
+
+            stretch => nes_stretch,
+            run => nes_run,
+            waiting_to_run => nes_waiting_to_run,
+            ppu_start => nes_ppu_start,
+
+            cpu_clk_en => cpu_clk_en,
+            ppu_clk_en => ppu_clk_en,
+            clk_sync => clk_sync,
+            ppu_ram_en => open,
+
+            pixel_bus => pixel_bus,
+            audio => audio_out,
+
+            joy_strobe => joy_strobe,
+
+            joy_1_clk => nes_joy_1_clk,
+            joy_1_data => nes_joy_1_data,
+
+            joy_2_clk => nes_joy_2_clk,
+            joy_2_data => nes_joy_2_data,
+
+            cart_cpu_in => cart_cpu_in,
+            cart_cpu_out => cart_cpu_out,
+            cpu_data_bus => cpu_data_bus,
+            cart_ppu_in => cart_ppu_in,
+            cart_ppu_out => cart_ppu_out,
+
+            power_up_ready => power_up_ready,
+            power_up_data => power_up_data,
+            power_up_step => power_up_step
+        );
+
+        slot : cart_slot
         port map
         (
             clk => CLOCK_50,
             reset => reset_50,
 
-            flash_bus => flash_bus,
-            data_from_flash => FL_DQ,
+            cpu_en => cpu_clk_en,
+            ppu_en => ppu_clk_en,
 
-            stop => not rom_loading,
-            data => load_data,
-            valid => load_valid,
-            ready => load_ready
+            cpu_in => cart_cpu_in,
+            cpu_out => cart_cpu_out,
+            cpu_data_bus => cpu_data_bus,
+            ppu_in => cart_ppu_in,
+            ppu_out => cart_ppu_out,
+
+            pins_out => CART_PINS_OUT,
+            pins_in => CART_PINS_IN
         );
     end generate;
 
@@ -476,51 +655,6 @@ begin
     vga_out.lval <= video.lval;
     vga_out.fval <= video.fval;
 
-    nes : nes_soc_ocram
-    generic map
-    (
-        USE_EXT_CART_RAM => true,
-        POWER_UP_MODE => POWER_UP_MODE,
-        CPU_FREQ_NUM => LOCK_RATES.cpu_freq_num,
-        CPU_FREQ_DEN => LOCK_RATES.cpu_freq_den
-    )
-    port map
-    (
-        clk => CLOCK_50,
-        reset => nes_reset,
-        soft_reset => nes_soft_reset,
-        keep_prg_ram => keep_prg_ram,
-        famicom => famicom,
-
-        nes_running => nes_running,
-
-        stretch => nes_stretch,
-        run => nes_run,
-        waiting_to_run => nes_waiting_to_run,
-        ppu_start => nes_ppu_start,
-
-        cpu_clk_en => cpu_clk_en,
-        ppu_clk_en => ppu_clk_en,
-
-        cart_mem_bus => cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
-        data_from_cart_mem => data_from_cart_mem,
-
-        pixel_bus => pixel_bus,
-        audio => audio_out,
-        
-        joy_strobe => joy_strobe,
-        
-        joy_1_clk => nes_joy_1_clk,
-        joy_1_data => nes_joy_1_data,
-        
-        joy_2_clk => nes_joy_2_clk,
-        joy_2_data => nes_joy_2_data,
-
-        board_cpu_in => board_cpu_in,
-        board_cpu_out => board_cpu_out
-    );
-    
     joy_port_1 : joy_port
     port map
     (

@@ -72,4 +72,30 @@ package cart_pin_types is
         ciram_a10   : std_logic;
     end record;
 
+    -- The pins with no access on them, and nothing driven
+    constant CART_CONSOLE_PINS_IDLE : cart_console_pins_t :=
+    (
+        m2 => '0',
+        romsel_n => '1',
+        cpu_rw => '1',
+        cpu_addr => (others => '0'),
+        cpu_data => (others => '0'),
+        cpu_data_oe => false,
+        ppu_rd_n => '1',
+        ppu_wr_n => '1',
+        ppu_addr => (others => '0'),
+        ppu_a13_n => '1',
+        ppu_data => (others => '0'),
+        ppu_data_oe => false
+    );
+
+    constant CART_BOARD_PINS_IDLE : cart_board_pins_t :=
+    (
+        cpu_data => (others => '0'),
+        irq_n => '1',
+        ppu_data => (others => '0'),
+        ciram_ce_n => '1',
+        ciram_a10 => '0'
+    );
+
 end package cart_pin_types;
