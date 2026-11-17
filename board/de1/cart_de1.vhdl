@@ -13,7 +13,9 @@ use work.cart.all;
 -- The emulated cartridge on a DE1 of its own, for the cartridge slot of a
 -- real console (or of nes_de1 with USE_CART_SLOT): cart_edge turns the pins of
 -- the cartridge connector into what cart_system runs on, and the ROM file
--- is loaded from the SD card into SDRAM, as nes_de1 does it.
+-- is loaded from the SD card into the SRAM, which serves the cartridge's
+-- accesses as the console makes them (see sram_rom). On the DE1 the ROM
+-- file is at most 256 KB.
 --
 -- A console doesn't wait for its cartridge, and the connector has no reset.
 -- The ROM file takes far longer to load than the console's own reset, and
@@ -28,34 +30,29 @@ generic
     POWER_UP_SEED : natural := 0;
     -- The nominal clocks in a dot of the console. See cart_edge
     DOT_CLOCKS    : positive := 9;
-    -- See sdram_rom
-    ROM_START_DELAY : positive := 2
+    -- See sram_rom. The DE1's SRAM has 18 address bits
+    SRAM_ADDR_BITS   : positive := 18;
+    SRAM_READ_CLOCKS : positive := 2
 );
 port
 (
     CLOCK_50 : in std_logic;
-    CLOCK_WE : in std_logic;
     RESET_N  : in std_logic;
 
     -- The cartridge has loaded its ROM file and filled its RAMs
     READY     : out std_logic;
     -- The ROM file is being loaded
     LOADING   : out std_logic;
-    -- The SD card couldn't be read
-    SD_FAILED : out std_logic;
+    -- The SD card couldn't be read, or the ROM file is too large
+    LOAD_FAILED : out std_logic;
 
-    DRAM_ADDR  : out std_logic_vector(11 downto 0);
-    DRAM_BA_0  : out std_logic;
-    DRAM_BA_1  : out std_logic;
-    DRAM_CAS_N : out std_logic;
-    DRAM_CKE   : out std_logic;
-    DRAM_CLK   : out std_logic;
-    DRAM_CS_N  : out std_logic;
-    DRAM_DQ    : inout std_logic_vector(15 downto 0);
-    DRAM_LDQM  : out std_logic;
-    DRAM_UDQM  : out std_logic;
-    DRAM_RAS_N : out std_logic;
-    DRAM_WE_N  : out std_logic;
+    SRAM_ADDR : out std_logic_vector(SRAM_ADDR_BITS - 1 downto 0);
+    SRAM_DQ   : inout std_logic_vector(15 downto 0);
+    SRAM_CE_N : out std_logic;
+    SRAM_OE_N : out std_logic;
+    SRAM_WE_N : out std_logic;
+    SRAM_LB_N : out std_logic;
+    SRAM_UB_N : out std_logic;
 
     -- SD card in SPI mode
     SD_DAT  : in std_logic;
@@ -99,14 +96,16 @@ architecture behavioral of cart_de1 is
     signal power_up_data  : cart_power_up_data_t;
     signal power_up_step  : boolean;
 
-    signal cart_mem_bus       : cart_mem_bus_t;
-    signal data_to_cart_mem   : data_t;
-    signal data_from_cart_mem : data_t;
+    signal prg_mem_bus       : cart_mem_bus_t;
+    signal data_to_prg_mem   : data_t;
+    signal data_from_prg_mem : data_t;
+    signal chr_mem_bus       : cart_mem_bus_t;
+    signal data_to_chr_mem   : data_t;
+    signal data_from_chr_mem : data_t;
 
-    signal dram_ba : std_logic_vector(1 downto 0);
-
-    signal rom_loading : boolean;
-    signal sd_error    : boolean;
+    signal rom_loading   : boolean;
+    signal rom_too_large : boolean;
+    signal sd_error      : boolean;
 
     signal load_valid : boolean;
     signal load_data  : data_t;
@@ -130,14 +129,7 @@ begin
 
     READY <= to_std_logic(cart_ready);
     LOADING <= to_std_logic(rom_loading);
-    SD_FAILED <= to_std_logic(sd_error);
-
-    DRAM_BA_0 <= dram_ba(0);
-    DRAM_BA_1 <= dram_ba(1);
-
-    -- CLOCK_WE leads CLOCK_50 by about 2 ns, which compensates for the
-    -- clock output delay to the SDRAM
-    DRAM_CLK <= CLOCK_WE;
+    LOAD_FAILED <= to_std_logic(sd_error or rom_too_large);
 
     edge : cart_edge
     generic map
@@ -188,7 +180,8 @@ begin
     cart_sys : cart_system_ocram
     generic map
     (
-        USE_EXT_CART_RAM => true
+        USE_EXT_CART_RAM => true,
+        SPLIT_MEM_BUS => true
     )
     port map
     (
@@ -212,15 +205,23 @@ begin
         ppu_out => ppu_out,
         audio => open,
 
-        cart_mem_bus => cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
-        data_from_cart_mem => data_from_cart_mem
+        cart_mem_bus => open,
+        data_to_cart_mem => open,
+
+        prg_mem_bus => prg_mem_bus,
+        data_to_prg_mem => data_to_prg_mem,
+        data_from_prg_mem => data_from_prg_mem,
+
+        chr_mem_bus => chr_mem_bus,
+        data_to_chr_mem => data_to_chr_mem,
+        data_from_chr_mem => data_from_chr_mem
     );
 
-    rom : entity work.sdram_rom(behavioral)
+    rom : entity work.sram_rom(behavioral)
     generic map
     (
-        START_DELAY => ROM_START_DELAY
+        ADDR_BITS => SRAM_ADDR_BITS,
+        READ_CLOCKS => SRAM_READ_CLOCKS
     )
     port map
     (
@@ -228,27 +229,27 @@ begin
         reset => reset_50,
 
         loading => rom_loading,
-        no_header => open,
+        too_large => rom_too_large,
 
         load_valid => load_valid,
         load_data => load_data,
         load_ready => load_ready,
 
-        ppu_clk_en => ppu_en,
-        cart_mem_bus => cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
-        data_from_cart_mem => data_from_cart_mem,
+        prg_mem_bus => prg_mem_bus,
+        data_to_prg_mem => data_to_prg_mem,
+        data_from_prg_mem => data_from_prg_mem,
 
-        dram_addr => DRAM_ADDR,
-        dram_ba => dram_ba,
-        dram_cs_n => DRAM_CS_N,
-        dram_ras_n => DRAM_RAS_N,
-        dram_cas_n => DRAM_CAS_N,
-        dram_we_n => DRAM_WE_N,
-        dram_cke => DRAM_CKE,
-        dram_ldqm => DRAM_LDQM,
-        dram_udqm => DRAM_UDQM,
-        dram_dq => DRAM_DQ
+        chr_mem_bus => chr_mem_bus,
+        data_to_chr_mem => data_to_chr_mem,
+        data_from_chr_mem => data_from_chr_mem,
+
+        sram_addr => SRAM_ADDR,
+        sram_dq => SRAM_DQ,
+        sram_ce_n => SRAM_CE_N,
+        sram_oe_n => SRAM_OE_N,
+        sram_we_n => SRAM_WE_N,
+        sram_lb_n => SRAM_LB_N,
+        sram_ub_n => SRAM_UB_N
     );
 
     sd : entity work.sd_reader(behavioral)

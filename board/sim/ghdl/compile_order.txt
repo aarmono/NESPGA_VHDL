@@ -60,6 +60,7 @@
 ../../../simulation/apu_audio_record/apu_audio_record.vhdl
 ../../../simulation/sram/sram.vhdl
 ../../../simulation/sdram/sdram.vhdl
+../../../simulation/sram_16/sram_16.vhdl
 ../../../simulation/sd_card/sd_card.vhdl
 
 ../../../simulation/fm2_joystick/fm2_joystick.vhdl
@@ -150,6 +151,7 @@
 ../../../board/de1/de1_types.vhdl
 ../../../board/de1/flash_stream.vhdl
 ../../../board/de1/sdram_rom.vhdl
+../../../board/de1/sram_rom.vhdl
 ../../../board/de1/sd_menu_stub.vhdl
 ../../../board/de1/sd_menu.vhdl
 ../../../board/de1/sd_menu_bench.vhdl

@@ -45,7 +45,10 @@ generic
     CART_CLK_PERIOD_PS : positive := 20000;
     CART_CLK_OFFSET_PS : natural := 7000;
     -- See cart_de1
-    CART_ROM_START_DELAY : positive := 2;
+    CART_SRAM_READ_CLOCKS : positive := 2;
+    -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
+    -- file of up to 256 KB; 22 hold any
+    CART_SRAM_ADDR_BITS : positive := 18;
     -- Write this many CPU cycles and this many PPU accesses of the
     -- cartridge pins to the output, from CART_TRACE_FROM_MS and once the
     -- cartridge is ready: the address, R/W and data as M2 falls, or as /RD
@@ -200,25 +203,20 @@ begin
 
     gen_cart : if USE_CART_DE1 generate
         signal clk_cart    : std_logic := '0';
-        signal clk_cart_we : std_logic := '0';
 
         signal board_drive : cart_board_drive_t;
         signal cart_ready  : std_logic;
         signal cart_loading   : std_logic;
-        signal cart_sd_failed : std_logic;
+        signal cart_load_failed : std_logic;
 
-        signal cart_dram_addr  : std_logic_vector(11 downto 0);
-        signal cart_dram_ba_0  : std_logic;
-        signal cart_dram_ba_1  : std_logic;
-        signal cart_dram_cas_n : std_logic;
-        signal cart_dram_cke   : std_logic;
-        signal cart_dram_clk   : std_logic;
-        signal cart_dram_cs_n  : std_logic;
-        signal cart_dram_dq    : std_logic_vector(15 downto 0);
-        signal cart_dram_ldqm  : std_logic;
-        signal cart_dram_udqm  : std_logic;
-        signal cart_dram_ras_n : std_logic;
-        signal cart_dram_we_n  : std_logic;
+        signal cart_sram_addr :
+            std_logic_vector(CART_SRAM_ADDR_BITS - 1 downto 0);
+        signal cart_sram_dq   : std_logic_vector(15 downto 0);
+        signal cart_sram_ce_n : std_logic;
+        signal cart_sram_oe_n : std_logic;
+        signal cart_sram_we_n : std_logic;
+        signal cart_sram_lb_n : std_logic;
+        signal cart_sram_ub_n : std_logic;
 
         signal cart_sd_dat  : std_logic;
         signal cart_sd_dat3 : std_logic;
@@ -236,30 +234,25 @@ begin
         (
             POWER_UP_MODE => POWER_UP_DETERMINISTIC,
             DOT_CLOCKS => 186243 ps / CART_CLK_PERIOD,
-            ROM_START_DELAY => CART_ROM_START_DELAY
+            SRAM_ADDR_BITS => CART_SRAM_ADDR_BITS,
+            SRAM_READ_CLOCKS => CART_SRAM_READ_CLOCKS
         )
         port map
         (
             CLOCK_50 => clk_cart,
-            CLOCK_WE => clk_cart_we,
             RESET_N => '1',
 
             READY => cart_ready,
             LOADING => cart_loading,
-            SD_FAILED => cart_sd_failed,
+            LOAD_FAILED => cart_load_failed,
 
-            DRAM_ADDR => cart_dram_addr,
-            DRAM_BA_0 => cart_dram_ba_0,
-            DRAM_BA_1 => cart_dram_ba_1,
-            DRAM_CAS_N => cart_dram_cas_n,
-            DRAM_CKE => cart_dram_cke,
-            DRAM_CLK => cart_dram_clk,
-            DRAM_CS_N => cart_dram_cs_n,
-            DRAM_DQ => cart_dram_dq,
-            DRAM_LDQM => cart_dram_ldqm,
-            DRAM_UDQM => cart_dram_udqm,
-            DRAM_RAS_N => cart_dram_ras_n,
-            DRAM_WE_N => cart_dram_we_n,
+            SRAM_ADDR => cart_sram_addr,
+            SRAM_DQ => cart_sram_dq,
+            SRAM_CE_N => cart_sram_ce_n,
+            SRAM_OE_N => cart_sram_oe_n,
+            SRAM_WE_N => cart_sram_we_n,
+            SRAM_LB_N => cart_sram_lb_n,
+            SRAM_UB_N => cart_sram_ub_n,
 
             SD_DAT => cart_sd_dat,
             SD_DAT3 => cart_sd_dat3,
@@ -273,7 +266,7 @@ begin
         );
 
         -- The cartridge's status, as its LEDs would show it
-        process(cart_ready, cart_loading, cart_sd_failed)
+        process(cart_ready, cart_loading, cart_load_failed)
         is
             variable l : line;
         begin
@@ -283,8 +276,8 @@ begin
             write(l, cart_loading);
             write(l, string'(" ready "));
             write(l, cart_ready);
-            write(l, string'(" SD failed "));
-            write(l, cart_sd_failed);
+            write(l, string'(" failed "));
+            write(l, cart_load_failed);
             writeline(output, l);
         end process;
 
@@ -414,21 +407,20 @@ begin
         board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
         board_pins.ciram_a10 <= board_drive.ciram_a10;
 
-        cart_ram : entity work.sdram(behavioral)
+        cart_ram : entity work.sram_16(behavioral)
+        generic map
+        (
+            ADDR_BITS => CART_SRAM_ADDR_BITS
+        )
         port map
         (
-            clk => cart_dram_clk,
-            cke => cart_dram_cke,
-            cs_n => cart_dram_cs_n,
-            ras_n => cart_dram_ras_n,
-            cas_n => cart_dram_cas_n,
-            we_n => cart_dram_we_n,
-            ba(0) => cart_dram_ba_0,
-            ba(1) => cart_dram_ba_1,
-            addr => cart_dram_addr,
-            ldqm => cart_dram_ldqm,
-            udqm => cart_dram_udqm,
-            dq => cart_dram_dq
+            addr => cart_sram_addr,
+            dq => cart_sram_dq,
+            ce_n => cart_sram_ce_n,
+            oe_n => cart_sram_oe_n,
+            we_n => cart_sram_we_n,
+            lb_n => cart_sram_lb_n,
+            ub_n => cart_sram_ub_n
         );
 
         cart_sd : entity work.sd_card(behavioral)
@@ -456,19 +448,6 @@ begin
         port map
         (
             clk => clk_cart,
-            done => false
-        );
-
-        -- As clk_we leads clk_50
-        clk_cart_we_gen : clock
-        generic map
-        (
-            PERIOD => CART_CLK_PERIOD,
-            OFFSET => CART_CLK_PERIOD + CART_CLK_OFFSET - 2143 ps
-        )
-        port map
-        (
-            clk => clk_cart_we,
             done => false
         );
     end generate;
