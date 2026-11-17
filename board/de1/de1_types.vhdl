@@ -166,6 +166,49 @@ package de1_types is
         CART_PINS_IN  : in cart_board_pins_t := CART_BOARD_PINS_IDLE
     );
     end component nes_de1;
+
+    component cart_de1 is
+    generic
+    (
+        POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
+        POWER_UP_SEED : natural := 0;
+        DOT_CLOCKS    : positive := 9;
+        ROM_START_DELAY : positive := 2
+    );
+    port
+    (
+        CLOCK_50 : in std_logic;
+        CLOCK_WE : in std_logic;
+        RESET_N  : in std_logic;
+
+        READY     : out std_logic;
+        LOADING   : out std_logic;
+        SD_FAILED : out std_logic;
+
+        DRAM_ADDR  : out std_logic_vector(11 downto 0);
+        DRAM_BA_0  : out std_logic;
+        DRAM_BA_1  : out std_logic;
+        DRAM_CAS_N : out std_logic;
+        DRAM_CKE   : out std_logic;
+        DRAM_CLK   : out std_logic;
+        DRAM_CS_N  : out std_logic;
+        DRAM_DQ    : inout std_logic_vector(15 downto 0);
+        DRAM_LDQM  : out std_logic;
+        DRAM_UDQM  : out std_logic;
+        DRAM_RAS_N : out std_logic;
+        DRAM_WE_N  : out std_logic;
+
+        SD_DAT  : in std_logic;
+        SD_DAT3 : out std_logic;
+        SD_CMD  : out std_logic;
+        SD_CLK  : out std_logic;
+
+        CART_PINS_IN  : in cart_console_pins_t;
+        CART_CPU_DATA : in data_t;
+        CART_PPU_DATA : in data_t;
+        CART_PINS_OUT : out cart_board_drive_t
+    );
+    end component cart_de1;
     
 end de1_types;
 

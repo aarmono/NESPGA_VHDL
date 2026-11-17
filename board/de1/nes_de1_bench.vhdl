@@ -1,7 +1,9 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use std.textio.all;
 use work.nes_types.all;
+use work.cart_pin_types.all;
 use work.file_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
@@ -32,7 +34,25 @@ generic
     JOY_RETURN_UNTIL_MS : natural := 0;
     RETURN_HOLD_MS  : positive := 2000;
     -- Report the frame lock's phase error and stretch rate once a frame
-    LOG_LOCK        : boolean := false
+    LOG_LOCK        : boolean := false;
+    -- Run the cartridge on a DE1 of its own (cart_de1), in the cartridge
+    -- slot of nes_de1 (USE_CART_SLOT). The ROM file is on the cartridge's SD
+    -- card, and the console's reset button is held until the cartridge is
+    -- ready. Both sides driving a data bus is written to the output
+    USE_CART_DE1    : boolean := false;
+    -- The period of the cartridge's clock in ps, and how long after the
+    -- console's it starts: the two boards have an oscillator each
+    CART_CLK_PERIOD_PS : positive := 20000;
+    CART_CLK_OFFSET_PS : natural := 7000;
+    -- See cart_de1
+    CART_ROM_START_DELAY : positive := 2;
+    -- Write this many CPU cycles and this many PPU accesses of the
+    -- cartridge pins to the output, from CART_TRACE_FROM_MS and once the
+    -- cartridge is ready: the address, R/W and data as M2 falls, or as /RD
+    -- or /WR rises
+    CART_TRACE_CYCLES   : natural := 0;
+    CART_TRACE_ACCESSES : natural := 0;
+    CART_TRACE_FROM_MS  : natural := 0
 );
 end nes_de1_bench;
 
@@ -89,7 +109,13 @@ architecture behavioral of nes_de1_bench is
     signal vga_fval : std_logic;
 
     signal vga_out : vga_out_t;
-    
+
+    signal key : std_logic_vector(3 downto 0) := (others => '1');
+
+    -- The cartridge connector between the two boards
+    signal console_pins : cart_console_pins_t;
+    signal board_pins   : cart_board_pins_t := CART_BOARD_PINS_IDLE;
+
     file audio_file : byte_file_t;
     signal aud_initialized : boolean := false;
     signal aud_shift : std_logic_vector(15 downto 0) := x"0000";
@@ -103,6 +129,7 @@ begin
     generic map
     (
         ROM_CONFIG => ROM_CONFIG,
+        USE_CART_SLOT => USE_CART_DE1,
         -- The oscillators of the random number generator cannot be simulated
         POWER_UP_MODE => POWER_UP_DETERMINISTIC,
         RETURN_HOLD_MS => RETURN_HOLD_MS,
@@ -130,6 +157,7 @@ begin
         JOY_2_LATCH => open,
         JOY_2_CLK => open,
 
+        KEY => key,
         SW => (others => '0'),
         
         FL_DQ => fl_dq,
@@ -164,8 +192,286 @@ begin
         
         AUD_BCLK => bclk,
         AUD_DACDAT => dacdat,
-        AUD_DACLRCK => daclrck
+        AUD_DACLRCK => daclrck,
+
+        CART_PINS_OUT => console_pins,
+        CART_PINS_IN => board_pins
     );
+
+    gen_cart : if USE_CART_DE1 generate
+        signal clk_cart    : std_logic := '0';
+        signal clk_cart_we : std_logic := '0';
+
+        signal board_drive : cart_board_drive_t;
+        signal cart_ready  : std_logic;
+        signal cart_loading   : std_logic;
+        signal cart_sd_failed : std_logic;
+
+        signal cart_dram_addr  : std_logic_vector(11 downto 0);
+        signal cart_dram_ba_0  : std_logic;
+        signal cart_dram_ba_1  : std_logic;
+        signal cart_dram_cas_n : std_logic;
+        signal cart_dram_cke   : std_logic;
+        signal cart_dram_clk   : std_logic;
+        signal cart_dram_cs_n  : std_logic;
+        signal cart_dram_dq    : std_logic_vector(15 downto 0);
+        signal cart_dram_ldqm  : std_logic;
+        signal cart_dram_udqm  : std_logic;
+        signal cart_dram_ras_n : std_logic;
+        signal cart_dram_we_n  : std_logic;
+
+        signal cart_sd_dat  : std_logic;
+        signal cart_sd_dat3 : std_logic;
+        signal cart_sd_cmd  : std_logic;
+        signal cart_sd_clk  : std_logic;
+
+        constant CART_CLK_PERIOD : time := CART_CLK_PERIOD_PS * 1 ps;
+        constant CART_CLK_OFFSET : time := CART_CLK_OFFSET_PS * 1 ps;
+    begin
+        -- The reset button, held until the cartridge is ready
+        key(0) <= '1' when cart_ready = '1' else '0';
+
+        cart : cart_de1
+        generic map
+        (
+            POWER_UP_MODE => POWER_UP_DETERMINISTIC,
+            DOT_CLOCKS => 186243 ps / CART_CLK_PERIOD,
+            ROM_START_DELAY => CART_ROM_START_DELAY
+        )
+        port map
+        (
+            CLOCK_50 => clk_cart,
+            CLOCK_WE => clk_cart_we,
+            RESET_N => '1',
+
+            READY => cart_ready,
+            LOADING => cart_loading,
+            SD_FAILED => cart_sd_failed,
+
+            DRAM_ADDR => cart_dram_addr,
+            DRAM_BA_0 => cart_dram_ba_0,
+            DRAM_BA_1 => cart_dram_ba_1,
+            DRAM_CAS_N => cart_dram_cas_n,
+            DRAM_CKE => cart_dram_cke,
+            DRAM_CLK => cart_dram_clk,
+            DRAM_CS_N => cart_dram_cs_n,
+            DRAM_DQ => cart_dram_dq,
+            DRAM_LDQM => cart_dram_ldqm,
+            DRAM_UDQM => cart_dram_udqm,
+            DRAM_RAS_N => cart_dram_ras_n,
+            DRAM_WE_N => cart_dram_we_n,
+
+            SD_DAT => cart_sd_dat,
+            SD_DAT3 => cart_sd_dat3,
+            SD_CMD => cart_sd_cmd,
+            SD_CLK => cart_sd_clk,
+
+            CART_PINS_IN => console_pins,
+            CART_CPU_DATA => board_pins.cpu_data,
+            CART_PPU_DATA => board_pins.ppu_data,
+            CART_PINS_OUT => board_drive
+        );
+
+        -- The cartridge's status, as its LEDs would show it
+        process(cart_ready, cart_loading, cart_sd_failed)
+        is
+            variable l : line;
+        begin
+            write(l, string'("nes_de1_bench: "));
+            write(l, now);
+            write(l, string'(" cartridge loading "));
+            write(l, cart_loading);
+            write(l, string'(" ready "));
+            write(l, cart_ready);
+            write(l, string'(" SD failed "));
+            write(l, cart_sd_failed);
+            writeline(output, l);
+        end process;
+
+        process(console_pins.m2, console_pins.romsel_n)
+        is
+            variable cycles : natural := 0;
+            -- /ROMSEL was low in this cycle. It rises as M2 falls
+            variable romsel : std_logic := '0';
+            variable l      : line;
+        begin
+            if falling_edge(console_pins.romsel_n)
+            then
+                romsel := '1';
+            end if;
+
+            if falling_edge(console_pins.m2) and cart_ready = '1' and
+               now >= CART_TRACE_FROM_MS * 1 ms and
+               cycles < CART_TRACE_CYCLES
+            then
+                write(l, string'("nes_de1_bench: "));
+                write(l, now);
+                write(l, string'(" CPU "));
+                write(l, to_hstring(romsel & console_pins.cpu_addr));
+                if console_pins.cpu_rw = '1'
+                then
+                    write(l, string'(" R "));
+                else
+                    write(l, string'(" W "));
+                end if;
+                write(l, to_hstring(board_pins.cpu_data));
+                writeline(output, l);
+                cycles := cycles + 1;
+            end if;
+
+            if falling_edge(console_pins.m2)
+            then
+                romsel := '0';
+            end if;
+        end process;
+
+        process(console_pins.ppu_rd_n, console_pins.ppu_wr_n)
+        is
+            variable accesses : natural := 0;
+            variable l        : line;
+        begin
+            if (rising_edge(console_pins.ppu_rd_n) or
+                rising_edge(console_pins.ppu_wr_n)) and cart_ready = '1' and
+               now >= CART_TRACE_FROM_MS * 1 ms and
+               accesses < CART_TRACE_ACCESSES
+            then
+                write(l, string'("nes_de1_bench: "));
+                write(l, now);
+                write(l, string'(" PPU "));
+                write(l, to_hstring("00" & console_pins.ppu_addr));
+                if rising_edge(console_pins.ppu_rd_n)
+                then
+                    write(l, string'(" R "));
+                else
+                    write(l, string'(" W "));
+                end if;
+                write(l, to_hstring(board_pins.ppu_data));
+                write(l, string'(" CIRAM /CE "));
+                write(l, board_pins.ciram_ce_n);
+                write(l, string'(" A10 "));
+                write(l, board_pins.ciram_a10);
+                writeline(output, l);
+                accesses := accesses + 1;
+            end if;
+        end process;
+
+        -- The shared data buses. A bit nobody drives keeps its last value,
+        -- which a board would do with bus hold
+        process(console_pins, board_drive)
+        is
+            variable value : data_t := (others => '0');
+            variable l     : line;
+        begin
+            for i in value'range
+            loop
+                if console_pins.cpu_data_oe and board_drive.cpu_data_oe(i) = '1'
+                then
+                    value(i) := 'X';
+                elsif console_pins.cpu_data_oe
+                then
+                    value(i) := console_pins.cpu_data(i);
+                elsif board_drive.cpu_data_oe(i) = '1'
+                then
+                    value(i) := board_drive.cpu_data(i);
+                end if;
+            end loop;
+
+            if console_pins.cpu_data_oe and board_drive.cpu_data_oe /= x"00"
+            then
+                write(l, string'("nes_de1_bench: "));
+                write(l, now);
+                write(l, string'(" CPU data bus driven by both sides"));
+                writeline(output, l);
+            end if;
+
+            board_pins.cpu_data <= value;
+        end process;
+
+        process(console_pins, board_drive)
+        is
+            variable value : data_t := (others => '0');
+            variable l     : line;
+        begin
+            if console_pins.ppu_data_oe and board_drive.ppu_data_oe
+            then
+                write(l, string'("nes_de1_bench: "));
+                write(l, now);
+                write(l, string'(" PPU data bus driven by both sides"));
+                writeline(output, l);
+                value := (others => 'X');
+            elsif console_pins.ppu_data_oe
+            then
+                value := console_pins.ppu_data;
+            elsif board_drive.ppu_data_oe
+            then
+                value := board_drive.ppu_data;
+            end if;
+            board_pins.ppu_data <= value;
+        end process;
+
+        -- /IRQ is pulled up by the console
+        board_pins.irq_n <= '0' when board_drive.irq_n = '0' else '1';
+        board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
+        board_pins.ciram_a10 <= board_drive.ciram_a10;
+
+        cart_ram : entity work.sdram(behavioral)
+        port map
+        (
+            clk => cart_dram_clk,
+            cke => cart_dram_cke,
+            cs_n => cart_dram_cs_n,
+            ras_n => cart_dram_ras_n,
+            cas_n => cart_dram_cas_n,
+            we_n => cart_dram_we_n,
+            ba(0) => cart_dram_ba_0,
+            ba(1) => cart_dram_ba_1,
+            addr => cart_dram_addr,
+            ldqm => cart_dram_ldqm,
+            udqm => cart_dram_udqm,
+            dq => cart_dram_dq
+        );
+
+        cart_sd : entity work.sd_card(behavioral)
+        generic map
+        (
+            FILEPATH => NES_FILEPATH,
+            FILE_BYTES => NES_FILE_BYTES
+        )
+        port map
+        (
+            sck => cart_sd_clk,
+            cs_n => cart_sd_dat3,
+            mosi => cart_sd_cmd,
+            miso => cart_sd_dat
+        );
+
+        cart_sd_dat <= 'H';
+
+        clk_cart_gen : clock
+        generic map
+        (
+            PERIOD => CART_CLK_PERIOD,
+            OFFSET => CART_CLK_PERIOD + CART_CLK_OFFSET
+        )
+        port map
+        (
+            clk => clk_cart,
+            done => false
+        );
+
+        -- As clk_we leads clk_50
+        clk_cart_we_gen : clock
+        generic map
+        (
+            PERIOD => CART_CLK_PERIOD,
+            OFFSET => CART_CLK_PERIOD + CART_CLK_OFFSET - 2143 ps
+        )
+        port map
+        (
+            clk => clk_cart_we,
+            done => false
+        );
+    end generate;
 
     vga_out.color.red <= VGA_R;
     vga_out.color.green <= VGA_G;
