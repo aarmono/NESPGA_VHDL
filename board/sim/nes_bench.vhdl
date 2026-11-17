@@ -91,10 +91,11 @@ generic
     -- with M2 in its place
     LOOPBACK_DOT_OFFSET : natural := 0;
     -- NROM_SLOT access times in ns: address to data for the PRG and CHR
-    -- ROMs, and PPU A10, A11 and /A13 to CIRAM A10 and /CE, level shifters
-    -- included. See nrom_cart
+    -- ROMs, /RD to data for the memories on the PPU bus, and PPU A10, A11
+    -- and /A13 to CIRAM A10 and /CE, level shifters included. See nrom_cart
     SLOT_PRG_ACCESS_NS  : natural := 150;
     SLOT_CHR_ACCESS_NS  : natural := 150;
+    SLOT_OE_ACCESS_NS   : natural := 50;
     SLOT_CIRAM_DELAY_NS : natural := 30
 );
 end nes_bench;
@@ -350,6 +351,7 @@ begin
             NES_FILE_BYTES => NES_FILE_BYTES,
             PRG_ACCESS => SLOT_PRG_ACCESS_NS * 1 ns,
             CHR_ACCESS => SLOT_CHR_ACCESS_NS * 1 ns,
+            OE_ACCESS => SLOT_OE_ACCESS_NS * 1 ns,
             CIRAM_DELAY => SLOT_CIRAM_DELAY_NS * 1 ns,
             -- cart_slot samples on every clock, and the console takes the
             -- sample of the clock before M2 falls, or two clocks before /RD
