@@ -23,7 +23,9 @@ generic
     -- Vendor of the on-chip RAMs. See syncram_sp
     VENDOR           : vendor_t := VENDOR_ALTERA;
     -- See cart_system
-    CART_BOARDS      : board_set_t := ALL_BOARDS
+    CART_BOARDS      : board_set_t := ALL_BOARDS;
+    -- See cart_system. Needs USE_EXT_CART_RAM
+    SPLIT_MEM_BUS    : boolean := false
 );
 port
 (
@@ -55,7 +57,16 @@ port
 
     cart_mem_bus       : out cart_mem_bus_t;
     data_to_cart_mem   : out data_t;
-    data_from_cart_mem : in data_t
+    data_from_cart_mem : in data_t := (others => '-');
+
+    -- See cart_system
+    prg_mem_bus       : out cart_mem_bus_t;
+    data_to_prg_mem   : out data_t;
+    data_from_prg_mem : in data_t := (others => '-');
+
+    chr_mem_bus       : out cart_mem_bus_t;
+    data_to_chr_mem   : out data_t;
+    data_from_chr_mem : in data_t := (others => '-')
 );
 end cart_system_ocram;
 
@@ -78,7 +89,8 @@ begin
     sys : entity work.cart_system(behavioral)
     generic map
     (
-        CART_BOARDS => CART_BOARDS
+        CART_BOARDS => CART_BOARDS,
+        SPLIT_MEM_BUS => SPLIT_MEM_BUS
     )
     port map
     (
@@ -107,6 +119,14 @@ begin
         data_to_cart_mem => sys_data_to_cart_mem,
         data_from_cart_mem => sys_data_from_cart_mem,
 
+        prg_mem_bus => prg_mem_bus,
+        data_to_prg_mem => data_to_prg_mem,
+        data_from_prg_mem => data_from_prg_mem,
+
+        chr_mem_bus => chr_mem_bus,
+        data_to_chr_mem => data_to_chr_mem,
+        data_from_chr_mem => data_from_chr_mem,
+
         chip_ram_bus => chip_ram_bus,
         data_to_chip_ram => data_to_chip_ram,
         data_from_chip_ram => data_from_chip_ram,
@@ -115,6 +135,10 @@ begin
         data_to_opll_ram => data_to_opll_ram,
         data_from_opll_ram => data_from_opll_ram
     );
+
+    assert USE_EXT_CART_RAM or not SPLIT_MEM_BUS
+        report "cart_system_ocram: SPLIT_MEM_BUS needs USE_EXT_CART_RAM"
+        severity failure;
 
     gen_cart_ram : if USE_EXT_CART_RAM generate
     begin

@@ -19,7 +19,11 @@ entity cart_system is
 generic
 (
     -- The boards the cartridge is built as. See board_set_t
-    CART_BOARDS : board_set_t := ALL_BOARDS
+    CART_BOARDS : board_set_t := ALL_BOARDS;
+    -- Give the memory the board's two channels as they are, rather than
+    -- one access per PPU cycle on the cartridge memory bus, for a memory
+    -- that serves each when it is asked. See prg_mem_bus
+    SPLIT_MEM_BUS : boolean := false
 );
 port
 (
@@ -66,6 +70,18 @@ port
     data_to_cart_mem   : out data_t;
     data_from_cart_mem : in data_t;
 
+    -- With SPLIT_MEM_BUS, the two channels of the cartridge memory bus,
+    -- which is then unused: the accesses the board makes for the CPU and
+    -- for the PPU. Each holds its access until the board moves on, and the
+    -- memory answers both at once, as soon as it can
+    prg_mem_bus       : out cart_mem_bus_t;
+    data_to_prg_mem   : out data_t;
+    data_from_prg_mem : in data_t := (others => '-');
+
+    chr_mem_bus       : out cart_mem_bus_t;
+    data_to_chr_mem   : out data_t;
+    data_from_chr_mem : in data_t := (others => '-');
+
     -- RAM inside the mapper chip
     chip_ram_bus       : out chip_ram_bus_t;
     data_to_chip_ram   : out data_t;
@@ -104,26 +120,46 @@ is
 
 begin
 
-    cart_mem_mux : entity work.cart_mem_bus_mux(behavioral)
-    port map
-    (
-        clk => clk,
-        clk_en => ppu_en,
-        clk_sync => clk_sync,
-        reset => reset,
+    gen_mem_bus : if not SPLIT_MEM_BUS generate
+    begin
+        cart_mem_mux : entity work.cart_mem_bus_mux(behavioral)
+        port map
+        (
+            clk => clk,
+            clk_en => ppu_en,
+            clk_sync => clk_sync,
+            reset => reset,
 
-        cart_mem_bus_chr => cart_mem_bus_chr,
-        data_from_chr_bus => data_to_cart_mem_chr,
-        data_to_chr_bus => data_from_cart_mem_chr,
+            cart_mem_bus_chr => cart_mem_bus_chr,
+            data_from_chr_bus => data_to_cart_mem_chr,
+            data_to_chr_bus => data_from_cart_mem_chr,
 
-        cart_mem_bus_prg => cart_mem_bus_prg,
-        data_from_prg_bus => data_to_cart_mem_prg,
-        data_to_prg_bus => data_from_cart_mem_prg,
+            cart_mem_bus_prg => cart_mem_bus_prg,
+            data_from_prg_bus => data_to_cart_mem_prg,
+            data_to_prg_bus => data_from_cart_mem_prg,
 
-        cart_mem_bus_out => cart_mem_bus,
-        data_to_cart_mem => data_to_cart_mem,
-        data_from_cart_mem => data_from_cart_mem
-    );
+            cart_mem_bus_out => cart_mem_bus,
+            data_to_cart_mem => data_to_cart_mem,
+            data_from_cart_mem => data_from_cart_mem
+        );
+
+        prg_mem_bus <= CART_MEM_BUS_IDLE;
+        data_to_prg_mem <= (others => '-');
+        chr_mem_bus <= CART_MEM_BUS_IDLE;
+        data_to_chr_mem <= (others => '-');
+    else generate
+    begin
+        cart_mem_bus <= CART_MEM_BUS_IDLE;
+        data_to_cart_mem <= (others => '-');
+
+        prg_mem_bus <= cart_mem_bus_prg;
+        data_to_prg_mem <= data_to_cart_mem_prg;
+        data_from_cart_mem_prg <= data_from_prg_mem;
+
+        chr_mem_bus <= cart_mem_bus_chr;
+        data_to_chr_mem <= data_to_cart_mem_chr;
+        data_from_cart_mem_chr <= data_from_chr_mem;
+    end generate;
 
     cart_in.cpu <= cpu_in;
     cart_in.ppu <= ppu_in;

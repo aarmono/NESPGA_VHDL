@@ -135,7 +135,7 @@ set nes_core_regs [get_registers [list \
     "$nes_console|oam_dma:nes_oam_dma|*" \
     "$nes_console|joystick_io:nes_joystick_io|*" \
     "$nes_console|reg.*" \
-    "$cart_system|cart_mem_bus_mux:cart_mem_mux|*" \
+    "$cart_system|cart_mem_bus_mux:*cart_mem_mux|*" \
     "$cart_system|cartridge:board|*" \
     "$cart_system|reg.*" \
     "$nes_console|cart_irq" \

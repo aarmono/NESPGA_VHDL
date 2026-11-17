@@ -17,7 +17,8 @@ package cart is
     component cart_system is
     generic
     (
-        CART_BOARDS : board_set_t := ALL_BOARDS
+        CART_BOARDS : board_set_t := ALL_BOARDS;
+        SPLIT_MEM_BUS : boolean := false
     );
     port
     (
@@ -46,6 +47,14 @@ package cart is
         data_to_cart_mem   : out data_t;
         data_from_cart_mem : in data_t;
 
+        prg_mem_bus       : out cart_mem_bus_t;
+        data_to_prg_mem   : out data_t;
+        data_from_prg_mem : in data_t := (others => '-');
+
+        chr_mem_bus       : out cart_mem_bus_t;
+        data_to_chr_mem   : out data_t;
+        data_from_chr_mem : in data_t := (others => '-');
+
         chip_ram_bus       : out chip_ram_bus_t;
         data_to_chip_ram   : out data_t;
         data_from_chip_ram : in data_t;
@@ -62,7 +71,8 @@ package cart is
     (
         USE_EXT_CART_RAM : boolean := false;
         VENDOR           : vendor_t := VENDOR_ALTERA;
-        CART_BOARDS      : board_set_t := ALL_BOARDS
+        CART_BOARDS      : board_set_t := ALL_BOARDS;
+        SPLIT_MEM_BUS    : boolean := false
     );
     port
     (
@@ -90,7 +100,15 @@ package cart is
 
         cart_mem_bus       : out cart_mem_bus_t;
         data_to_cart_mem   : out data_t;
-        data_from_cart_mem : in data_t
+        data_from_cart_mem : in data_t := (others => '-');
+
+        prg_mem_bus       : out cart_mem_bus_t;
+        data_to_prg_mem   : out data_t;
+        data_from_prg_mem : in data_t := (others => '-');
+
+        chr_mem_bus       : out cart_mem_bus_t;
+        data_to_chr_mem   : out data_t;
+        data_from_chr_mem : in data_t := (others => '-')
     );
     end component cart_system_ocram;
 
