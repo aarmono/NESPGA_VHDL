@@ -17,19 +17,25 @@ use work.cart_pin_types.all;
 -- relative to each other is kept: the address changing a clock after M2
 -- falls is still a clock of hold time here.
 --
--- Clock enables. cpu_en is the first clock M2 is low (after the
--- synchronizer). The connector carries no dot clock, so the dots are placed
--- from M2: the CPU cycle is split into two dots of a third of the last
--- measured M2 period, rounded down, starting on cpu_en, and a last one that
--- takes what is left: the sync dot. So ppu_en is at cpu_en and one and two
--- thirds after it, ram_en RAM_EN_CLOCKS into each dot, and clk_sync is set
--- through the sync dot. The boards count CPU cycles and PPU accesses, not
--- dots (but for the MMC3's and TC0690's A12 filters), so the dots need not
--- line up with the console's: in a real console those sit up to 3 master
--- clocks off M2. With the console's clock at the same frequency, as in
--- nes_bench, they are the console's enables, 3 clocks later. A period that
--- is cut short or far too long (no M2) is not measured, and until one is
--- the dots are DOT_CLOCKS.
+-- Clock enables. The connector carries no dot clock, so the dots are made
+-- from M2 and the PPU's accesses. A CPU cycle is split into two dots of a
+-- third of the last measured M2 period, rounded down, starting on cpu_en,
+-- and a last one that takes what is left: the sync dot. So ppu_en is at
+-- cpu_en and one and two thirds after it, ram_en RAM_EN_CLOCKS into each
+-- dot, and clk_sync is set through the sync dot. A period that is cut short
+-- or far too long (no M2) is not measured, and until one is the dots are
+-- DOT_CLOCKS.
+--
+-- cpu_en is a phase of clocks after M2 falls (after the synchronizer), less
+-- than a dot, which follows the PPU. The cartridge has to see an access in
+-- the dot it starts in, and in time for its ram_en, or it answers a dot
+-- late. The PPU's dots sit anywhere from 0 to 3 master clocks off M2, but
+-- /RD and /WR fall at the same point in each of them. So where they fall in
+-- the cartridge's dots moves the phase a clock at a time, on the next
+-- cpu_en, until they fall between the first clock of a dot and the one
+-- before ram_en. The boards count CPU cycles and PPU accesses, not dots (but
+-- for the MMC3's and TC0690's A12 filters), so the dots need not otherwise
+-- line up with the console's.
 --
 -- The cartridge sees the buses change only early in a dot. Its RAMs take an
 -- access on ram_en and the memory mux counts it as served on the ppu_en that
@@ -41,17 +47,18 @@ use work.cart_pin_types.all;
 --
 -- CPU side. Write data is only on the pins while M2 is high, and /ROMSEL is
 -- only low then, so the cartridge sees the bus as idle until M2 rises. Then
--- it sees the pins, and on cpu_en, when they have changed for M2 falling,
--- the bus as it was the clock before. The cartridge drives the data bus
--- while the M2 pin is high and R/W reads, for the bits its board drives:
--- the pins themselves gate it, as a real cartridge's bus buffer, so the bus
--- is let go as soon as M2 falls.
+-- it sees the pins, and from M2 falling to cpu_en, when they have changed
+-- for the next cycle, the bus as it was while M2 was high. The cartridge
+-- drives the data bus while the M2 pin is high and R/W reads, for the bits
+-- its board drives: the pins themselves gate it, as a real cartridge's bus
+-- buffer, so the bus is let go as soon as M2 falls.
 --
 -- PPU side. /RD and /WR fall on the first dot of an access, which is ALE.
 -- /WR rises as the dot ends, which is the clock the sync dot is sampled on,
 -- so a dot is a write if /WR fell in it, a read if /RD is low, and ALE if
--- either fell in it. Write data is held from while /WR was low. The
--- cartridge drives PPU data while the /RD pin is low.
+-- either fell in it. The address and write data are held from while /WR
+-- was low, for a write that shows a dot late. The cartridge drives PPU data
+-- while the /RD pin is low.
 --
 -- The data, /IRQ and CIRAM pins come straight from the cartridge's outputs.
 -- The board computes those from its registers and the synchronized pins, so
@@ -106,6 +113,15 @@ is
     -- RAM_EN_CLOCKS
     constant MIN_PERIOD : positive := 3 * (RAM_EN_CLOCKS + 1);
 
+    -- Where /RD and /WR should fall in a dot, in clocks after its ppu_en
+    constant FALL_POS_MIN : natural := 1;
+    constant FALL_POS_MAX : natural := RAM_EN_CLOCKS - 1;
+
+    -- Clocks from M2 falling to cpu_en: less than a dot
+    subtype phase_t is natural range 0 to MAX_COUNT / 3;
+
+    subtype dot_idx_t is natural range 0 to 2;
+
     -- The pins the cartridge reads
     type edge_pins_t is record
         m2       : std_logic;
@@ -140,20 +156,31 @@ is
         m2_prev  : std_logic;
         rd_prev  : std_logic;
         wr_prev  : std_logic;
-        -- The CPU bus while M2 was high, for cpu_en
+        -- The CPU bus while M2 was high, until cpu_en
         cpu_hold : cart_cpu_in_t;
-        -- Clocks since cpu_en
-        count    : edge_count_t;
-        -- The counts that start the second and third dots
-        dot_2    : edge_count_t;
-        dot_3    : edge_count_t;
+        -- Clocks since M2 fell
+        m2_count : edge_count_t;
+        -- M2 fell, and cpu_en hasn't come yet
+        cpu_pending : boolean;
+        -- A third of the last M2 period, for the dots from the next cpu_en
+        third    : phase_t;
+        -- Clocks from M2 falling to cpu_en, and that from the next cpu_en
+        phase      : phase_t;
+        phase_next : phase_t;
+        -- The dot of the CPU cycle, from 0 at cpu_en to 2 for the sync dot
+        dot_idx  : dot_idx_t;
+        -- Clocks since ppu_en
+        dot_pos  : phase_t;
+        -- The clocks in the first two dots of the CPU cycle
+        dot_len  : phase_t;
         -- /RD or /WR fell since the buses were last held
         rd_fell  : boolean;
         wr_fell  : boolean;
         -- The buses held from ram_en to the end of the dot
         cpu_held : cart_cpu_in_t;
         ppu_held : cart_ppu_in_t;
-        -- PPU write data while /WR was low
+        -- The PPU address and write data while /WR was low
+        ppu_wr_addr : chr_addr_t;
         ppu_wr_data : data_t;
     end record;
 
@@ -172,9 +199,14 @@ is
             romsel => false,
             data => (others => '0')
         ),
-        count => MAX_COUNT,
-        dot_2 => DOT_CLOCKS,
-        dot_3 => 2 * DOT_CLOCKS,
+        m2_count => MAX_COUNT,
+        cpu_pending => false,
+        third => DOT_CLOCKS,
+        phase => DOT_CLOCKS / 2,
+        phase_next => DOT_CLOCKS / 2,
+        dot_idx => 2,
+        dot_pos => phase_t'high,
+        dot_len => DOT_CLOCKS,
         rd_fell => false,
         wr_fell => false,
         cpu_held =>
@@ -193,6 +225,7 @@ is
             ale => false,
             data => (others => '0')
         ),
+        ppu_wr_addr => (others => '0'),
         ppu_wr_data => (others => '0')
     );
 
@@ -219,26 +252,68 @@ is
         );
     end;
 
-    function is_cpu_en(reg : edge_reg_t) return boolean
+    function is_m2_fall(reg : edge_reg_t) return boolean
     is
     begin
         return reg.sync_2.m2 = '0' and reg.m2_prev = '1';
+    end;
+
+    -- M2 has fallen, and cpu_en is this clock or still to come
+    function is_cpu_pending(reg : edge_reg_t) return boolean
+    is
+    begin
+        return reg.cpu_pending or is_m2_fall(reg);
+    end;
+
+    function is_cpu_en(reg : edge_reg_t) return boolean
+    is
+        variable since_fall : edge_count_t;
+    begin
+        if is_m2_fall(reg)
+        then
+            since_fall := 0;
+        else
+            since_fall := reg.m2_count;
+        end if;
+        return is_cpu_pending(reg) and since_fall = reg.phase;
+    end;
+
+    -- A third of the M2 period that ends this clock, if it is measured
+    function get_third(reg : edge_reg_t) return phase_t
+    is
+    begin
+        if is_m2_fall(reg) and
+           reg.m2_count >= MIN_PERIOD and reg.m2_count < MAX_COUNT
+        then
+            return reg.m2_count / 3;
+        else
+            return reg.third;
+        end if;
     end;
 
     function is_ppu_en(reg : edge_reg_t) return boolean
     is
     begin
         return is_cpu_en(reg) or
-               reg.count = reg.dot_2 or
-               reg.count = reg.dot_3;
+               (reg.dot_idx /= 2 and reg.dot_pos = reg.dot_len);
     end;
 
     function is_ram_en(reg : edge_reg_t) return boolean
     is
     begin
-        return reg.count = RAM_EN_CLOCKS or
-               reg.count = reg.dot_2 + RAM_EN_CLOCKS or
-               reg.count = reg.dot_3 + RAM_EN_CLOCKS;
+        return reg.dot_pos = RAM_EN_CLOCKS;
+    end;
+
+    -- Clocks since the last ppu_en, 0 on a ppu_en
+    function get_dot_pos(reg : edge_reg_t) return phase_t
+    is
+    begin
+        if is_ppu_en(reg)
+        then
+            return 0;
+        else
+            return reg.dot_pos;
+        end if;
     end;
 
     function is_rd_fall(reg : edge_reg_t) return boolean
@@ -272,23 +347,19 @@ is
     function is_held(reg : edge_reg_t) return boolean
     is
     begin
-        return (reg.count > RAM_EN_CLOCKS and
-                reg.count <= reg.dot_2) or
-               (reg.count > reg.dot_2 + RAM_EN_CLOCKS and
-                reg.count <= reg.dot_3) or
-               reg.count > reg.dot_3 + RAM_EN_CLOCKS;
+        return reg.dot_pos > RAM_EN_CLOCKS;
     end;
 
     -- The CPU bus as the pins show it now
     function get_pin_cpu_in(reg : edge_reg_t) return cart_cpu_in_t
     is
     begin
-        if reg.sync_2.m2 = '1'
-        then
-            return get_m2_bus(reg.sync_2);
-        elsif is_cpu_en(reg)
+        if is_cpu_pending(reg)
         then
             return reg.cpu_hold;
+        elsif reg.sync_2.m2 = '1'
+        then
+            return get_m2_bus(reg.sync_2);
         else
             return
             (
@@ -305,20 +376,29 @@ is
     function get_pin_ppu_in(reg : edge_reg_t) return cart_ppu_in_t
     is
         variable write : boolean;
+        variable addr  : chr_addr_t;
         variable data  : data_t;
     begin
         write := reg.wr_fell or reg.sync_2.ppu_wr_n = '0';
 
+        -- A write after /WR rose is to where /WR was low: the PPU has moved
+        -- on to its next access by then
         if reg.sync_2.ppu_wr_n = '0'
         then
+            addr := reg.sync_2.ppu_addr;
             data := reg.sync_2.ppu_data;
+        elsif write
+        then
+            addr := reg.ppu_wr_addr;
+            data := reg.ppu_wr_data;
         else
+            addr := reg.sync_2.ppu_addr;
             data := reg.ppu_wr_data;
         end if;
 
         return
         (
-            chr_bus => (address => reg.sync_2.ppu_addr,
+            chr_bus => (address => addr,
                         read => not write and reg.sync_2.ppu_rd_n = '0',
                         write => write),
             ale => reg.rd_fell or reg.wr_fell or
@@ -396,11 +476,44 @@ is
         ppu_data_bus : data_t;
     end record;
 
+    -- The phase that moves a fall of /RD or /WR a clock toward FALL_POS_MIN
+    -- to FALL_POS_MAX in the dot: later if it fell late in the dot, earlier
+    -- if it fell early or near the end
+    function get_phase_next(reg : edge_reg_t) return phase_t
+    is
+        variable pos   : phase_t;
+        variable phase : integer;
+    begin
+        pos := get_dot_pos(reg);
+        phase := reg.phase;
+        if pos > FALL_POS_MAX
+        then
+            if 2 * pos <= reg.third + FALL_POS_MIN + FALL_POS_MAX
+            then
+                phase := phase + 1;
+            else
+                phase := phase - 1;
+            end if;
+        elsif pos < FALL_POS_MIN
+        then
+            phase := phase - 1;
+        end if;
+
+        if phase < 0
+        then
+            return reg.third - 1;
+        elsif phase >= reg.third
+        then
+            return 0;
+        else
+            return phase;
+        end if;
+    end;
+
     function cycle_cart_edge(edge_in : edge_in_t) return edge_reg_t
     is
-        variable reg    : edge_reg_t;
-        variable period : edge_count_t;
-        variable third  : edge_count_t;
+        variable reg   : edge_reg_t;
+        variable third : phase_t;
     begin
         reg := edge_in.reg;
 
@@ -412,26 +525,48 @@ is
         reg.rd_prev := edge_in.reg.sync_2.ppu_rd_n;
         reg.wr_prev := edge_in.reg.sync_2.ppu_wr_n;
 
-        if edge_in.reg.sync_2.m2 = '1'
+        if edge_in.reg.sync_2.m2 = '1' and not is_cpu_pending(edge_in.reg)
         then
             reg.cpu_hold := get_m2_bus(edge_in.reg.sync_2);
         end if;
 
+        third := get_third(edge_in.reg);
+        reg.third := third;
+
+        if is_m2_fall(edge_in.reg)
+        then
+            reg.m2_count := 1;
+        elsif edge_in.reg.m2_count < MAX_COUNT
+        then
+            reg.m2_count := edge_in.reg.m2_count + 1;
+        end if;
+
+        if is_ppu_en(edge_in.reg)
+        then
+            reg.dot_pos := 1;
+        elsif edge_in.reg.dot_pos < phase_t'high
+        then
+            reg.dot_pos := edge_in.reg.dot_pos + 1;
+        end if;
+
+        if is_rd_fall(edge_in.reg) or is_wr_fall(edge_in.reg)
+        then
+            reg.phase_next := get_phase_next(edge_in.reg);
+        end if;
+
         if is_cpu_en(edge_in.reg)
         then
-            reg.count := 1;
-
-            -- The CPU cycle that ends here sets the dots of the next one
-            period := edge_in.reg.count;
-            if period >= MIN_PERIOD and period < MAX_COUNT
+            -- The last M2 period and the PPU set the next CPU cycle's dots
+            reg.cpu_pending := false;
+            reg.dot_idx := 0;
+            reg.dot_len := third;
+            reg.phase := edge_in.reg.phase_next;
+        else
+            reg.cpu_pending := is_cpu_pending(edge_in.reg);
+            if is_ppu_en(edge_in.reg)
             then
-                third := period / 3;
-                reg.dot_2 := third;
-                reg.dot_3 := 2 * third;
+                reg.dot_idx := edge_in.reg.dot_idx + 1;
             end if;
-        elsif edge_in.reg.count < MAX_COUNT
-        then
-            reg.count := edge_in.reg.count + 1;
         end if;
 
         if is_ram_en(edge_in.reg)
@@ -447,6 +582,7 @@ is
 
         if edge_in.reg.sync_2.ppu_wr_n = '0'
         then
+            reg.ppu_wr_addr := edge_in.reg.sync_2.ppu_addr;
             reg.ppu_wr_data := edge_in.reg.sync_2.ppu_data;
         end if;
 
@@ -463,7 +599,7 @@ begin
 
     cpu_en <= is_cpu_en(reg);
     ppu_en <= is_ppu_en(reg);
-    clk_sync <= reg.count > reg.dot_3;
+    clk_sync <= reg.dot_idx = 2;
     ram_en <= is_ram_en(reg);
 
     cpu_in <= get_cpu_in(reg);
