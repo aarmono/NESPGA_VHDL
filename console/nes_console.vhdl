@@ -35,12 +35,7 @@ generic
     -- See power_up_fill
     POWER_UP_SEED : natural := 0;
     -- See clk_en
-    INVERT_CYCLE_PARITY : boolean := false;
-    -- The cartridge is a real one, behind cart_slot. The PPU's RAMs sample
-    -- late in each dot, so that CIRAM /CE and A10 can come back from the
-    -- cartridge (see clk_en LATE_PPU_RAM_EN), and $2007 reads drive their
-    -- address for the whole CPU cycle (see ppu EARLY_DATA_READ)
-    CART_SLOT : boolean := false
+    INVERT_CYCLE_PARITY : boolean := false
 );
 port
 (
@@ -268,8 +263,7 @@ begin
         CLK_FREQ => CLK_FREQ,
         CPU_FREQ_NUM => CPU_FREQ_NUM,
         CPU_FREQ_DEN => CPU_FREQ_DEN,
-        INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
-        LATE_PPU_RAM_EN => CART_SLOT
+        INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
     )
     port map
     (
@@ -349,10 +343,6 @@ begin
     );
 
     nes_ppu : ppu
-    generic map
-    (
-        EARLY_DATA_READ => CART_SLOT
-    )
     port map
     (
         clk    => clk,

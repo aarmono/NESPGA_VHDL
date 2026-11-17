@@ -61,10 +61,6 @@ package nes_core is
     end component apu;
     
     component ppu is
-    generic
-    (
-        EARLY_DATA_READ : boolean := false
-    );
     port
     (
         clk               : in std_logic;
@@ -152,8 +148,7 @@ package nes_core is
         CLK_FREQ     : positive := 50_000_000;
         CPU_FREQ_NUM : positive := 39_375_000;
         CPU_FREQ_DEN : positive := 22;
-        INVERT_CYCLE_PARITY : boolean := false;
-        LATE_PPU_RAM_EN : boolean := false
+        INVERT_CYCLE_PARITY : boolean := false
     );
     port
     (

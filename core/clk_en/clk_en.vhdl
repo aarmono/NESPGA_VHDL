@@ -23,12 +23,7 @@ generic
     -- depends on how many CPU cycles came before (the RAM fill and ROM load
     -- run on them), and a real 2A03 comes out of reset in either alignment.
     -- For matching another simulation
-    INVERT_CYCLE_PARITY : boolean := false;
-    -- Put ppu_ram_en 2 clocks before the end of each dot rather than about
-    -- 4 clocks into it. A real cartridge returns CIRAM /CE and A10 for the
-    -- address of the dot, so the console's CIRAM must sample them as late as
-    -- it can. Needs dots of at least 3 clocks
-    LATE_PPU_RAM_EN : boolean := false
+    INVERT_CYCLE_PARITY : boolean := false
 );
 port
 (
@@ -107,44 +102,16 @@ architecture behavioral of clk_en is
 
     -- The RAM enable after the PPU enable at count 0 follows the wrap, so it
     -- also absorbs the remainder
-    constant EARLY_RAM_EN_COUNT_ARR : ppu_en_arr_t :=
+    constant PPU_RAM_EN_COUNT_ARR : ppu_en_arr_t :=
     (
         3 * PPU_DIV - RAM_OFFSET,
         PPU_DIV - RAM_OFFSET,
         2 * PPU_DIV - RAM_OFFSET
     );
 
-    -- Clocks before the next PPU enable of a late RAM enable
-    constant LATE_RAM_LEAD : integer := 2;
-
-    -- The count runs down, so each dot's late RAM enable is a fixed number
-    -- of counts above the PPU enable that ends the dot. The dot that ends at
-    -- count 2 * PPU_DIV is the one that absorbs the remainder
-    constant LATE_RAM_EN_COUNT_ARR : ppu_en_arr_t :=
-    (
-        2 * PPU_DIV + LATE_RAM_LEAD,
-        LATE_RAM_LEAD,
-        PPU_DIV + LATE_RAM_LEAD
-    );
-
-    function get_ppu_ram_en_count_arr(late : boolean) return ppu_en_arr_t
-    is
-    begin
-        if late
-        then
-            return LATE_RAM_EN_COUNT_ARR;
-        else
-            return EARLY_RAM_EN_COUNT_ARR;
-        end if;
-    end;
-
-    constant PPU_RAM_EN_COUNT_ARR : ppu_en_arr_t :=
-        get_ppu_ram_en_count_arr(LATE_PPU_RAM_EN);
-
     constant CPU_EN_COUNT : cpu_count_t := PPU_EN_COUNT_ARR(2);
 
-    -- The CPU's RAMs keep the early enable
-    constant CPU_RAM_EN_COUNT : cpu_count_t := EARLY_RAM_EN_COUNT_ARR(2);
+    constant CPU_RAM_EN_COUNT : cpu_count_t := PPU_RAM_EN_COUNT_ARR(2);
 
     -- CPU/PPU sync period is the cycle when both ppu_en and cpu_en are high.
     -- It starts at the beginning of the CPU cycle, just after the previous
@@ -192,10 +159,6 @@ begin
     -- A stretch makes a cycle a clock longer still
     assert CPU_DIV >= 6 and MAX_CPU_DIV <= 30
         report "clk_en: CPU cycles must be 6 to 30 clocks long"
-        severity failure;
-
-    assert not LATE_PPU_RAM_EN or PPU_DIV > LATE_RAM_LEAD
-        report "clk_en: LATE_PPU_RAM_EN needs dots of at least 3 clocks"
         severity failure;
 
     assert NSF_DIV >= 1 and NSF_DIV <= 64

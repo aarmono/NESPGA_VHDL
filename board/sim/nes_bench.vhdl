@@ -89,10 +89,6 @@ generic
     -- /IRQ this many clocks late, so that it samples them where it would
     -- with M2 in its place
     LOOPBACK_DOT_OFFSET : natural := 0;
-    -- With NROM_SLOT or LOOPBACK_SLOT, give the console its timing for a real
-    -- cartridge (see nes_console CART_SLOT). False keeps the timing it has
-    -- with the emulated cartridge, for comparison
-    SLOT_TIMING : boolean := true;
     -- NROM_SLOT access times in ns: address to data for the PRG and CHR
     -- ROMs, and PPU A10, A11 and /A13 to CIRAM A10 and /CE, level shifters
     -- included. See nrom_cart
@@ -252,8 +248,7 @@ begin
             CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
             POWER_UP_MODE => POWER_UP_MODE,
             POWER_UP_SEED => POWER_UP_SEED,
-            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
-            CART_SLOT => SLOT_TIMING
+            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
         )
         port map
         (
@@ -463,8 +458,7 @@ begin
             CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
             POWER_UP_MODE => POWER_UP_MODE,
             POWER_UP_SEED => POWER_UP_SEED,
-            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
-            CART_SLOT => SLOT_TIMING
+            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
         )
         port map
         (

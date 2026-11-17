@@ -25,9 +25,7 @@ generic
     POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
     POWER_UP_SEED : natural := 0;
     -- See clk_en
-    INVERT_CYCLE_PARITY : boolean := false;
-    -- See nes_console
-    CART_SLOT : boolean := false
+    INVERT_CYCLE_PARITY : boolean := false
 );
 port
 (
@@ -114,8 +112,7 @@ begin
         CPU_FREQ_DEN => CPU_FREQ_DEN,
         POWER_UP_MODE => POWER_UP_MODE,
         POWER_UP_SEED => POWER_UP_SEED,
-        INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY,
-        CART_SLOT => CART_SLOT
+        INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
     )
     port map
     (

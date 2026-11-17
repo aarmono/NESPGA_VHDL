@@ -23,8 +23,7 @@ package console is
         CPU_FREQ_DEN : positive := 22;
         POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
         POWER_UP_SEED : natural := 0;
-        INVERT_CYCLE_PARITY : boolean := false;
-        CART_SLOT : boolean := false
+        INVERT_CYCLE_PARITY : boolean := false
     );
     port
     (
@@ -103,8 +102,7 @@ package console is
         CPU_FREQ_DEN : positive := 22;
         POWER_UP_MODE : power_up_mode_t := POWER_UP_ZERO;
         POWER_UP_SEED : natural := 0;
-        INVERT_CYCLE_PARITY : boolean := false;
-        CART_SLOT : boolean := false
+        INVERT_CYCLE_PARITY : boolean := false
     );
     port
     (
