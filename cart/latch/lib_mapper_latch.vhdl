@@ -224,7 +224,7 @@ package lib_mapper_latch is
 
     type latch_regs_t is array(latch_id_t) of latch_value_t;
 
-    subtype latch_chr_reads_t is natural range 0 to 2;
+    subtype latch_chr_reads_t is natural range 0 to 3;
 
     -- An integer, which is faster to simulate than a vector
     subtype latch_nibble_t is natural range 0 to 15;
@@ -232,7 +232,7 @@ package lib_mapper_latch is
 
     type mapper_latch_reg_t is record
         latches   : latch_regs_t;
-        -- Reads of CHR since reset, for chr_reads_disable
+        -- Reads of CHR started since reset, for chr_reads_disable
         chr_reads : latch_chr_reads_t;
         ram       : latch_nibble_ram_t;
     end record;
@@ -271,6 +271,20 @@ end package lib_mapper_latch;
 
 
 package body lib_mapper_latch is
+
+    -- CHR ROM is disabled for the first two reads of it after reset. A read
+    -- is counted on its first dot (ALE), so the dots after that one belong
+    -- to the read that was counted last
+    function chr_read_disabled
+    (
+        chr_reads : latch_chr_reads_t;
+        ale       : boolean
+    )
+    return boolean
+    is
+    begin
+        return chr_reads < 2 or (chr_reads = 2 and not ale);
+    end;
 
     -- The masks of the CHR RAM address for boards with more than 8KB
     constant CHR_RAM_16KB_MASK : chr_ram_addr_t := x"3FFF";
@@ -1322,7 +1336,8 @@ package body lib_mapper_latch is
                           cart_in.ppu.chr_bus.address(13) = '0';
             chr_disabled :=
                 not is_zero(ret.reg.latches(LATCH_CHR_DISABLE)) or
-                (board.chr_reads_disable and reg.chr_reads < 2);
+                (board.chr_reads_disable and
+                 chr_read_disabled(reg.chr_reads, cart_in.ppu.ale));
             if chr_access and chr_disabled
             then
                 ret.cart.mem.chr_rom_bus := CART_MEM_BUS_IDLE;
