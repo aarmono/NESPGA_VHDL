@@ -359,6 +359,12 @@ board/sim/ghdl/generated_roms/mmc5_ines.nes                         | 651ms     
 board/sim/ghdl/generated_roms/mmc5_ekrom.nes                        | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp
 board/sim/ghdl/generated_roms/mmc5_etrom.nes                        | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp
 board/sim/ghdl/generated_roms/mmc5_ewrom.nes                        | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp
+
+# Other line-ups of the CPU and PPU clocks at power up, which move the
+# results of the scanline IRQ timing trials (see mmc5.py group 16)
+board/sim/ghdl/generated_roms/mmc5_ines.nes                         | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp | | -gPOWER_UP_FILL=true -gPOWER_UP_SEED=1
+board/sim/ghdl/generated_roms/mmc5_ines.nes                         | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp | | -gPOWER_UP_FILL=true -gPOWER_UP_SEED=6
+
 board/sim/ghdl/generated_roms/mmc5_audio_check.nes                  | 317ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00015.bmp
 # The split screen of the pass
 board/sim/ghdl/generated_roms/mmc5_split.nes                        | 2135ms    | b2326453e682613f7c10822a48e1955067112620ec8b3e518f655bdce5f226ab *frame_00124.bmp
