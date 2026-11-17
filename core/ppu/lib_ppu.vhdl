@@ -413,6 +413,9 @@ package lib_ppu is
         -- Delayed copy of render_enabled. Toggling rendering affects
         -- background and sprite fetches about 3 dots after the $2001 write
         render_fetch   : boolean;
+        -- The last dot was the first of the two of a $2007 read's memory
+        -- read
+        data_read_first : boolean;
         -- The last dot was rendering: fetching with v, with rendering
         -- enabled on a line that is drawn
         rendering      : boolean;
@@ -474,6 +477,7 @@ package lib_ppu is
         chr_bus => CHR_BUS_IDLE,
         render_enabled => false,
         render_fetch => false,
+        data_read_first => false,
         rendering => false,
         reset_dots => RESET_DOTS,
         pixel => (others => '0'),
@@ -1537,6 +1541,7 @@ package body lib_ppu is
                        background_active(render_in.reg.cur_time);
         v_ppu_data_read := false;
         v_chr_second_dot := false;
+        render_out.reg.data_read_first := false;
         
         v_bg_tile_idx_addr := get_tile_idx_addr(render_in.reg.ppu_addr);
         v_bg_tile_y_offset := get_y_offset(render_in.reg.ppu_addr);
@@ -2384,12 +2389,17 @@ package body lib_ppu is
                     -- The read starts the PPUDATA state machine, which
                     -- reads memory a few dots after the read ends. While
                     -- rendering that delay is visible, since the internal
-                    -- buffer gets whatever the rendering fetch reads then
+                    -- buffer gets whatever the rendering fetch reads then.
+                    -- Otherwise the memory read starts at once and is two
+                    -- dots long, as any read of the PPU is: this dot drives
+                    -- the address, and the next one takes the data
                     if v_rendering
                     then
                         render_out.reg.ppu_data_delay := PPU_DATA_READ_DELAY;
                     else
-                        v_ppu_data_read := true;
+                        render_out.reg.ppu_data_delay := 1;
+                        render_out.reg.data_read_first := true;
+                        render_out.chr_bus := bus_read(v_ppu_chr_addr);
                     end if;
                 when others =>
                     render_out.data_to_cpu := render_out.reg.io_latch.data;
@@ -2424,6 +2434,7 @@ package body lib_ppu is
                 -- though, but the data placed in it is the mirrored
                 -- nametable data that would appear "underneath" the palette.
                 render_out.chr_bus := bus_read(v_ppu_chr_addr);
+                v_chr_second_dot := render_in.reg.data_read_first;
 
                 -- Update the PPUDATA register for the next access
                 render_out.reg.ppu_data := render_in.data_from_chr;
@@ -2584,7 +2595,8 @@ package body lib_ppu is
         -- cartridge sees the address before a $2007 access uses it
         render_out.reg.rendering := v_rendering;
         if render_in.reg.rendering and not v_rendering and
-           not is_bus_active(render_out.reg.chr_bus)
+           not is_bus_active(render_out.reg.chr_bus) and
+           not render_out.reg.data_read_first
         then
             render_out.reg.chr_bus :=
                 bus_read_scroll(render_out.reg.ppu_addr);
