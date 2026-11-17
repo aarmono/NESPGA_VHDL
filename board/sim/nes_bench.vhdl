@@ -280,8 +280,7 @@ begin
             cart_ppu_in => cart_ppu_in,
             cart_ppu_out => cart_ppu_out,
 
-            cart_loaded => cart_loaded,
-            cart_ready => true
+            power_up_start => cart_loaded
         );
 
         -- A real cartridge has no header to load. cart_system has loaded the
@@ -491,8 +490,8 @@ begin
             cart_ppu_out => cart_ppu_out,
             cart_audio => cart_audio,
 
-            cart_loaded => cart_loaded,
-            cart_ready => cart_ready,
+            run => cart_ready,
+            power_up_start => cart_loaded,
 
             power_up_ready => power_up_ready,
             power_up_data => power_up_data

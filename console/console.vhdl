@@ -84,8 +84,7 @@ package console is
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
 
-        cart_loaded : in boolean;
-        cart_ready  : in boolean;
+        power_up_start : in boolean := true;
 
         power_up_ready : out boolean;
         power_up_data  : out power_up_data_t
@@ -141,8 +140,7 @@ package console is
         cart_ppu_out : in cart_ppu_out_t;
         cart_audio   : in cart_audio_t := 0;
 
-        cart_loaded : in boolean;
-        cart_ready  : in boolean;
+        power_up_start : in boolean := true;
 
         power_up_ready : out boolean;
         power_up_data  : out power_up_data_t

@@ -70,8 +70,7 @@ port
     cart_ppu_out : in cart_ppu_out_t;
     cart_audio   : in cart_audio_t := 0;
 
-    cart_loaded : in boolean;
-    cart_ready  : in boolean;
+    power_up_start : in boolean := true;
 
     power_up_ready : out boolean;
     power_up_data  : out power_up_data_t
@@ -173,8 +172,7 @@ begin
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,
 
-        cart_loaded => cart_loaded,
-        cart_ready => cart_ready,
+        power_up_start => power_up_start,
 
         power_up_ready => power_up_ready,
         power_up_data => power_up_data

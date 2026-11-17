@@ -96,6 +96,9 @@ architecture behavioral of nes_soc_ocram is
     signal cart_ppu_out    : cart_ppu_out_t;
     signal cart_audio      : cart_audio_t;
 
+    signal console_run     : boolean;
+    signal console_waiting : boolean;
+
     signal cart_loaded    : boolean;
     signal cart_ready     : boolean;
     signal power_up_ready : boolean;
@@ -105,6 +108,12 @@ begin
 
     cpu_clk_en <= sig_cpu_clk_en;
     ppu_clk_en <= sig_ppu_clk_en;
+
+    -- The NES leaves reset once both have filled their RAMs. The cartridge
+    -- can take longer, and the board isn't told the NES is waiting for it
+    -- until then
+    console_run <= run and cart_ready;
+    waiting_to_run <= console_waiting and cart_ready;
 
     console_sys : nes_console_ocram
     generic map
@@ -127,8 +136,8 @@ begin
         nes_running => nes_running,
 
         stretch => stretch,
-        run => run,
-        waiting_to_run => waiting_to_run,
+        run => console_run,
+        waiting_to_run => console_waiting,
         ppu_start => ppu_start,
 
         cpu_clk_en => sig_cpu_clk_en,
@@ -153,8 +162,9 @@ begin
         cart_ppu_out => cart_ppu_out,
         cart_audio => cart_audio,
 
-        cart_loaded => cart_loaded,
-        cart_ready => cart_ready,
+        -- The console starts its fill once the cartridge has loaded its
+        -- header, which is when the cartridge starts its own
+        power_up_start => cart_loaded,
 
         power_up_ready => power_up_ready,
         power_up_data => power_up_data

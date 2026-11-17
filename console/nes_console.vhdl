@@ -21,8 +21,7 @@ use work.lib_nes.all;
 
 -- The NES console: the CPU, APU and PPU, OAM DMA and the joystick ports, with
 -- its RAMs on buses. It talks to the cartridge only through the cartridge
--- connector, the clock enables, the cartridge audio and the reset handshake.
--- See cart_system
+-- connector, the clock enables and the cartridge audio
 entity nes_console is
 generic
 (
@@ -124,15 +123,15 @@ port
     -- The audio of the chips on the cartridge, mixed with the console's
     cart_audio   : in cart_audio_t := 0;
 
-    -- See cart_system: loaded and ready. The console fills its RAMs on the
-    -- same CPU cycles as the cartridge, and leaves reset once both are
-    -- ready
-    cart_loaded : in boolean;
-    cart_ready  : in boolean;
+    -- The fill of the RAMs after reset starts on the CPU cycle after this
+    -- is true and the power up data is ready. A board that fills RAMs of
+    -- its own from the power up data holds it false until they can start
+    -- on the same CPU cycle. Sampled on cpu_clk_en
+    power_up_start : in boolean := true;
 
-    -- The data the RAMs are filled with after power up, which the
-    -- cartridge fills its own RAMs with too. It steps once per CPU cycle
-    -- of the fill. See power_up_fill
+    -- The data the RAMs are filled with after power up, for a board that
+    -- fills RAMs of its own with it too. It steps once per CPU cycle of
+    -- the fill. See power_up_fill
     power_up_ready : out boolean;
     power_up_data  : out power_up_data_t
 );
@@ -447,8 +446,6 @@ begin
         nes_in.cart_cpu := cart_cpu_out;
         nes_in.cart_ppu := cart_ppu_out;
         nes_in.cart_audio := cart_audio;
-        nes_in.cart_loaded := cart_loaded;
-        nes_in.cart_ready := cart_ready;
         
         nes_in.oam_bus := oam_bus_from_ppu;
         nes_in.data_to_oam := data_to_oam_from_ppu;
@@ -459,7 +456,7 @@ begin
         
         nes_in.audio := audio_out;
 
-        nes_in.power_up_ready := fill_ready;
+        nes_in.power_up_ready := fill_ready and power_up_start;
         nes_in.power_up_data := fill_data;
 
         nes_in.soft_reset := soft_reset;

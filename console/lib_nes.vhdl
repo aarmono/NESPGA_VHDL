@@ -21,15 +21,11 @@ package lib_nes is
 
     type state_t is
     (
-        -- Waits for the power up data, and for the cartridge to load the
-        -- header of the ROM file. The cartridge fills its RAMs on the same
-        -- CPU cycles as the console, from the same power up data
+        -- Waits for the power up data, and for the board to start the fill
+        -- (nes_in_t.power_up_ready)
         STATE_POWER_UP,
         -- The console's RAMs are filled
         STATE_RESET,
-        -- The console's RAMs are ready, and the cartridge's are still being
-        -- filled
-        STATE_WAIT_CART,
         -- The RAMs are ready, and the NES waits in reset for the board to
         -- start it (nes_in_t.run)
         STATE_WAIT,
@@ -118,9 +114,6 @@ package lib_nes is
         cart_cpu           : cart_cpu_out_t;
         cart_ppu           : cart_ppu_out_t;
         cart_audio         : cart_audio_t;
-        -- See cart_system: loaded and ready
-        cart_loaded        : boolean;
-        cart_ready         : boolean;
         oam_bus            : oam_bus_t;
         data_to_oam        : data_t;
         sec_oam_bus        : sec_oam_bus_t;
@@ -128,7 +121,7 @@ package lib_nes is
         palette_bus        : palette_bus_t;
         data_to_palette    : pixel_t;
         audio              : apu_out_t;
-        -- The power up data is valid
+        -- The power up data is valid, and the fill can start
         power_up_ready     : boolean;
         power_up_data      : power_up_data_t;
         -- The reset button is held
@@ -152,18 +145,6 @@ package body lib_nes is
             return STATE_RUN;
         else
             return STATE_WAIT;
-        end if;
-    end;
-
-    -- The state once the console's RAMs are ready
-    function cart_wait_state(cart_ready : boolean; run : boolean) return state_t
-    is
-    begin
-        if cart_ready
-        then
-            return run_state(run);
-        else
-            return STATE_WAIT_CART;
         end if;
     end;
 
@@ -200,9 +181,8 @@ package body lib_nes is
                 ret.reset := true;
 
                 -- The power up data only changes on a clock enable once the
-                -- RAMs are being filled. The cartridge starts its fill on
-                -- the same CPU cycle
-                if nes_in.cart_loaded and nes_in.power_up_ready
+                -- RAMs are being filled
+                if nes_in.power_up_ready
                 then
                     ret.reg.cur_cycle := x"0000";
                     ret.reg.cur_state := STATE_RESET;
@@ -243,16 +223,10 @@ package body lib_nes is
 
                 if nes_in.reg.cur_cycle = x"3FFF"
                 then
-                    ret.reg.cur_state :=
-                        cart_wait_state(nes_in.cart_ready, nes_in.run);
+                    ret.reg.cur_state := run_state(nes_in.run);
                 else
                     ret.reg.cur_cycle := nes_in.reg.cur_cycle + "1";
                 end if;
-
-            when STATE_WAIT_CART =>
-                ret.reset := true;
-                ret.reg.cur_state :=
-                    cart_wait_state(nes_in.cart_ready, nes_in.run);
 
             when STATE_WAIT =>
                 ret.reset := true;
