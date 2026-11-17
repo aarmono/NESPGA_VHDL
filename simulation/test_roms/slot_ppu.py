@@ -4,14 +4,16 @@ connector, for nes_bench NROM_SLOT runs against a real cartridge's timing.
 
 Usage: slot_ppu.py OUT.nes
 
-The emulated PPU keeps the last address it read on the bus while idle, and a
-$2007 access is one dot long. After a $2006 write or another $2007 access the
-bus already holds v. The first $2007 access after rendering stops, without a
-$2006 write, is the case where the address is new: with the scroll at 0, a
-whole frame leaves v at $0802 in vblank (fine Y wraps to 0, coarse Y to 0 in
-the other nametable, coarse X at 2 from the prefetch of the next line), while
-the bus holds the last nametable fetch, $2802. So the read of CHR ROM at $0802
-has only part of a dot for its address and /RD.
+A $2007 access of the emulated PPU is one dot long, which is too short for a
+real cartridge's memories unless the bus already holds the address. A PPU
+that isn't rendering drives v on the address bus, so it does: after a $2006
+write, after another $2007 access, and when rendering stops. The last is what
+this ROM checks, with the first $2007 access after rendering stops and no
+$2006 write. With the scroll at 0, a whole frame leaves v at $0802 in vblank
+(fine Y wraps to 0, coarse Y to 0 in the other nametable, coarse X at 2 from
+the prefetch of the next line), and the last fetch of the frame was the
+nametable byte at $2802. If the bus still held that, the read of CHR ROM at
+$0802 would have only part of a dot for its address and /RD.
 
 CIRAM /CE and A10 don't change there: the last nametable fetch and v select
 the same CIRAM byte. They change when rendering is turned off mid-frame

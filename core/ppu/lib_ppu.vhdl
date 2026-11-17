@@ -416,6 +416,9 @@ package lib_ppu is
         -- Delayed copy of render_enabled. Toggling rendering affects
         -- background and sprite fetches about 3 dots after the $2001 write
         render_fetch   : boolean;
+        -- The last dot was rendering: fetching with v, with rendering
+        -- enabled on a line that is drawn
+        rendering      : boolean;
         -- The PPU clocks left of reset, set by power up and the reset button.
         -- While not 0, writes to $2000, $2001, $2005 and $2006 are ignored.
         -- See RESET_DOTS
@@ -475,6 +478,7 @@ package lib_ppu is
         data_read_early => false,
         render_enabled => false,
         render_fetch => false,
+        rendering => false,
         reset_dots => RESET_DOTS,
         pixel => (others => '0'),
         pixel_valid => false,
@@ -2584,6 +2588,19 @@ package body lib_ppu is
         -- cycle it would be output
         render_out.vint := render_out.reg.status.vbl and
                            render_out.reg.control.vbl_enable;
+
+        -- When not rendering, v drives the address bus. So when rendering
+        -- stops, at the end of the last line drawn or when it is disabled,
+        -- the address changes from that of the last fetch to v, as it does
+        -- when v changes later: v is read for a dot, on the next dot. The
+        -- cartridge sees the address before a $2007 access uses it
+        render_out.reg.rendering := v_rendering;
+        if render_in.reg.rendering and not v_rendering and
+           not is_bus_active(render_out.reg.chr_bus)
+        then
+            render_out.reg.chr_bus :=
+                bus_read_scroll(render_out.reg.ppu_addr);
+        end if;
 
         render_out.reg.data_read_early := false;
         if not v_rendering
