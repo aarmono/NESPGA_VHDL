@@ -18,7 +18,8 @@ package cart is
     generic
     (
         CART_BOARDS : board_set_t := ALL_BOARDS;
-        SPLIT_MEM_BUS : boolean := false
+        SPLIT_MEM_BUS : boolean := false;
+        A12_M2_FILTER : boolean := false
     );
     port
     (
@@ -72,7 +73,8 @@ package cart is
         USE_EXT_CART_RAM : boolean := false;
         VENDOR           : vendor_t := VENDOR_ALTERA;
         CART_BOARDS      : board_set_t := ALL_BOARDS;
-        SPLIT_MEM_BUS    : boolean := false
+        SPLIT_MEM_BUS    : boolean := false;
+        A12_M2_FILTER    : boolean := false
     );
     port
     (
@@ -141,6 +143,29 @@ package cart is
         ppu_out : in  cart_ppu_out_t
     );
     end component cart_edge;
+
+    -- What a cartridge in a real console answers until its game is ready.
+    -- See cart_boot_stub
+    component cart_boot_stub is
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean;
+
+        cpu_en : in boolean;
+        ready  : in boolean;
+        active : out boolean;
+
+        cpu_in : in cart_cpu_in_t;
+        ppu_in : in cart_ppu_in_t;
+
+        cart_cpu_out : in cart_cpu_out_t;
+        cart_ppu_out : in cart_ppu_out_t;
+
+        cpu_out : out cart_cpu_out_t;
+        ppu_out : out cart_ppu_out_t
+    );
+    end component cart_boot_stub;
 
 end cart;
 

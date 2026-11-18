@@ -131,6 +131,7 @@
 ../../../cart/cart_system_ocram.vhdl
 ../../../cart/cart.vhdl
 ../../../cart/cart_edge.vhdl
+../../../cart/cart_boot_stub.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../console/lib_nes.vhdl
@@ -146,12 +147,13 @@
 ../../../board/platform/frame_lock_video.vhdl
 ../../../board/platform/frame_lock_bench.vhdl
 
+../../../board/de1/de1_types.vhdl
+../../../board/de1/sram_rom.vhdl
+
 ../../../board/sim/nes_bench.vhdl
 
-../../../board/de1/de1_types.vhdl
 ../../../board/de1/flash_stream.vhdl
 ../../../board/de1/sdram_rom.vhdl
-../../../board/de1/sram_rom.vhdl
 ../../../board/de1/sd_menu_stub.vhdl
 ../../../board/de1/sd_menu.vhdl
 ../../../board/de1/sd_menu_bench.vhdl

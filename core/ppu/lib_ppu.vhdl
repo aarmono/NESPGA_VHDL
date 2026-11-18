@@ -407,6 +407,9 @@ package lib_ppu is
         sprite_start     : boolean;
         -- Bus address used for $2007 reads
         chr_bus          : chr_bus_t;
+        -- The address last driven. The address pins keep it while there
+        -- is no access
+        bus_addr         : chr_addr_t;
         -- Register copy of rendering_enabled(mask). A $2001 write
         -- takes an extra cycle to affect the odd frame skipped clock
         render_enabled : boolean;
@@ -475,6 +478,7 @@ package lib_ppu is
         sprite_0_buffer => false,
         sprite_start => false,
         chr_bus => CHR_BUS_IDLE,
+        bus_addr => (others => '0'),
         render_enabled => false,
         render_fetch => false,
         data_read_first => false,
@@ -1512,6 +1516,7 @@ package body lib_ppu is
         variable v_ppu_data_read      : boolean;
         -- The dot is the second of a rendering read
         variable v_chr_second_dot     : boolean;
+        variable v_chr_addr_only      : boolean;
 
         -- background render variables
         variable v_bg_tile_idx_addr      : tile_idx_addr_t;
@@ -1541,6 +1546,7 @@ package body lib_ppu is
                        background_active(render_in.reg.cur_time);
         v_ppu_data_read := false;
         v_chr_second_dot := false;
+        v_chr_addr_only := false;
         render_out.reg.data_read_first := false;
         
         v_bg_tile_idx_addr := get_tile_idx_addr(render_in.reg.ppu_addr);
@@ -1712,6 +1718,30 @@ package body lib_ppu is
                         -- Update tile index register with the returned
                         -- data.
                         render_out.reg.tile_idx := render_in.data_from_chr;
+                    end if;
+                when LAST_CYCLE =>
+                    -- Hardware dot 0. When the pre-render line skipped a
+                    -- dot, the second dot of the last name table fetch
+                    if render_in.reg.addr_latched
+                    then
+                        render_out.chr_bus :=
+                           bus_read(v_bg_tile_idx_addr.name_table_addr);
+                        render_out.reg.tile_idx := render_in.data_from_chr;
+                    -- Otherwise idle, with the address of the next line's
+                    -- first pattern table fetch on the bus and nothing
+                    -- read. A cartridge that watches A12 sees it
+                    else
+                        v_pattern_table_addr :=
+                            get_pattern_table
+                            (
+                                '0',
+                                render_in.reg.control.play_table_select,
+                                render_in.reg.tile_idx,
+                                v_bg_tile_y_offset,
+                                false
+                            );
+                        render_out.chr_bus.address := v_pattern_table_addr;
+                        v_chr_addr_only := true;
                     end if;
                 when others =>
                     null;
@@ -2070,7 +2100,9 @@ package body lib_ppu is
             -- The second dot of each read takes the low 8 address lines
             -- from the octal latch. They normally match, but if v changes
             -- between the 2 dots the read is from a hybrid address
-            if render_in.reg.cur_time.cycle mod 2 = 0
+            if render_in.reg.cur_time.cycle mod 2 = 0 and
+               not (render_in.reg.cur_time.cycle = LAST_CYCLE and
+                    render_in.reg.addr_latched)
             then
                 render_out.reg.addr_latch :=
                     render_out.chr_bus.address(data_t'range);
@@ -2611,6 +2643,15 @@ package body lib_ppu is
 
         render_out.chr_ale := is_bus_active(render_out.chr_bus) and
                               not v_chr_second_dot;
+
+        -- The address pins always drive an address: the last one, when
+        -- there is no access
+        if is_bus_active(render_out.chr_bus) or v_chr_addr_only
+        then
+            render_out.reg.bus_addr := render_out.chr_bus.address;
+        else
+            render_out.chr_bus.address := render_in.reg.bus_addr;
+        end if;
         
         return render_out;
     end;

@@ -9,6 +9,7 @@ use work.cart_mem_bus_types.all;
 use work.cart_connector_types.all;
 use work.cart_pin_types.all;
 use work.cart.all;
+use work.de1_types.all;
 
 -- The emulated cartridge on a DE1 of its own, for the cartridge slot of a
 -- real console (or of nes_de1 with USE_CART_SLOT): cart_edge turns the pins of
@@ -20,8 +21,10 @@ use work.cart.all;
 -- A console doesn't wait for its cartridge, and the connector has no reset.
 -- The ROM file takes far longer to load than the console's own reset, and
 -- the cartridge's RAMs are filled on the CPU cycles the console's M2 gives
--- after that. Until READY the cartridge answers nothing, so the console
--- must be held in reset, or reset again, once it is.
+-- after that. Until READY the console is answered by cart_boot_stub, which
+-- keeps its CPU in a loop and then starts the game as from reset. That
+-- needs the FPGA to be configured before the console's reset ends: if it
+-- isn't, the console must be reset once it is.
 entity cart_de1 is
 generic
 (
@@ -32,7 +35,10 @@ generic
     DOT_CLOCKS    : positive := 9;
     -- See sram_rom. The DE1's SRAM has 18 address bits
     SRAM_ADDR_BITS   : positive := 18;
-    SRAM_READ_CLOCKS : positive := 2
+    SRAM_READ_CLOCKS : positive := 2;
+    -- The MMC3 and TC0690 filter PPU A12 on falls of M2, as the chips do.
+    -- See cartridge
+    A12_M2_FILTER    : boolean := true
 );
 port
 (
@@ -88,6 +94,10 @@ architecture behavioral of cart_de1 is
     signal cpu_out : cart_cpu_out_t;
     signal ppu_in  : cart_ppu_in_t;
     signal ppu_out : cart_ppu_out_t;
+
+    -- What the cartridge answers, which the console gets after the stub
+    signal cart_cpu_out : cart_cpu_out_t;
+    signal cart_ppu_out : cart_ppu_out_t;
 
     signal cart_loaded : boolean;
     signal cart_ready  : boolean;
@@ -157,6 +167,26 @@ begin
         ppu_out => ppu_out
     );
 
+    stub : cart_boot_stub
+    port map
+    (
+        clk => CLOCK_50,
+        reset => reset_50,
+
+        cpu_en => cpu_en,
+        ready => cart_ready,
+        active => open,
+
+        cpu_in => cpu_in,
+        ppu_in => ppu_in,
+
+        cart_cpu_out => cart_cpu_out,
+        cart_ppu_out => cart_ppu_out,
+
+        cpu_out => cpu_out,
+        ppu_out => ppu_out
+    );
+
     -- The cartridge has the power up fill to itself. Its data steps on the
     -- CPU cycles of the fill, which starts once the header is loaded
     fill : power_up_fill
@@ -181,7 +211,8 @@ begin
     generic map
     (
         USE_EXT_CART_RAM => true,
-        SPLIT_MEM_BUS => true
+        SPLIT_MEM_BUS => true,
+        A12_M2_FILTER => A12_M2_FILTER
     )
     port map
     (
@@ -200,9 +231,9 @@ begin
         ready => cart_ready,
 
         cpu_in => cpu_in,
-        cpu_out => cpu_out,
+        cpu_out => cart_cpu_out,
         ppu_in => ppu_in,
-        ppu_out => ppu_out,
+        ppu_out => cart_ppu_out,
         audio => open,
 
         cart_mem_bus => open,
@@ -217,7 +248,7 @@ begin
         data_from_chr_mem => data_from_chr_mem
     );
 
-    rom : entity work.sram_rom(behavioral)
+    rom : sram_rom
     generic map
     (
         ADDR_BITS => SRAM_ADDR_BITS,

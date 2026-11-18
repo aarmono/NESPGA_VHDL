@@ -242,12 +242,9 @@ is
             -- dot's
             if slot_in.reg.dot_count = 0
             then
-                if is_bus_active(slot_in.ppu_in.chr_bus)
-                then
-                    reg.pins.ppu_addr := slot_in.ppu_in.chr_bus.address;
-                    reg.pins.ppu_a13_n :=
-                        not slot_in.ppu_in.chr_bus.address(13);
-                end if;
+                -- The PPU holds the address while there is no access
+                reg.pins.ppu_addr := slot_in.ppu_in.chr_bus.address;
+                reg.pins.ppu_a13_n := not slot_in.ppu_in.chr_bus.address(13);
 
                 reg.pins.ppu_data_oe := false;
                 if slot_in.ppu_in.ale or

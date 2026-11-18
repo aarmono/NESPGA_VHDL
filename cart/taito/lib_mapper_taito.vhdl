@@ -86,6 +86,8 @@ package lib_mapper_taito is
     -- The MMC3 counts PPU clocks with A12 low, and clocks the IRQ counter
     -- when A12 rises after A12_MAX of them
     constant A12_MAX : natural := 10;
+    -- With the A12 filter on M2, falls of M2, as the MMC3
+    constant A12_M2_MAX : natural := 3;
     subtype a12_count_t is natural range 0 to A12_MAX;
 
     subtype irq_count_t is natural range 0 to 16#FF#;
@@ -167,6 +169,8 @@ package lib_mapper_taito is
         reg      : mapper_taito_reg_t;
         board    : taito_board_t;
         config   : cart_config_t;
+        -- The A12 filter of the TC0690 counts falls of M2, not PPU clocks
+        a12_m2_filter : boolean;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
@@ -434,20 +438,29 @@ package body lib_mapper_taito is
     end;
 
     -- The IRQ counter of the TC0690 is clocked as that of the MMC3 is,
-    -- when PPU A12 rises after being low for A12_MAX PPU clocks. A clock
-    -- that leaves it at 0 with IRQs enabled raises the IRQ TC0690_IRQ_DELAY
+    -- when PPU A12 rises after being low for A12_MAX PPU clocks, or with
+    -- m2_filter for A12_M2_MAX falls of M2. A clock that leaves it at 0 with IRQs enabled raises the IRQ TC0690_IRQ_DELAY
     -- CPU cycles later, which acknowledging it does not cancel
     function cycle_tc0690_irq
     (
-        reg      : mapper_taito_reg_t;
-        clk_sync : boolean;
-        cart_in  : cart_in_t
+        reg       : mapper_taito_reg_t;
+        m2_filter : boolean;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_taito_reg_t
     is
         variable ret : mapper_taito_reg_t;
+        variable low_max : a12_count_t;
     begin
         ret := reg;
+
+        if m2_filter
+        then
+            low_max := A12_M2_MAX;
+        else
+            low_max := A12_MAX;
+        end if;
 
         if clk_sync and reg.irq_delay /= 0
         then
@@ -458,16 +471,16 @@ package body lib_mapper_taito is
             end if;
         end if;
 
-        if not is_bus_active(cart_in.ppu.chr_bus) or
-           cart_in.ppu.chr_bus.address(12) = '0'
+        -- The PPU holds its address between accesses
+        if cart_in.ppu.chr_bus.address(12) = '0'
         then
-            if reg.a12_count < A12_MAX
+            if reg.a12_count < low_max and (clk_sync or not m2_filter)
             then
                 ret.a12_count := reg.a12_count + 1;
             end if;
         else
             ret.a12_count := 0;
-            if reg.a12_count = A12_MAX
+            if reg.a12_count = low_max
             then
                 if reg.irq_count = 0
                 then
@@ -632,6 +645,8 @@ package body lib_mapper_taito is
         reg      : mapper_taito_reg_t;
         board    : taito_board_t;
         config   : cart_config_t;
+        -- The A12 filter of the TC0690 counts falls of M2, not PPU clocks
+        a12_m2_filter : boolean;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
@@ -662,7 +677,8 @@ package body lib_mapper_taito is
         end if;
         if board = TAITO_TC0690
         then
-            ret.reg := cycle_tc0690_irq(ret.reg, clk_sync, cart_in);
+            ret.reg := cycle_tc0690_irq(ret.reg, a12_m2_filter, clk_sync,
+                                        cart_in);
         end if;
 
         -- The PPU sees the registers written by the CPU this cycle. The CPU

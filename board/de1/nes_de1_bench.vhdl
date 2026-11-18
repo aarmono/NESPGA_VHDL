@@ -37,15 +37,20 @@ generic
     LOG_LOCK        : boolean := false;
     -- Run the cartridge on a DE1 of its own (cart_de1), in the cartridge
     -- slot of nes_de1 (USE_CART_SLOT). The ROM file is on the cartridge's SD
-    -- card, and the console's reset button is held until the cartridge is
-    -- ready. Both sides driving a data bus is written to the output
+    -- card. Both sides driving a data bus is written to the output
     USE_CART_DE1    : boolean := false;
+    -- Hold the console's reset button until the cartridge is ready, as for
+    -- a cartridge that is configured after the console's reset. Otherwise
+    -- both power up together and the console runs the cartridge's boot stub
+    -- until then
+    CART_HOLD_RESET : boolean := false;
     -- The period of the cartridge's clock in ps, and how long after the
     -- console's it starts: the two boards have an oscillator each
     CART_CLK_PERIOD_PS : positive := 20000;
     CART_CLK_OFFSET_PS : natural := 7000;
     -- See cart_de1
     CART_SRAM_READ_CLOCKS : positive := 2;
+    CART_A12_M2_FILTER : boolean := true;
     -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
     -- file of up to 256 KB; 22 hold any
     CART_SRAM_ADDR_BITS : positive := 18;
@@ -226,8 +231,8 @@ begin
         constant CART_CLK_PERIOD : time := CART_CLK_PERIOD_PS * 1 ps;
         constant CART_CLK_OFFSET : time := CART_CLK_OFFSET_PS * 1 ps;
     begin
-        -- The reset button, held until the cartridge is ready
-        key(0) <= '1' when cart_ready = '1' else '0';
+        -- The reset button
+        key(0) <= '1' when cart_ready = '1' or not CART_HOLD_RESET else '0';
 
         cart : cart_de1
         generic map
@@ -235,7 +240,8 @@ begin
             POWER_UP_MODE => POWER_UP_DETERMINISTIC,
             DOT_CLOCKS => 186243 ps / CART_CLK_PERIOD,
             SRAM_ADDR_BITS => CART_SRAM_ADDR_BITS,
-            SRAM_READ_CLOCKS => CART_SRAM_READ_CLOCKS
+            SRAM_READ_CLOCKS => CART_SRAM_READ_CLOCKS,
+            A12_M2_FILTER => CART_A12_M2_FILTER
         )
         port map
         (
@@ -407,7 +413,7 @@ begin
         board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
         board_pins.ciram_a10 <= board_drive.ciram_a10;
 
-        cart_ram : entity work.sram_16(behavioral)
+        cart_ram : sram_16
         generic map
         (
             ADDR_BITS => CART_SRAM_ADDR_BITS

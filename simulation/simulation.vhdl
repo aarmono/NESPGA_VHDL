@@ -107,6 +107,31 @@ package simulation is
     );
     end component file_memory;
 
+    -- An asynchronous SRAM of 16-bit words with byte enables. See sram_16
+    component sram_16 is
+    generic
+    (
+        ADDR_BITS   : positive := 18;
+        ACCESS_TIME : time := 10 ns;
+        OE_ACCESS   : time := 4 ns;
+        HOLD        : time := 2 ns;
+        DISABLE     : time := 4 ns;
+        WRITE_PULSE : time := 8 ns;
+        ADDR_SETUP  : time := 0 ns;
+        DATA_SETUP  : time := 6 ns
+    );
+    port
+    (
+        addr : in std_logic_vector(ADDR_BITS - 1 downto 0);
+        dq   : inout std_logic_vector(15 downto 0);
+        ce_n : in std_logic;
+        oe_n : in std_logic;
+        we_n : in std_logic;
+        lb_n : in std_logic;
+        ub_n : in std_logic
+    );
+    end component sram_16;
+
     -- The access to a ROM file in a file_memory for an access to the
     -- cartridge memory bus. The ROM file is in the lower half of the bus;
     -- the cartridge RAMs in the upper half are not in the file

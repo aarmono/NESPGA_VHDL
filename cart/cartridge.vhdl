@@ -13,7 +13,11 @@ entity cartridge is
 generic
 (
     -- The boards to build. See board_set_t
-    CART_BOARDS : board_set_t := ALL_BOARDS
+    CART_BOARDS : board_set_t := ALL_BOARDS;
+    -- The boards that filter PPU A12 (MMC3, TC0690) count falls of M2 with
+    -- it low, as the chips do, where they otherwise count PPU clocks. For a
+    -- cartridge in a real console, which has no PPU clock
+    A12_M2_FILTER : boolean := false
 );
 port
 (
@@ -70,6 +74,7 @@ begin
             v_out := cycle_cartridge(reg,
                                      boards,
                                      CART_BOARDS,
+                                     A12_M2_FILTER,
                                      config,
                                      clk_sync,
                                      cart_in,
@@ -126,6 +131,7 @@ begin
         v_out := cycle_cartridge(reg,
                                  boards,
                                  CART_BOARDS,
+                                 A12_M2_FILTER,
                                  config,
                                  clk_sync,
                                  cart_in,

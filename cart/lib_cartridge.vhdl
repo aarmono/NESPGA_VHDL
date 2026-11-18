@@ -108,7 +108,8 @@ package lib_cartridge is
         cart : cart_out_t;
     end record;
 
-    -- Only the boards in built are cycled. opll_ram_data is what the access
+    -- Only the boards in built are cycled. With a12_m2_filter, the boards
+    -- that filter PPU A12 count falls of M2. opll_ram_data is what the access
     -- of get_opll_mem_out reads, and opll_tables what get_opll_tables looked
     -- up the PPU cycle before
     function cycle_cartridge
@@ -116,6 +117,7 @@ package lib_cartridge is
         reg           : cart_reg_t;
         boards        : cart_boards_t;
         built         : board_set_t;
+        a12_m2_filter : boolean;
         config        : cart_config_t;
         clk_sync      : boolean;
         cart_in       : cart_in_t;
@@ -261,6 +263,7 @@ package body lib_cartridge is
         reg           : cart_reg_t;
         boards        : cart_boards_t;
         built         : board_set_t;
+        a12_m2_filter : boolean;
         config        : cart_config_t;
         clk_sync      : boolean;
         cart_in       : cart_in_t;
@@ -389,6 +392,7 @@ package body lib_cartridge is
                     mmc3_out := cycle_mapper_mmc3(reg.mmc3,
                                                   boards.mmc3,
                                                   config,
+                                                  a12_m2_filter,
                                                   clk_sync,
                                                   cart_in);
                     ret.reg.mmc3 := mmc3_out.reg;
@@ -515,6 +519,7 @@ package body lib_cartridge is
                     taito_out := cycle_mapper_taito(reg.taito,
                                                     boards.taito,
                                                     config,
+                                                    a12_m2_filter,
                                                     clk_sync,
                                                     cart_in);
                     ret.reg.taito := taito_out.reg;

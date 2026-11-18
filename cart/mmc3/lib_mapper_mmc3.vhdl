@@ -124,6 +124,10 @@ package lib_mapper_mmc3 is
     -- The MMC3 counts PPU clocks with A12 low, and clocks the IRQ counter
     -- when A12 rises after A12_MAX of them
     constant A12_MAX : natural := 10;
+    -- The chip itself counts falls of M2 with A12 low, and clocks the IRQ
+    -- counter when A12 rises after A12_M2_MAX of them. A cartridge in a real
+    -- console counts those, since it has no PPU clock
+    constant A12_M2_MAX : natural := 3;
     -- The RAMBO-1 counts falls of M2 with A12 low, and clocks the IRQ
     -- counter on a fall of M2 with A12 high after RAMBO1_A12_MAX of them.
     -- Writing 0xC001 sets the count to RAMBO1_A12_RELOAD, which is never
@@ -245,6 +249,8 @@ package lib_mapper_mmc3 is
         reg      : mapper_mmc3_reg_t;
         board    : mmc3_board_t;
         config   : cart_config_t;
+        -- The A12 filter counts falls of M2, not PPU clocks
+        a12_m2_filter : boolean;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
@@ -747,12 +753,15 @@ package body lib_mapper_mmc3 is
     end;
 
     -- The IRQ counter is clocked when PPU A12 rises after being low for
-    -- A12_MAX PPU clocks
+    -- A12_MAX PPU clocks, or with m2_filter for A12_M2_MAX falls of M2,
+    -- which are at clk_sync
     function cycle_irq
     (
-        reg     : mapper_mmc3_reg_t;
-        board   : mmc3_board_t;
-        cart_in : cart_in_t
+        reg       : mapper_mmc3_reg_t;
+        board     : mmc3_board_t;
+        m2_filter : boolean;
+        clk_sync  : boolean;
+        cart_in   : cart_in_t
     )
     return mapper_mmc3_reg_t
     is
@@ -761,19 +770,27 @@ package body lib_mapper_mmc3 is
         -- because Quartus 13 can fail to infer registers from a variable
         -- whose initial value isn't
         variable ret : mapper_mmc3_reg_t := RESET_MAPPER_MMC3_REG;
+        variable low_max : a12_count_t;
     begin
         ret := reg;
 
-        if not is_bus_active(cart_in.ppu.chr_bus) or
-           cart_in.ppu.chr_bus.address(12) = '0'
+        if m2_filter
         then
-            if reg.a12_count < A12_MAX
+            low_max := A12_M2_MAX;
+        else
+            low_max := A12_MAX;
+        end if;
+
+        -- The PPU holds its address between accesses
+        if cart_in.ppu.chr_bus.address(12) = '0'
+        then
+            if reg.a12_count < low_max and (clk_sync or not m2_filter)
             then
                 ret.a12_count := reg.a12_count + 1;
             end if;
         else
             ret.a12_count := 0;
-            if reg.a12_count = A12_MAX
+            if reg.a12_count = low_max
             then
                 if reg.irq_count = 0
                 then
@@ -973,6 +990,8 @@ package body lib_mapper_mmc3 is
         reg      : mapper_mmc3_reg_t;
         board    : mmc3_board_t;
         config   : cart_config_t;
+        -- The A12 filter counts falls of M2, not PPU clocks
+        a12_m2_filter : boolean;
         clk_sync : boolean;
         cart_in  : cart_in_t
     )
@@ -1007,7 +1026,8 @@ package body lib_mapper_mmc3 is
         then
             ret.reg := written;
         else
-            ret.reg := cycle_irq(written, board, cart_in);
+            ret.reg := cycle_irq(written, board, a12_m2_filter, clk_sync,
+                                 cart_in);
         end if;
 
         chr_window := get_chr_window(cart_in.ppu);

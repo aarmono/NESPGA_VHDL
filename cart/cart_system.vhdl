@@ -23,7 +23,9 @@ generic
     -- Give the memory the board's two channels as they are, rather than
     -- one access per PPU cycle on the cartridge memory bus, for a memory
     -- that serves each when it is asked. See prg_mem_bus
-    SPLIT_MEM_BUS : boolean := false
+    SPLIT_MEM_BUS : boolean := false;
+    -- See cartridge
+    A12_M2_FILTER : boolean := false
 );
 port
 (
@@ -196,7 +198,8 @@ begin
     board : entity work.cartridge(behavioral)
     generic map
     (
-        CART_BOARDS => CART_BOARDS
+        CART_BOARDS => CART_BOARDS,
+        A12_M2_FILTER => A12_M2_FILTER
     )
     port map
     (

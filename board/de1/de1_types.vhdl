@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
 use work.cart_pin_types.all;
+use work.cart_mem_bus_types.all;
 
 package de1_types is
     
@@ -167,6 +168,44 @@ package de1_types is
     );
     end component nes_de1;
 
+    -- The split cartridge memory bus out of an asynchronous SRAM. See
+    -- sram_rom
+    component sram_rom is
+    generic
+    (
+        ADDR_BITS   : positive := 18;
+        READ_CLOCKS : positive := 2
+    );
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean;
+
+        loading   : out boolean;
+        too_large : out boolean;
+
+        load_valid : in boolean;
+        load_data  : in data_t;
+        load_ready : out boolean;
+
+        prg_mem_bus       : in cart_mem_bus_t;
+        data_to_prg_mem   : in data_t;
+        data_from_prg_mem : out data_t;
+
+        chr_mem_bus       : in cart_mem_bus_t;
+        data_to_chr_mem   : in data_t;
+        data_from_chr_mem : out data_t;
+
+        sram_addr : out std_logic_vector(ADDR_BITS - 1 downto 0);
+        sram_dq   : inout std_logic_vector(15 downto 0);
+        sram_ce_n : out std_logic;
+        sram_oe_n : out std_logic;
+        sram_we_n : out std_logic;
+        sram_lb_n : out std_logic;
+        sram_ub_n : out std_logic
+    );
+    end component sram_rom;
+
     component cart_de1 is
     generic
     (
@@ -174,7 +213,8 @@ package de1_types is
         POWER_UP_SEED : natural := 0;
         DOT_CLOCKS    : positive := 9;
         SRAM_ADDR_BITS   : positive := 18;
-        SRAM_READ_CLOCKS : positive := 2
+        SRAM_READ_CLOCKS : positive := 2;
+        A12_M2_FILTER    : boolean := true
     );
     port
     (

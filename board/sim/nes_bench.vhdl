@@ -19,6 +19,7 @@ use work.soc.all;
 use work.console.all;
 use work.cart.all;
 use work.cart_pin_types.all;
+use work.de1_types.all;
 use work.simulation.all;
 use work.binary_io.all;
 
@@ -90,6 +91,22 @@ generic
     -- /IRQ this many clocks late, so that it samples them where it would
     -- with M2 in its place
     LOOPBACK_DOT_OFFSET : natural := 0;
+    -- With LOOPBACK_SLOT, the cartridge's A12 filters count falls of M2. See
+    -- cartridge
+    LOOPBACK_A12_M2_FILTER : boolean := false;
+    -- With LOOPBACK_SLOT, the cartridge's memory is an SRAM behind
+    -- sram_rom, which serves each access as it is asked for, as in
+    -- cart_de1. Otherwise it is the ROM file with one access per dot and
+    -- the cartridge RAMs on chip. The console waits while the ROM file is
+    -- copied into the SRAM, 3 clocks a byte. Timing violations at the SRAM
+    -- are written to the output
+    LOOPBACK_SRAM : boolean := false;
+    -- See sram_rom
+    LOOPBACK_SRAM_READ_CLOCKS : positive := 2;
+    -- With LOOPBACK_SLOT, the console is answered by cart_boot_stub for this
+    -- many CPU cycles before the cartridge takes over, as when a cartridge
+    -- in a real console loads its game. 0 leaves the stub out
+    LOOPBACK_STUB_CYCLES : natural := 0;
     -- NROM_SLOT access times in ns: address to data for the PRG and CHR
     -- ROMs, /RD to data for the memories on the PPU bus, and PPU A10, A11
     -- and /A13 to CIRAM A10 and /CE, level shifters included. See nrom_cart
@@ -465,6 +482,9 @@ begin
         signal edge_cpu_out  : cart_cpu_out_t;
         signal edge_ppu_in   : cart_ppu_in_t;
         signal edge_ppu_out  : cart_ppu_out_t;
+        -- What the cartridge answers, before the boot stub
+        signal sys_cpu_out   : cart_cpu_out_t;
+        signal sys_ppu_out   : cart_ppu_out_t;
 
         -- The power up data as it was on the console's last CPU clock enable
         signal cart_power_up_ready : boolean := false;
@@ -775,37 +795,226 @@ begin
         end if;
         end process;
 
-        cart_sys : cart_system_ocram
-        generic map
-        (
-            VENDOR => VENDOR_SIM
-        )
-        port map
-        (
-            clk => edge_clk,
-            reset => false,
+        gen_no_stub : if LOOPBACK_STUB_CYCLES = 0 generate
+            edge_cpu_out <= sys_cpu_out;
+            edge_ppu_out <= sys_ppu_out;
+        end generate;
 
-            cpu_en => edge_cpu_en,
-            ppu_en => edge_ppu_en,
-            clk_sync => edge_clk_sync,
-            ram_en => edge_ram_en,
+        gen_stub : if LOOPBACK_STUB_CYCLES > 0 generate
+            signal stub_cycles : natural := 0;
+            signal stub_ready  : boolean := false;
+        begin
+            process(edge_clk)
+            begin
+            if rising_edge(edge_clk) and edge_cpu_en and cart_ready
+            then
+                if stub_cycles < LOOPBACK_STUB_CYCLES
+                then
+                    stub_cycles <= stub_cycles + 1;
+                else
+                    stub_ready <= true;
+                end if;
+            end if;
+            end process;
 
-            power_up_ready => cart_power_up_ready,
-            power_up_data => cart_power_up_data,
+            stub : cart_boot_stub
+            port map
+            (
+                clk => edge_clk,
+                reset => false,
 
-            loaded => cart_loaded,
-            ready => cart_ready,
+                cpu_en => edge_cpu_en,
+                ready => stub_ready,
+                active => open,
 
-            cpu_in => edge_cpu_in,
-            cpu_out => edge_cpu_out,
-            ppu_in => edge_ppu_in,
-            ppu_out => edge_ppu_out,
-            audio => cart_audio,
+                cpu_in => edge_cpu_in,
+                ppu_in => edge_ppu_in,
 
-            cart_mem_bus => cart_mem_bus,
-            data_to_cart_mem => open,
-            data_from_cart_mem => data_from_cart_mem
-        );
+                cart_cpu_out => sys_cpu_out,
+                cart_ppu_out => sys_ppu_out,
+
+                cpu_out => edge_cpu_out,
+                ppu_out => edge_ppu_out
+            );
+        end generate;
+
+        gen_mem_mux : if not LOOPBACK_SRAM generate
+            cart_sys : cart_system_ocram
+            generic map
+            (
+                VENDOR => VENDOR_SIM,
+                A12_M2_FILTER => LOOPBACK_A12_M2_FILTER
+            )
+            port map
+            (
+                clk => edge_clk,
+                reset => false,
+
+                cpu_en => edge_cpu_en,
+                ppu_en => edge_ppu_en,
+                clk_sync => edge_clk_sync,
+                ram_en => edge_ram_en,
+
+                power_up_ready => cart_power_up_ready,
+                power_up_data => cart_power_up_data,
+
+                loaded => cart_loaded,
+                ready => cart_ready,
+
+                cpu_in => edge_cpu_in,
+                cpu_out => sys_cpu_out,
+                ppu_in => edge_ppu_in,
+                ppu_out => sys_ppu_out,
+                audio => cart_audio,
+
+                cart_mem_bus => cart_mem_bus,
+                data_to_cart_mem => open,
+                data_from_cart_mem => data_from_cart_mem
+            );
+        end generate;
+
+        gen_mem_sram : if LOOPBACK_SRAM generate
+            constant SRAM_ADDR_BITS : positive := cart_mem_addr_t'length - 1;
+
+            signal rom_loading : boolean;
+
+            signal load_valid : boolean := false;
+            signal load_data  : data_t := (others => '0');
+            signal load_ready : boolean;
+
+            signal prg_mem_bus       : cart_mem_bus_t;
+            signal data_to_prg_mem   : data_t;
+            signal data_from_prg_mem : data_t;
+            signal chr_mem_bus       : cart_mem_bus_t;
+            signal data_to_chr_mem   : data_t;
+            signal data_from_chr_mem : data_t;
+
+            signal sram_addr : std_logic_vector(SRAM_ADDR_BITS - 1 downto 0);
+            signal sram_dq   : std_logic_vector(15 downto 0);
+            signal sram_ce_n : std_logic;
+            signal sram_oe_n : std_logic;
+            signal sram_we_n : std_logic;
+            signal sram_lb_n : std_logic;
+            signal sram_ub_n : std_logic;
+        begin
+            -- The bench's ROM file memory isn't used
+            cart_mem_bus <= CART_MEM_BUS_IDLE;
+
+            cart_sys : cart_system_ocram
+            generic map
+            (
+                USE_EXT_CART_RAM => true,
+                VENDOR => VENDOR_SIM,
+                SPLIT_MEM_BUS => true,
+                A12_M2_FILTER => LOOPBACK_A12_M2_FILTER
+            )
+            port map
+            (
+                clk => edge_clk,
+                reset => rom_loading,
+
+                cpu_en => edge_cpu_en,
+                ppu_en => edge_ppu_en,
+                clk_sync => edge_clk_sync,
+                ram_en => edge_ram_en,
+
+                power_up_ready => cart_power_up_ready,
+                power_up_data => cart_power_up_data,
+
+                loaded => cart_loaded,
+                ready => cart_ready,
+
+                cpu_in => edge_cpu_in,
+                cpu_out => sys_cpu_out,
+                ppu_in => edge_ppu_in,
+                ppu_out => sys_ppu_out,
+                audio => cart_audio,
+
+                cart_mem_bus => open,
+                data_to_cart_mem => open,
+
+                prg_mem_bus => prg_mem_bus,
+                data_to_prg_mem => data_to_prg_mem,
+                data_from_prg_mem => data_from_prg_mem,
+
+                chr_mem_bus => chr_mem_bus,
+                data_to_chr_mem => data_to_chr_mem,
+                data_from_chr_mem => data_from_chr_mem
+            );
+
+            -- The ROM file as a byte stream. A byte is taken on the clock
+            -- load_ready is true
+            process(edge_clk)
+            is
+                type byte_file_t is file of character;
+                file rom_file : byte_file_t open read_mode is NES_FILEPATH;
+                variable byte : character;
+            begin
+            if rising_edge(edge_clk) and (load_ready or not load_valid)
+            then
+                if endfile(rom_file)
+                then
+                    load_valid <= false;
+                else
+                    read(rom_file, byte);
+                    load_data <= to_std_logic_vector(character'pos(byte),
+                                                     data_t'length);
+                    load_valid <= true;
+                end if;
+            end if;
+            end process;
+
+            rom : sram_rom
+            generic map
+            (
+                ADDR_BITS => SRAM_ADDR_BITS,
+                READ_CLOCKS => LOOPBACK_SRAM_READ_CLOCKS
+            )
+            port map
+            (
+                clk => edge_clk,
+                reset => false,
+
+                loading => rom_loading,
+                too_large => open,
+
+                load_valid => load_valid,
+                load_data => load_data,
+                load_ready => load_ready,
+
+                prg_mem_bus => prg_mem_bus,
+                data_to_prg_mem => data_to_prg_mem,
+                data_from_prg_mem => data_from_prg_mem,
+
+                chr_mem_bus => chr_mem_bus,
+                data_to_chr_mem => data_to_chr_mem,
+                data_from_chr_mem => data_from_chr_mem,
+
+                sram_addr => sram_addr,
+                sram_dq => sram_dq,
+                sram_ce_n => sram_ce_n,
+                sram_oe_n => sram_oe_n,
+                sram_we_n => sram_we_n,
+                sram_lb_n => sram_lb_n,
+                sram_ub_n => sram_ub_n
+            );
+
+            sram : sram_16
+            generic map
+            (
+                ADDR_BITS => SRAM_ADDR_BITS
+            )
+            port map
+            (
+                addr => sram_addr,
+                dq => sram_dq,
+                ce_n => sram_ce_n,
+                oe_n => sram_oe_n,
+                we_n => sram_we_n,
+                lb_n => sram_lb_n,
+                ub_n => sram_ub_n
+            );
+        end generate;
 
         board_cpu_in <= cart_cpu_in;
         board_ppu_in <= cart_ppu_in;

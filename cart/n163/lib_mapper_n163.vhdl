@@ -92,6 +92,12 @@ package lib_mapper_n163 is
         -- incremented after each access when ram_increment is set
         ram_addr       : chip_ram_idx_t;
         ram_increment  : boolean;
+        -- The chip RAM at ram_addr, once ram_data_valid. It is read in the
+        -- first sync cycle after ram_addr changes, so that a read of 0x4800
+        -- has its data from the start of the CPU cycle and not from the
+        -- chip RAM late in it
+        ram_data       : data_t;
+        ram_data_valid : boolean;
 
         irq            : boolean;
 
@@ -116,6 +122,8 @@ package lib_mapper_n163 is
 
         ram_addr => 0,
         ram_increment => false,
+        ram_data => (others => '0'),
+        ram_data_valid => false,
 
         irq => false,
 
@@ -569,8 +577,69 @@ package body lib_mapper_n163 is
         return ret;
     end;
 
+    -- The CPU writes the chip RAM through 0x4800
+    function is_ram_write
+    (
+        chip   : n163_chip_t;
+        cpu_in : cart_cpu_in_t
+    )
+    return boolean
+    is
+    begin
+        return chip = NAMCO_163 and get_low_reg_idx(cpu_in) = 9 and
+               is_bus_write(cpu_in.prg_bus);
+    end;
+
+    -- Keeps ram_data as the chip RAM at ram_addr. reg is the registers
+    -- before this cycle and written those after its write, and the chip RAM
+    -- is accessed as map_chip_ram does it
+    function cycle_ram_data
+    (
+        reg      : mapper_n163_reg_t;
+        written  : mapper_n163_reg_t;
+        clk_sync : boolean;
+        cart_in  : cart_in_t
+    )
+    return mapper_n163_reg_t
+    is
+        variable ret : mapper_n163_reg_t;
+        variable audio_bus : chip_ram_bus_t;
+    begin
+        ret := written;
+
+        if clk_sync
+        then
+            if is_ram_write(written.chip, cart_in.cpu)
+            then
+                ret.ram_data := cart_in.cpu.data;
+                ret.ram_data_valid := true;
+            elsif reg.chip = NAMCO_163 and not reg.ram_data_valid
+            then
+                ret.ram_data := cart_in.mem.data_from_chip_ram;
+                ret.ram_data_valid := true;
+            end if;
+        elsif reg.chip = NAMCO_163
+        then
+            audio_bus := get_n163_ram_bus(reg.audio);
+            if is_bus_write(audio_bus) and
+               to_integer(audio_bus.address) = reg.ram_addr
+            then
+                ret.ram_data := get_n163_ram_data(reg.audio);
+            end if;
+        end if;
+
+        if written.ram_addr /= reg.ram_addr
+        then
+            ret.ram_data_valid := false;
+        end if;
+
+        return ret;
+    end;
+
     -- The CPU accesses the chip RAM in the sync cycle, and the audio in the
-    -- other PPU cycles. chip is the chip as told by this cycle's write, which
+    -- other PPU cycles. The CPU's access is a write to 0x4800, or the read
+    -- of ram_addr that fills ram_data, which a read of 0x4800 without it
+    -- has to wait for. chip is the chip as told by this cycle's write, which
     -- can be the write to 0x4800 that tells it
     function map_chip_ram
     (
@@ -591,18 +660,15 @@ package body lib_mapper_n163 is
 
         if clk_sync
         then
-            if chip = NAMCO_163 and get_low_reg_idx(cpu_in) = 9 and
-               is_bus_active(cpu_in.prg_bus)
+            addr := to_std_logic_vector(reg.ram_addr,
+                                        chip_ram_addr_t'length);
+            if is_ram_write(chip, cpu_in)
             then
-                addr := to_std_logic_vector(reg.ram_addr,
-                                            chip_ram_addr_t'length);
-                if is_bus_write(cpu_in.prg_bus)
-                then
-                    ret.mem.chip_ram_bus := bus_write(addr);
-                    ret.mem.data_to_chip_ram := cpu_in.data;
-                else
-                    ret.mem.chip_ram_bus := bus_read(addr);
-                end if;
+                ret.mem.chip_ram_bus := bus_write(addr);
+                ret.mem.data_to_chip_ram := cpu_in.data;
+            elsif reg.chip = NAMCO_163 and not reg.ram_data_valid
+            then
+                ret.mem.chip_ram_bus := bus_read(addr);
             end if;
         elsif reg.chip = NAMCO_163
         then
@@ -634,7 +700,12 @@ package body lib_mapper_n163 is
         then
             case get_low_reg_idx(cart_in.cpu) is
                 when 9 =>
-                    ret.cpu.data := cart_in.mem.data_from_chip_ram;
+                    if reg.ram_data_valid
+                    then
+                        ret.cpu.data := reg.ram_data;
+                    else
+                        ret.cpu.data := cart_in.mem.data_from_chip_ram;
+                    end if;
                     ret.cpu.data_oe := true;
                 -- The counter, which is kept inverted
                 when 10 =>
@@ -689,6 +760,7 @@ package body lib_mapper_n163 is
                                               cart_in.mem.data_from_chip_ram);
         end if;
         ret.reg := cycle_write(ret.reg, board, clk_sync, cart_in);
+        ret.reg := cycle_ram_data(reg, ret.reg, clk_sync, cart_in);
 
         -- The PPU sees the registers written by the CPU this cycle
         banks := default_banks(config);

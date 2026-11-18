@@ -407,6 +407,7 @@ set_global_assignment -name VHDL_FILE ../../cart/lib_cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cartridge.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cart.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cart_edge.vhdl
+set_global_assignment -name VHDL_FILE ../../cart/cart_boot_stub.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cart_mem_bus_mux.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/lib_cart_system.vhdl
 set_global_assignment -name VHDL_FILE ../../cart/cart_system.vhdl

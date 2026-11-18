@@ -25,7 +25,9 @@ generic
     -- See cart_system
     CART_BOARDS      : board_set_t := ALL_BOARDS;
     -- See cart_system. Needs USE_EXT_CART_RAM
-    SPLIT_MEM_BUS    : boolean := false
+    SPLIT_MEM_BUS    : boolean := false;
+    -- See cartridge
+    A12_M2_FILTER    : boolean := false
 );
 port
 (
@@ -90,7 +92,8 @@ begin
     generic map
     (
         CART_BOARDS => CART_BOARDS,
-        SPLIT_MEM_BUS => SPLIT_MEM_BUS
+        SPLIT_MEM_BUS => SPLIT_MEM_BUS,
+        A12_M2_FILTER => A12_M2_FILTER
     )
     port map
     (
