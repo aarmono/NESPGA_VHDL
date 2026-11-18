@@ -3,8 +3,9 @@
 ; The menu's 8 KB of PRG RAM at $6000 is a bank of cartridge RAM that sd_menu
 ; selects (see board/de1/sd_menu.vhdl). Banks 0-7 are the game's PRG RAM,
 ; and MENU_BANK, which games do not use, holds the menu's own data, so that
-; it is still there when the menu comes back after a game
-MENU_BANK = 24
+; it is still there when the menu comes back after a game. It is the last
+; bank: the first banks of the other windows are filled at each power up
+MENU_BANK = 31
 WRAM      = $6000
 
 MAX_DEPTH = 7

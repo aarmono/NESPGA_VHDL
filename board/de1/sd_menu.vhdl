@@ -57,8 +57,9 @@ use work.sd_menu_stub.all;
 -- In menu mode, CPU accesses to PRG RAM, which the menu has 8 KB of at
 -- 0x6000-0x7FFF, go to the selected 8 KB bank of the 256 KB of cartridge
 -- RAM instead (see cart_mem_bus_types): 0-7 are PRG RAM, 8-15 CHR RAM,
--- 16 ExRAM, and the rest are not used by games, so the menu keeps its own
--- data there.
+-- 16 ExRAM and 24 the VRAM of a four-screen board, the start of each of
+-- which is filled at every power up. The rest are not used by games, so the
+-- menu keeps its own data in the last.
 --
 -- Holding Start and Select on controller 1 for RETURN_HOLD_MS, while a game
 -- that the menu launched runs, returns to the menu: the stub is loaded
