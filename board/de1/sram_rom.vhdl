@@ -16,7 +16,14 @@ use work.cart_mem_bus_types.all;
 -- held in reset. The ROM file is in the lower half of the SRAM and the
 -- 64 KB windows of the cartridge RAMs in the upper half, so the DE1's
 -- 512 KB hold a ROM file of up to 256 KB. A larger iNES file is not copied:
--- too_large becomes true and loading stays true.
+-- too_large becomes true and loading stays true. With REQUIRE_INES, a stream
+-- that does not start with an iNES header is not copied either: no_header
+-- becomes true after its first 4 bytes, and loading stays true.
+--
+-- restart starts a new copy, of a new stream, from the start. loading is
+-- true from the next clock, and an access in progress is completed first,
+-- so that a write to a cartridge RAM is not cut short. The copy only writes
+-- the lower half of the SRAM, so the cartridge RAMs keep their contents.
 --
 -- Once loading is complete, an access on a channel is started on the first
 -- clock the SRAM is free, and a channel that has just been served waits for
@@ -42,15 +49,20 @@ generic
     ADDR_BITS   : positive := 18;
     -- Clocks from the address to the data of a read: 2, or 1 if the SRAM's
     -- access time and the pin delays both ways fit in a clock
-    READ_CLOCKS : positive := 2
+    READ_CLOCKS : positive := 2;
+    -- Stop at a stream that does not start with an iNES header
+    REQUIRE_INES : boolean := false
 );
 port
 (
     clk   : in std_logic;
     reset : in boolean;
 
+    restart : in boolean := false;
+
     loading   : out boolean;
     too_large : out boolean;
+    no_header : out boolean;
 
     load_valid : in boolean;
     load_data  : in data_t;
@@ -119,6 +131,8 @@ architecture behavioral of sram_rom is
         STATE_COPY,
         -- The ROM file doesn't fit
         STATE_TOO_LARGE,
+        -- The stream has no iNES header and REQUIRE_INES is set
+        STATE_NO_HEADER,
         STATE_RUN
     );
 
@@ -143,6 +157,8 @@ architecture behavioral of sram_rom is
 
     type reg_t is record
         state      : state_t;
+        -- A restart waits for the access in progress
+        restart    : boolean;
         load_addr  : load_addr_t;
         load_last  : load_addr_t;
 
@@ -175,6 +191,7 @@ architecture behavioral of sram_rom is
     constant RESET_REG : reg_t :=
     (
         state => STATE_COPY,
+        restart => false,
         load_addr => 0,
         load_last => load_addr_t'high,
 
@@ -201,6 +218,7 @@ architecture behavioral of sram_rom is
 
     type sram_rom_in_t is record
         reg        : reg_t;
+        restart    : boolean;
         load_valid : boolean;
         load_data  : data_t;
         prg_bus    : cart_mem_bus_t;
@@ -329,6 +347,21 @@ architecture behavioral of sram_rom is
             end case;
         end if;
 
+        if rom_in.restart
+        then
+            reg.restart := true;
+        end if;
+
+        if reg.restart
+        then
+            if not reg.busy
+            then
+                reg := RESET_REG;
+            end if;
+
+            return reg;
+        end if;
+
         case rom_in.reg.state is
             when STATE_COPY =>
                 if rom_in.load_valid and not reg.busy
@@ -349,6 +382,10 @@ architecture behavioral of sram_rom is
                             reg.ines := reg.ines and rom_in.load_data = x"53";
                         when 3 =>
                             reg.ines := reg.ines and rom_in.load_data = x"1A";
+                            if REQUIRE_INES and not reg.ines
+                            then
+                                reg.state := STATE_NO_HEADER;
+                            end if;
                         when 4 =>
                             reg.prg_banks := to_integer(rom_in.load_data);
                         when 5 =>
@@ -394,7 +431,7 @@ architecture behavioral of sram_rom is
                     end if;
                 end if;
 
-            when STATE_TOO_LARGE =>
+            when STATE_TOO_LARGE | STATE_NO_HEADER =>
                 null;
 
             when STATE_RUN =>
@@ -446,8 +483,9 @@ begin
         report "sram_rom: READ_CLOCKS must be at most 3"
         severity failure;
 
-    loading <= reg.state /= STATE_RUN;
+    loading <= reg.state /= STATE_RUN or reg.restart;
     too_large <= reg.state = STATE_TOO_LARGE;
+    no_header <= reg.state = STATE_NO_HEADER;
 
     data_from_prg_mem <= reg.prg.data;
     data_from_chr_mem <= reg.chr.data;
@@ -474,6 +512,7 @@ begin
             reg <= RESET_REG;
         else
             rom_in.reg := reg;
+            rom_in.restart := restart;
             rom_in.load_valid := load_valid;
             rom_in.load_data := load_data;
             rom_in.prg_bus := prg_mem_bus;
@@ -488,7 +527,7 @@ begin
     end process;
 
     -- A byte is taken from the stream on the clock an access can start
-    load_ready <= reg.state = STATE_COPY and
+    load_ready <= reg.state = STATE_COPY and not reg.restart and
                   (not reg.busy or
                    (reg.write and reg.count = 2) or
                    (not reg.write and reg.count = READ_CLOCKS - 1));

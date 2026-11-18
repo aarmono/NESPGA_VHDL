@@ -12,6 +12,8 @@ use work.sd_menu_stub.all;
 
 -- The SD card side of ROM_SD_MENU. It loads ROM files from the card into
 -- sdram_rom, and gives the menu, which runs on the NES, access to the card.
+-- cart_de1 uses it too, with sram_rom in place of sdram_rom and the console
+-- kept busy by cart_boot_stub where the NES is held in reset here.
 --
 -- After reset the card is streamed into sdram_rom from block 0, as with
 -- ROM_SD_TO_SDRAM. If the card holds a filesystem rather than an iNES file,

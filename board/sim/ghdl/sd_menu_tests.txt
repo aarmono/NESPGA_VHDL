@@ -1,4 +1,4 @@
-# Smoke tests of ROM_SD_MENU for nes_de1_bench:
+# Smoke tests of the SD menu (ROM_SD_MENU, and cart_de1) for nes_de1_bench:
 #   run_nes_tests.sh -b nes_de1_bench -f sd_menu_tests.txt -o sd_menu_output
 # Make the cards first with make -C board/de1/sd_menu smoke_card.img, outside
 # the GHDL container, which lacks cc65 and mtools.
@@ -12,3 +12,9 @@
 # Card image path                   | run time | Hash | FM2 (none) | Bench args
 # FAT16, no partition table, instr_test-v5 01-basics as a long name
 board/de1/sd_menu/smoke_card.img    | 601ms    | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00035.bmp | | -gROM_CONFIG=ROM_SD_MENU -gJOY_A_FROM_MS=150 -gJOY_A_UNTIL_MS=200
+
+# The same card in a cartridge on a DE1 of its own (cart_de1 with
+# USE_SD_MENU) in the cartridge slot: the console runs the cartridge's boot
+# stub while the menu and then the game are loaded into the 512 KB SRAM, and
+# the menu reads the console's controller
+board/de1/sd_menu/smoke_card.img    | 601ms    | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00035.bmp | | -gUSE_CART_DE1=true -gCART_SD_MENU=true -gJOY_A_FROM_MS=150 -gJOY_A_UNTIL_MS=200

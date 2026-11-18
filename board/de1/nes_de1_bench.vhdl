@@ -54,6 +54,10 @@ generic
     -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
     -- file of up to 256 KB; 22 hold any
     CART_SRAM_ADDR_BITS : positive := 18;
+    -- The cartridge's card holds a filesystem, and its SD menu loads the
+    -- ROM file (cart_de1's USE_SD_MENU). The controller generics above then
+    -- work the menu, which reads the console's controller
+    CART_SD_MENU : boolean := false;
     -- Write this many CPU cycles and this many PPU accesses of the
     -- cartridge pins to the output, from CART_TRACE_FROM_MS and once the
     -- cartridge is ready: the address, R/W and data as M2 falls, or as /RD
@@ -241,7 +245,9 @@ begin
             DOT_CLOCKS => 186243 ps / CART_CLK_PERIOD,
             SRAM_ADDR_BITS => CART_SRAM_ADDR_BITS,
             SRAM_READ_CLOCKS => CART_SRAM_READ_CLOCKS,
-            A12_M2_FILTER => CART_A12_M2_FILTER
+            A12_M2_FILTER => CART_A12_M2_FILTER,
+            USE_SD_MENU => CART_SD_MENU,
+            RETURN_HOLD_MS => RETURN_HOLD_MS
         )
         port map
         (

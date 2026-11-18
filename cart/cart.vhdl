@@ -167,6 +167,21 @@ package cart is
     );
     end component cart_boot_stub;
 
+    -- Controller 1's buttons, from the CPU side of the connector. See
+    -- cart_joy_snoop
+    component cart_joy_snoop is
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean;
+
+        cpu_en : in boolean;
+        cpu_in : in cart_cpu_in_t;
+
+        buttons : out std_logic_vector(7 downto 0)
+    );
+    end component cart_joy_snoop;
+
 end cart;
 
 package body cart is

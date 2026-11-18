@@ -132,6 +132,7 @@
 ../../../cart/cart.vhdl
 ../../../cart/cart_edge.vhdl
 ../../../cart/cart_boot_stub.vhdl
+../../../cart/cart_joy_snoop.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
 ../../../console/lib_nes.vhdl

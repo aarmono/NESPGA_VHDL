@@ -174,15 +174,19 @@ package de1_types is
     generic
     (
         ADDR_BITS   : positive := 18;
-        READ_CLOCKS : positive := 2
+        READ_CLOCKS : positive := 2;
+        REQUIRE_INES : boolean := false
     );
     port
     (
         clk   : in std_logic;
         reset : in boolean;
 
+        restart : in boolean := false;
+
         loading   : out boolean;
         too_large : out boolean;
+        no_header : out boolean;
 
         load_valid : in boolean;
         load_data  : in data_t;
@@ -214,7 +218,9 @@ package de1_types is
         DOT_CLOCKS    : positive := 9;
         SRAM_ADDR_BITS   : positive := 18;
         SRAM_READ_CLOCKS : positive := 2;
-        A12_M2_FILTER    : boolean := true
+        A12_M2_FILTER    : boolean := true;
+        USE_SD_MENU      : boolean := false;
+        RETURN_HOLD_MS   : positive := 2000
     );
     port
     (

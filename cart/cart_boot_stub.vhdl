@@ -24,6 +24,18 @@ use work.cart_connector_types.all;
 -- sequence reads 0xFFFC too, so a console that is reset after the cartridge
 -- is ready never sees the stub.
 --
+-- The stub answers again whenever the cartridge stops being ready, as when
+-- it loads another game, and the console can then be anywhere in the game it
+-- was running. Wherever in 0x8000-0xFFFF its CPU goes on from, it reaches
+-- the JMP within three instructions: read from its second, third or fourth
+-- byte the stub is NOP abs,X or ISC abs,X, each of which ends a byte short
+-- of where it started in the four, and the NMI and IRQ vectors read 0xFCFF.
+-- The ISC writes to 0x6C00-0x6DFF, which a cartridge that isn't ready
+-- ignores. A CPU that is running code outside 0x8000-0xFFFF then is not
+-- caught until an interrupt takes it there. The new game starts as from
+-- reset, but in a console that has not been reset: its PPU and APU are as
+-- the last program left them.
+--
 -- While the stub answers, the cartridge still sees the connector, but its
 -- IRQ and its data are kept from the console. The PPU side is the
 -- console's own nametables, mirrored vertically, and nothing at
@@ -88,11 +100,18 @@ is
     end;
 
     -- The stub answers this cycle
-    function is_active(cur : stub_reg_t; cpu : cart_cpu_in_t) return boolean
+    function is_active
+    (
+        cur        : stub_reg_t;
+        cpu        : cart_cpu_in_t;
+        cart_ready : boolean
+    )
+    return boolean
     is
     begin
-        return cur.active and
-               not (cur.armed and cpu.romsel and cpu.prg_bus.read and
+        return (cur.active or not cart_ready) and
+               not (cur.armed and cart_ready and cpu.romsel and
+                    cpu.prg_bus.read and
                     cpu.prg_bus.address = RESET_VECTOR_ADDR);
     end;
 
@@ -124,11 +143,11 @@ is
 
 begin
 
-    active <= is_active(reg, cpu_in);
+    active <= is_active(reg, cpu_in, ready);
 
-    cpu_out <= get_stub_cpu_out(cpu_in) when is_active(reg, cpu_in) else
+    cpu_out <= get_stub_cpu_out(cpu_in) when is_active(reg, cpu_in, ready) else
                cart_cpu_out;
-    ppu_out <= get_stub_ppu_out(ppu_in) when is_active(reg, cpu_in) else
+    ppu_out <= get_stub_ppu_out(ppu_in) when is_active(reg, cpu_in, ready) else
                cart_ppu_out;
 
     process(clk)
@@ -139,7 +158,7 @@ begin
         then
             reg <= RESET_STUB_REG;
         else
-            reg.active <= is_active(reg, cpu_in);
+            reg.active <= is_active(reg, cpu_in, ready);
             if cpu_en
             then
                 reg.armed <= ready;

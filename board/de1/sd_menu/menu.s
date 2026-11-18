@@ -28,7 +28,6 @@
 
 PPU_OAM_ADDR = $2003
 OAM_DMA      = $4014
-APU_DMC      = $4010
 JOY1         = $4016
 APU_FRAME    = $4017
 
