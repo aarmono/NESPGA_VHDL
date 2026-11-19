@@ -107,11 +107,9 @@ port
     cart_cpu_in  : out cart_cpu_in_t;
     cart_cpu_out : in cart_cpu_out_t;
     -- The value on the CPU data bus, which the connector shares: the write
-    -- data, the read data of the console's own registers and RAM, or what
-    -- the cartridge drove. Where nothing drove it, the value it held: the
-    -- open bus value. Valid at cpu_clk_en. A connector on pins (cart_slot)
-    -- drives it on reads of the console's own addresses, as the console's
-    -- chips drive the shared bus
+    -- data, the console's own read data, what the cartridge drove, or else
+    -- the open bus value. Valid at cpu_clk_en. A connector on pins
+    -- (cart_slot) drives it on reads of the console's own addresses
     cpu_data_bus : out data_t;
     -- The PPU side of the cartridge connector. Only valid at ppu_clk_en
     cart_ppu_in  : out cart_ppu_in_t;
@@ -119,13 +117,13 @@ port
     -- The audio of the chips on the cartridge, mixed with the console's
     cart_audio   : in cart_audio_t := 0;
 
-    -- The data the RAMs are filled with after reset, from a power_up_fill.
-    -- All zero without one. The fill starts on the CPU cycle after
-    -- power_up_ready is true, and power_up_step is true on the clock that
-    -- ends each of its CPU cycles, when the data must change. The PPU's
-    -- start position comes from the data the fill ends with. A board that
-    -- fills RAMs of its own from the same power up fill does it on the
-    -- same CPU cycles. power_up_ready is sampled on cpu_clk_en
+    -- The data the RAMs are filled with after reset, from a power_up_fill,
+    -- or all zero without one. The fill starts on the CPU cycle after
+    -- power_up_ready is true (sampled on cpu_clk_en). power_up_step is true
+    -- on the clock that ends each CPU cycle of the fill, when the data must
+    -- change; a board sharing the power_up_fill fills its own RAMs on the
+    -- same cycles. The PPU's start position comes from the data the fill
+    -- ends with
     power_up_ready : in boolean := true;
     power_up_data  : in console_power_up_data_t := (others => '0');
     power_up_step  : out boolean

@@ -127,10 +127,9 @@ begin
     ppu_clk_en <= sig_ppu_clk_en;
 
     -- The console and the cartridge share a power up fill, each with its
-    -- own part of the data. The console steps it on the CPU cycles of its
-    -- fill, so the cartridge fills its RAMs on the same ones: the console
-    -- starts its fill once the cartridge has loaded its header, which is
-    -- when the cartridge starts
+    -- own part of the data. The console steps it, and starts its fill once
+    -- the cartridge has loaded its header, which is when the cartridge
+    -- starts, so both fill their RAMs on the same CPU cycles
     fill : power_up_fill
     generic map
     (
@@ -149,9 +148,8 @@ begin
 
     console_power_up_ready <= power_up_ready and cart_loaded;
 
-    -- The NES leaves reset once both have filled their RAMs. The cartridge
-    -- can take longer, and the board isn't told the NES is waiting for it
-    -- until then
+    -- The cartridge's fill can take longer than the console's, so the NES
+    -- neither runs nor tells the board it is waiting until both are done
     console_run <= run and cart_ready;
     waiting_to_run <= console_waiting and cart_ready;
 

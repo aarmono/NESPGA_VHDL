@@ -7,54 +7,49 @@ use work.chr_bus_types.all;
 use work.cart_connector_types.all;
 use work.cart_pin_types.all;
 
--- The cartridge connector on pins, for a real cartridge: turns the
--- console's side of the connector into the signals a cartridge sees, and the
--- cartridge's pins back into the connector records.
+-- The cartridge connector on pins, for a real cartridge: turns the console's
+-- side of the connector into the signals a cartridge sees, and back.
 --
--- CPU side. M2 falls on the clock where the console's CPU cycle ends
--- (cpu_en), and rises M2_LOW_CLOCKS later. Longer or stretched CPU cycles
--- only lengthen the high phase. The address and R/W change one clock after M2
--- falls, so that a cartridge latching on the fall of M2 has hold time. Write
--- data is driven while M2 is high and for one clock after it falls. Read data
--- is sampled on every clock, so the console's CPU takes what the bus held on
--- the clock before M2 falls.
+-- CPU side. M2 falls on the clock that ends the console's CPU cycle (cpu_en)
+-- and rises M2_LOW_CLOCKS later, so a longer CPU cycle only lengthens the
+-- high phase. The address and R/W change one clock after M2 falls, which
+-- gives a cartridge that latches on the fall of M2 its hold time. Write data
+-- is driven while M2 is high and for one clock after. Read data is sampled
+-- on every clock, so the CPU takes what the bus held on the clock before M2
+-- falls.
 --
--- Open bus. A cartridge doesn't say which data bits it drives, and through
+-- Open bus. A cartridge doesn't say which data bits it drives, and behind
 -- level shifters an undriven bus doesn't hold its last value by itself. So
--- the bus is made to hold it, as on a real NES, and every read of the
--- cartridge's addresses takes all 8 bits from the pins:
---   * On a read of the console's own addresses (0x0000-0x401F) the slot
---     drives the console's value of the data bus while M2 is high, as the
---     console's chips drive the bus the connector shares.
---   * With PRECHARGE_CLOCKS > 0, the slot drives the value the bus held at
---     the end of the last CPU cycle while M2 is low, from PRECHARGE_CLOCKS
---     after M2 falls (so that the cartridge has let go of the bus) until M2
---     rises. The bus holds it while M2 is high, unless the cartridge drives
---     it. With PRECHARGE_CLOCKS = 0 the board must hold the bus instead
---     (bus hold).
+-- every read of the cartridge's addresses takes all 8 bits from the pins,
+-- and the slot makes the bus hold its value as on a real NES. On a read of
+-- the console's own addresses (0x0000-0x401F) it drives the console's data
+-- bus value while M2 is high. With PRECHARGE_CLOCKS > 0 it also drives the
+-- value the last CPU cycle ended with while M2 is low. Otherwise the board
+-- must hold the bus itself (bus hold).
 --
 -- PPU side. An access starts on the dot ppu_en begins with ALE. The address
--- changes one clock after the dot starts, and ALE_CLOCKS after the dot starts
--- /RD or /WR goes low. /RD goes high with the start of the next access; /WR
--- goes high at the end of its dot, one clock before the address changes.
--- Write data is driven from the fall of /WR to the address change. Read data
--- and CIRAM /CE and A10 are sampled on every clock. The PPU drives the low
--- byte of the address on PPU D0-D7 during ALE, but the console doesn't model
--- PPU open bus, and driving it right after /RD rises would fight a slow CHR
--- ROM's outputs, so the slot leaves the bus alone then.
+-- changes one clock into the dot, and /RD or /WR falls ALE_CLOCKS into it.
+-- /RD rises when the next access starts. /WR rises at the end of its dot,
+-- one clock before the address changes, and write data is driven from its
+-- fall until then. Read data and CIRAM /CE and A10 are sampled on every
+-- clock. The slot doesn't drive the low address byte on PPU D0-D7 during ALE
+-- as the PPU does: the console doesn't model PPU open bus, and it would
+-- fight a slow CHR ROM still driving after /RD rises.
 --
--- /IRQ is synchronized. A board raises IRQ on a PPU clock enable, and the next
--- CPU clock enable is at least a dot later, so the delay doesn't move it.
+-- /IRQ is synchronized. A board raises IRQ on a PPU clock enable and the
+-- next CPU clock enable is at least a dot later, so the delay doesn't move
+-- it.
 entity cart_slot is
 generic
 (
     -- Clocks M2 is low after it falls, about 3/8 of a CPU cycle. Must be less
     -- than the shortest CPU cycle
     M2_LOW_CLOCKS    : positive := 10;
-    -- Clocks after M2 falls before the bus is precharged. 0 for none
+    -- Clocks after M2 falls before the bus is precharged, for the cartridge
+    -- to let go of it. 0 for none
     PRECHARGE_CLOCKS : natural := 3;
-    -- Clocks from the start of the dot an access starts on to the fall of
-    -- /RD or /WR. Must be at least 2 and less than the shortest dot
+    -- Clocks from the start of an access's dot to the fall of /RD or /WR.
+    -- Must be at least 2 and less than the shortest dot
     ALE_CLOCKS       : positive := 4
 );
 port
@@ -62,7 +57,6 @@ port
     clk    : in std_logic;
     reset  : in boolean;
 
-    -- The console's clock enables
     cpu_en : in boolean;
     ppu_en : in boolean;
 
@@ -74,7 +68,6 @@ port
     ppu_in       : in  cart_ppu_in_t;
     ppu_out      : out cart_ppu_out_t;
 
-    -- The pins
     pins_out : out cart_console_pins_t;
     pins_in  : in  cart_board_pins_t
 );
@@ -101,8 +94,8 @@ is
 
     constant RESET_SLOT_REG : slot_reg_t :=
     (
-        -- M2 starts high, as though a cycle had already started, so that the
-        -- console's first CPU cycle ends with M2 falling
+        -- M2 starts high so that the console's first CPU cycle ends with M2
+        -- falling
         pins =>
         (
             m2 => '1',
@@ -178,12 +171,11 @@ is
 
         if slot_in.cpu_en
         then
-            -- M2 falls. Hold the data bus for a clock, and keep what it holds
-            -- now for the precharge
+            -- M2 falls. The address and data pins hold for a clock
             reg.bus_value := slot_in.cpu_data_bus;
         else
-            -- The bus the console sampled on the cpu_en clock is still the
-            -- last cycle's here, so the address only changes now
+            -- On the cpu_en clock the console's bus is still the last
+            -- cycle's, so the address only changes now
             if is_bus_active(slot_in.cpu_in.prg_bus)
             then
                 reg.pins.cpu_addr := slot_in.cpu_in.prg_bus.address;
@@ -221,8 +213,8 @@ is
 
         if slot_in.ppu_en
         then
-            -- The dot ends. A write ends with it, a clock before the address
-            -- changes. The data bus holds for a clock
+            -- The dot ends, and a write with it, a clock before the address
+            -- and data change
             reg.dot_count := 0;
             reg.pins.ppu_wr_n := '1';
         else
@@ -231,8 +223,7 @@ is
                 reg.dot_count := slot_in.reg.dot_count + 1;
             end if;
 
-            -- The first clock after the dot started: the PPU's bus is the new
-            -- dot's
+            -- The first clock of the dot, when the PPU's bus is the new dot's
             if slot_in.reg.dot_count = 0
             then
                 -- The PPU holds the address while there is no access
@@ -261,9 +252,8 @@ is
             end if;
         end if;
 
-        -- From the cartridge. The data and CIRAM pins answer the console's
-        -- own outputs, so they are sampled once, where the console's timing
-        -- says they are valid. /IRQ is asynchronous
+        -- The data and CIRAM pins answer the console's own outputs, so they
+        -- are sampled once. /IRQ is asynchronous
         reg.board.cpu_data := slot_in.pins_in.cpu_data;
         reg.board.ppu_data := slot_in.pins_in.ppu_data;
         reg.board.ciram_ce_n := to_x01(slot_in.pins_in.ciram_ce_n);
@@ -286,8 +276,7 @@ begin
     cpu_out <=
     (
         data => reg.board.cpu_data,
-        -- Bits the cartridge leaves undriven hold the open bus value, see
-        -- above
+        -- Bits the cartridge leaves undriven hold the open bus value
         data_oe => true,
         data_float => (others => '0'),
         irq => reg.irq_sync(1) = '0'

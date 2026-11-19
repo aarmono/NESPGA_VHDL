@@ -50,47 +50,41 @@ generic
     -- that starts once the NES is running, 2 bytes each: the colour, then
     -- the emphasis bits. See board/sim/trace/video_diff.py
     VIDEO_TRACE_FILEPATH : string := "";
-    -- Report as an error each late change of the cartridge connector once
-    -- the NES is running, which ends the run unless it is given
-    -- --assert-level=none. On the CPU side (C), that is a
-    -- change LATE_CLOCKS or more clocks after the start of a CPU cycle. A
-    -- connector on pins needs the address stable before M2 rises, about 3/8
-    -- of the way into the cycle, and write data before M2 falls. On the PPU
-    -- side (P), it is any change after the clock that starts a dot. Each
-    -- line has the CPU cycle, the side, clocks into its cycle or dot (CPU_DIV
-    -- or 2 is when it ends), what changed (A for the address, /ROMSEL, /RD
-    -- or /WR, D for write data, L for ALE) and the bus before and after.
-    -- A CPU cycle where the bus neither reads nor writes is reported as I
+    -- Report as an error each late change of the cartridge connector once the
+    -- NES is running, which ends the run unless it is given
+    -- --assert-level=none. On the CPU side (C) that is a change
+    -- BUS_CHECK_LATE_CLOCKS or more clocks into a CPU cycle: pins need the
+    -- address before M2 rises, about 3/8 of the way in, and write data before
+    -- M2 falls. On the PPU side (P) it is any change after the clock that
+    -- starts a dot. Each line has the CPU cycle, the side, clocks into its
+    -- cycle or dot (a cycle is CPU_CYCLE_CLOCKS long, and a dot a third of
+    -- that), what changed (A for the address, /ROMSEL, /RD or /WR, D for
+    -- write data, L for ALE, I for a CPU cycle that neither reads nor writes)
+    -- and the bus before and after
     BUS_CHECK : boolean := true;
     BUS_CHECK_LATE_CLOCKS : positive := 2;
-    -- Clocks in a CPU cycle. The clock runs at 50MHz * CPU_CYCLE_CLOCKS / 28,
-    -- so the CPU cycle is as long as 28 clocks of a 50MHz clock whatever
-    -- this is. 28 runs the 50MHz clock of the DE1
+    -- Clocks in a CPU cycle, which always lasts as long as 28 clocks of 50MHz:
+    -- the clock rate scales with this. 28 gives the 50MHz clock of the DE1
     CPU_CYCLE_CLOCKS : positive := 6;
-    -- The cartridge the console runs, and whether it is at the pins of a
-    -- cart_slot. See bench_cart_t. The two at the pins need
-    -- CPU_CYCLE_CLOCKS = 28
+    -- The cartridge the console runs. See bench_cart_t. Those at the pins of a
+    -- cart_slot need CPU_CYCLE_CLOCKS = 28
     BENCH_CART : bench_cart_t := CART_EMULATED;
-    -- With CART_LOOPBACK_SLOT, the period in ps of the clock cart_edge and the
-    -- cartridge run on, as in a real console, where the cartridge's clock
-    -- has nothing to do with M2. 0 runs them on the console's clock. 20043
-    -- gives a real NES's 27.94 clocks per CPU cycle, and a phase between the
-    -- two clocks that keeps moving
+    -- With CART_LOOPBACK_SLOT, the period in ps of the clock that cart_edge
+    -- and the cartridge run on, or 0 for the console's clock. 20043 gives a
+    -- real NES's 27.94 clocks per CPU cycle, and a phase between the two
+    -- clocks that keeps moving
     EDGE_CLK_PERIOD_PS : natural := 0;
-    -- With CART_LOOPBACK_SLOT, the clocks after M2 falls that the console's dots
-    -- start, at most 8. The console starts them as M2 falls, but a real
-    -- NES's sit 0 to 3 master clocks after it: 0 to 7 clocks. M2 and
-    -- /ROMSEL move this many clocks earlier and the other pins keep their
-    -- timing, so the address changes this much closer to M2 rising and
-    -- write data comes this much after it. The console sees CPU D0-D7 and
-    -- /IRQ this many clocks late, so that it samples them where it would
-    -- with M2 in its place
+    -- With CART_LOOPBACK_SLOT, the clocks after M2 falls that the console's
+    -- dots start, at most 8. A real NES's start 0 to 3 master clocks after it,
+    -- which is 0 to 7 clocks. M2 and /ROMSEL move this many clocks earlier, so
+    -- the address changes that much closer to M2 rising and write data comes
+    -- that much after it. The console sees CPU D0-D7 and /IRQ this many clocks
+    -- late, so that it samples them where it would with M2 in its place
     LOOPBACK_DOT_OFFSET : natural := 0;
     -- With CART_LOOPBACK_SLOT, the cartridge's memory is an SRAM behind
-    -- sram_rom, which serves each access as it is asked for, as in
-    -- cart_de1. Otherwise it is the ROM file with one access per dot and
-    -- the cartridge RAMs on chip. The console waits while the ROM file is
-    -- copied into the SRAM, 3 clocks a byte. Timing violations at the SRAM
+    -- sram_rom, as in cart_de1, rather than the ROM file with one access per
+    -- dot and the cartridge RAMs on chip. The console waits while the ROM file
+    -- is copied into the SRAM, 3 clocks a byte. Timing violations at the SRAM
     -- are written to the output
     LOOPBACK_SRAM : boolean := false;
     -- With CART_LOOPBACK_SLOT, the console is answered by cart_boot_stub for this
@@ -143,7 +137,7 @@ architecture behavioral of nes_bench is
 
     constant EDGE_CLK_PERIOD : time := get_edge_clk_period;
 
-    -- cart_slot's M2_LOW_CLOCKS, which CART_LOOPBACK_SLOT moves M2 by
+    -- cart_slot's M2_LOW_CLOCKS, which LOOPBACK_DOT_OFFSET needs
     constant SLOT_M2_LOW_CLOCKS : positive := 10;
 
     signal cart_mem_bus       : cart_mem_bus_t;
@@ -176,8 +170,7 @@ architecture behavioral of nes_bench is
     signal board_cpu_in : cart_cpu_in_t;
     signal board_ppu_in : cart_ppu_in_t;
 
-    -- The console's side of a cartridge at the pins, with CART_NROM_SLOT
-    -- or CART_LOOPBACK_SLOT
+    -- The console's side of a cartridge at the pins
     signal clk_sync       : boolean;
     signal cart_cpu_in    : cart_cpu_in_t;
     signal cart_cpu_out   : cart_cpu_out_t;
@@ -352,10 +345,9 @@ begin
             data => console_power_up_data
         );
 
-        -- A real cartridge has no header to load. cart_system has loaded the
-        -- header on its 16th CPU cycle, so the console starts its fill on the
-        -- same cycle as with the emulated cartridge, and the CPU cycles keep
-        -- their parity
+        -- A real cartridge has no header to load. The console's fill starts on
+        -- the CPU cycle it would after cart_system's 16 cycle header load,
+        -- which keeps the parity of the CPU cycles
         process(clk)
         is
             variable cycles : natural := 0;
@@ -376,9 +368,8 @@ begin
             CHR_ACCESS => SLOT_CHR_ACCESS_NS * 1 ns,
             OE_ACCESS => SLOT_OE_ACCESS_NS * 1 ns,
             CIRAM_DELAY => SLOT_CIRAM_DELAY_NS * 1 ns,
-            -- cart_slot samples on every clock, and the console takes the
-            -- sample of the clock before M2 falls, or two clocks before /RD
-            -- rises
+            -- The console takes cart_slot's sample of the clock before M2
+            -- falls, or of two clocks before /RD rises
             CPU_SAMPLE_LEAD => CLK_PERIOD,
             PPU_SAMPLE_LEAD => 2 * CLK_PERIOD,
             PPU_DOT => CLK_PERIOD * CPU_CYCLE_CLOCKS / 3
@@ -402,10 +393,9 @@ begin
         );
     end generate;
 
-    -- The emulated cartridge through the pins: the console's cart_slot
-    -- drives them, and cart_edge turns them back into the connector and
-    -- clock enables of the cartridge, which only has the pins. Both sides
-    -- driving a data bus is written to the output
+    -- The emulated cartridge through the pins: cart_edge turns what the
+    -- console's cart_slot drives back into the cartridge's connector and clock
+    -- enables. Both sides driving a data bus is written to the output
     gen_loopback : if BENCH_CART = CART_LOOPBACK_SLOT generate
         signal power_up_data : power_up_data_t;
 
@@ -417,8 +407,7 @@ begin
         -- M2 and /ROMSEL moved for LOOPBACK_DOT_OFFSET
         signal early_m2       : std_logic := '1';
         signal early_romsel_n : std_logic := '1';
-        -- CPU D0-D7 and /IRQ as the console sees them for
-        -- LOOPBACK_DOT_OFFSET
+        -- CPU D0-D7 and /IRQ delayed for LOOPBACK_DOT_OFFSET
         signal delayed_cpu_data : data_t := (others => '0');
         signal delayed_irq_n    : std_logic := '1';
 
@@ -501,9 +490,6 @@ begin
         end if;
         end process;
 
-        -- The console's CPU samples CPU D0-D7 and /IRQ as its cycle ends,
-        -- LOOPBACK_DOT_OFFSET clocks after M2 falls, so it sees them as
-        -- late
         process(clk)
         is
             type cpu_pins_t is record
@@ -878,8 +864,7 @@ begin
     
     gen_bus_check : if BUS_CHECK generate
 
-        -- Counted by the CPU side's process, so both sides' lines can be
-        -- matched up
+        -- Counted by the CPU side's process, so both sides' lines match up
         signal cycle : natural := 0;
 
         function bus_image(cpu_in : cart_cpu_in_t) return string
@@ -1017,10 +1002,8 @@ begin
         end if;
         end process;
 
-        -- The PPU side changes once a dot, at the clock of ppu_clk_en. A
-        -- change on any later clock of the dot is late: a connector on pins
-        -- needs the address stable through /RD and /WR, and the write data
-        -- through /WR
+        -- Any change after the clock of ppu_clk_en is late: pins need the
+        -- address stable through /RD and /WR, and write data through /WR
         process(clk)
         is
             -- Clocks since the clock enable that started the PPU dot

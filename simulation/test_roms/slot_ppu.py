@@ -4,32 +4,30 @@ connector, for nes_bench CART_NROM_SLOT runs against a real cartridge's timing.
 
 Usage: slot_ppu.py OUT.nes
 
-A $2007 access of the emulated PPU is one dot long, which is too short for a
-real cartridge's memories unless the bus already holds the address. A PPU
-that isn't rendering drives v on the address bus, so it does: after a $2006
-write, after another $2007 access, and when rendering stops. The last is what
-this ROM checks, with the first $2007 access after rendering stops and no
-$2006 write. With the scroll at 0, a whole frame leaves v at $0802 in vblank
-(fine Y wraps to 0, coarse Y to 0 in the other nametable, coarse X at 2 from
-the prefetch of the next line), and the last fetch of the frame was the
-nametable byte at $2802. If the bus still held that, the read of CHR ROM at
-$0802 would have only part of a dot for its address and /RD.
+A $2007 write of the emulated PPU is one dot long (a read is two), which is
+too short for a real cartridge's memories unless the bus already holds the
+address. A PPU that isn't rendering drives v on the address bus, so it does:
+after a $2006 write, after another $2007 access, and when rendering stops.
+This ROM checks the last, with a $2007 access after rendering stops and no
+$2006 write.
 
-CIRAM /CE and A10 don't change there: the last nametable fetch and v select
-the same CIRAM byte. They change when rendering is turned off mid-frame
-during a pattern fetch, on a line whose fine Y is 2 or 3 (v at $2xxx), and a
-$2007 access follows before any $2006 write.
+With the scroll at 0, a whole frame leaves v at $0802 in vblank (fine Y wraps
+to 0, coarse Y to 0 in the other nametable, coarse X at 2 from the prefetch
+of the next line), and the last fetch of the frame was the nametable byte at
+$2802. CIRAM is only deselected there, and its A10 stays: the last nametable
+fetch and v differ in A13 alone. CIRAM is selected, at an A10 that may
+change, when rendering is turned off mid-frame during a pattern fetch, on a
+line whose fine Y is 2 or 3 (v at $2xxx).
 
 The ROM checks, in groups:
   1 CHR ROM read through $2006/$2007, where the bus already holds the address
   2 CHR ROM read through $2007 in vblank after a rendered frame, rendering
     turned off and no $2006 write: $0802, then $0803
   3 CIRAM write through $2007 right after rendering is turned off on line
-    18 or 19 (fine Y 2 or 3), in 16 trials, each 3 CPU cycles later than the
-    one before, so that rendering stops in the different dots of a tile
-    fetch (the $2002 loop adds up to 7 cycles of its own). Each trial clears
-    the nametables, writes a marker and expects to find exactly one. The
-    index is the trial
+    18 or 19 (fine Y 2 or 3). There are 16 trials, each 3 CPU cycles later
+    than the one before, so that rendering stops in the different dots of a
+    tile fetch. Each trial clears the nametables, writes a marker and
+    expects to find exactly one. The index is the trial
 
 The result is shown in the backdrop with rendering off: color $2A (green)
 on pass, otherwise the number of the group of checks that failed; the
@@ -53,12 +51,11 @@ DETAIL = 0x00
 FOUND = 0x01
 
 CIRAM_TRIALS = 16
-# The delay from the read of $2002 that sees vblank to the write to $2001
-# that turns rendering off in the first trial is about 4,500 CPU cycles: dot
-# 200 or so of line 18 of the next frame. Vblank starts on line 241, so line
-# 18 starts (262 - 241 + 18) * 341 dots later. The lines with fine Y 2 and 3
-# are 18-19, so the window is 682 dots wide, and the trials add up to 135
-# dots, the $2002 loop up to 21 more
+# In the first trial, the $2001 write that turns rendering off comes about
+# 4,500 CPU cycles after the $2002 read that sees vblank: around dot 200 of
+# line 18, which starts (262 - 241 + 18) * 341 dots after vblank does. Lines
+# 18-19 make a window 682 dots wide. The trials add up to 135 dots and the
+# $2002 loop up to 21 more
 DELAY_OUTER = 9
 DELAY_INNER = 98
 
@@ -173,7 +170,6 @@ def build():
     a.label('loop')
     a.abs_label(JMP_ABS, 'loop')
 
-    # Clears both nametables
     a.label('clear_nt')
     ppu_addr(0x2000)
     a.emit(LDA_IMM, 0x00)

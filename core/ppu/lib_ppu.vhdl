@@ -416,8 +416,7 @@ package lib_ppu is
         -- Delayed copy of render_enabled. Toggling rendering affects
         -- background and sprite fetches about 3 dots after the $2001 write
         render_fetch   : boolean;
-        -- The last dot was the first of the two of a $2007 read's memory
-        -- read
+        -- The last dot was the first of the two dots of a $2007 memory read
         data_read_first : boolean;
         -- The last dot was rendering: fetching with v, with rendering
         -- enabled on a line that is drawn
@@ -2424,7 +2423,7 @@ package body lib_ppu is
                     -- buffer gets whatever the rendering fetch reads then.
                     -- Otherwise the memory read starts at once and is two
                     -- dots long, as any read of the PPU is: this dot drives
-                    -- the address, and the next one takes the data
+                    -- the address and the next takes the data
                     if v_rendering
                     then
                         render_out.reg.ppu_data_delay := PPU_DATA_READ_DELAY;
@@ -2622,8 +2621,7 @@ package body lib_ppu is
 
         -- When not rendering, v drives the address bus. So when rendering
         -- stops, at the end of the last line drawn or when it is disabled,
-        -- the address changes from that of the last fetch to v, as it does
-        -- when v changes later: v is read for a dot, on the next dot. The
+        -- v is read for a dot on the next dot, as when v changes later. The
         -- cartridge sees the address before a $2007 access uses it
         render_out.reg.rendering := v_rendering;
         if render_in.reg.rendering and not v_rendering and
@@ -2644,8 +2642,6 @@ package body lib_ppu is
         render_out.chr_ale := is_bus_active(render_out.chr_bus) and
                               not v_chr_second_dot;
 
-        -- The address pins always drive an address: the last one, when
-        -- there is no access
         if is_bus_active(render_out.chr_bus) or v_chr_addr_only
         then
             render_out.reg.bus_addr := render_out.chr_bus.address;

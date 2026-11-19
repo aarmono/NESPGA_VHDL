@@ -4,11 +4,10 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.cart_pin_types.all;
 
--- The pins between a cart_slot and a cartridge, as the board of the slot
--- makes them from what each side drives. A bit of a data bus nobody drives
--- keeps its last value, which a board would do with bus hold. Both sides
--- driving a data bus is reported as an error starting with NAME, and the
--- bits both drive are X
+-- The pins between a cart_slot and a cartridge, made from what each side
+-- drives. A data bit nobody drives keeps its last value, as on a board with
+-- bus hold. Both sides driving a data bus is reported as an error starting
+-- with NAME, and the bits both drive are X
 entity cart_pin_bus is
 generic
 (

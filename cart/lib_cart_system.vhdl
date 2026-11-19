@@ -373,11 +373,11 @@ package body lib_cart_system is
                     ret.data_to_chr_cart_mem := sys_in.power_up_data(7 downto 0);
 
                     -- ExRAM, then the VRAM of a four-screen board, are filled
-                    -- alongside the CHR RAM writes, on the PRG channel, which
-                    -- is otherwise idle in these cycles. Two writes fit in a
-                    -- whole CPU cycle, and these are never the first or last
-                    -- cycle of the fill. Every board gets this, so it costs
-                    -- no time in reset
+                    -- on the PRG channel, which is idle in the cycles of the
+                    -- CHR RAM writes. Two writes fit in a whole CPU cycle,
+                    -- and these are never the first or last cycle of the
+                    -- fill. Every board gets this, so it costs no time in
+                    -- reset
                     if sys_in.reg.cur_cycle(13 downto 11) = "000"
                     then
                         ret.prg_cart_mem_bus :=

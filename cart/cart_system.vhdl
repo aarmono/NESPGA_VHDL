@@ -37,16 +37,14 @@ port
     -- into it. Must be stable while reset is true
     keep_prg_ram  : in boolean := false;
 
-    -- The data the RAMs are filled with, from a power_up_fill. Shared with
-    -- a console, it is the console that steps it, once per CPU cycle of its
-    -- own fill. The cartridge fills its RAMs on the same CPU cycles, so it
-    -- takes the same data the console's RAMs did before they were split
+    -- The data the RAMs are filled with, from a power_up_fill. When it is
+    -- shared with a console, the console steps it once per CPU cycle of its
+    -- own fill, and the cartridge fills its RAMs on the same CPU cycles
     power_up_ready : in boolean;
     power_up_data  : in cart_power_up_data_t;
 
-    -- The header is loaded. Once the power up data is ready as well, the
-    -- fill starts on the next CPU cycle. The console starts its own fill on
-    -- the same CPU cycle
+    -- The header is loaded. With power_up_ready, the fill starts on the next
+    -- CPU cycle, and the console starts its own fill then too
     loaded : out boolean;
     -- The RAMs are filled by the end of this CPU cycle, so the console can
     -- leave reset after it. The board leaves reset then too
@@ -60,11 +58,10 @@ port
     -- own
     audio   : out cart_audio_t;
 
-    -- The two channels of the cartridge memory: the accesses the board
-    -- makes for the CPU and for the PPU, each with the ROM file at the
-    -- start and the cartridge RAMs in the windows of the upper half. See
-    -- cart_mem_bus_types. Each holds its access until the board moves on.
-    -- cart_mem_bus_mux puts both on one cartridge memory bus
+    -- The two channels of the cartridge memory, for the accesses the board
+    -- makes for the CPU and for the PPU. Both are addressed as the cartridge
+    -- memory bus is (see cart_mem_bus_types), and each holds its access
+    -- until the board moves on
     prg_mem_bus       : out cart_mem_bus_t;
     data_to_prg_mem   : out data_t;
     data_from_prg_mem : in data_t;

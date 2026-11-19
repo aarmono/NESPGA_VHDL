@@ -21,10 +21,9 @@ package lib_nes is
 
     type state_t is
     (
-        -- Waits for the power up data, and for the board to start the fill
-        -- (nes_in_t.power_up_ready)
+        -- Waits for nes_in_t.power_up_ready
         STATE_POWER_UP,
-        -- The console's RAMs are filled
+        -- Fills the console's RAMs
         STATE_RESET,
         -- The RAMs are ready, and the NES waits in reset for the board to
         -- start it (nes_in_t.run)

@@ -3,18 +3,18 @@ use std.textio.all;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
--- An asynchronous SRAM of 16-bit words with byte enables, such as the
--- IS61LV25616 of the DE1 (256K words, 10 ns), for simulation. The memory
--- starts as zeros.
+-- Simulation model of an asynchronous SRAM of 16-bit words with byte
+-- enables, such as the IS61LV25616 of the DE1 (256K words, 10 ns). The
+-- memory starts as zeros.
 --
 -- A read drives X on DQ from HOLD after the address or a control changes
--- until the data is valid ACCESS after it. A write is taken as /WE or /CE
--- rises, for the bytes enabled.
+-- until the data is valid. A write is taken as /WE or /CE rises, for the
+-- bytes enabled.
 --
--- The model reports a timing violation as an error starting with
--- "sram_16:": /WE low for less than WRITE_PULSE, or the
--- address changing while it is low, or within ADDR_SETUP before it falls,
--- or the data changing within DATA_SETUP before it rises
+-- A timing violation is reported as an error starting with "sram_16:": /WE
+-- low for less than WRITE_PULSE, the address changing while it is low or
+-- within ADDR_SETUP before it falls, or the data changing within DATA_SETUP
+-- before it rises
 entity sram_16 is
 generic
 (

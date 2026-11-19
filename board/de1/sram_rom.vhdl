@@ -8,40 +8,25 @@ use work.lib_ines_load.all;
 
 -- Serves the two channels of a split cartridge memory bus (see cart_system
 -- CART_MEM_SPLIT) out of the DE1's asynchronous SRAM, each access as it is
--- asked for, where sdram_rom serves one access per PPU cycle. For a
--- cartridge in a real console, whose accesses come when the console makes
--- them and must be answered within the access.
+-- asked for. It is for a cartridge in a real console, which makes its accesses
+-- when it likes, where sdram_rom serves one access per PPU cycle.
 --
--- After reset the ROM file is copied into the SRAM from a byte stream, as
--- sdram_rom does it, during which loading is true and the cartridge must be
--- held in reset. The ROM file is in the lower half of the SRAM and the
--- 64 KB windows of the cartridge RAMs in the upper half, so the DE1's
--- 512 KB hold a ROM file of up to 256 KB. A larger iNES file is not copied:
--- too_large becomes true and loading stays true. With REQUIRE_INES, a stream
--- that does not start with an iNES header is not copied either: no_header
--- becomes true after its first 4 bytes, and loading stays true.
+-- After reset, or a restart, the ROM file is copied from a byte stream into
+-- the lower half of the SRAM, during which loading is true and the cartridge
+-- must be held in reset. The upper half has the 64 KB windows of the cartridge
+-- RAMs, which a restart keeps, so the DE1's 512 KB hold a ROM file of up to
+-- 256 KB. A larger iNES file sets too_large, and with REQUIRE_INES a stream
+-- without an iNES header sets no_header. loading then stays true.
 --
--- restart starts a new copy, of a new stream, from the start. loading is
--- true from the next clock, and an access in progress is completed first,
--- so that a write to a cartridge RAM is not cut short. The copy only writes
--- the lower half of the SRAM, so the cartridge RAMs keep their contents.
+-- A read takes READ_CLOCKS and a write 3, and the channels take turns, so with
+-- both asking at once the second read is answered READ_CLOCKS + 1 clocks after
+-- the first. The read data of a channel holds until its next read is answered.
+-- A channel whose address or write data changes is served again, so it may
+-- show an access before it has settled, as long as only the data of a write is
+-- wrong then.
 --
--- Once loading is complete, an access on a channel is started on the first
--- clock the SRAM is free, and a channel that has just been served waits for
--- the other one. A read takes READ_CLOCKS and a write 3, so with both
--- channels asking at once the second read is answered READ_CLOCKS + 1
--- clocks after the first. The read data of a channel holds until its next
--- read is answered, so the board sees the data of the address it asked for
--- last, late by the time the access takes.
---
--- The address and data of an access are taken when it starts. A channel
--- whose access changes is served again, and a write is made again whenever
--- its address or data changes. So a channel may show an access before it
--- has settled, as long as only the data of a write is wrong then: the
--- settled access overwrites it.
---
--- A write through one channel is seen by a read through the other, which
--- only ExRAM and the VRAM of a four-screen board use.
+-- A write through one channel is seen by a read through the other, which only
+-- ExRAM and the VRAM of a four-screen board use.
 entity sram_rom is
 generic
 (
@@ -92,7 +77,6 @@ architecture behavioral of sram_rom is
     -- A byte of the SRAM: the word, and bit 0 selects the byte of it
     subtype byte_addr_t is std_logic_vector(ADDR_BITS downto 0);
 
-    -- The ROM file is in the lower half of the SRAM
     constant ROM_BYTES : positive := 2**(byte_addr_t'length - 1);
 
     subtype load_addr_t is natural range 0 to ROM_BYTES - 1;
@@ -108,9 +92,7 @@ architecture behavioral of sram_rom is
     type state_t is
     (
         STATE_COPY,
-        -- The ROM file doesn't fit
         STATE_TOO_LARGE,
-        -- The stream has no iNES header and REQUIRE_INES is set
         STATE_NO_HEADER,
         STATE_RUN
     );
@@ -150,7 +132,6 @@ architecture behavioral of sram_rom is
         channel : channel_t;
         write   : boolean;
         count   : access_count_t;
-        -- The address and write data of the access
         address : byte_addr_t;
         data    : data_t;
 
@@ -220,7 +201,6 @@ architecture behavioral of sram_rom is
                (bus_in.write and served.data /= data);
     end;
 
-    -- Starts an access
     function start_access
     (
         reg     : reg_t;

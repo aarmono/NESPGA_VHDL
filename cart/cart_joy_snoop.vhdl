@@ -8,9 +8,9 @@ use work.cart_connector_types.all;
 -- ports are not on the cartridge connector, but the CPU's buses are: the
 -- strobe is bit 0 of a write to 0x4016, and each read of 0x4016 puts the
 -- controller's next bit on D0, high for a button that is pressed. So this
--- follows the game as it reads the controller, and has the buttons the game
--- last read. A game that doesn't read controller 1 shows none, and a read
--- that a DMC DMA repeats shifts the buttons after it by one.
+-- has the buttons the game last read. A game that doesn't read controller 1
+-- shows none, and a read that a DMC DMA repeats shifts the buttons after it
+-- by one.
 entity cart_joy_snoop is
 port
 (
@@ -18,7 +18,6 @@ port
     reset : in boolean;
 
     cpu_en : in boolean;
-    -- The CPU side of the cartridge connector
     cpu_in : in cart_cpu_in_t;
 
     -- The first 8 bits the CPU read from D0 after the last strobe: the
@@ -58,7 +57,6 @@ is
         return not cpu.romsel and cpu.prg_bus.address = JOY_1_ADDR;
     end;
 
-    -- A CPU cycle
     function cycle_snoop
     (
         reg : snoop_reg_t;

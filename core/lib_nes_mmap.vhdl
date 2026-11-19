@@ -66,11 +66,10 @@ package lib_nes_mmap is
         data_to_ram     : data_t;
         data_to_ppu     : data_t;
 
-        -- The value on the external data bus, which is on the cartridge
-        -- connector too: the write data, or what the read put there. Where
-        -- nothing drives the bus, as for a read of 0x4015 (internal to the
-        -- CPU) or of a write-only register, the value it held. It becomes
-        -- the open bus value at the end of the cycle
+        -- The value on the external data bus, which the cartridge connector
+        -- shares: the write data, the read data, or the value the bus held
+        -- where nothing drives it (a read of 0x4015 or of a write-only
+        -- register). It becomes the open bus value at the end of the cycle
         ext_data        : data_t;
     end record;
     

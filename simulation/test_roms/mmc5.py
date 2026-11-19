@@ -837,10 +837,8 @@ def build(variant):
     a.label('trials_done')
     if EXPECTED is not None:
         for t, (lo, f1, f2) in enumerate(EXPECTED):
-            # From 2 NOPs before what Mesen gives to 1 after: where the NMI
-            # lands in the wait loop depends on how the CPU and PPU clocks
-            # line up at power up, which moves a result a NOP, and nes_bench
-            # is a NOP before Mesen in some trials
+            # From 2 NOPs before what Mesen gives to 1 after. See group 16 in
+            # the module docstring
             a.emit(LDA_ZP, RESULTS + t)
             a.emit(SEC)
             a.emit(SBC_IMM, (lo - 2) & 0xFF)

@@ -8,20 +8,20 @@ use work.cart_pin_types.all;
 
 -- A real NROM cartridge at its pins, built from an iNES file, for testing
 -- cart_slot: PRG ROM at 0x8000-0xFFFF (16 KB mirrored, or 32 KB), 8 KB of PRG
--- RAM at 0x6000-0x7FFF (as the emulated NROM has, for Family BASIC), CHR ROM,
--- or 8 KB of CHR RAM when the file has none, and fixed mirroring.
+-- RAM at 0x6000-0x7FFF (as the emulated NROM has, for Family BASIC), CHR ROM
+-- or 8 KB of CHR RAM, and fixed mirroring.
 --
--- The memories answer with access times, and drive X until their data is
--- valid. The model reports a timing violation as an error starting with
--- "nrom_cart:":
---   * read data not valid CPU_SAMPLE_LEAD before M2 falls, or
---     PPU_SAMPLE_LEAD before /RD rises (when the console samples it). See
---     PPU_DOT
+-- The memories have access times and drive X until their data is valid. A
+-- timing violation is reported as an error starting with "nrom_cart:":
+--   * read data not valid CPU_SAMPLE_LEAD before M2 falls, or PPU_SAMPLE_LEAD
+--     before /RD rises (see PPU_DOT)
 --   * the CPU address or R/W changing while M2 is high, or within HOLD after
 --     it falls
 --   * the PPU address changing while /RD or /WR is low, or within HOLD after
 --     /WR rises
---   * write data not stable WRITE_SETUP before the end of a write
+--   * write data not stable WRITE_SETUP before the end of a write, or
+--     changing within HOLD after it
+--   * PPU write data changing while /WR is low
 entity nrom_cart is
 generic
 (
@@ -42,8 +42,8 @@ generic
     CPU_SAMPLE_LEAD : time;
     PPU_SAMPLE_LEAD : time;
     -- A PPU dot. After a $2007 access the PPU reads the new address for one
-    -- dot without using the data, and the bus goes idle after it. So a read
-    -- of less than a dot whose address doesn't change when /RD rises isn't
+    -- dot without using the data, and then leaves the address on the bus. So
+    -- a read shorter than a dot whose address stays when /RD rises isn't
     -- checked
     PPU_DOT         : time;
     HOLD            : time := 5 ns;
@@ -61,7 +61,6 @@ is
 
     type mem_t is array(natural range <>) of data_t;
 
-    -- iNES header fields, read once
     type header_t is record
         prg_bytes : natural;
         chr_bytes : natural;
@@ -238,8 +237,7 @@ begin
 
             addr := to_integer(unsigned(pins.cpu_addr));
             -- PRG ROM: /CE is /ROMSEL. Its /OE is taken as R/W here, so that
-            -- writes to ROM, which an NROM game shouldn't make, don't fight
-            -- the console
+            -- a write to ROM doesn't fight the console
             if pins.romsel_n = '0'
             then
                 sel := pins.cpu_rw = '1';

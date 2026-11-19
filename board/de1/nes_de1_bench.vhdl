@@ -19,9 +19,9 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     NES_FILE_BYTES  : integer := 196608;
-    -- With ROM_CART_SLOT the cartridge runs on a DE1 of its own (cart_de1)
-    -- in the cartridge slot of nes_de1. The ROM file is on the cartridge's
-    -- SD card. Both sides driving a data bus is written to the output
+    -- With ROM_CART_SLOT a cart_de1 is in the cartridge slot of nes_de1, with
+    -- the ROM file on its SD card. Both sides driving a data bus is written to
+    -- the output
     ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM;
     -- A on the controller in port 1 is held from JOY_A_FROM_MS until
     -- JOY_A_UNTIL_MS, as when choosing the first entry of the SD menu, and
@@ -38,10 +38,9 @@ generic
     RETURN_HOLD_MS  : positive := 2000;
     -- Report the frame lock's phase error and stretch rate once a frame
     LOG_LOCK        : boolean := false;
-    -- Hold the console's reset button until the cartridge is ready, as for
-    -- a cartridge that is configured after the console's reset. Otherwise
-    -- both power up together and the console runs the cartridge's boot stub
-    -- until then
+    -- Hold the console's reset button until the cartridge is ready, as for a
+    -- cartridge configured after the console's reset. Otherwise the console
+    -- runs the cartridge's boot stub until then
     CART_HOLD_RESET : boolean := false;
     -- The period of the cartridge's clock in ps, and how long after the
     -- console's it starts: the two boards have an oscillator each
@@ -50,14 +49,12 @@ generic
     -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
     -- file of up to 256 KB; 22 hold any
     CART_SRAM_ADDR_BITS : positive := 18;
-    -- The cartridge's card holds a filesystem, and its SD menu loads the
-    -- ROM file (cart_de1's USE_SD_MENU). The controller generics above then
-    -- work the menu, which reads the console's controller
+    -- cart_de1's USE_SD_MENU. The controller generics above then work the
+    -- menu, which reads the console's controller
     CART_SD_MENU : boolean := false;
-    -- Write this many CPU cycles and this many PPU accesses of the
-    -- cartridge pins to the output, from CART_TRACE_FROM_MS and once the
-    -- cartridge is ready: the address, R/W and data as M2 falls, or as /RD
-    -- or /WR rises
+    -- Write this many CPU cycles and PPU accesses of the cartridge pins to the
+    -- output, from CART_TRACE_FROM_MS and once the cartridge is ready: the
+    -- address, R/W and data as M2 falls, or as /RD or /WR rises
     CART_TRACE_CYCLES   : natural := 0;
     CART_TRACE_ACCESSES : natural := 0;
     CART_TRACE_FROM_MS  : natural := 0

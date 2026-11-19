@@ -12,58 +12,13 @@ use work.cart_pin_types.all;
 -- the cartridge runs on, and the cartridge's side of the connector back into
 -- pins. The counterpart of cart_slot.
 --
--- Every pin from the console goes through the same 2-FF synchronizer, so the
--- cartridge sees them all the same number of clocks late, and their timing
--- relative to each other is kept: the address changing a clock after M2
--- falls is still a clock of hold time here.
+-- The connector carries no dot clock, so each CPU cycle is split into three
+-- dots from the measured M2 period, and cpu_en follows M2 falling by a phase
+-- that tracks the PPU's accesses. The boards count CPU cycles and PPU
+-- accesses, not dots, so the dots need not line up with the console's.
 --
--- Clock enables. The connector carries no dot clock, so the dots are made
--- from M2 and the PPU's accesses. A CPU cycle is split into two dots of a
--- third of the last measured M2 period, rounded down, starting on cpu_en,
--- and a last one that takes what is left: the sync dot. So ppu_en is at
--- cpu_en and one and two thirds after it, ram_en RAM_EN_CLOCKS into each
--- dot, and clk_sync is set through the sync dot. A period that is cut short
--- or far too long (no M2) is not measured, and until one is the dots are
--- DOT_CLOCKS.
---
--- cpu_en is a phase of clocks after M2 falls (after the synchronizer), less
--- than a dot, which follows the PPU. The cartridge has to see an access in
--- the dot it starts in, and in time for its ram_en, or it answers a dot
--- late. The PPU's dots sit anywhere from 0 to 3 master clocks off M2, but
--- /RD and /WR fall at the same point in each of them. So where they fall in
--- the cartridge's dots moves the phase a clock at a time, on the next
--- cpu_en, until they fall between the first clock of a dot and the one
--- before ram_en. The boards count CPU cycles and PPU accesses, not dots (but
--- for the MMC3's and TC0690's A12 filters), so the dots need not otherwise
--- line up with the console's.
---
--- The cartridge sees the buses change only early in a dot. Its RAMs take an
--- access on ram_en and the memory mux counts it as served on the ppu_en that
--- ends the dot, so both must see the same one, as they do with the console,
--- whose buses only change as a dot starts. Pins don't keep to the dots here:
--- M2 can rise, and /RD or /WR fall, on any clock. So the buses the cartridge
--- sees are held from ram_en to the end of the dot, and a change in that time
--- shows in the next dot. A fall of /RD or /WR in it is that dot's ALE.
---
--- CPU side. Write data is only on the pins while M2 is high, and /ROMSEL is
--- only low then, so the cartridge sees the bus as idle until M2 rises. Then
--- it sees the pins, and from M2 falling to cpu_en, when they have changed
--- for the next cycle, the bus as it was while M2 was high. The cartridge
--- drives the data bus while the M2 pin is high and R/W reads, for the bits
--- its board drives: the pins themselves gate it, as a real cartridge's bus
--- buffer, so the bus is let go as soon as M2 falls.
---
--- PPU side. /RD and /WR fall on the first dot of an access, which is ALE.
--- /WR rises as the dot ends, which is the clock the sync dot is sampled on,
--- so a dot is a write if /WR fell in it, a read if /RD is low, and ALE if
--- either fell in it. The address and write data are held from while /WR
--- was low, for a write that shows a dot late. The cartridge drives PPU data
--- while the /RD pin is low.
---
--- The data, /IRQ and CIRAM pins come straight from the cartridge's outputs.
--- The board computes those from its registers and the synchronized pins, so
--- they don't need registers of their own, and leaving them out saves a clock
--- on the way back to the console.
+-- The data, /IRQ and CIRAM pins come straight from the cartridge's outputs,
+-- without registers, which saves a clock on the way back to the console.
 entity cart_edge is
 generic
 (
@@ -114,7 +69,11 @@ is
     -- RAM_EN_CLOCKS
     constant MIN_PERIOD : positive := 3 * (RAM_EN_CLOCKS + 1);
 
-    -- Where /RD and /WR should fall in a dot, in clocks after its ppu_en
+    -- Where /RD and /WR should fall in a dot, in clocks after its ppu_en.
+    -- The cartridge has to see an access in the dot it starts in, and in
+    -- time for its ram_en, or it answers a dot late. The PPU's dots sit
+    -- anywhere from 0 to 3 master clocks off M2, but /RD and /WR fall at the
+    -- same point in each of them
     constant FALL_POS_MIN : natural := 1;
     constant FALL_POS_MAX : natural := RAM_EN_CLOCKS - 1;
 
@@ -150,7 +109,8 @@ is
     );
 
     type edge_reg_t is record
-        -- The synchronizer
+        -- A 2-FF synchronizer. Every pin goes through it, so their timing
+        -- relative to each other is kept
         sync_1   : edge_pins_t;
         sync_2   : edge_pins_t;
         -- sync_2's M2, /RD and /WR a clock before
@@ -258,7 +218,8 @@ is
         return is_cpu_pending(reg) and since_fall = reg.phase;
     end;
 
-    -- A third of the M2 period that ends this clock, if it is measured
+    -- A third of the M2 period that ends this clock. A period that is cut
+    -- short or far too long (no M2) is not measured
     function get_third(reg : edge_reg_t) return phase_t
     is
     begin
@@ -271,6 +232,8 @@ is
         end if;
     end;
 
+    -- The first two dots of a CPU cycle are a third of the M2 period, rounded
+    -- down. The last one, the sync dot, takes what is left
     function is_ppu_en(reg : edge_reg_t) return boolean
     is
     begin
@@ -322,15 +285,20 @@ is
         );
     end;
 
-    -- From ram_en to the end of the dot, when the cartridge sees the held
-    -- buses
+    -- From ram_en to the end of the dot the cartridge sees the held buses,
+    -- and a pin that changes then shows in the next dot. The cartridge's RAMs
+    -- take an access on ram_en and the memory mux counts it as served on the
+    -- ppu_en that ends the dot, so both must see the same one
     function is_held(reg : edge_reg_t) return boolean
     is
     begin
         return reg.dot_pos > RAM_EN_CLOCKS;
     end;
 
-    -- The CPU bus as the pins show it now
+    -- The CPU bus as the pins show it now. Write data is only on the pins
+    -- while M2 is high, and /ROMSEL is only low then, so the bus is idle
+    -- until M2 rises. From M2 falling to cpu_en, when the pins have changed
+    -- for the next cycle, it is the bus as it was while M2 was high
     function get_pin_cpu_in(reg : edge_reg_t) return cart_cpu_in_t
     is
     begin
@@ -352,7 +320,9 @@ is
         end if;
     end;
 
-    -- The PPU bus as the pins show it now
+    -- The PPU bus as the pins show it now. /RD and /WR fall on the first dot
+    -- of an access, which is ALE. /WR rises as the dot ends, so a dot is a
+    -- write if /WR fell in it, and a read if /RD is low
     function get_pin_ppu_in(reg : edge_reg_t) return cart_ppu_in_t
     is
         variable write : boolean;
@@ -409,6 +379,8 @@ is
         end if;
     end;
 
+    -- The M2, R/W and /RD pins gate the data drivers themselves, as a real
+    -- cartridge's bus buffer does, so a bus is let go as soon as they change
     function get_pins_out
     (
         pins     : cart_console_pins_t;

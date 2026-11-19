@@ -5,41 +5,15 @@ use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 use work.cart_connector_types.all;
 
--- What a cartridge in a real console answers until its game is ready. A
--- console doesn't wait for its cartridge: the CPU fetches the reset vector a
--- few cycles after reset, long before the ROM file is loaded, and the
--- connector has no reset to hold it with. So until the cartridge is ready
--- the console is given this stub in place of the game, between the connector
--- and the cartridge.
---
--- The stub is four bytes, 6C FC FF FC, repeated through 0x8000-0xFFFF. The
--- reset vector reads 0xFC6C, where the CPU finds JMP (0xFFFC), which jumps
--- to itself. The stub writes nothing and changes no register or flag, so
--- the console is as its reset left it for as long as the stub runs.
---
--- The game takes over on a read of 0xFFFC once the cartridge is ready:
--- that read and all after it are the game's. The stub reads 0xFFFC as the
--- fourth cycle of each JMP, so the same instruction fetches the game's
--- reset vector and the game starts as from reset. The CPU's own reset
--- sequence reads 0xFFFC too, so a console that is reset after the cartridge
--- is ready never sees the stub.
+-- What a cartridge in a real console answers until its game is ready. The
+-- CPU fetches the reset vector a few cycles after reset, long before the ROM
+-- file is loaded, and the connector has no reset to hold it with. So the
+-- console is given a stub that loops without writing anything or changing a
+-- register or flag, and the game then starts as from reset.
 --
 -- The stub answers again whenever the cartridge stops being ready, as when
--- it loads another game, and the console can then be anywhere in the game it
--- was running. Wherever in 0x8000-0xFFFF its CPU goes on from, it reaches
--- the JMP within three instructions: read from its second, third or fourth
--- byte the stub is NOP abs,X or ISC abs,X, each of which ends a byte short
--- of where it started in the four, and the NMI and IRQ vectors read 0xFCFF.
--- The ISC writes to 0x6C00-0x6DFF, which a cartridge that isn't ready
--- ignores. A CPU that is running code outside 0x8000-0xFFFF then is not
--- caught until an interrupt takes it there. The new game starts as from
--- reset, but in a console that has not been reset: its PPU and APU are as
--- the last program left them.
---
--- While the stub answers, the cartridge still sees the connector, but its
--- IRQ and its data are kept from the console. The PPU side is the
--- console's own nametables, mirrored vertically, and nothing at
--- 0x0000-0x1FFF.
+-- it loads another game. That game also starts as from reset, but the
+-- console's PPU and APU are as the last program left them.
 entity cart_boot_stub is
 port
 (
@@ -70,7 +44,6 @@ architecture behavioral of cart_boot_stub
 is
 
     type stub_reg_t is record
-        -- The stub answers the console
         active : boolean;
         -- The cartridge was ready as this CPU cycle started
         armed  : boolean;
@@ -87,6 +60,14 @@ is
 
     subtype stub_idx_t is std_logic_vector(1 downto 0);
 
+    -- Four bytes, repeated through 0x8000-0xFFFF. The reset vector reads
+    -- 0xFC6C, where JMP (0xFFFC) jumps to itself. From anywhere else in
+    -- 0x8000-0xFFFF the CPU reaches the JMP within three instructions: the
+    -- other bytes read as NOP abs,X or ISC abs,X, each of which ends a byte
+    -- short of where it started in the four, and the NMI and IRQ vectors
+    -- read 0xFCFF. The ISC writes to 0x6C00-0x6DFF, which a cartridge that
+    -- isn't ready ignores. A CPU running code outside 0x8000-0xFFFF is not
+    -- caught until an interrupt takes it there
     function get_stub_data(addr : prg_addr_t) return data_t
     is
     begin
@@ -99,7 +80,11 @@ is
         end case;
     end;
 
-    -- The stub answers this cycle
+    -- The stub answers this cycle. The game takes over on a read of 0xFFFC
+    -- once the cartridge is ready. The stub reads 0xFFFC as the fourth cycle
+    -- of each JMP, so the same instruction fetches the game's reset vector.
+    -- The CPU's reset sequence reads it too, so a console that is reset
+    -- after the cartridge is ready never sees the stub
     function is_active
     (
         cur        : stub_reg_t;
@@ -127,6 +112,8 @@ is
         );
     end;
 
+    -- The console's own nametables, mirrored vertically, and nothing at
+    -- 0x0000-0x1FFF
     function get_stub_ppu_out(ppu : cart_ppu_in_t) return cart_ppu_out_t
     is
     begin

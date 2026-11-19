@@ -55,10 +55,9 @@ package cart_connector_types is
         irq => false
     );
 
-    -- The CPU side of the connector driven by the cartridge and by another
-    -- device on it, as the console sees it. When the device drives the data
-    -- bus it answers the read instead of the cartridge. /IRQ is shared, so
-    -- the IRQs are ORed
+    -- The CPU side of the connector as the console sees it, with another
+    -- device on it besides the cartridge. When the device drives the data
+    -- bus it answers the read instead of the cartridge. /IRQ is shared
     function merge_cart_cpu_out
     (
         cart   : cart_cpu_out_t;

@@ -16,7 +16,7 @@ package lib_ines_load is
 
     -- The stream offsets of the header bytes a loader acts on: the last
     -- byte of the signature, after which ines is valid, and the byte with
-    -- the high bits of the bank counts, where the others are
+    -- the high bits of the bank counts, by which the other fields are valid
     constant INES_SIGNATURE_LAST : natural := 3;
     constant INES_SIZE_HIGH      : natural := 9;
 

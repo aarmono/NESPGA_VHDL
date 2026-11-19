@@ -6,11 +6,10 @@ use work.nes_types.all;
 use work.prg_bus_types.all;
 use work.chr_bus_types.all;
 
--- The pins of the cartridge connector, at the level a real cartridge sees
--- them. cart_connector_types has the same connector as the console and the
--- emulated cartridge use it inside the FPGA. The data buses are shared: each
--- side has its own driver, with an output enable, and reads the bus. Which
--- level shifting and tri-stating that takes is up to the board
+-- The pins of the cartridge connector, as a real cartridge sees them.
+-- cart_connector_types has the connector as it is used inside the FPGA. The
+-- data buses are shared: each side has its own driver, with an output enable,
+-- and reads the bus. Level shifting and tri-stating are up to the board
 package cart_pin_types is
 
     -- Driven by the console
@@ -64,10 +63,8 @@ package cart_pin_types is
         -- /IRQ: '0' or 'Z'
         irq_n       : std_logic;
 
-        -- PPU D0-D7
         ppu_data    : data_t;
         ppu_data_oe : boolean;
-        -- CIRAM /CE and CIRAM A10
         ciram_ce_n  : std_logic;
         ciram_a10   : std_logic;
     end record;

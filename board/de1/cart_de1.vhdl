@@ -12,29 +12,23 @@ use work.cart_pin_types.all;
 use work.cart.all;
 use work.de1_types.all;
 
--- The emulated cartridge on a DE1 of its own, for the cartridge slot of a
--- real console (or of nes_de1 with ROM_CART_SLOT): cart_edge turns the pins of
--- the cartridge connector into what cart_system runs on, and the ROM file
--- is loaded from the SD card into the SRAM, which serves the cartridge's
--- accesses as the console makes them (see sram_rom). On the DE1 the ROM
--- file is at most 256 KB.
+-- The emulated cartridge on a DE1 of its own, for the cartridge slot of a real
+-- console (or of nes_de1 with ROM_CART_SLOT). cart_edge turns the pins of the
+-- cartridge connector into what cart_system runs on, and the ROM file, at most
+-- 256 KB on the DE1, is loaded from the SD card into the SRAM (see sram_rom).
 --
--- A console doesn't wait for its cartridge, and the connector has no reset.
--- The ROM file takes far longer to load than the console's own reset, and
--- the cartridge's RAMs are filled on the CPU cycles the console's M2 gives
--- after that. Until READY the console is answered by cart_boot_stub, which
--- keeps its CPU in a loop and then starts the game as from reset. That
--- needs the FPGA to be configured before the console's reset ends: if it
--- isn't, the console must be reset once it is.
+-- A console doesn't wait for its cartridge, and the connector has no reset, so
+-- until READY the console is answered by cart_boot_stub, which keeps its CPU
+-- in a loop and then starts the game as from reset. The FPGA must be
+-- configured before the console's reset ends, or the console reset once it is.
 --
--- With USE_SD_MENU the card holds a FAT filesystem and the SD menu chooses
--- the ROM file, as with nes_de1's ROM_SD_MENU (see sd_menu). The cartridge
--- can't reset the console, so what holds the NES in reset there is the boot
--- stub here: it answers the console again from a launch, or the return to
--- the menu, until the next ROM file is ready, which then starts in a console
--- that has not been reset. The buttons that return to the menu are read off
--- the CPU's buses (see cart_joy_snoop), and the menu's Famicom option does
--- nothing, since it is the console's.
+-- With USE_SD_MENU the card holds a FAT filesystem and the SD menu chooses the
+-- ROM file, as with nes_de1's ROM_SD_MENU (see sd_menu). The cartridge can't
+-- reset the console, so the boot stub answers it again from a launch, or the
+-- return to the menu, until the next ROM file is ready, which then starts in a
+-- console that has not been reset. The buttons that return to the menu are
+-- read off the CPU's buses (see cart_joy_snoop), and the menu's Famicom option
+-- does nothing, since it is the console's.
 entity cart_de1 is
 generic
 (
@@ -54,7 +48,6 @@ port
 
     -- The cartridge has loaded its ROM file and filled its RAMs
     READY     : out std_logic;
-    -- The ROM file is being loaded
     LOADING   : out std_logic;
     -- The SD card couldn't be read, the ROM file is too large, or the SD
     -- menu couldn't launch a file
@@ -74,10 +67,9 @@ port
     SD_CMD  : out std_logic;
     SD_CLK  : out std_logic;
 
-    -- The cartridge connector. See cart_edge. The board level shifts the
-    -- pins and makes the data buses: CART_CPU_DATA and CART_PPU_DATA are
-    -- the buses as read, and the cartridge drives them where the output
-    -- enables of CART_PINS_OUT say
+    -- The cartridge connector. See cart_edge. The board level shifts the pins
+    -- and makes the data buses, which are read here and driven where the
+    -- output enables of CART_PINS_OUT say
     CART_PINS_IN  : in cart_console_pins_t;
     CART_CPU_DATA : in data_t;
     CART_PPU_DATA : in data_t;
@@ -87,8 +79,7 @@ end cart_de1;
 
 architecture behavioral of cart_de1 is
 
-    -- RESET_N synchronized: asserted asynchronously and released
-    -- synchronously
+    -- RESET_N, asserted asynchronously and released synchronously
     signal reset_sync : std_logic_vector(1 downto 0) := (others => '0');
     signal reset_50   : boolean;
     signal cart_reset : boolean;
@@ -103,8 +94,7 @@ architecture behavioral of cart_de1 is
     signal ppu_in  : cart_ppu_in_t;
     signal ppu_out : cart_ppu_out_t;
 
-    -- What the cartridge answers, which the console gets after the SD menu
-    -- and the stub
+    -- What the cartridge answers, before the SD menu and the stub
     signal cart_cpu_out  : cart_cpu_out_t;
     signal cart_ppu_out  : cart_ppu_out_t;
     signal board_cpu_out : cart_cpu_out_t;

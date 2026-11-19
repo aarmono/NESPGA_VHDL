@@ -15,8 +15,8 @@ package de1_types is
         -- As ROM_SD_TO_SDRAM if the SD card starts with an iNES file,
         -- otherwise the card holds a filesystem, which the menu reads
         ROM_SD_MENU,
-        -- The cartridge is a real one on the cartridge pins, not the
-        -- emulated one, whose ROM loader, SDRAM and SD card are then unused
+        -- A cartridge on the cartridge pins. The emulated one's ROM loader,
+        -- SDRAM and SD card are then unused
         ROM_CART_SLOT
     );
 
@@ -170,8 +170,6 @@ package de1_types is
     );
     end component nes_de1;
 
-    -- The split cartridge memory bus out of an asynchronous SRAM. See
-    -- sram_rom
     component sram_rom is
     generic
     (
