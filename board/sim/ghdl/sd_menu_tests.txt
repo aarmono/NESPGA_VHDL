@@ -17,4 +17,4 @@ board/de1/sd_menu/smoke_card.img    | 601ms    | 0c0e8b2922cebd235d7f87793572c49
 # USE_SD_MENU) in the cartridge slot: the console runs the cartridge's boot
 # stub while the menu and then the game are loaded into the 512 KB SRAM, and
 # the menu reads the console's controller
-board/de1/sd_menu/smoke_card.img    | 601ms    | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00035.bmp | | -gUSE_CART_DE1=true -gCART_SD_MENU=true -gJOY_A_FROM_MS=150 -gJOY_A_UNTIL_MS=200
+board/de1/sd_menu/smoke_card.img    | 601ms    | 0c0e8b2922cebd235d7f87793572c49e03ebaa66d15fb918d918a410feea30c1 *frame_00035.bmp | | -gROM_CONFIG=ROM_CART_SLOT -gCART_SD_MENU=true -gJOY_A_FROM_MS=150 -gJOY_A_UNTIL_MS=200
