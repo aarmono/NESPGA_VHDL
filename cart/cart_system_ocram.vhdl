@@ -23,9 +23,7 @@ generic
     -- Vendor of the on-chip RAMs. See syncram_sp
     VENDOR        : vendor_t := VENDOR_ALTERA;
     -- See cart_system
-    CART_BOARDS   : board_set_t := ALL_BOARDS;
-    -- See cartridge
-    A12_M2_FILTER : boolean := false
+    CART_BOARDS   : board_set_t := ALL_BOARDS
 );
 port
 (
@@ -103,8 +101,7 @@ begin
     sys : entity work.cart_system(behavioral)
     generic map
     (
-        CART_BOARDS => CART_BOARDS,
-        A12_M2_FILTER => A12_M2_FILTER
+        CART_BOARDS => CART_BOARDS
     )
     port map
     (

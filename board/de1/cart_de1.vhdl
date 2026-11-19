@@ -240,10 +240,7 @@ begin
     cart_sys : cart_system_ocram
     generic map
     (
-        CART_MEM => CART_MEM_SPLIT,
-        -- The MMC3 and TC0690 filter PPU A12 on falls of M2, as the chips
-        -- do: a real console's dots are only placed from M2. See cartridge
-        A12_M2_FILTER => true
+        CART_MEM => CART_MEM_SPLIT
     )
     port map
     (

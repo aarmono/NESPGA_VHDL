@@ -19,9 +19,7 @@ entity cart_system is
 generic
 (
     -- The boards the cartridge is built as. See board_set_t
-    CART_BOARDS : board_set_t := ALL_BOARDS;
-    -- See cartridge
-    A12_M2_FILTER : boolean := false
+    CART_BOARDS : board_set_t := ALL_BOARDS
 );
 port
 (
@@ -141,8 +139,7 @@ begin
     board : entity work.cartridge(behavioral)
     generic map
     (
-        CART_BOARDS => CART_BOARDS,
-        A12_M2_FILTER => A12_M2_FILTER
+        CART_BOARDS => CART_BOARDS
     )
     port map
     (

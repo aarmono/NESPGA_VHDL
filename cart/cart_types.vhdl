@@ -365,6 +365,29 @@ package cart_types is
     )
     return cart_out_t;
 
+    -- The filter the MMC3 and the TC0690 have on PPU A12: the falls of M2
+    -- A12 has been low for, up to A12_FILTER_MAX. A rise of A12 after that
+    -- many clocks the IRQ counter. The falls of M2 are at clk_sync
+    constant A12_FILTER_MAX : natural := 3;
+    subtype a12_filter_t is natural range 0 to A12_FILTER_MAX;
+
+    -- The IRQ counter is clocked in this PPU cycle
+    function is_a12_filter_clock
+    (
+        count : a12_filter_t;
+        a12   : std_logic
+    )
+    return boolean;
+
+    -- The filter after this PPU cycle
+    function cycle_a12_filter
+    (
+        count    : a12_filter_t;
+        a12      : std_logic;
+        clk_sync : boolean
+    )
+    return a12_filter_t;
+
 end package cart_types;
 
 
@@ -745,6 +768,38 @@ package body cart_types is
         end if;
 
         return ret;
+    end;
+
+    function is_a12_filter_clock
+    (
+        count : a12_filter_t;
+        a12   : std_logic
+    )
+    return boolean
+    is
+    begin
+        return a12 /= '0' and count = A12_FILTER_MAX;
+    end;
+
+    function cycle_a12_filter
+    (
+        count    : a12_filter_t;
+        a12      : std_logic;
+        clk_sync : boolean
+    )
+    return a12_filter_t
+    is
+    begin
+        -- The PPU holds its address between accesses
+        if a12 /= '0'
+        then
+            return 0;
+        elsif clk_sync and count < A12_FILTER_MAX
+        then
+            return count + 1;
+        else
+            return count;
+        end if;
     end;
 
 end package body;

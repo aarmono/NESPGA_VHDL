@@ -17,8 +17,7 @@ package cart is
     (
         CART_MEM      : cart_mem_config_t := CART_MEM_ROM;
         VENDOR        : vendor_t := VENDOR_ALTERA;
-        CART_BOARDS   : board_set_t := ALL_BOARDS;
-        A12_M2_FILTER : boolean := false
+        CART_BOARDS   : board_set_t := ALL_BOARDS
     );
     port
     (

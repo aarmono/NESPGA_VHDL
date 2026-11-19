@@ -86,9 +86,6 @@ generic
     -- /IRQ this many clocks late, so that it samples them where it would
     -- with M2 in its place
     LOOPBACK_DOT_OFFSET : natural := 0;
-    -- With CART_LOOPBACK_SLOT, the cartridge's A12 filters count falls of M2. See
-    -- cartridge
-    LOOPBACK_A12_M2_FILTER : boolean := false;
     -- With CART_LOOPBACK_SLOT, the cartridge's memory is an SRAM behind
     -- sram_rom, which serves each access as it is asked for, as in
     -- cart_de1. Otherwise it is the ROM file with one access per dot and
@@ -758,8 +755,7 @@ begin
             cart_sys : cart_system_ocram
             generic map
             (
-                VENDOR => VENDOR_SIM,
-                A12_M2_FILTER => LOOPBACK_A12_M2_FILTER
+                VENDOR => VENDOR_SIM
             )
             port map
             (
@@ -820,8 +816,7 @@ begin
             generic map
             (
                 CART_MEM => CART_MEM_SPLIT,
-                VENDOR => VENDOR_SIM,
-                A12_M2_FILTER => LOOPBACK_A12_M2_FILTER
+                VENDOR => VENDOR_SIM
             )
             port map
             (
