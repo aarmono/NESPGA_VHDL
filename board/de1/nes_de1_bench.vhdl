@@ -1,7 +1,9 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use std.textio.all;
 use work.nes_types.all;
+use work.cart_pin_types.all;
 use work.file_bus_types.all;
 use work.binary_io.all;
 use work.au_file.all;
@@ -17,6 +19,9 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     NES_FILE_BYTES  : integer := 196608;
+    -- With ROM_CART_SLOT a cart_de1 is in the cartridge slot of nes_de1, with
+    -- the ROM file on its SD card. Both sides driving a data bus is written to
+    -- the output
     ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM;
     -- A on the controller in port 1 is held from JOY_A_FROM_MS until
     -- JOY_A_UNTIL_MS, as when choosing the first entry of the SD menu, and
@@ -32,7 +37,27 @@ generic
     JOY_RETURN_UNTIL_MS : natural := 0;
     RETURN_HOLD_MS  : positive := 2000;
     -- Report the frame lock's phase error and stretch rate once a frame
-    LOG_LOCK        : boolean := false
+    LOG_LOCK        : boolean := false;
+    -- Hold the console's reset button until the cartridge is ready, as for a
+    -- cartridge configured after the console's reset. Otherwise the console
+    -- runs the cartridge's boot stub until then
+    CART_HOLD_RESET : boolean := false;
+    -- The period of the cartridge's clock in ps, and how long after the
+    -- console's it starts: the two boards have an oscillator each
+    CART_CLK_PERIOD_PS : positive := 20000;
+    CART_CLK_OFFSET_PS : natural := 7000;
+    -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
+    -- file of up to 256 KB; 22 hold any
+    CART_SRAM_ADDR_BITS : positive := 18;
+    -- cart_de1's USE_SD_MENU. The controller generics above then work the
+    -- menu, which reads the console's controller
+    CART_SD_MENU : boolean := false;
+    -- Write this many CPU cycles and PPU accesses of the cartridge pins to the
+    -- output, from CART_TRACE_FROM_MS and once the cartridge is ready: the
+    -- address, R/W and data as M2 falls, or as /RD or /WR rises
+    CART_TRACE_CYCLES   : natural := 0;
+    CART_TRACE_ACCESSES : natural := 0;
+    CART_TRACE_FROM_MS  : natural := 0
 );
 end nes_de1_bench;
 
@@ -89,7 +114,13 @@ architecture behavioral of nes_de1_bench is
     signal vga_fval : std_logic;
 
     signal vga_out : vga_out_t;
-    
+
+    signal key : std_logic_vector(3 downto 0) := (others => '1');
+
+    -- The cartridge connector between the two boards
+    signal console_pins : cart_console_pins_t;
+    signal board_pins   : cart_board_pins_t := CART_BOARD_PINS_IDLE;
+
     file audio_file : byte_file_t;
     signal aud_initialized : boolean := false;
     signal aud_shift : std_logic_vector(15 downto 0) := x"0000";
@@ -130,6 +161,7 @@ begin
         JOY_2_LATCH => open,
         JOY_2_CLK => open,
 
+        KEY => key,
         SW => (others => '0'),
         
         FL_DQ => fl_dq,
@@ -164,8 +196,215 @@ begin
         
         AUD_BCLK => bclk,
         AUD_DACDAT => dacdat,
-        AUD_DACLRCK => daclrck
+        AUD_DACLRCK => daclrck,
+
+        CART_PINS_OUT => console_pins,
+        CART_PINS_IN => board_pins
     );
+
+    gen_cart : if ROM_CONFIG = ROM_CART_SLOT generate
+        signal clk_cart    : std_logic := '0';
+
+        signal board_drive : cart_board_drive_t;
+        signal cart_ready  : std_logic;
+        signal cart_loading   : std_logic;
+        signal cart_load_failed : std_logic;
+
+        signal cart_sram_addr :
+            std_logic_vector(CART_SRAM_ADDR_BITS - 1 downto 0);
+        signal cart_sram_dq   : std_logic_vector(15 downto 0);
+        signal cart_sram_ce_n : std_logic;
+        signal cart_sram_oe_n : std_logic;
+        signal cart_sram_we_n : std_logic;
+        signal cart_sram_lb_n : std_logic;
+        signal cart_sram_ub_n : std_logic;
+
+        signal cart_sd_dat  : std_logic;
+        signal cart_sd_dat3 : std_logic;
+        signal cart_sd_cmd  : std_logic;
+        signal cart_sd_clk  : std_logic;
+
+        constant CART_CLK_PERIOD : time := CART_CLK_PERIOD_PS * 1 ps;
+        constant CART_CLK_OFFSET : time := CART_CLK_OFFSET_PS * 1 ps;
+    begin
+        -- The reset button
+        key(0) <= '1' when cart_ready = '1' or not CART_HOLD_RESET else '0';
+
+        cart : cart_de1
+        generic map
+        (
+            POWER_UP_MODE => POWER_UP_DETERMINISTIC,
+            SRAM_ADDR_BITS => CART_SRAM_ADDR_BITS,
+            USE_SD_MENU => CART_SD_MENU,
+            RETURN_HOLD_MS => RETURN_HOLD_MS
+        )
+        port map
+        (
+            CLOCK_50 => clk_cart,
+            RESET_N => '1',
+
+            READY => cart_ready,
+            LOADING => cart_loading,
+            LOAD_FAILED => cart_load_failed,
+
+            SRAM_ADDR => cart_sram_addr,
+            SRAM_DQ => cart_sram_dq,
+            SRAM_CE_N => cart_sram_ce_n,
+            SRAM_OE_N => cart_sram_oe_n,
+            SRAM_WE_N => cart_sram_we_n,
+            SRAM_LB_N => cart_sram_lb_n,
+            SRAM_UB_N => cart_sram_ub_n,
+
+            SD_DAT => cart_sd_dat,
+            SD_DAT3 => cart_sd_dat3,
+            SD_CMD => cart_sd_cmd,
+            SD_CLK => cart_sd_clk,
+
+            CART_PINS_IN => console_pins,
+            CART_CPU_DATA => board_pins.cpu_data,
+            CART_PPU_DATA => board_pins.ppu_data,
+            CART_PINS_OUT => board_drive
+        );
+
+        -- The cartridge's status, as its LEDs would show it
+        process(cart_ready, cart_loading, cart_load_failed)
+        is
+            variable l : line;
+        begin
+            write(l, string'("nes_de1_bench: "));
+            write(l, now);
+            write(l, string'(" cartridge loading "));
+            write(l, cart_loading);
+            write(l, string'(" ready "));
+            write(l, cart_ready);
+            write(l, string'(" failed "));
+            write(l, cart_load_failed);
+            writeline(output, l);
+        end process;
+
+        process(console_pins.m2, console_pins.romsel_n)
+        is
+            variable cycles : natural := 0;
+            -- /ROMSEL was low in this cycle. It rises as M2 falls
+            variable romsel : std_logic := '0';
+            variable l      : line;
+        begin
+            if falling_edge(console_pins.romsel_n)
+            then
+                romsel := '1';
+            end if;
+
+            if falling_edge(console_pins.m2) and cart_ready = '1' and
+               now >= CART_TRACE_FROM_MS * 1 ms and
+               cycles < CART_TRACE_CYCLES
+            then
+                write(l, string'("nes_de1_bench: "));
+                write(l, now);
+                write(l, string'(" CPU "));
+                write(l, to_hstring(romsel & console_pins.cpu_addr));
+                if console_pins.cpu_rw = '1'
+                then
+                    write(l, string'(" R "));
+                else
+                    write(l, string'(" W "));
+                end if;
+                write(l, to_hstring(board_pins.cpu_data));
+                writeline(output, l);
+                cycles := cycles + 1;
+            end if;
+
+            if falling_edge(console_pins.m2)
+            then
+                romsel := '0';
+            end if;
+        end process;
+
+        process(console_pins.ppu_rd_n, console_pins.ppu_wr_n)
+        is
+            variable accesses : natural := 0;
+            variable l        : line;
+        begin
+            if (rising_edge(console_pins.ppu_rd_n) or
+                rising_edge(console_pins.ppu_wr_n)) and cart_ready = '1' and
+               now >= CART_TRACE_FROM_MS * 1 ms and
+               accesses < CART_TRACE_ACCESSES
+            then
+                write(l, string'("nes_de1_bench: "));
+                write(l, now);
+                write(l, string'(" PPU "));
+                write(l, to_hstring("00" & console_pins.ppu_addr));
+                if rising_edge(console_pins.ppu_rd_n)
+                then
+                    write(l, string'(" R "));
+                else
+                    write(l, string'(" W "));
+                end if;
+                write(l, to_hstring(board_pins.ppu_data));
+                write(l, string'(" CIRAM /CE "));
+                write(l, board_pins.ciram_ce_n);
+                write(l, string'(" A10 "));
+                write(l, board_pins.ciram_a10);
+                writeline(output, l);
+                accesses := accesses + 1;
+            end if;
+        end process;
+
+        pin_bus : cart_pin_bus
+        generic map
+        (
+            NAME => "nes_de1_bench"
+        )
+        port map
+        (
+            console => console_pins,
+            drive => board_drive,
+            board => board_pins
+        );
+
+        cart_ram : sram_16
+        generic map
+        (
+            ADDR_BITS => CART_SRAM_ADDR_BITS
+        )
+        port map
+        (
+            addr => cart_sram_addr,
+            dq => cart_sram_dq,
+            ce_n => cart_sram_ce_n,
+            oe_n => cart_sram_oe_n,
+            we_n => cart_sram_we_n,
+            lb_n => cart_sram_lb_n,
+            ub_n => cart_sram_ub_n
+        );
+
+        cart_sd : entity work.sd_card(behavioral)
+        generic map
+        (
+            FILEPATH => NES_FILEPATH,
+            FILE_BYTES => NES_FILE_BYTES
+        )
+        port map
+        (
+            sck => cart_sd_clk,
+            cs_n => cart_sd_dat3,
+            mosi => cart_sd_cmd,
+            miso => cart_sd_dat
+        );
+
+        cart_sd_dat <= 'H';
+
+        clk_cart_gen : clock
+        generic map
+        (
+            PERIOD => CART_CLK_PERIOD,
+            OFFSET => CART_CLK_PERIOD + CART_CLK_OFFSET
+        )
+        port map
+        (
+            clk => clk_cart,
+            done => false
+        );
+    end generate;
 
     vga_out.color.red <= VGA_R;
     vga_out.color.green <= VGA_G;

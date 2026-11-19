@@ -57,4 +57,5 @@ exec ./nes_de1_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                      -gNES_FILE_BYTES="$NES_SIZE"    \
                      "$@"                            \
                      $TIME_PARM                      \
-                     --ieee-asserts=disable
+                     --ieee-asserts=disable          \
+                     --assert-level=error

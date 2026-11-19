@@ -20,7 +20,7 @@ use work.lib_ppu.VINT_END;
 -- picture pixel the output shows is checked, which catches the buffer being
 -- overrun or read before it is written.
 --
--- The synthetic NES waits to run as nes_soc does, from a random start
+-- The synthetic NES waits to run as nes_console does, from a random start
 -- position, and can be reloaded part way through, as the SD menu does
 entity frame_lock_bench is
 generic

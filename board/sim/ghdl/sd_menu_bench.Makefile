@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: sd_menu_bench
 
 # Elaboration target
-sd_menu_bench: utilities.o nes_types.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_mem_bus_types.o cart_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o sd_menu_bench.o syncram_sp.o clock.o
+sd_menu_bench: utilities.o nes_types.o prg_bus_types.o chr_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o cart_pin_types.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o lib_ines_load.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o sd_menu_bench.o syncram_sp.o clock.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -26,17 +26,9 @@ prg_bus_types.o: ../../../bus/prg_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 chr_bus_types.o: ../../../bus/chr_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
-prg_ram_bus_types.o: ../../../bus/prg_ram_bus_types.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
-chr_ram_bus_types.o: ../../../bus/chr_ram_bus_types.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
-exram_bus_types.o: ../../../bus/exram_bus_types.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
-chip_ram_bus_types.o: ../../../bus/chip_ram_bus_types.vhdl
+cart_connector_types.o: ../../../bus/cart_connector_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 cart_mem_bus_types.o: ../../../bus/cart_mem_bus_types.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
-cart_types.o: ../../../core/mappers/cart_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 perhipheral_types.o: ../../../perhiperals/perhipheral_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -48,6 +40,8 @@ file_bus_types.o: ../../../bus/file_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_audio_mixer.o: ../../../core/nes_audio_mixer.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+cart_pin_types.o: ../../../bus/cart_pin_types.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 simulation.o: ../../../simulation/simulation.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sd_menu_stub.o: ../../../board/de1/sd_menu_stub.vhdl
@@ -57,6 +51,8 @@ perhipherals.o: ../../../perhiperals/perhipherals.vhdl
 sd_reader.o: ../../../perhiperals/sd_card/sd_reader.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sd_menu.o: ../../../board/de1/sd_menu.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+lib_ines_load.o: ../../../board/de1/lib_ines_load.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sdram_ctrl.o: ../../../perhiperals/sdram/sdram_ctrl.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -80,27 +76,25 @@ utilities.o:
 nes_types.o:  utilities.o
 prg_bus_types.o: 
 chr_bus_types.o: 
-prg_ram_bus_types.o: 
-chr_ram_bus_types.o: 
-exram_bus_types.o: 
-chip_ram_bus_types.o: 
+cart_connector_types.o:  nes_types.o prg_bus_types.o chr_bus_types.o
 cart_mem_bus_types.o: 
-cart_types.o:  utilities.o nes_types.o prg_bus_types.o chr_bus_types.o prg_ram_bus_types.o chr_ram_bus_types.o exram_bus_types.o chip_ram_bus_types.o cart_mem_bus_types.o
 perhipheral_types.o: 
 binary_io.o:  utilities.o
 apu_bus_types.o: 
 file_bus_types.o: 
 nes_audio_mixer.o:  nes_types.o
-simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
+cart_pin_types.o:  nes_types.o prg_bus_types.o chr_bus_types.o
+simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o cart_pin_types.o
 sd_menu_stub.o:  nes_types.o
 perhipherals.o:  perhipheral_types.o
 sd_reader.o:  utilities.o perhipheral_types.o
-sd_menu.o:  nes_types.o utilities.o prg_bus_types.o cart_types.o cart_mem_bus_types.o perhipherals.o perhipheral_types.o sd_menu_stub.o sd_reader.o
+sd_menu.o:  nes_types.o utilities.o prg_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipherals.o perhipheral_types.o sd_menu_stub.o sd_reader.o
+lib_ines_load.o:  nes_types.o utilities.o
 sdram_ctrl.o:  utilities.o
-sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
+sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o lib_ines_load.o sdram_ctrl.o
 sdram.o:  utilities.o
 sd_card.o:  utilities.o binary_io.o
 clk_en.o:  utilities.o
-sd_menu_bench.o:  nes_types.o utilities.o prg_bus_types.o cart_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o simulation.o sd_menu_stub.o sd_menu.o sdram_rom.o sdram.o sd_card.o clk_en.o
+sd_menu_bench.o:  nes_types.o utilities.o prg_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o simulation.o sd_menu_stub.o sd_menu.o sdram_rom.o sdram.o sd_card.o clk_en.o
 syncram_sp.o:  perhipheral_types.o utilities.o
 clock.o: 

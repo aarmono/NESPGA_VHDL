@@ -4,7 +4,7 @@ use IEEE.numeric_std.all;
 
 package ciram_bus_types is
    
-    subtype ciram_addr_t is std_logic_vector(11 downto 0);
+    subtype ciram_addr_t is std_logic_vector(10 downto 0);
     type ciram_bus_t is record
         address  : ciram_addr_t;
         read     : boolean;

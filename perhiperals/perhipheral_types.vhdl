@@ -35,9 +35,19 @@ package perhipheral_types is
         POWER_UP_DETERMINISTIC
     );
 
-    -- Random bytes for the RAMs to power up with, which the power up fill
-    -- changes in every clock. All zero for POWER_UP_ZERO
-    subtype power_up_data_t is std_logic_vector(55 downto 0);
+    -- Random bytes for RAMs to power up with, from a power up fill, which
+    -- changes them on every step of a fill: a byte for each RAM that is
+    -- filled at once. All zero for POWER_UP_ZERO.
+    --
+    -- The console's RAMs: CPU RAM, OAM, secondary OAM and CIRAM
+    subtype console_power_up_data_t is std_logic_vector(31 downto 0);
+    -- The cartridge's RAMs: PRG and CHR RAM, ExRAM and VRAM, and chip RAM
+    subtype cart_power_up_data_t is std_logic_vector(23 downto 0);
+    -- Both, for a console and cartridge that share a power up fill: the
+    -- console's in the low bits
+    subtype power_up_data_t is
+        std_logic_vector(cart_power_up_data_t'length +
+                         console_power_up_data_t'length - 1 downto 0);
     
     type memory_type_t is
     (

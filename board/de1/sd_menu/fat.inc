@@ -32,6 +32,8 @@ PPU_STATUS = $2002
 PPU_SCROLL = $2005
 PPU_ADDR   = $2006
 PPU_DATA   = $2007
+APU_DMC    = $4010
+APU_STATUS = $4015
 
 ; The extent table of a launch is built here, since reading the FAT uses the
 ; buffer. 64 entries of 8 bytes, in the format of sd_menu's launch table

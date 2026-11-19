@@ -3,6 +3,8 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.perhipheral_types.all;
+use work.cart_pin_types.all;
+use work.cart_mem_bus_types.all;
 
 package de1_types is
     
@@ -12,7 +14,10 @@ package de1_types is
         ROM_SD_TO_SDRAM,
         -- As ROM_SD_TO_SDRAM if the SD card starts with an iNES file,
         -- otherwise the card holds a filesystem, which the menu reads
-        ROM_SD_MENU
+        ROM_SD_MENU,
+        -- A cartridge on the cartridge pins. The emulated one's ROM loader,
+        -- SDRAM and SD card are then unused
+        ROM_CART_SLOT
     );
 
     subtype vga_channel_t is std_logic_vector(3 downto 0);
@@ -158,9 +163,89 @@ package de1_types is
         AUD_BCLK    : out std_logic;
         AUD_DACDAT  : out std_logic;
         AUD_DACLRCK : out std_logic;
-        AUD_XCK     : out std_logic
+        AUD_XCK     : out std_logic;
+
+        CART_PINS_OUT : out cart_console_pins_t;
+        CART_PINS_IN  : in cart_board_pins_t := CART_BOARD_PINS_IDLE
     );
     end component nes_de1;
+
+    component sram_rom is
+    generic
+    (
+        ADDR_BITS   : positive := 18;
+        READ_CLOCKS : positive := 2;
+        REQUIRE_INES : boolean := false
+    );
+    port
+    (
+        clk   : in std_logic;
+        reset : in boolean;
+
+        restart : in boolean := false;
+
+        loading   : out boolean;
+        too_large : out boolean;
+        no_header : out boolean;
+
+        load_valid : in boolean;
+        load_data  : in data_t;
+        load_ready : out boolean;
+
+        prg_mem_bus       : in cart_mem_bus_t;
+        data_to_prg_mem   : in data_t;
+        data_from_prg_mem : out data_t;
+
+        chr_mem_bus       : in cart_mem_bus_t;
+        data_to_chr_mem   : in data_t;
+        data_from_chr_mem : out data_t;
+
+        sram_addr : out std_logic_vector(ADDR_BITS - 1 downto 0);
+        sram_dq   : inout std_logic_vector(15 downto 0);
+        sram_ce_n : out std_logic;
+        sram_oe_n : out std_logic;
+        sram_we_n : out std_logic;
+        sram_lb_n : out std_logic;
+        sram_ub_n : out std_logic
+    );
+    end component sram_rom;
+
+    component cart_de1 is
+    generic
+    (
+        POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
+        SRAM_ADDR_BITS   : positive := 18;
+        USE_SD_MENU      : boolean := false;
+        RETURN_HOLD_MS   : positive := 2000
+    );
+    port
+    (
+        CLOCK_50 : in std_logic;
+        RESET_N  : in std_logic;
+
+        READY       : out std_logic;
+        LOADING     : out std_logic;
+        LOAD_FAILED : out std_logic;
+
+        SRAM_ADDR : out std_logic_vector(SRAM_ADDR_BITS - 1 downto 0);
+        SRAM_DQ   : inout std_logic_vector(15 downto 0);
+        SRAM_CE_N : out std_logic;
+        SRAM_OE_N : out std_logic;
+        SRAM_WE_N : out std_logic;
+        SRAM_LB_N : out std_logic;
+        SRAM_UB_N : out std_logic;
+
+        SD_DAT  : in std_logic;
+        SD_DAT3 : out std_logic;
+        SD_CMD  : out std_logic;
+        SD_CLK  : out std_logic;
+
+        CART_PINS_IN  : in cart_console_pins_t;
+        CART_CPU_DATA : in data_t;
+        CART_PPU_DATA : in data_t;
+        CART_PINS_OUT : out cart_board_drive_t
+    );
+    end component cart_de1;
     
 end de1_types;
 

@@ -656,10 +656,18 @@ build_extents:
 
 ; Launches the file whose extents are in TABLE, with A the value written to
 ; REG_LAUNCH. It does not return: the NES is held in reset until the file
-; is loaded
+; is loaded. On a cartridge in a real console (cart_de1) there is no reset, and
+; the file starts in the console as it is left here, so interrupts, rendering
+; and sound are turned off first
 launch:
     pha
     copy512 BUF, TABLE
+    sei
+    lda #0
+    sta PPU_CTRL
+    sta PPU_MASK
+    sta APU_DMC
+    sta APU_STATUS
     pla
     sta REG_LAUNCH
 @wait:

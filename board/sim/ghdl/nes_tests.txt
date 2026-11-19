@@ -359,9 +359,22 @@ board/sim/ghdl/generated_roms/mmc5_ines.nes                         | 651ms     
 board/sim/ghdl/generated_roms/mmc5_ekrom.nes                        | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp
 board/sim/ghdl/generated_roms/mmc5_etrom.nes                        | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp
 board/sim/ghdl/generated_roms/mmc5_ewrom.nes                        | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp
+
+# Other line-ups of the CPU and PPU clocks at power up, which move the
+# results of the scanline IRQ timing trials (see mmc5.py group 16)
+board/sim/ghdl/generated_roms/mmc5_ines.nes                         | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp | | -gPOWER_UP_FILL=true -gPOWER_UP_SEED=1
+board/sim/ghdl/generated_roms/mmc5_ines.nes                         | 651ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00035.bmp | | -gPOWER_UP_FILL=true -gPOWER_UP_SEED=6
+
 board/sim/ghdl/generated_roms/mmc5_audio_check.nes                  | 317ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00015.bmp
 # The split screen of the pass
 board/sim/ghdl/generated_roms/mmc5_split.nes                        | 2135ms    | b2326453e682613f7c10822a48e1955067112620ec8b3e518f655bdce5f226ab *frame_00124.bmp
+
+# $2007 accesses at a new address, after rendering stops (see slot_ppu.py).
+# Run normally and through cart_slot against a real NROM cartridge with slow
+# parts, which fails group 2 or 3 unless the PPU puts v on the address bus
+# when rendering stops
+board/sim/ghdl/generated_roms/slot_ppu.nes                          | 701ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00041.bmp
+board/sim/ghdl/generated_roms/slot_ppu.nes                          | 701ms     | 760b3a42a94b29ba05278280949a20100ea498425d1657ff07d5f98383e5309c *frame_00041.bmp | | -gCPU_CYCLE_CLOCKS=28 -gBENCH_CART=CART_NROM_SLOT -gSLOT_PRG_ACCESS_NS=250 -gSLOT_CHR_ACCESS_NS=250 -gSLOT_CIRAM_DELAY_NS=60
 
 # AccuracyCoin. Each test runs every test on one page of the ROM, using the
 # FM2 input to select the page and start the tests, and hashes the final

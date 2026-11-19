@@ -22,6 +22,10 @@ reset:
     inx
     stx PPU_CTRL
     stx PPU_MASK
+    ; A game that returned to the menu on a cartridge in a real console
+    ; (cart_de1) left its sound playing
+    stx APU_DMC
+    stx APU_STATUS
 
     jsr mount
     lda #0

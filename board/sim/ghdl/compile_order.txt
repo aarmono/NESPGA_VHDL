@@ -10,6 +10,7 @@
 ../../../bus/prg_ram_bus_types.vhdl
 ../../../bus/chr_ram_bus_types.vhdl
 ../../../bus/exram_bus_types.vhdl
+../../../bus/vram_bus_types.vhdl
 ../../../bus/chip_ram_bus_types.vhdl
 ../../../bus/opll_bus_types.vhdl
 ../../../bus/cpu_bus_types.vhdl
@@ -20,6 +21,8 @@
 ../../../bus/joy_bus_types.vhdl
 
 ../../../core/nes_types.vhdl
+../../../bus/cart_connector_types.vhdl
+../../../bus/cart_pin_types.vhdl
 ../../../core/nes_audio_mixer.vhdl
 
 ../../../perhiperals/perhipheral_types.vhdl
@@ -52,10 +55,13 @@
 ../../../simulation/bmp_file.vhdl
 ../../../simulation/fm2_file.vhdl
 ../../../simulation/file_memory/file_memory.vhdl
+../../../simulation/nrom_cart/nrom_cart.vhdl
 ../../../simulation/clock/clock.vhdl
 ../../../simulation/apu_audio_record/apu_audio_record.vhdl
 ../../../simulation/sram/sram.vhdl
 ../../../simulation/sdram/sdram.vhdl
+../../../simulation/sram_16/sram_16.vhdl
+../../../simulation/cart_pin_bus/cart_pin_bus.vhdl
 ../../../simulation/sd_card/sd_card.vhdl
 
 ../../../simulation/fm2_joystick/fm2_joystick.vhdl
@@ -92,40 +98,50 @@
 ../../../core/apu/lib_apu.vhdl
 ../../../core/apu/apu.vhdl
 
-../../../core/mappers/lib_irq_counter.vhdl
-../../../core/mappers/cart_types.vhdl
-../../../core/mappers/latch/lib_mapper_latch.vhdl
-../../../core/mappers/mmc1/lib_mapper_mmc1.vhdl
-../../../core/mappers/mmc3/lib_mapper_mmc3.vhdl
-../../../core/mappers/mmc2/lib_mapper_mmc2.vhdl
-../../../core/mappers/fme7/lib_sunsoft_5b_audio.vhdl
-../../../core/mappers/fme7/lib_mapper_fme7.vhdl
-../../../core/mappers/lib_vrc_irq.vhdl
-../../../core/mappers/vrc4/lib_mapper_vrc4.vhdl
-../../../core/mappers/vrc6/lib_vrc6_audio.vhdl
-../../../core/mappers/vrc6/lib_mapper_vrc6.vhdl
-../../../core/mappers/vrc7/lib_vrc7_audio.vhdl
-../../../core/mappers/vrc7/lib_mapper_vrc7.vhdl
-../../../core/mappers/mmc5/lib_mmc5_audio.vhdl
-../../../core/mappers/mmc5/lib_mapper_mmc5.vhdl
-../../../core/mappers/n163/lib_n163_audio.vhdl
-../../../core/mappers/n163/lib_mapper_n163.vhdl
-../../../core/mappers/action53/lib_mapper_action53.vhdl
-../../../core/mappers/bandai/lib_bandai_eeprom.vhdl
-../../../core/mappers/bandai/lib_mapper_bandai.vhdl
-../../../core/mappers/ss88006/lib_mapper_ss88006.vhdl
-../../../core/mappers/taito/lib_mapper_taito.vhdl
-../../../core/mappers/sunsoft/lib_mapper_sunsoft.vhdl
-../../../core/mappers/irem/lib_mapper_irem.vhdl
-../../../core/mappers/nsf/lib_mapper_nsf.vhdl
-../../../core/mappers/lib_cartridge.vhdl
-../../../core/mappers/cartridge.vhdl
+../../../cart/lib_irq_counter.vhdl
+../../../cart/cart_types.vhdl
+../../../cart/latch/lib_mapper_latch.vhdl
+../../../cart/mmc1/lib_mapper_mmc1.vhdl
+../../../cart/mmc3/lib_mapper_mmc3.vhdl
+../../../cart/mmc2/lib_mapper_mmc2.vhdl
+../../../cart/fme7/lib_sunsoft_5b_audio.vhdl
+../../../cart/fme7/lib_mapper_fme7.vhdl
+../../../cart/lib_vrc_irq.vhdl
+../../../cart/vrc4/lib_mapper_vrc4.vhdl
+../../../cart/vrc6/lib_vrc6_audio.vhdl
+../../../cart/vrc6/lib_mapper_vrc6.vhdl
+../../../cart/vrc7/lib_vrc7_audio.vhdl
+../../../cart/vrc7/lib_mapper_vrc7.vhdl
+../../../cart/mmc5/lib_mmc5_audio.vhdl
+../../../cart/mmc5/lib_mapper_mmc5.vhdl
+../../../cart/n163/lib_n163_audio.vhdl
+../../../cart/n163/lib_mapper_n163.vhdl
+../../../cart/action53/lib_mapper_action53.vhdl
+../../../cart/bandai/lib_bandai_eeprom.vhdl
+../../../cart/bandai/lib_mapper_bandai.vhdl
+../../../cart/ss88006/lib_mapper_ss88006.vhdl
+../../../cart/taito/lib_mapper_taito.vhdl
+../../../cart/sunsoft/lib_mapper_sunsoft.vhdl
+../../../cart/irem/lib_mapper_irem.vhdl
+../../../cart/nsf/lib_mapper_nsf.vhdl
+../../../cart/lib_cartridge.vhdl
+../../../cart/cartridge.vhdl
+../../../cart/cart_mem_bus_mux.vhdl
+../../../cart/lib_cart_system.vhdl
+../../../cart/cart_system.vhdl
+../../../cart/cart_system_ocram.vhdl
+../../../cart/cart.vhdl
+../../../cart/cart_edge.vhdl
+../../../cart/cart_boot_stub.vhdl
+../../../cart/cart_joy_snoop.vhdl
 ../../../core/lib_nes_mmap.vhdl
 
-../../../soc/nes/lib_nes.vhdl
-../../../soc/nes/cart_mem_bus_mux.vhdl
-../../../soc/nes/nes_soc.vhdl
-../../../soc/nes/nes_soc_ocram.vhdl
+../../../console/lib_nes.vhdl
+../../../console/nes_console.vhdl
+../../../console/nes_console_ocram.vhdl
+../../../console/cart_slot.vhdl
+../../../console/console.vhdl
+../../../soc/nes_soc_ocram.vhdl
 
 ../../../soc/soc.vhdl
 
@@ -133,9 +149,12 @@
 ../../../board/platform/frame_lock_video.vhdl
 ../../../board/platform/frame_lock_bench.vhdl
 
+../../../board/de1/de1_types.vhdl
+../../../board/de1/lib_ines_load.vhdl
+../../../board/de1/sram_rom.vhdl
+
 ../../../board/sim/nes_bench.vhdl
 
-../../../board/de1/de1_types.vhdl
 ../../../board/de1/flash_stream.vhdl
 ../../../board/de1/sdram_rom.vhdl
 ../../../board/de1/sd_menu_stub.vhdl
@@ -143,6 +162,7 @@
 ../../../board/de1/sd_menu_bench.vhdl
 ../../../board/de1/sdram_rom_bench.vhdl
 ../../../board/de1/nes_de1.vhdl
+../../../board/de1/cart_de1.vhdl
 ../../../board/de1/ps2_joystick.vhdl
 ../../../board/de1/joy_port.vhdl
 ../../../board/de1/vga_video_record.vhdl

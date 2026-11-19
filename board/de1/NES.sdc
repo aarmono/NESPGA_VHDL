@@ -110,10 +110,10 @@ set_false_path -from [get_ports {SD_DAT}]
 # updates the cartridge memory bus address and write data, and the read data
 # is registered at least 2 clocks before the next PPU clock enable, so paths
 # between the NES core and the SDRAM controller have 2 clocks
-set_multicycle_path -setup -end 2 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
-set_multicycle_path -hold -end 1 -from [get_registers {*nes_soc_ocram:nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
-set_multicycle_path -setup -end 2 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]
-set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:nes|*}]
+set_multicycle_path -setup -end 2 -from [get_registers {*nes_soc_ocram:*nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
+set_multicycle_path -hold -end 1 -from [get_registers {*nes_soc_ocram:*nes|*}] -to [get_registers {*sdram_ctrl:ctrl|*}]
+set_multicycle_path -setup -end 2 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:*nes|*}]
+set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to [get_registers {*nes_soc_ocram:*nes|*}]
 
 # The NES core registers only update on cpu_en or ppu_en, which are at least
 # 9 clocks apart (clk_en). The on-chip RAMs only write on cpu_ram_en or
@@ -125,23 +125,26 @@ set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to 
 # itself updates every clock and is deliberately left out, except for
 # ppu_sync and odd_cpu_cycle, which only change on the clocks where a PPU
 # enable is consumed. RAM to RAM paths are left at 1 clock.
-set nes_soc {*|nes_soc_ocram:nes|nes_soc:soc}
+set nes_console {*|nes_soc_ocram:*nes|nes_console_ocram:console_sys|nes_console:sys}
+set cart_system_ocram {*|nes_soc_ocram:*nes|cart_system_ocram:cart_sys}
+set cart_system "$cart_system_ocram|cart_system:sys"
 
 set nes_core_regs [get_registers [list \
-    "$nes_soc|cpu:nes_cpu|*" \
-    "$nes_soc|apu:nes_apu|*" \
-    "$nes_soc|ppu:nes_ppu|*" \
-    "$nes_soc|oam_dma:nes_oam_dma|*" \
-    "$nes_soc|joystick_io:nes_joystick_io|*" \
-    "$nes_soc|cart_mem_bus_mux:cart_mem_mux|*" \
-    "$nes_soc|cartridge:nes_cart|*" \
-    "$nes_soc|reg.*" \
-    "$nes_soc|cart_irq" \
-    "$nes_soc|clk_en:nes_clk_en|ppu_sync" \
-    "$nes_soc|clk_en:nes_clk_en|reg_odd_cpu_cycle" \
+    "$nes_console|cpu:nes_cpu|*" \
+    "$nes_console|apu:nes_apu|*" \
+    "$nes_console|ppu:nes_ppu|*" \
+    "$nes_console|oam_dma:nes_oam_dma|*" \
+    "$nes_console|joystick_io:nes_joystick_io|*" \
+    "$nes_console|reg.*" \
+    "$cart_system_ocram|cart_mem_bus_mux:*cart_mem_mux|*" \
+    "$cart_system|cartridge:board|*" \
+    "$cart_system|reg.*" \
+    "$nes_console|cart_irq" \
+    "$nes_console|clk_en:nes_clk_en|ppu_sync" \
+    "$nes_console|clk_en:nes_clk_en|reg_odd_cpu_cycle" \
     {*nes_de1:nes|reg_audio_cpu_clk*}]]
 
-set nes_ram_regs [get_registers {*|nes_soc_ocram:nes|*syncram_sp:*}]
+set nes_ram_regs [get_registers {*|nes_soc_ocram:*nes|*syncram_sp:*}]
 
 set_multicycle_path -setup -end 4 -from $nes_core_regs -to $nes_core_regs
 set_multicycle_path -hold -end 3 -from $nes_core_regs -to $nes_core_regs
@@ -151,7 +154,7 @@ set_multicycle_path -setup -end 4 -from $nes_ram_regs -to $nes_core_regs
 set_multicycle_path -hold -end 3 -from $nes_ram_regs -to $nes_core_regs
 # While the RAMs are filled the power up data only steps on cpu_en, so paths
 # from it to the NES core and the on-chip RAMs have 4 clocks like the core's
-# own. Before the fill, while nes_soc is held in reset or reads the header,
+# own. Before the fill, while the NES is held in reset or reads the header,
 # it mixes in TRNG bytes on any clock, so its path to itself keeps 1
 set fill_regs [get_registers {*|power_up_fill:*|*lfsr*}]
 set_multicycle_path -setup -end 4 -from $fill_regs -to $nes_core_regs
