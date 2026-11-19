@@ -191,14 +191,7 @@ is
         m2_prev => '0',
         rd_prev => '1',
         wr_prev => '1',
-        cpu_hold =>
-        (
-            prg_bus => (address => (others => '0'),
-                        read => false,
-                        write => false),
-            romsel => false,
-            data => (others => '0')
-        ),
+        cpu_hold => CART_CPU_IN_IDLE,
         m2_count => MAX_COUNT,
         cpu_pending => false,
         third => DOT_CLOCKS,
@@ -209,22 +202,8 @@ is
         dot_len => DOT_CLOCKS,
         rd_fell => false,
         wr_fell => false,
-        cpu_held =>
-        (
-            prg_bus => (address => (others => '0'),
-                        read => false,
-                        write => false),
-            romsel => false,
-            data => (others => '0')
-        ),
-        ppu_held =>
-        (
-            chr_bus => (address => (others => '0'),
-                        read => false,
-                        write => false),
-            ale => false,
-            data => (others => '0')
-        ),
+        cpu_held => CART_CPU_IN_IDLE,
+        ppu_held => CART_PPU_IN_IDLE,
         ppu_wr_addr => (others => '0'),
         ppu_wr_data => (others => '0')
     );

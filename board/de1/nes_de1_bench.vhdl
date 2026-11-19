@@ -19,6 +19,9 @@ generic
     BMP_FILE_PREFIX : string;
     NES_FILEPATH    : string;
     NES_FILE_BYTES  : integer := 196608;
+    -- With ROM_CART_SLOT the cartridge runs on a DE1 of its own (cart_de1)
+    -- in the cartridge slot of nes_de1. The ROM file is on the cartridge's
+    -- SD card. Both sides driving a data bus is written to the output
     ROM_CONFIG      : rom_config_t := ROM_SD_TO_SDRAM;
     -- A on the controller in port 1 is held from JOY_A_FROM_MS until
     -- JOY_A_UNTIL_MS, as when choosing the first entry of the SD menu, and
@@ -35,10 +38,6 @@ generic
     RETURN_HOLD_MS  : positive := 2000;
     -- Report the frame lock's phase error and stretch rate once a frame
     LOG_LOCK        : boolean := false;
-    -- Run the cartridge on a DE1 of its own (cart_de1), in the cartridge
-    -- slot of nes_de1 (USE_CART_SLOT). The ROM file is on the cartridge's SD
-    -- card. Both sides driving a data bus is written to the output
-    USE_CART_DE1    : boolean := false;
     -- Hold the console's reset button until the cartridge is ready, as for
     -- a cartridge that is configured after the console's reset. Otherwise
     -- both power up together and the console runs the cartridge's boot stub
@@ -50,7 +49,6 @@ generic
     CART_CLK_OFFSET_PS : natural := 7000;
     -- See cart_de1
     CART_SRAM_READ_CLOCKS : positive := 2;
-    CART_A12_M2_FILTER : boolean := true;
     -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
     -- file of up to 256 KB; 22 hold any
     CART_SRAM_ADDR_BITS : positive := 18;
@@ -141,7 +139,6 @@ begin
     generic map
     (
         ROM_CONFIG => ROM_CONFIG,
-        USE_CART_SLOT => USE_CART_DE1,
         -- The oscillators of the random number generator cannot be simulated
         POWER_UP_MODE => POWER_UP_DETERMINISTIC,
         RETURN_HOLD_MS => RETURN_HOLD_MS,
@@ -210,7 +207,7 @@ begin
         CART_PINS_IN => board_pins
     );
 
-    gen_cart : if USE_CART_DE1 generate
+    gen_cart : if ROM_CONFIG = ROM_CART_SLOT generate
         signal clk_cart    : std_logic := '0';
 
         signal board_drive : cart_board_drive_t;
@@ -245,7 +242,6 @@ begin
             DOT_CLOCKS => 186243 ps / CART_CLK_PERIOD,
             SRAM_ADDR_BITS => CART_SRAM_ADDR_BITS,
             SRAM_READ_CLOCKS => CART_SRAM_READ_CLOCKS,
-            A12_M2_FILTER => CART_A12_M2_FILTER,
             USE_SD_MENU => CART_SD_MENU,
             RETURN_HOLD_MS => RETURN_HOLD_MS
         )

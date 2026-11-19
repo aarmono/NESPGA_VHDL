@@ -24,6 +24,16 @@ package cart_connector_types is
         data    : data_t;
     end record;
 
+    -- No access, as after reset
+    constant CART_CPU_IN_IDLE : cart_cpu_in_t :=
+    (
+        prg_bus => (address => (others => '0'),
+                    read => false,
+                    write => false),
+        romsel => false,
+        data => (others => '0')
+    );
+
     -- CPU side of the connector, driven by the board
     type cart_cpu_out_t is record
         -- CPU D0-D7. When the board does not drive them the console reads
@@ -67,6 +77,16 @@ package cart_connector_types is
         -- PPU D0-D7 during a write
         data    : data_t;
     end record;
+
+    -- No access, as after reset
+    constant CART_PPU_IN_IDLE : cart_ppu_in_t :=
+    (
+        chr_bus => (address => (others => '0'),
+                    read => false,
+                    write => false),
+        ale => false,
+        data => (others => '0')
+    );
 
     -- PPU side of the connector, driven by the board
     type cart_ppu_out_t is record

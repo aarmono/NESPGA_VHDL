@@ -9,6 +9,20 @@ use work.nes_audio_mixer.all;
 
 package simulation is
 
+    -- The cartridge nes_bench runs
+    type bench_cart_t is
+    (
+        -- cart_system joined to the console inside the chip, as in
+        -- nes_soc_ocram
+        CART_EMULATED,
+        -- A real NROM cartridge at the pins of a cart_slot (see nrom_cart).
+        -- Only runs NROM ROMs with the RAMs zeroed. Timing violations at
+        -- the pins are written to the output
+        CART_NROM_SLOT,
+        -- cart_system behind a cart_edge, at the pins of a cart_slot
+        CART_LOOPBACK_SLOT
+    );
+
     component apu_bus_record is
     generic
     (

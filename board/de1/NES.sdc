@@ -126,7 +126,8 @@ set_multicycle_path -hold -end 1 -from [get_registers {*sdram_ctrl:ctrl|*}] -to 
 # ppu_sync and odd_cpu_cycle, which only change on the clocks where a PPU
 # enable is consumed. RAM to RAM paths are left at 1 clock.
 set nes_console {*|nes_soc_ocram:*nes|nes_console_ocram:console_sys|nes_console:sys}
-set cart_system {*|nes_soc_ocram:*nes|cart_system_ocram:cart_sys|cart_system:sys}
+set cart_system_ocram {*|nes_soc_ocram:*nes|cart_system_ocram:cart_sys}
+set cart_system "$cart_system_ocram|cart_system:sys"
 
 set nes_core_regs [get_registers [list \
     "$nes_console|cpu:nes_cpu|*" \
@@ -135,7 +136,7 @@ set nes_core_regs [get_registers [list \
     "$nes_console|oam_dma:nes_oam_dma|*" \
     "$nes_console|joystick_io:nes_joystick_io|*" \
     "$nes_console|reg.*" \
-    "$cart_system|cart_mem_bus_mux:*cart_mem_mux|*" \
+    "$cart_system_ocram|cart_mem_bus_mux:*cart_mem_mux|*" \
     "$cart_system|cartridge:board|*" \
     "$cart_system|reg.*" \
     "$nes_console|cart_irq" \

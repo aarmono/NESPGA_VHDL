@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate an NROM test ROM for the PPU's $2007 accesses at the cartridge
-connector, for nes_bench NROM_SLOT runs against a real cartridge's timing.
+connector, for nes_bench CART_NROM_SLOT runs against a real cartridge's timing.
 
 Usage: slot_ppu.py OUT.nes
 

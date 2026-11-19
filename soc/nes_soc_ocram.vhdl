@@ -15,7 +15,8 @@ use work.cart.all;
 entity nes_soc_ocram is
 generic
 (
-    -- See cart_system_ocram
+    -- Leave the cartridge RAMs on the cartridge memory bus. Otherwise they
+    -- are on chip, and only reads of the ROM file are on the bus
     USE_EXT_CART_RAM : boolean := false;
     -- Vendor of the on-chip RAMs. See syncram_sp
     VENDOR           : vendor_t := VENDOR_ALTERA;
@@ -84,6 +85,19 @@ port
 end nes_soc_ocram;
 
 architecture behavioral of nes_soc_ocram is
+
+    function get_cart_mem(ext_ram : boolean) return cart_mem_config_t
+    is
+    begin
+        if ext_ram
+        then
+            return CART_MEM_ROM_RAM;
+        else
+            return CART_MEM_ROM;
+        end if;
+    end function;
+
+    constant CART_MEM : cart_mem_config_t := get_cart_mem(USE_EXT_CART_RAM);
 
     signal sig_cpu_clk_en : boolean;
     signal sig_ppu_clk_en : boolean;
@@ -194,7 +208,7 @@ begin
     cart_sys : cart_system_ocram
     generic map
     (
-        USE_EXT_CART_RAM => USE_EXT_CART_RAM,
+        CART_MEM => CART_MEM,
         VENDOR => VENDOR,
         CART_BOARDS => CART_BOARDS
     )

@@ -17,12 +17,10 @@ use work.platform_video.all;
 entity nes_de1 is
 generic
 (
-    ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
-    -- The cartridge is a real one on the cartridge pins, not the emulated
-    -- one, whose ROM loader, SDRAM and SD card are then unused. The console
+    -- Where the cartridge's ROM comes from. With ROM_CART_SLOT the console
     -- doesn't know when a cartridge that loads itself is ready (see
     -- cart_de1): hold the reset button until it is
-    USE_CART_SLOT : boolean := false;
+    ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
     POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
     -- How long Start and Select are held to return to the SD menu. See
     -- sd_menu
@@ -103,7 +101,7 @@ port
     AUD_DACLRCK : out std_logic;
     AUD_XCK     : out std_logic;
 
-    -- The cartridge connector, with USE_CART_SLOT. See cart_slot. The board
+    -- The cartridge connector, with ROM_CART_SLOT. See cart_slot. The board
     -- level shifts the pins and makes the data buses, which the console
     -- drives while its output enables are true
     CART_PINS_OUT : out cart_console_pins_t;
@@ -262,7 +260,7 @@ begin
     nes_reset <= reset_50 or rom_loading;
 
     -- The emulated cartridge, with its ROM file loaded into SDRAM
-    gen_emulated : if not USE_CART_SLOT generate
+    gen_emulated : if ROM_CONFIG /= ROM_CART_SLOT generate
     begin
         CART_PINS_OUT <= CART_CONSOLE_PINS_IDLE;
 
@@ -459,7 +457,7 @@ begin
         );
     end generate;
 
-    gen_slot : if USE_CART_SLOT generate
+    gen_slot : if ROM_CONFIG = ROM_CART_SLOT generate
         signal clk_sync       : boolean;
         signal cart_cpu_in    : cart_cpu_in_t;
         signal cart_cpu_out   : cart_cpu_out_t;

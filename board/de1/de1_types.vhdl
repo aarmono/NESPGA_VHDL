@@ -14,7 +14,10 @@ package de1_types is
         ROM_SD_TO_SDRAM,
         -- As ROM_SD_TO_SDRAM if the SD card starts with an iNES file,
         -- otherwise the card holds a filesystem, which the menu reads
-        ROM_SD_MENU
+        ROM_SD_MENU,
+        -- The cartridge is a real one on the cartridge pins, not the
+        -- emulated one, whose ROM loader, SDRAM and SD card are then unused
+        ROM_CART_SLOT
     );
 
     subtype vga_channel_t is std_logic_vector(3 downto 0);
@@ -88,7 +91,6 @@ package de1_types is
     generic
     (
         ROM_CONFIG    : rom_config_t := ROM_SD_TO_SDRAM;
-        USE_CART_SLOT : boolean := false;
         POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
         RETURN_HOLD_MS : positive := 2000;
         CLOCK_VGA_FREQ : real := 27.0e6 * 29.0 / 31.0;
@@ -214,11 +216,9 @@ package de1_types is
     generic
     (
         POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
-        POWER_UP_SEED : natural := 0;
         DOT_CLOCKS    : positive := 9;
         SRAM_ADDR_BITS   : positive := 18;
         SRAM_READ_CLOCKS : positive := 2;
-        A12_M2_FILTER    : boolean := true;
         USE_SD_MENU      : boolean := false;
         RETURN_HOLD_MS   : positive := 2000
     );

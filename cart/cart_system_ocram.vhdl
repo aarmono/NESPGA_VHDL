@@ -17,17 +17,15 @@ use work.lib_cart_system.all;
 entity cart_system_ocram is
 generic
 (
-    -- Leave the cartridge RAMs on the cartridge memory bus. Otherwise they
-    -- are on chip, and only reads of the ROM file are on the bus
-    USE_EXT_CART_RAM : boolean := false;
+    -- Where the cartridge RAMs are, and the bus the memory is on. See
+    -- cart_mem_config_t
+    CART_MEM      : cart_mem_config_t := CART_MEM_ROM;
     -- Vendor of the on-chip RAMs. See syncram_sp
-    VENDOR           : vendor_t := VENDOR_ALTERA;
+    VENDOR        : vendor_t := VENDOR_ALTERA;
     -- See cart_system
-    CART_BOARDS      : board_set_t := ALL_BOARDS;
-    -- See cart_system. Needs USE_EXT_CART_RAM
-    SPLIT_MEM_BUS    : boolean := false;
+    CART_BOARDS   : board_set_t := ALL_BOARDS;
     -- See cartridge
-    A12_M2_FILTER    : boolean := false
+    A12_M2_FILTER : boolean := false
 );
 port
 (
@@ -57,11 +55,15 @@ port
     ppu_out : out cart_ppu_out_t;
     audio   : out cart_audio_t;
 
+    -- The cartridge memory bus, with one access per PPU cycle. Unused with
+    -- CART_MEM_SPLIT
     cart_mem_bus       : out cart_mem_bus_t;
     data_to_cart_mem   : out data_t;
     data_from_cart_mem : in data_t := (others => '-');
 
-    -- See cart_system
+    -- With CART_MEM_SPLIT, the two channels of the cartridge memory, for a
+    -- memory that answers both at once, each as soon as it can. See
+    -- cart_system
     prg_mem_bus       : out cart_mem_bus_t;
     data_to_prg_mem   : out data_t;
     data_from_prg_mem : in data_t := (others => '-');
@@ -74,6 +76,16 @@ end cart_system_ocram;
 
 architecture behavioral of cart_system_ocram is
 
+    -- The channels of cart_system
+    signal sys_prg_mem_bus       : cart_mem_bus_t;
+    signal sys_data_to_prg_mem   : data_t;
+    signal sys_data_from_prg_mem : data_t;
+
+    signal sys_chr_mem_bus       : cart_mem_bus_t;
+    signal sys_data_to_chr_mem   : data_t;
+    signal sys_data_from_chr_mem : data_t;
+
+    -- The cartridge memory bus with the cartridge RAMs on it
     signal sys_cart_mem_bus       : cart_mem_bus_t;
     signal sys_data_to_cart_mem   : data_t;
     signal sys_data_from_cart_mem : data_t;
@@ -92,7 +104,6 @@ begin
     generic map
     (
         CART_BOARDS => CART_BOARDS,
-        SPLIT_MEM_BUS => SPLIT_MEM_BUS,
         A12_M2_FILTER => A12_M2_FILTER
     )
     port map
@@ -118,17 +129,13 @@ begin
         ppu_out => ppu_out,
         audio => audio,
 
-        cart_mem_bus => sys_cart_mem_bus,
-        data_to_cart_mem => sys_data_to_cart_mem,
-        data_from_cart_mem => sys_data_from_cart_mem,
+        prg_mem_bus => sys_prg_mem_bus,
+        data_to_prg_mem => sys_data_to_prg_mem,
+        data_from_prg_mem => sys_data_from_prg_mem,
 
-        prg_mem_bus => prg_mem_bus,
-        data_to_prg_mem => data_to_prg_mem,
-        data_from_prg_mem => data_from_prg_mem,
-
-        chr_mem_bus => chr_mem_bus,
-        data_to_chr_mem => data_to_chr_mem,
-        data_from_chr_mem => data_from_chr_mem,
+        chr_mem_bus => sys_chr_mem_bus,
+        data_to_chr_mem => sys_data_to_chr_mem,
+        data_from_chr_mem => sys_data_from_chr_mem,
 
         chip_ram_bus => chip_ram_bus,
         data_to_chip_ram => data_to_chip_ram,
@@ -139,11 +146,48 @@ begin
         data_from_opll_ram => data_from_opll_ram
     );
 
-    assert USE_EXT_CART_RAM or not SPLIT_MEM_BUS
-        report "cart_system_ocram: SPLIT_MEM_BUS needs USE_EXT_CART_RAM"
-        severity failure;
+    gen_mem_bus : if CART_MEM /= CART_MEM_SPLIT generate
+    begin
+        cart_mem_mux : entity work.cart_mem_bus_mux(behavioral)
+        port map
+        (
+            clk => clk,
+            clk_en => ppu_en,
+            clk_sync => clk_sync,
+            reset => reset,
 
-    gen_cart_ram : if USE_EXT_CART_RAM generate
+            cart_mem_bus_chr => sys_chr_mem_bus,
+            data_from_chr_bus => sys_data_to_chr_mem,
+            data_to_chr_bus => sys_data_from_chr_mem,
+
+            cart_mem_bus_prg => sys_prg_mem_bus,
+            data_from_prg_bus => sys_data_to_prg_mem,
+            data_to_prg_bus => sys_data_from_prg_mem,
+
+            cart_mem_bus_out => sys_cart_mem_bus,
+            data_to_cart_mem => sys_data_to_cart_mem,
+            data_from_cart_mem => sys_data_from_cart_mem
+        );
+
+        prg_mem_bus <= CART_MEM_BUS_IDLE;
+        data_to_prg_mem <= (others => '-');
+        chr_mem_bus <= CART_MEM_BUS_IDLE;
+        data_to_chr_mem <= (others => '-');
+    else generate
+    begin
+        sys_cart_mem_bus <= CART_MEM_BUS_IDLE;
+        sys_data_to_cart_mem <= (others => '-');
+
+        prg_mem_bus <= sys_prg_mem_bus;
+        data_to_prg_mem <= sys_data_to_prg_mem;
+        sys_data_from_prg_mem <= data_from_prg_mem;
+
+        chr_mem_bus <= sys_chr_mem_bus;
+        data_to_chr_mem <= sys_data_to_chr_mem;
+        sys_data_from_chr_mem <= data_from_chr_mem;
+    end generate;
+
+    gen_cart_ram : if CART_MEM /= CART_MEM_ROM generate
     begin
         cart_mem_bus <= sys_cart_mem_bus;
         data_to_cart_mem <= sys_data_to_cart_mem;

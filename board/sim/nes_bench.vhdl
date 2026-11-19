@@ -9,6 +9,7 @@ use work.cpu_bus_types.all;
 use work.prg_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.cart_connector_types.all;
+use work.cart_types.all;
 use work.oam_bus_types.all;
 use work.sec_oam_bus_types.all;
 use work.palette_bus_types.all;
@@ -66,24 +67,17 @@ generic
     -- so the CPU cycle is as long as 28 clocks of a 50MHz clock whatever
     -- this is. 28 runs the 50MHz clock of the DE1
     CPU_CYCLE_CLOCKS : positive := 6;
-    -- Run the cartridge as a real NROM cartridge at the pins of a cart_slot
-    -- (see nrom_cart), instead of the emulated cartridge. Needs
-    -- CPU_CYCLE_CLOCKS = 28, and only runs NROM ROMs with the RAMs zeroed.
-    -- Timing violations at the pins are written to the output
-    NROM_SLOT : boolean := false;
-    -- Run the emulated cartridge through the pins: the console's cart_slot
-    -- drives them, and cart_edge turns them back into the connector and
-    -- clock enables of the cartridge, which only has the pins. Needs
-    -- CPU_CYCLE_CLOCKS = 28. Both sides driving a data bus is written to the
-    -- output
-    LOOPBACK_SLOT : boolean := false;
-    -- With LOOPBACK_SLOT, the period in ps of the clock cart_edge and the
+    -- The cartridge the console runs, and whether it is at the pins of a
+    -- cart_slot. See bench_cart_t. The two at the pins need
+    -- CPU_CYCLE_CLOCKS = 28
+    BENCH_CART : bench_cart_t := CART_EMULATED;
+    -- With CART_LOOPBACK_SLOT, the period in ps of the clock cart_edge and the
     -- cartridge run on, as in a real console, where the cartridge's clock
     -- has nothing to do with M2. 0 runs them on the console's clock. 20043
     -- gives a real NES's 27.94 clocks per CPU cycle, and a phase between the
     -- two clocks that keeps moving
     EDGE_CLK_PERIOD_PS : natural := 0;
-    -- With LOOPBACK_SLOT, the clocks after M2 falls that the console's dots
+    -- With CART_LOOPBACK_SLOT, the clocks after M2 falls that the console's dots
     -- start, at most 8. The console starts them as M2 falls, but a real
     -- NES's sit 0 to 3 master clocks after it: 0 to 7 clocks. M2 and
     -- /ROMSEL move this many clocks earlier and the other pins keep their
@@ -92,10 +86,10 @@ generic
     -- /IRQ this many clocks late, so that it samples them where it would
     -- with M2 in its place
     LOOPBACK_DOT_OFFSET : natural := 0;
-    -- With LOOPBACK_SLOT, the cartridge's A12 filters count falls of M2. See
+    -- With CART_LOOPBACK_SLOT, the cartridge's A12 filters count falls of M2. See
     -- cartridge
     LOOPBACK_A12_M2_FILTER : boolean := false;
-    -- With LOOPBACK_SLOT, the cartridge's memory is an SRAM behind
+    -- With CART_LOOPBACK_SLOT, the cartridge's memory is an SRAM behind
     -- sram_rom, which serves each access as it is asked for, as in
     -- cart_de1. Otherwise it is the ROM file with one access per dot and
     -- the cartridge RAMs on chip. The console waits while the ROM file is
@@ -104,11 +98,11 @@ generic
     LOOPBACK_SRAM : boolean := false;
     -- See sram_rom
     LOOPBACK_SRAM_READ_CLOCKS : positive := 2;
-    -- With LOOPBACK_SLOT, the console is answered by cart_boot_stub for this
+    -- With CART_LOOPBACK_SLOT, the console is answered by cart_boot_stub for this
     -- many CPU cycles before the cartridge takes over, as when a cartridge
     -- in a real console loads its game. 0 leaves the stub out
     LOOPBACK_STUB_CYCLES : natural := 0;
-    -- NROM_SLOT access times in ns: address to data for the PRG and CHR
+    -- CART_NROM_SLOT access times in ns: address to data for the PRG and CHR
     -- ROMs, /RD to data for the memories on the PPU bus, and PPU A10, A11
     -- and /A13 to CIRAM A10 and /CE, level shifters included. See nrom_cart
     SLOT_PRG_ACCESS_NS  : natural := 150;
@@ -154,7 +148,7 @@ architecture behavioral of nes_bench is
 
     constant EDGE_CLK_PERIOD : time := get_edge_clk_period;
 
-    -- cart_slot's M2_LOW_CLOCKS with LOOPBACK_SLOT
+    -- cart_slot's M2_LOW_CLOCKS, which CART_LOOPBACK_SLOT moves M2 by
     constant SLOT_M2_LOW_CLOCKS : positive := 10;
 
     signal cart_mem_bus       : cart_mem_bus_t;
@@ -186,14 +180,31 @@ architecture behavioral of nes_bench is
 
     signal board_cpu_in : cart_cpu_in_t;
     signal board_ppu_in : cart_ppu_in_t;
-    
+
+    -- The console's side of a cartridge at the pins, with CART_NROM_SLOT
+    -- or CART_LOOPBACK_SLOT
+    signal clk_sync       : boolean;
+    signal cart_cpu_in    : cart_cpu_in_t;
+    signal cart_cpu_out   : cart_cpu_out_t;
+    signal cpu_data_bus   : data_t;
+    signal cart_ppu_in    : cart_ppu_in_t;
+    signal cart_ppu_out   : cart_ppu_out_t;
+    signal cart_audio     : cart_audio_t;
+    signal cart_loaded    : boolean := false;
+    signal cart_ready     : boolean;
+
+    signal power_up_ready : boolean;
+    signal power_up_step  : boolean;
+    signal console_power_up_ready : boolean;
+    signal console_power_up_data  : console_power_up_data_t;
+
+    -- The pins at the slot
+    signal slot_pins       : cart_console_pins_t;
+    signal slot_board_pins : cart_board_pins_t;
+
 begin
 
-    assert not (NROM_SLOT and LOOPBACK_SLOT)
-        report "nes_bench: NROM_SLOT and LOOPBACK_SLOT can't both be set"
-        severity failure;
-
-    gen_soc : if not NROM_SLOT and not LOOPBACK_SLOT generate
+    gen_soc : if BENCH_CART = CART_EMULATED generate
     soc : nes_soc_ocram
     generic map
     (
@@ -238,259 +249,12 @@ begin
     );
     end generate;
 
-    gen_slot : if NROM_SLOT generate
-        signal clk_sync       : boolean;
-        signal cart_cpu_in    : cart_cpu_in_t;
-        signal cart_cpu_out   : cart_cpu_out_t;
-        signal cpu_data_bus   : data_t;
-        signal cart_ppu_in    : cart_ppu_in_t;
-        signal cart_ppu_out   : cart_ppu_out_t;
-        signal cart_loaded    : boolean := false;
-
-        signal power_up_ready : boolean;
-        signal power_up_data  : console_power_up_data_t;
-        signal power_up_step  : boolean;
-        signal console_power_up_ready : boolean;
-
-        signal console_pins   : cart_console_pins_t;
-        signal board_pins     : cart_board_pins_t;
-
-        signal cart_cpu_data    : data_t;
-        signal cart_cpu_data_oe : boolean;
-        signal cart_ppu_data    : data_t;
-        signal cart_ppu_data_oe : boolean;
+    -- The console on its own, with its cartridge at the pins of a cart_slot
+    gen_slot : if BENCH_CART /= CART_EMULATED generate
     begin
         assert CPU_CYCLE_CLOCKS = 28
-            report "nes_bench: NROM_SLOT needs CPU_CYCLE_CLOCKS = 28"
-            severity failure;
-
-        console : nes_console_ocram
-        generic map
-        (
-            VENDOR => VENDOR_SIM,
-            CLK_FREQ => CLK_FREQ,
-            CPU_FREQ_NUM => CLK_FREQ,
-            CPU_FREQ_DEN => CPU_CYCLE_CLOCKS,
-            INVERT_CYCLE_PARITY => INVERT_CYCLE_PARITY
-        )
-        port map
-        (
-            clk => clk,
-            reset => false,
-            soft_reset => soft_reset,
-            famicom => FAMICOM,
-
-            nes_running => output_ready,
-
-            cpu_clk_en => cpu_clk_en,
-            ppu_clk_en => ppu_clk_en,
-            clk_sync => clk_sync,
-
-            pixel_bus => pixel_bus,
-            audio => audio_out,
-
-            joy_strobe => joy_strobe,
-
-            joy_1_clk => joy_1_clk,
-            joy_1_data => joy_1_data,
-
-            joy_2_clk => joy_2_clk,
-            joy_2_data => joy_2_data,
-
-            cart_cpu_in => cart_cpu_in,
-            cart_cpu_out => cart_cpu_out,
-            cpu_data_bus => cpu_data_bus,
-            cart_ppu_in => cart_ppu_in,
-            cart_ppu_out => cart_ppu_out,
-
-            power_up_ready => console_power_up_ready,
-            power_up_data => power_up_data,
-            power_up_step => power_up_step
-        );
-
-        -- The console has the power up fill to itself. The component is
-        -- named in full, because the POWER_UP_FILL generic hides it
-        fill : component work.perhipherals.power_up_fill
-        generic map
-        (
-            MODE => POWER_UP_MODE,
-            DATA_BITS => console_power_up_data_t'length,
-            SEED => POWER_UP_SEED
-        )
-        port map
-        (
-            clk => clk,
-            enable => false,
-            step => power_up_step,
-            ready => power_up_ready,
-            data => power_up_data
-        );
-
-        console_power_up_ready <= power_up_ready and cart_loaded;
-
-        -- A real cartridge has no header to load. cart_system has loaded the
-        -- header on its 16th CPU cycle, so the console starts its fill on the
-        -- same cycle as with the emulated cartridge, and the CPU cycles keep
-        -- their parity
-        process(clk)
-        is
-            variable cycles : natural := 0;
-        begin
-        if rising_edge(clk) and cpu_clk_en and not cart_loaded
-        then
-            cycles := cycles + 1;
-            cart_loaded <= cycles = 15;
-        end if;
-        end process;
-
-        slot : cart_slot
-        port map
-        (
-            clk => clk,
-            reset => false,
-
-            cpu_en => cpu_clk_en,
-            ppu_en => ppu_clk_en,
-
-            cpu_in => cart_cpu_in,
-            cpu_out => cart_cpu_out,
-            cpu_data_bus => cpu_data_bus,
-            ppu_in => cart_ppu_in,
-            ppu_out => cart_ppu_out,
-
-            pins_out => console_pins,
-            pins_in => board_pins
-        );
-
-        cart : entity work.nrom_cart
-        generic map
-        (
-            NES_FILEPATH => NES_FILEPATH,
-            NES_FILE_BYTES => NES_FILE_BYTES,
-            PRG_ACCESS => SLOT_PRG_ACCESS_NS * 1 ns,
-            CHR_ACCESS => SLOT_CHR_ACCESS_NS * 1 ns,
-            OE_ACCESS => SLOT_OE_ACCESS_NS * 1 ns,
-            CIRAM_DELAY => SLOT_CIRAM_DELAY_NS * 1 ns,
-            -- cart_slot samples on every clock, and the console takes the
-            -- sample of the clock before M2 falls, or two clocks before /RD
-            -- rises
-            CPU_SAMPLE_LEAD => CLK_PERIOD,
-            PPU_SAMPLE_LEAD => 2 * CLK_PERIOD,
-            PPU_DOT => CLK_PERIOD * CPU_CYCLE_CLOCKS / 3
-        )
-        port map
-        (
-            pins => console_pins,
-
-            cpu_data => cart_cpu_data,
-            cpu_data_oe => cart_cpu_data_oe,
-            irq_n => board_pins.irq_n,
-
-            ppu_data => cart_ppu_data,
-            ppu_data_oe => cart_ppu_data_oe,
-            ciram_ce_n => board_pins.ciram_ce_n,
-            ciram_a10 => board_pins.ciram_a10
-        );
-
-        -- The shared data buses. An undriven bus keeps its last value, which
-        -- a board would do with bus hold
-        process(console_pins, cart_cpu_data, cart_cpu_data_oe)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            if console_pins.cpu_data_oe and cart_cpu_data_oe
-            then
-                report "nes_bench: CPU data bus driven by both sides"
-                    severity error;
-                value := (others => 'X');
-            elsif console_pins.cpu_data_oe
-            then
-                value := console_pins.cpu_data;
-            elsif cart_cpu_data_oe
-            then
-                value := cart_cpu_data;
-            end if;
-            board_pins.cpu_data <= value;
-        end process;
-
-        process(console_pins, cart_ppu_data, cart_ppu_data_oe)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            if console_pins.ppu_data_oe and cart_ppu_data_oe
-            then
-                report "nes_bench: PPU data bus driven by both sides"
-                    severity error;
-                value := (others => 'X');
-            elsif console_pins.ppu_data_oe
-            then
-                value := console_pins.ppu_data;
-            elsif cart_ppu_data_oe
-            then
-                value := cart_ppu_data;
-            end if;
-            board_pins.ppu_data <= value;
-        end process;
-
-        board_cpu_in <= cart_cpu_in;
-        board_ppu_in <= cart_ppu_in;
-    end generate;
-
-    gen_loopback : if LOOPBACK_SLOT generate
-        -- The console's side
-        signal clk_sync       : boolean;
-        signal cart_cpu_in    : cart_cpu_in_t;
-        signal cart_cpu_out   : cart_cpu_out_t;
-        signal cpu_data_bus   : data_t;
-        signal cart_ppu_in    : cart_ppu_in_t;
-        signal cart_ppu_out   : cart_ppu_out_t;
-        signal cart_audio     : cart_audio_t;
-        signal cart_loaded    : boolean;
-        signal cart_ready     : boolean;
-        signal power_up_ready : boolean;
-        signal power_up_data  : power_up_data_t;
-        signal power_up_step  : boolean;
-        signal console_power_up_ready : boolean;
-
-        -- The pins
-        signal slot_pins    : cart_console_pins_t;
-        signal console_pins : cart_console_pins_t;
-        signal board_pins   : cart_board_pins_t;
-        signal slot_board_pins : cart_board_pins_t;
-        signal board_drive  : cart_board_drive_t;
-
-        -- M2 and /ROMSEL moved for LOOPBACK_DOT_OFFSET
-        signal early_m2       : std_logic := '1';
-        signal early_romsel_n : std_logic := '1';
-        -- CPU D0-D7 and /IRQ as the console sees them for
-        -- LOOPBACK_DOT_OFFSET
-        signal delayed_cpu_data : data_t := (others => '0');
-        signal delayed_irq_n    : std_logic := '1';
-
-        -- The cartridge's side
-        signal edge_clk      : std_logic;
-        signal edge_cpu_en   : boolean;
-        signal edge_ppu_en   : boolean;
-        signal edge_clk_sync : boolean;
-        signal edge_ram_en   : boolean;
-        signal edge_cpu_in   : cart_cpu_in_t;
-        signal edge_cpu_out  : cart_cpu_out_t;
-        signal edge_ppu_in   : cart_ppu_in_t;
-        signal edge_ppu_out  : cart_ppu_out_t;
-        -- What the cartridge answers, before the boot stub
-        signal sys_cpu_out   : cart_cpu_out_t;
-        signal sys_ppu_out   : cart_ppu_out_t;
-
-        -- The power up data as it was on the console's last CPU clock enable
-        signal cart_power_up_ready : boolean := false;
-        signal cart_power_up_data  : cart_power_up_data_t;
-    begin
-        assert CPU_CYCLE_CLOCKS = 28
-            report "nes_bench: LOOPBACK_SLOT needs CPU_CYCLE_CLOCKS = 28"
-            severity failure;
-
-        assert LOOPBACK_DOT_OFFSET <= SLOT_M2_LOW_CLOCKS - 2
-            report "nes_bench: LOOPBACK_DOT_OFFSET is too large"
+            report "nes_bench: a cartridge at the pins needs " &
+                   "CPU_CYCLE_CLOCKS = 28"
             severity failure;
 
         console : nes_console_ocram
@@ -535,25 +299,8 @@ begin
 
             run => cart_ready,
             power_up_ready => console_power_up_ready,
-            power_up_data => power_up_data(console_power_up_data_t'range),
+            power_up_data => console_power_up_data,
             power_up_step => power_up_step
-        );
-
-        -- Shared by the console and the cartridge, as in nes_soc_ocram
-        fill : component work.perhipherals.power_up_fill
-        generic map
-        (
-            MODE => POWER_UP_MODE,
-            DATA_BITS => power_up_data_t'length,
-            SEED => POWER_UP_SEED
-        )
-        port map
-        (
-            clk => clk,
-            enable => false,
-            step => power_up_step,
-            ready => power_up_ready,
-            data => power_up_data
         );
 
         console_power_up_ready <= power_up_ready and cart_loaded;
@@ -580,6 +327,186 @@ begin
             pins_out => slot_pins,
             pins_in => slot_board_pins
         );
+
+        board_cpu_in <= cart_cpu_in;
+        board_ppu_in <= cart_ppu_in;
+    end generate;
+
+    -- A real NROM cartridge at the pins (see nrom_cart)
+    gen_nrom : if BENCH_CART = CART_NROM_SLOT generate
+        signal cart_cpu_data    : data_t;
+        signal cart_cpu_data_oe : boolean;
+        signal cart_ppu_data    : data_t;
+        signal cart_ppu_data_oe : boolean;
+    begin
+        cart_audio <= 0;
+        cart_ready <= true;
+
+        -- The console has the power up fill to itself. The component is
+        -- named in full, because the POWER_UP_FILL generic hides it
+        fill : component work.perhipherals.power_up_fill
+        generic map
+        (
+            MODE => POWER_UP_MODE,
+            DATA_BITS => console_power_up_data_t'length,
+            SEED => POWER_UP_SEED
+        )
+        port map
+        (
+            clk => clk,
+            enable => false,
+            step => power_up_step,
+            ready => power_up_ready,
+            data => console_power_up_data
+        );
+
+        -- A real cartridge has no header to load. cart_system has loaded the
+        -- header on its 16th CPU cycle, so the console starts its fill on the
+        -- same cycle as with the emulated cartridge, and the CPU cycles keep
+        -- their parity
+        process(clk)
+        is
+            variable cycles : natural := 0;
+        begin
+        if rising_edge(clk) and cpu_clk_en and not cart_loaded
+        then
+            cycles := cycles + 1;
+            cart_loaded <= cycles = 15;
+        end if;
+        end process;
+
+        cart : entity work.nrom_cart
+        generic map
+        (
+            NES_FILEPATH => NES_FILEPATH,
+            NES_FILE_BYTES => NES_FILE_BYTES,
+            PRG_ACCESS => SLOT_PRG_ACCESS_NS * 1 ns,
+            CHR_ACCESS => SLOT_CHR_ACCESS_NS * 1 ns,
+            OE_ACCESS => SLOT_OE_ACCESS_NS * 1 ns,
+            CIRAM_DELAY => SLOT_CIRAM_DELAY_NS * 1 ns,
+            -- cart_slot samples on every clock, and the console takes the
+            -- sample of the clock before M2 falls, or two clocks before /RD
+            -- rises
+            CPU_SAMPLE_LEAD => CLK_PERIOD,
+            PPU_SAMPLE_LEAD => 2 * CLK_PERIOD,
+            PPU_DOT => CLK_PERIOD * CPU_CYCLE_CLOCKS / 3
+        )
+        port map
+        (
+            pins => slot_pins,
+
+            cpu_data => cart_cpu_data,
+            cpu_data_oe => cart_cpu_data_oe,
+            irq_n => slot_board_pins.irq_n,
+
+            ppu_data => cart_ppu_data,
+            ppu_data_oe => cart_ppu_data_oe,
+            ciram_ce_n => slot_board_pins.ciram_ce_n,
+            ciram_a10 => slot_board_pins.ciram_a10
+        );
+
+        -- The shared data buses. An undriven bus keeps its last value, which
+        -- a board would do with bus hold
+        process(slot_pins, cart_cpu_data, cart_cpu_data_oe)
+        is
+            variable value : data_t := (others => '0');
+        begin
+            if slot_pins.cpu_data_oe and cart_cpu_data_oe
+            then
+                report "nes_bench: CPU data bus driven by both sides"
+                    severity error;
+                value := (others => 'X');
+            elsif slot_pins.cpu_data_oe
+            then
+                value := slot_pins.cpu_data;
+            elsif cart_cpu_data_oe
+            then
+                value := cart_cpu_data;
+            end if;
+            slot_board_pins.cpu_data <= value;
+        end process;
+
+        process(slot_pins, cart_ppu_data, cart_ppu_data_oe)
+        is
+            variable value : data_t := (others => '0');
+        begin
+            if slot_pins.ppu_data_oe and cart_ppu_data_oe
+            then
+                report "nes_bench: PPU data bus driven by both sides"
+                    severity error;
+                value := (others => 'X');
+            elsif slot_pins.ppu_data_oe
+            then
+                value := slot_pins.ppu_data;
+            elsif cart_ppu_data_oe
+            then
+                value := cart_ppu_data;
+            end if;
+            slot_board_pins.ppu_data <= value;
+        end process;
+
+    end generate;
+
+    -- The emulated cartridge through the pins: the console's cart_slot
+    -- drives them, and cart_edge turns them back into the connector and
+    -- clock enables of the cartridge, which only has the pins. Both sides
+    -- driving a data bus is written to the output
+    gen_loopback : if BENCH_CART = CART_LOOPBACK_SLOT generate
+        signal power_up_data : power_up_data_t;
+
+        -- The pins at the cartridge
+        signal console_pins : cart_console_pins_t;
+        signal board_pins   : cart_board_pins_t;
+        signal board_drive  : cart_board_drive_t;
+
+        -- M2 and /ROMSEL moved for LOOPBACK_DOT_OFFSET
+        signal early_m2       : std_logic := '1';
+        signal early_romsel_n : std_logic := '1';
+        -- CPU D0-D7 and /IRQ as the console sees them for
+        -- LOOPBACK_DOT_OFFSET
+        signal delayed_cpu_data : data_t := (others => '0');
+        signal delayed_irq_n    : std_logic := '1';
+
+        -- The cartridge's side
+        signal edge_clk      : std_logic;
+        signal edge_cpu_en   : boolean;
+        signal edge_ppu_en   : boolean;
+        signal edge_clk_sync : boolean;
+        signal edge_ram_en   : boolean;
+        signal edge_cpu_in   : cart_cpu_in_t;
+        signal edge_cpu_out  : cart_cpu_out_t;
+        signal edge_ppu_in   : cart_ppu_in_t;
+        signal edge_ppu_out  : cart_ppu_out_t;
+        -- What the cartridge answers, before the boot stub
+        signal sys_cpu_out   : cart_cpu_out_t;
+        signal sys_ppu_out   : cart_ppu_out_t;
+
+        -- The power up data as it was on the console's last CPU clock enable
+        signal cart_power_up_ready : boolean := false;
+        signal cart_power_up_data  : cart_power_up_data_t;
+    begin
+        assert LOOPBACK_DOT_OFFSET <= SLOT_M2_LOW_CLOCKS - 2
+            report "nes_bench: LOOPBACK_DOT_OFFSET is too large"
+            severity failure;
+
+        -- Shared by the console and the cartridge, as in nes_soc_ocram
+        fill : component work.perhipherals.power_up_fill
+        generic map
+        (
+            MODE => POWER_UP_MODE,
+            DATA_BITS => power_up_data_t'length,
+            SEED => POWER_UP_SEED
+        )
+        port map
+        (
+            clk => clk,
+            enable => false,
+            step => power_up_step,
+            ready => power_up_ready,
+            data => power_up_data
+        );
+
+        console_power_up_data <= power_up_data(console_power_up_data_t'range);
 
         -- M2 and /ROMSEL LOOPBACK_DOT_OFFSET clocks earlier than the slot's.
         -- A CPU cycle is always CPU_CYCLE_CLOCKS here, so where M2 is comes
@@ -892,9 +819,8 @@ begin
             cart_sys : cart_system_ocram
             generic map
             (
-                USE_EXT_CART_RAM => true,
+                CART_MEM => CART_MEM_SPLIT,
                 VENDOR => VENDOR_SIM,
-                SPLIT_MEM_BUS => true,
                 A12_M2_FILTER => LOOPBACK_A12_M2_FILTER
             )
             port map
@@ -1005,8 +931,6 @@ begin
             );
         end generate;
 
-        board_cpu_in <= cart_cpu_in;
-        board_ppu_in <= cart_ppu_in;
     end generate;
 
     gen_trace : if TRACE_FILEPATH'length > 0 generate

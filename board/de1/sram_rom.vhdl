@@ -6,7 +6,7 @@ use work.utilities.all;
 use work.cart_mem_bus_types.all;
 
 -- Serves the two channels of a split cartridge memory bus (see cart_system
--- SPLIT_MEM_BUS) out of the DE1's asynchronous SRAM, each access as it is
+-- CART_MEM_SPLIT) out of the DE1's asynchronous SRAM, each access as it is
 -- asked for, where sdram_rom serves one access per PPU cycle. For a
 -- cartridge in a real console, whose accesses come when the console makes
 -- them and must be answered within the access.

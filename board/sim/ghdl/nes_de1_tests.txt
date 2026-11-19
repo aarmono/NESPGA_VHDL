@@ -29,13 +29,13 @@ nes-test-roms/dmc_tests/latency.nes                                 | 350ms     
 # 22 SRAM address bits so any ROM file fits. The console runs the
 # cartridge's boot stub until the ROM file is loaded
 # NROM, CHR RAM
-nes-test-roms/sprite_hit_tests_2005.10.05/01.basics.nes             | 600ms     | 0e684fbde0c1f98ade5fb0c0c9e823b2165303bde442be50cb8c17dba6436453 *frame_00035.bmp | | -gUSE_CART_DE1=true -gCART_SRAM_ADDR_BITS=22
+nes-test-roms/sprite_hit_tests_2005.10.05/01.basics.nes             | 600ms     | 0e684fbde0c1f98ade5fb0c0c9e823b2165303bde442be50cb8c17dba6436453 *frame_00035.bmp | | -gROM_CONFIG=ROM_CART_SLOT -gCART_SRAM_ADDR_BITS=22
 
 # MMC3, with the A12 filter on M2
-nes-test-roms/mmc3_test_2/rom_singles/1-clocking.nes                | 516ms     | a252d147dcf09a1deb356097d46300310738df3d9a18a4a3aac126c68b2cdcb3 *frame_00030.bmp | | -gUSE_CART_DE1=true -gCART_SRAM_ADDR_BITS=22
+nes-test-roms/mmc3_test_2/rom_singles/1-clocking.nes                | 516ms     | a252d147dcf09a1deb356097d46300310738df3d9a18a4a3aac126c68b2cdcb3 *frame_00030.bmp | | -gROM_CONFIG=ROM_CART_SLOT -gCART_SRAM_ADDR_BITS=22
 
 # MMC1 SXROM: PRG RAM, CHR RAM and bank bits on PPU A12
-board/sim/ghdl/generated_roms/mmc1_sxrom.nes                        | 416ms     | bd513ffa54331f521900c590ea2fe346be2cc04aa34ccb170f088177fe4b1c23 *frame_00024.bmp | | -gUSE_CART_DE1=true -gCART_SRAM_ADDR_BITS=22
+board/sim/ghdl/generated_roms/mmc1_sxrom.nes                        | 416ms     | bd513ffa54331f521900c590ea2fe346be2cc04aa34ccb170f088177fe4b1c23 *frame_00024.bmp | | -gROM_CONFIG=ROM_CART_SLOT -gCART_SRAM_ADDR_BITS=22
 
 # The same, with the console held in reset until the cartridge is ready
-board/sim/ghdl/generated_roms/mmc1_sxrom.nes                        | 416ms     | bd513ffa54331f521900c590ea2fe346be2cc04aa34ccb170f088177fe4b1c23 *frame_00024.bmp | | -gUSE_CART_DE1=true -gCART_SRAM_ADDR_BITS=22 -gCART_HOLD_RESET=true
+board/sim/ghdl/generated_roms/mmc1_sxrom.nes                        | 416ms     | bd513ffa54331f521900c590ea2fe346be2cc04aa34ccb170f088177fe4b1c23 *frame_00024.bmp | | -gROM_CONFIG=ROM_CART_SLOT -gCART_SRAM_ADDR_BITS=22 -gCART_HOLD_RESET=true

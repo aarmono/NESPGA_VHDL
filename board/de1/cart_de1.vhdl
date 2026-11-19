@@ -7,12 +7,13 @@ use work.perhipherals.all;
 use work.perhipheral_types.all;
 use work.cart_mem_bus_types.all;
 use work.cart_connector_types.all;
+use work.cart_types.all;
 use work.cart_pin_types.all;
 use work.cart.all;
 use work.de1_types.all;
 
 -- The emulated cartridge on a DE1 of its own, for the cartridge slot of a
--- real console (or of nes_de1 with USE_CART_SLOT): cart_edge turns the pins of
+-- real console (or of nes_de1 with ROM_CART_SLOT): cart_edge turns the pins of
 -- the cartridge connector into what cart_system runs on, and the ROM file
 -- is loaded from the SD card into the SRAM, which serves the cartridge's
 -- accesses as the console makes them (see sram_rom). On the DE1 the ROM
@@ -38,16 +39,11 @@ entity cart_de1 is
 generic
 (
     POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
-    -- See power_up_fill
-    POWER_UP_SEED : natural := 0;
     -- The nominal clocks in a dot of the console. See cart_edge
     DOT_CLOCKS    : positive := 9;
     -- See sram_rom. The DE1's SRAM has 18 address bits
     SRAM_ADDR_BITS   : positive := 18;
     SRAM_READ_CLOCKS : positive := 2;
-    -- The MMC3 and TC0690 filter PPU A12 on falls of M2, as the chips do.
-    -- See cartridge
-    A12_M2_FILTER    : boolean := true;
     -- The card holds a filesystem, and the SD menu loads ROM files from it
     USE_SD_MENU      : boolean := false;
     -- How long Start and Select are held to return to the SD menu. See
@@ -228,8 +224,7 @@ begin
     generic map
     (
         MODE => POWER_UP_MODE,
-        DATA_BITS => cart_power_up_data_t'length,
-        SEED => POWER_UP_SEED
+        DATA_BITS => cart_power_up_data_t'length
     )
     port map
     (
@@ -245,9 +240,10 @@ begin
     cart_sys : cart_system_ocram
     generic map
     (
-        USE_EXT_CART_RAM => true,
-        SPLIT_MEM_BUS => true,
-        A12_M2_FILTER => A12_M2_FILTER
+        CART_MEM => CART_MEM_SPLIT,
+        -- The MMC3 and TC0690 filter PPU A12 on falls of M2, as the chips
+        -- do: a real console's dots are only placed from M2. See cartridge
+        A12_M2_FILTER => true
     )
     port map
     (

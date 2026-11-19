@@ -61,6 +61,19 @@ package cart_types is
         BOARD_NSF
     );
 
+    -- The memory a cart_system_ocram is given
+    type cart_mem_config_t is
+    (
+        -- The ROM file on the cartridge memory bus, which only has reads.
+        -- The cartridge RAMs are on chip
+        CART_MEM_ROM,
+        -- The ROM file and the cartridge RAMs on the cartridge memory bus
+        CART_MEM_ROM_RAM,
+        -- The ROM file and the cartridge RAMs on the two channels of the
+        -- board, for a memory that serves each access as it is asked for
+        CART_MEM_SPLIT
+    );
+
     -- The boards a build of the cartridge supports. The logic of the others
     -- is left out, and a ROM file that needs one is not supported
     type board_set_t is array (board_t) of boolean;

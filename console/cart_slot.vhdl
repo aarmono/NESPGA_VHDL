@@ -121,14 +121,7 @@ is
         m2_low_count => 0,
         dot_count => ALE_CLOCKS,
         bus_value => (others => '0'),
-        board =>
-        (
-            cpu_data => (others => '0'),
-            irq_n => '1',
-            ppu_data => (others => '0'),
-            ciram_ce_n => '1',
-            ciram_a10 => '0'
-        ),
+        board => CART_BOARD_PINS_IDLE,
         irq_sync => "11"
     );
 
