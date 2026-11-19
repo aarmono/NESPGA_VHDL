@@ -49,8 +49,9 @@ generic
     -- that starts once the NES is running, 2 bytes each: the colour, then
     -- the emphasis bits. See board/sim/trace/video_diff.py
     VIDEO_TRACE_FILEPATH : string := "";
-    -- When set, write to this file each late change of the cartridge
-    -- connector once the NES is running. On the CPU side (C), that is a
+    -- Report as an error each late change of the cartridge connector once
+    -- the NES is running, which ends the run unless it is given
+    -- --assert-level=none. On the CPU side (C), that is a
     -- change LATE_CLOCKS or more clocks after the start of a CPU cycle. A
     -- connector on pins needs the address stable before M2 rises, about 3/8
     -- of the way into the cycle, and write data before M2 falls. On the PPU
@@ -58,8 +59,8 @@ generic
     -- line has the CPU cycle, the side, clocks into its cycle or dot (CPU_DIV
     -- or 2 is when it ends), what changed (A for the address, /ROMSEL, /RD
     -- or /WR, D for write data, L for ALE) and the bus before and after.
-    -- A CPU cycle where the bus neither reads nor writes is logged as I
-    BUS_CHECK_FILEPATH : string := "";
+    -- A CPU cycle where the bus neither reads nor writes is reported as I
+    BUS_CHECK : boolean := true;
     BUS_CHECK_LATE_CLOCKS : positive := 2;
     -- Clocks in a CPU cycle. The clock runs at 50MHz * CPU_CYCLE_CLOCKS / 28,
     -- so the CPU cycle is as long as 28 clocks of a 50MHz clock whatever
@@ -396,14 +397,11 @@ begin
         process(console_pins, cart_cpu_data, cart_cpu_data_oe)
         is
             variable value : data_t := (others => '0');
-            variable l     : line;
         begin
             if console_pins.cpu_data_oe and cart_cpu_data_oe
             then
-                write(l, string'("nes_bench: "));
-                write(l, now);
-                write(l, string'(" CPU data bus driven by both sides"));
-                writeline(output, l);
+                report "nes_bench: CPU data bus driven by both sides"
+                    severity error;
                 value := (others => 'X');
             elsif console_pins.cpu_data_oe
             then
@@ -418,14 +416,11 @@ begin
         process(console_pins, cart_ppu_data, cart_ppu_data_oe)
         is
             variable value : data_t := (others => '0');
-            variable l     : line;
         begin
             if console_pins.ppu_data_oe and cart_ppu_data_oe
             then
-                write(l, string'("nes_bench: "));
-                write(l, now);
-                write(l, string'(" PPU data bus driven by both sides"));
-                writeline(output, l);
+                report "nes_bench: PPU data bus driven by both sides"
+                    severity error;
                 value := (others => 'X');
             elsif console_pins.ppu_data_oe
             then
@@ -687,7 +682,6 @@ begin
         process(console_pins, board_drive)
         is
             variable value : data_t := (others => '0');
-            variable l     : line;
         begin
             for i in value'range
             loop
@@ -705,10 +699,8 @@ begin
 
             if console_pins.cpu_data_oe and board_drive.cpu_data_oe /= x"00"
             then
-                write(l, string'("nes_bench: "));
-                write(l, now);
-                write(l, string'(" CPU data bus driven by both sides"));
-                writeline(output, l);
+                report "nes_bench: CPU data bus driven by both sides"
+                    severity error;
             end if;
 
             board_pins.cpu_data <= value;
@@ -717,14 +709,11 @@ begin
         process(console_pins, board_drive)
         is
             variable value : data_t := (others => '0');
-            variable l     : line;
         begin
             if console_pins.ppu_data_oe and board_drive.ppu_data_oe
             then
-                write(l, string'("nes_bench: "));
-                write(l, now);
-                write(l, string'(" PPU data bus driven by both sides"));
-                writeline(output, l);
+                report "nes_bench: PPU data bus driven by both sides"
+                    severity error;
                 value := (others => 'X');
             elsif console_pins.ppu_data_oe
             then
@@ -1052,8 +1041,7 @@ begin
         end process;
     end generate;
     
-    gen_bus_check : if BUS_CHECK_FILEPATH'length > 0 generate
-        file check_file : text open write_mode is BUS_CHECK_FILEPATH;
+    gen_bus_check : if BUS_CHECK generate
 
         -- Counted by the CPU side's process, so both sides' lines can be
         -- matched up
@@ -1127,7 +1115,10 @@ begin
             write(l, old_bus);
             write(l, string'(" -> "));
             write(l, new_bus);
-            writeline(check_file, l);
+            report "nes_bench: late bus change " &
+                   "(cycle, side and clocks, what, change): " & l.all
+                severity error;
+            deallocate(l);
         end;
     begin
         process(clk)

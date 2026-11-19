@@ -11,8 +11,8 @@ use IEEE.numeric_std.all;
 -- until the data is valid ACCESS after it. A write is taken as /WE or /CE
 -- rises, for the bytes enabled.
 --
--- Each line the model writes to the output starts with "sram_16:" and
--- reports a timing violation: /WE low for less than WRITE_PULSE, or the
+-- The model reports a timing violation as an error starting with
+-- "sram_16:": /WE low for less than WRITE_PULSE, or the
 -- address changing while it is low, or within ADDR_SETUP before it falls,
 -- or the data changing within DATA_SETUP before it rises
 entity sram_16 is
@@ -48,13 +48,8 @@ is
 
     procedure violation(msg : string)
     is
-        variable l : line;
     begin
-        write(l, string'("sram_16: "));
-        write(l, now);
-        write(l, string'(" "));
-        write(l, msg);
-        writeline(output, l);
+        report "sram_16: " & msg severity error;
     end;
 
 begin

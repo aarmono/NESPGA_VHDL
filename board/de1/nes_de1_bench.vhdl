@@ -365,7 +365,6 @@ begin
         process(console_pins, board_drive)
         is
             variable value : data_t := (others => '0');
-            variable l     : line;
         begin
             for i in value'range
             loop
@@ -383,10 +382,8 @@ begin
 
             if console_pins.cpu_data_oe and board_drive.cpu_data_oe /= x"00"
             then
-                write(l, string'("nes_de1_bench: "));
-                write(l, now);
-                write(l, string'(" CPU data bus driven by both sides"));
-                writeline(output, l);
+                report "nes_de1_bench: CPU data bus driven by both sides"
+                    severity error;
             end if;
 
             board_pins.cpu_data <= value;
@@ -395,14 +392,11 @@ begin
         process(console_pins, board_drive)
         is
             variable value : data_t := (others => '0');
-            variable l     : line;
         begin
             if console_pins.ppu_data_oe and board_drive.ppu_data_oe
             then
-                write(l, string'("nes_de1_bench: "));
-                write(l, now);
-                write(l, string'(" PPU data bus driven by both sides"));
-                writeline(output, l);
+                report "nes_de1_bench: PPU data bus driven by both sides"
+                    severity error;
                 value := (others => 'X');
             elsif console_pins.ppu_data_oe
             then

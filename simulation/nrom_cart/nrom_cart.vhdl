@@ -12,8 +12,8 @@ use work.cart_pin_types.all;
 -- or 8 KB of CHR RAM when the file has none, and fixed mirroring.
 --
 -- The memories answer with access times, and drive X until their data is
--- valid. Each line the model writes to the output starts with "nrom_cart:"
--- and reports a timing violation:
+-- valid. The model reports a timing violation as an error starting with
+-- "nrom_cart:":
 --   * read data not valid CPU_SAMPLE_LEAD before M2 falls, or
 --     PPU_SAMPLE_LEAD before /RD rises (when the console samples it). See
 --     PPU_DOT
@@ -79,13 +79,8 @@ is
 
     procedure violation(msg : string)
     is
-        variable l : line;
     begin
-        write(l, string'("nrom_cart: "));
-        write(l, now);
-        write(l, string'(" "));
-        write(l, msg);
-        writeline(output, l);
+        report "nrom_cart: " & msg severity error;
     end;
 
     function max(a : time; b : time) return time

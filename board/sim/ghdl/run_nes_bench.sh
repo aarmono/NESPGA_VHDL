@@ -63,5 +63,5 @@ exec ./nes_bench -gAU_FILEPATH="$AU_FILEPATH"    \
                  $FM2_PARM                       \
                  "$@"                            \
                  $TIME_PARM                      \
-                 --asserts=disable               \
-                 --ieee-asserts=disable
+                 --ieee-asserts=disable          \
+                 --assert-level=error
