@@ -93,8 +93,6 @@ generic
     -- copied into the SRAM, 3 clocks a byte. Timing violations at the SRAM
     -- are written to the output
     LOOPBACK_SRAM : boolean := false;
-    -- See sram_rom
-    LOOPBACK_SRAM_READ_CLOCKS : positive := 2;
     -- With CART_LOOPBACK_SLOT, the console is answered by cart_boot_stub for this
     -- many CPU cycles before the cartridge takes over, as when a cartridge
     -- in a real console loads its game. 0 leaves the stub out
@@ -877,8 +875,7 @@ begin
             rom : sram_rom
             generic map
             (
-                ADDR_BITS => SRAM_ADDR_BITS,
-                READ_CLOCKS => LOOPBACK_SRAM_READ_CLOCKS
+                ADDR_BITS => SRAM_ADDR_BITS
             )
             port map
             (

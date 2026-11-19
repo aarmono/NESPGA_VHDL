@@ -47,8 +47,6 @@ generic
     -- console's it starts: the two boards have an oscillator each
     CART_CLK_PERIOD_PS : positive := 20000;
     CART_CLK_OFFSET_PS : natural := 7000;
-    -- See cart_de1
-    CART_SRAM_READ_CLOCKS : positive := 2;
     -- The address bits of the cartridge's SRAM. The DE1's 18 hold a ROM
     -- file of up to 256 KB; 22 hold any
     CART_SRAM_ADDR_BITS : positive := 18;
@@ -239,9 +237,7 @@ begin
         generic map
         (
             POWER_UP_MODE => POWER_UP_DETERMINISTIC,
-            DOT_CLOCKS => 186243 ps / CART_CLK_PERIOD,
             SRAM_ADDR_BITS => CART_SRAM_ADDR_BITS,
-            SRAM_READ_CLOCKS => CART_SRAM_READ_CLOCKS,
             USE_SD_MENU => CART_SD_MENU,
             RETURN_HOLD_MS => RETURN_HOLD_MS
         )

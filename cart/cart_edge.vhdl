@@ -70,9 +70,7 @@ generic
     -- The nominal clocks in a dot: a third of the M2 period in clocks.
     -- The dots are this until M2 has been measured, and periods of up to
     -- twice the nominal one are measured
-    DOT_CLOCKS    : positive := 9;
-    -- Clocks from the start of a dot to ram_en. Less than DOT_CLOCKS
-    RAM_EN_CLOCKS : positive := 4
+    DOT_CLOCKS : positive := 9
 );
 port
 (
@@ -104,6 +102,9 @@ end entity;
 
 architecture behavioral of cart_edge
 is
+
+    -- Clocks from the start of a dot to ram_en. Less than DOT_CLOCKS
+    constant RAM_EN_CLOCKS : positive := 4;
 
     -- Saturates while there is no M2
     constant MAX_COUNT : positive := 6 * DOT_CLOCKS;

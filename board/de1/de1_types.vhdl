@@ -216,9 +216,7 @@ package de1_types is
     generic
     (
         POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
-        DOT_CLOCKS    : positive := 9;
         SRAM_ADDR_BITS   : positive := 18;
-        SRAM_READ_CLOCKS : positive := 2;
         USE_SD_MENU      : boolean := false;
         RETURN_HOLD_MS   : positive := 2000
     );

@@ -39,11 +39,8 @@ entity cart_de1 is
 generic
 (
     POWER_UP_MODE : power_up_mode_t := POWER_UP_RANDOM;
-    -- The nominal clocks in a dot of the console. See cart_edge
-    DOT_CLOCKS    : positive := 9;
     -- See sram_rom. The DE1's SRAM has 18 address bits
     SRAM_ADDR_BITS   : positive := 18;
-    SRAM_READ_CLOCKS : positive := 2;
     -- The card holds a filesystem, and the SD menu loads ROM files from it
     USE_SD_MENU      : boolean := false;
     -- How long Start and Select are held to return to the SD menu. See
@@ -175,7 +172,8 @@ begin
     edge : cart_edge
     generic map
     (
-        DOT_CLOCKS => DOT_CLOCKS
+        -- A dot of the console is about 186 ns: 9 clocks of CLOCK_50
+        DOT_CLOCKS => 9
     )
     port map
     (
@@ -282,7 +280,6 @@ begin
     generic map
     (
         ADDR_BITS => SRAM_ADDR_BITS,
-        READ_CLOCKS => SRAM_READ_CLOCKS,
         REQUIRE_INES => USE_SD_MENU
     )
     port map

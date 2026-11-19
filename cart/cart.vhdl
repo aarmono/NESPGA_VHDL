@@ -62,8 +62,7 @@ package cart is
     component cart_edge is
     generic
     (
-        DOT_CLOCKS    : positive := 9;
-        RAM_EN_CLOCKS : positive := 4
+        DOT_CLOCKS : positive := 9
     );
     port
     (
