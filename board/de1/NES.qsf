@@ -369,6 +369,7 @@ set_global_assignment -name VHDL_FILE nes_top.vhdl
 set_global_assignment -name VHDL_FILE nes_de1.vhdl
 set_global_assignment -name VHDL_FILE vga_pll.vhd
 set_global_assignment -name VHDL_FILE aud_pll.vhd
+set_global_assignment -name VHDL_FILE lib_ines_load.vhdl
 set_global_assignment -name VHDL_FILE sdram_rom.vhdl
 set_global_assignment -name VHDL_FILE sd_menu_stub.vhdl
 set_global_assignment -name VHDL_FILE sd_menu.vhdl

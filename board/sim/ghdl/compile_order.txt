@@ -149,6 +149,7 @@
 ../../../board/platform/frame_lock_bench.vhdl
 
 ../../../board/de1/de1_types.vhdl
+../../../board/de1/lib_ines_load.vhdl
 ../../../board/de1/sram_rom.vhdl
 
 ../../../board/sim/nes_bench.vhdl

@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: sd_menu_bench
 
 # Elaboration target
-sd_menu_bench: utilities.o nes_types.o prg_bus_types.o chr_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o sd_menu_bench.o syncram_sp.o clock.o
+sd_menu_bench: utilities.o nes_types.o prg_bus_types.o chr_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o lib_ines_load.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o sd_menu_bench.o syncram_sp.o clock.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -50,6 +50,8 @@ sd_reader.o: ../../../perhiperals/sd_card/sd_reader.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sd_menu.o: ../../../board/de1/sd_menu.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
+lib_ines_load.o: ../../../board/de1/lib_ines_load.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
 sdram_ctrl.o: ../../../perhiperals/sdram/sdram_ctrl.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sdram_rom.o: ../../../board/de1/sdram_rom.vhdl
@@ -84,8 +86,9 @@ sd_menu_stub.o:  nes_types.o
 perhipherals.o:  perhipheral_types.o
 sd_reader.o:  utilities.o perhipheral_types.o
 sd_menu.o:  nes_types.o utilities.o prg_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipherals.o perhipheral_types.o sd_menu_stub.o sd_reader.o
+lib_ines_load.o:  nes_types.o utilities.o
 sdram_ctrl.o:  utilities.o
-sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
+sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o lib_ines_load.o sdram_ctrl.o
 sdram.o:  utilities.o
 sd_card.o:  utilities.o binary_io.o
 clk_en.o:  utilities.o

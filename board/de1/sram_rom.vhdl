@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_mem_bus_types.all;
+use work.lib_ines_load.all;
 
 -- Serves the two channels of a split cartridge memory bus (see cart_system
 -- CART_MEM_SPLIT) out of the DE1's asynchronous SRAM, each access as it is
@@ -95,28 +96,6 @@ architecture behavioral of sram_rom is
     constant ROM_BYTES : positive := 2**(byte_addr_t'length - 1);
 
     subtype load_addr_t is natural range 0 to ROM_BYTES - 1;
-    subtype banks_t is natural range 0 to 255;
-    -- A file can be far larger than the SRAM
-    subtype file_bytes_t is natural range 0 to 16 + 512 + 255 * (16384 + 8192);
-
-    function ines_bytes
-    (
-        prg_banks : banks_t;
-        chr_banks : banks_t;
-        trainer   : boolean
-    )
-    return file_bytes_t
-    is
-        variable ret : file_bytes_t;
-    begin
-        ret := 16 + prg_banks * 16384 + chr_banks * 8192;
-        if trainer
-        then
-            ret := ret + 512;
-        end if;
-
-        return ret;
-    end;
 
     -- The lower half of the cartridge memory bus is the ROM file, and the
     -- cartridge RAMs have their windows at the start of the upper half
@@ -162,12 +141,8 @@ architecture behavioral of sram_rom is
         load_addr  : load_addr_t;
         load_last  : load_addr_t;
 
-        -- iNES header fields
-        ines      : boolean;
-        nes2      : boolean;
-        trainer   : boolean;
-        prg_banks : banks_t;
-        chr_banks : banks_t;
+        -- The header of the stream, if it is an iNES file
+        header     : ines_header_t;
 
         -- An access is in progress, for this channel, and it is a write.
         -- The clocks since it started
@@ -195,11 +170,7 @@ architecture behavioral of sram_rom is
         load_addr => 0,
         load_last => load_addr_t'high,
 
-        ines => false,
-        nes2 => false,
-        trainer => false,
-        prg_banks => 0,
-        chr_banks => 0,
+        header => RESET_INES_HEADER,
 
         busy => false,
         channel => CHANNEL_PRG,
@@ -373,48 +344,28 @@ architecture behavioral of sram_rom is
                         true,
                         rom_in.load_data);
 
-                    case reg.load_addr is
-                        when 0 =>
-                            reg.ines := rom_in.load_data = x"4E";
-                        when 1 =>
-                            reg.ines := reg.ines and rom_in.load_data = x"45";
-                        when 2 =>
-                            reg.ines := reg.ines and rom_in.load_data = x"53";
-                        when 3 =>
-                            reg.ines := reg.ines and rom_in.load_data = x"1A";
-                            if REQUIRE_INES and not reg.ines
-                            then
-                                reg.state := STATE_NO_HEADER;
-                            end if;
-                        when 4 =>
-                            reg.prg_banks := to_integer(rom_in.load_data);
-                        when 5 =>
-                            reg.chr_banks := to_integer(rom_in.load_data);
-                        when 6 =>
-                            reg.trainer := rom_in.load_data(2) = '1';
-                        when 7 =>
-                            reg.nes2 := rom_in.load_data(3 downto 2) = "10";
-                        when 9 =>
-                            -- NES 2.0 keeps the high bits of the bank counts
-                            -- here. Files that use them don't fit
-                            if reg.ines
-                            then
-                                if (reg.nes2 and rom_in.load_data /= x"00") or
-                                   ines_bytes(reg.prg_banks,
-                                              reg.chr_banks,
-                                              reg.trainer) > ROM_BYTES
-                                then
-                                    reg.state := STATE_TOO_LARGE;
-                                else
-                                    reg.load_last :=
-                                        ines_bytes(reg.prg_banks,
-                                                   reg.chr_banks,
-                                                   reg.trainer) - 1;
-                                end if;
-                            end if;
-                        when others =>
-                            null;
-                    end case;
+                    reg.header := cycle_ines_header(reg.header,
+                                                    reg.load_addr,
+                                                    rom_in.load_data);
+
+                    if reg.load_addr = INES_SIGNATURE_LAST and
+                       REQUIRE_INES and not reg.header.ines
+                    then
+                        reg.state := STATE_NO_HEADER;
+                    end if;
+
+                    -- A file that uses the high bits of the bank counts
+                    -- doesn't fit
+                    if reg.load_addr = INES_SIZE_HIGH and reg.header.ines
+                    then
+                        if is_ines_size_high(reg.header, rom_in.load_data) or
+                           ines_file_bytes(reg.header) > ROM_BYTES
+                        then
+                            reg.state := STATE_TOO_LARGE;
+                        else
+                            reg.load_last := ines_file_bytes(reg.header) - 1;
+                        end if;
+                    end if;
 
                     if reg.state = STATE_COPY
                     then

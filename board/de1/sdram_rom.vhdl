@@ -4,6 +4,7 @@ use IEEE.numeric_std.all;
 use work.nes_types.all;
 use work.utilities.all;
 use work.cart_mem_bus_types.all;
+use work.lib_ines_load.all;
 
 -- Serves the cartridge memory bus out of SDRAM.
 --
@@ -75,32 +76,6 @@ architecture behavioral of sdram_rom is
 
     subtype sdram_addr_t is std_logic_vector(22 downto 0);
     subtype load_addr_t is natural range 0 to MAX_BYTES - 1;
-    subtype banks_t is natural range 0 to 255;
-
-    -- Bytes in an iNES file, limited to MAX_BYTES
-    function ines_bytes
-    (
-        prg_banks : banks_t;
-        chr_banks : banks_t;
-        trainer   : boolean
-    )
-    return positive
-    is
-        variable ret : positive;
-    begin
-        ret := 16 + prg_banks * 16384 + chr_banks * 8192;
-        if trainer
-        then
-            ret := ret + 512;
-        end if;
-
-        if ret > MAX_BYTES
-        then
-            return MAX_BYTES;
-        else
-            return ret;
-        end if;
-    end;
 
     type state_t is
     (
@@ -117,12 +92,8 @@ architecture behavioral of sdram_rom is
         load_last  : load_addr_t;
         ppu_delay  : boolean_array(START_DELAY - 1 downto 0);
 
-        -- iNES header fields
-        ines      : boolean;
-        nes2      : boolean;
-        trainer   : boolean;
-        prg_banks : banks_t;
-        chr_banks : banks_t;
+        -- The header of the stream, if it is an iNES file
+        header     : ines_header_t;
     end record;
 
     constant RESET_REG : reg_t :=
@@ -132,11 +103,7 @@ architecture behavioral of sdram_rom is
         load_last => load_addr_t'high,
         ppu_delay => (others => false),
 
-        ines => false,
-        nes2 => false,
-        trainer => false,
-        prg_banks => 0,
-        chr_banks => 0
+        header => RESET_INES_HEADER
     );
 
     signal reg    : reg_t := RESET_REG;
@@ -220,41 +187,25 @@ begin
 
                 if load_valid and sdram_idle
                 then
-                    case reg.load_addr is
-                        when 0 =>
-                            v_reg.ines := load_data = x"4E";
-                        when 1 =>
-                            v_reg.ines := reg.ines and load_data = x"45";
-                        when 2 =>
-                            v_reg.ines := reg.ines and load_data = x"53";
-                        when 3 =>
-                            v_reg.ines := reg.ines and load_data = x"1A";
-                            if REQUIRE_INES and not v_reg.ines
-                            then
-                                v_reg.state := STATE_NO_HEADER;
-                            end if;
-                        when 4 =>
-                            v_reg.prg_banks := to_integer(load_data);
-                        when 5 =>
-                            v_reg.chr_banks := to_integer(load_data);
-                        when 6 =>
-                            v_reg.trainer := load_data(2) = '1';
-                        when 7 =>
-                            v_reg.nes2 := load_data(3 downto 2) = "10";
-                        when 9 =>
-                            -- NES 2.0 keeps the high bits of the bank counts
-                            -- here. Files that use them are larger than
-                            -- MAX_BYTES anyway
-                            if reg.ines and
-                               not (reg.nes2 and load_data /= x"00")
-                            then
-                                v_reg.load_last := ines_bytes(reg.prg_banks,
-                                                              reg.chr_banks,
-                                                              reg.trainer) - 1;
-                            end if;
-                        when others =>
-                            null;
-                    end case;
+                    v_reg.header := cycle_ines_header(reg.header,
+                                                      reg.load_addr,
+                                                      load_data);
+
+                    if reg.load_addr = INES_SIGNATURE_LAST and
+                       REQUIRE_INES and not v_reg.header.ines
+                    then
+                        v_reg.state := STATE_NO_HEADER;
+                    end if;
+
+                    -- A file that uses the high bits of the bank counts is
+                    -- larger than MAX_BYTES anyway
+                    if reg.load_addr = INES_SIZE_HIGH and reg.header.ines and
+                       not is_ines_size_high(reg.header, load_data)
+                    then
+                        v_reg.load_last :=
+                            min_int(ines_file_bytes(reg.header),
+                                    MAX_BYTES) - 1;
+                    end if;
 
                     if reg.load_addr = reg.load_last
                     then

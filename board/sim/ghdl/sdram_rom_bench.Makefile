@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: sdram_rom_bench
 
 # Elaboration target
-sdram_rom_bench: utilities.o nes_types.o cart_mem_bus_types.o file_bus_types.o apu_bus_types.o nes_audio_mixer.o simulation.o sdram_ctrl.o sdram_rom.o sdram.o perhipheral_types.o sd_reader.o binary_io.o sd_card.o flash_stream.o clk_en.o sdram_rom_bench.o file_memory.o clock.o
+sdram_rom_bench: utilities.o nes_types.o cart_mem_bus_types.o file_bus_types.o apu_bus_types.o nes_audio_mixer.o simulation.o lib_ines_load.o sdram_ctrl.o sdram_rom.o sdram.o perhipheral_types.o sd_reader.o binary_io.o sd_card.o flash_stream.o clk_en.o sdram_rom_bench.o file_memory.o clock.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -31,6 +31,8 @@ apu_bus_types.o: ../../../bus/apu_bus_types.vhdl
 nes_audio_mixer.o: ../../../core/nes_audio_mixer.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 simulation.o: ../../../simulation/simulation.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+lib_ines_load.o: ../../../board/de1/lib_ines_load.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 sdram_ctrl.o: ../../../perhiperals/sdram/sdram_ctrl.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -65,8 +67,9 @@ file_bus_types.o:
 apu_bus_types.o: 
 nes_audio_mixer.o:  nes_types.o
 simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
+lib_ines_load.o:  nes_types.o utilities.o
 sdram_ctrl.o:  utilities.o
-sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o sdram_ctrl.o
+sdram_rom.o:  nes_types.o utilities.o cart_mem_bus_types.o lib_ines_load.o sdram_ctrl.o
 sdram.o:  utilities.o
 perhipheral_types.o: 
 sd_reader.o:  utilities.o perhipheral_types.o
