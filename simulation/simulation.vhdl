@@ -6,6 +6,7 @@ use work.file_bus_types.all;
 use work.cart_mem_bus_types.all;
 use work.nes_types.all;
 use work.nes_audio_mixer.all;
+use work.cart_pin_types.all;
 
 package simulation is
 
@@ -120,6 +121,45 @@ package simulation is
         data_from_file_2 : out data_t
     );
     end component file_memory;
+
+    -- A real NROM cartridge at its pins. See nrom_cart
+    component nrom_cart is
+    generic
+    (
+        NES_FILEPATH    : string;
+        NES_FILE_BYTES  : positive;
+        PRG_ACCESS      : time := 150 ns;
+        CHR_ACCESS      : time := 150 ns;
+        RAM_ACCESS      : time := 100 ns;
+        OE_ACCESS       : time := 50 ns;
+        OUTPUT_DISABLE  : time := 30 ns;
+        CIRAM_DELAY     : time := 30 ns;
+        CPU_SAMPLE_LEAD : time;
+        PPU_SAMPLE_LEAD : time;
+        PPU_DOT         : time;
+        HOLD            : time := 5 ns;
+        WRITE_SETUP     : time := 20 ns
+    );
+    port
+    (
+        pins     : in  cart_console_pins_t;
+        pins_out : out cart_board_drive_t
+    );
+    end component nrom_cart;
+
+    -- The pins between a cart_slot and a cartridge. See cart_pin_bus
+    component cart_pin_bus is
+    generic
+    (
+        NAME : string := "cart_pin_bus"
+    );
+    port
+    (
+        console : in cart_console_pins_t;
+        drive   : in cart_board_drive_t;
+        board   : out cart_board_pins_t
+    );
+    end component cart_pin_bus;
 
     -- An asynchronous SRAM of 16-bit words with byte enables. See sram_16
     component sram_16 is

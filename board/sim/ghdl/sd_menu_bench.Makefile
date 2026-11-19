@@ -10,7 +10,7 @@ GHDLFLAGS= --std=08 -O3
 all: sd_menu_bench
 
 # Elaboration target
-sd_menu_bench: utilities.o nes_types.o prg_bus_types.o chr_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o lib_ines_load.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o sd_menu_bench.o syncram_sp.o clock.o
+sd_menu_bench: utilities.o nes_types.o prg_bus_types.o chr_bus_types.o cart_connector_types.o cart_mem_bus_types.o perhipheral_types.o binary_io.o apu_bus_types.o file_bus_types.o nes_audio_mixer.o cart_pin_types.o simulation.o sd_menu_stub.o perhipherals.o sd_reader.o sd_menu.o lib_ines_load.o sdram_ctrl.o sdram_rom.o sdram.o sd_card.o clk_en.o sd_menu_bench.o syncram_sp.o clock.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 # Run target
@@ -39,6 +39,8 @@ apu_bus_types.o: ../../../bus/apu_bus_types.vhdl
 file_bus_types.o: ../../../bus/file_bus_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 nes_audio_mixer.o: ../../../core/nes_audio_mixer.vhdl
+	$(GHDL) -a $(GHDLFLAGS) $<
+cart_pin_types.o: ../../../bus/cart_pin_types.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
 simulation.o: ../../../simulation/simulation.vhdl
 	$(GHDL) -a $(GHDLFLAGS) $<
@@ -81,7 +83,8 @@ binary_io.o:  utilities.o
 apu_bus_types.o: 
 file_bus_types.o: 
 nes_audio_mixer.o:  nes_types.o
-simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o
+cart_pin_types.o:  nes_types.o prg_bus_types.o chr_bus_types.o
+simulation.o:  apu_bus_types.o file_bus_types.o cart_mem_bus_types.o nes_types.o nes_audio_mixer.o cart_pin_types.o
 sd_menu_stub.o:  nes_types.o
 perhipherals.o:  perhipheral_types.o
 sd_reader.o:  utilities.o perhipheral_types.o

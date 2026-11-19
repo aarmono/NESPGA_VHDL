@@ -61,6 +61,7 @@
 ../../../simulation/sram/sram.vhdl
 ../../../simulation/sdram/sdram.vhdl
 ../../../simulation/sram_16/sram_16.vhdl
+../../../simulation/cart_pin_bus/cart_pin_bus.vhdl
 ../../../simulation/sd_card/sd_card.vhdl
 
 ../../../simulation/fm2_joystick/fm2_joystick.vhdl

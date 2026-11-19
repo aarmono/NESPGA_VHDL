@@ -51,16 +51,8 @@ generic
 );
 port
 (
-    pins        : in  cart_console_pins_t;
-
-    cpu_data    : out data_t;
-    cpu_data_oe : out boolean;
-    irq_n       : out std_logic;
-
-    ppu_data    : out data_t;
-    ppu_data_oe : out boolean;
-    ciram_ce_n  : out std_logic;
-    ciram_a10   : out std_logic
+    pins     : in  cart_console_pins_t;
+    pins_out : out cart_board_drive_t
 );
 end entity;
 
@@ -96,7 +88,7 @@ is
 
 begin
 
-    irq_n <= 'H';
+    pins_out.irq_n <= 'Z';
 
     -- The memories are variables, since ghdl keeps a signal array as a
     -- signal per bit
@@ -182,10 +174,10 @@ begin
             end loop;
         end if;
 
-        cpu_data <= (others => 'X');
-        cpu_data_oe <= false;
-        ppu_data <= (others => 'X');
-        ppu_data_oe <= false;
+        pins_out.cpu_data <= (others => 'X');
+        pins_out.cpu_data_oe <= (others => '0');
+        pins_out.ppu_data <= (others => 'X');
+        pins_out.ppu_data_oe <= false;
 
         loop
             wait on pins;
@@ -270,12 +262,13 @@ begin
                 if not cpu_sel or pins.cpu_addr /= prev.cpu_addr
                 then
                     cpu_valid_at := now + cpu_access;
-                    cpu_data <= (others => 'X'), cpu_value after cpu_access;
+                    pins_out.cpu_data <= (others => 'X'),
+                                         cpu_value after cpu_access;
                 end if;
-                cpu_data_oe <= true;
+                pins_out.cpu_data_oe <= (others => '1');
             elsif cpu_sel
             then
-                cpu_data_oe <= false after OUTPUT_DISABLE;
+                pins_out.cpu_data_oe <= (others => '0') after OUTPUT_DISABLE;
             end if;
             cpu_sel := sel;
 
@@ -363,27 +356,27 @@ begin
                     ppu_value := chr(addr);
                     if ppu_valid_at > now
                     then
-                        ppu_data <= (others => 'X'),
-                                    ppu_value after ppu_valid_at - now;
+                        pins_out.ppu_data <= (others => 'X'),
+                                             ppu_value after ppu_valid_at - now;
                     else
-                        ppu_data <= ppu_value;
+                        pins_out.ppu_data <= ppu_value;
                     end if;
                 end if;
-                ppu_data_oe <= true;
+                pins_out.ppu_data_oe <= true;
             elsif ppu_sel
             then
-                ppu_data_oe <= false after OUTPUT_DISABLE;
+                pins_out.ppu_data_oe <= false after OUTPUT_DISABLE;
             end if;
             ppu_sel := sel;
 
             -- CIRAM: /CE is /A13, and A10 is PPU A10 (vertical mirroring)
             -- or A11 (horizontal)
-            ciram_ce_n <= pins.ppu_a13_n after CIRAM_DELAY;
+            pins_out.ciram_ce_n <= pins.ppu_a13_n after CIRAM_DELAY;
             if header.vertical
             then
-                ciram_a10 <= pins.ppu_addr(10) after CIRAM_DELAY;
+                pins_out.ciram_a10 <= pins.ppu_addr(10) after CIRAM_DELAY;
             else
-                ciram_a10 <= pins.ppu_addr(11) after CIRAM_DELAY;
+                pins_out.ciram_a10 <= pins.ppu_addr(11) after CIRAM_DELAY;
             end if;
 
             prev := pins;

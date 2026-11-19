@@ -352,58 +352,17 @@ begin
             end if;
         end process;
 
-        -- The shared data buses. A bit nobody drives keeps its last value,
-        -- which a board would do with bus hold
-        process(console_pins, board_drive)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            for i in value'range
-            loop
-                if console_pins.cpu_data_oe and board_drive.cpu_data_oe(i) = '1'
-                then
-                    value(i) := 'X';
-                elsif console_pins.cpu_data_oe
-                then
-                    value(i) := console_pins.cpu_data(i);
-                elsif board_drive.cpu_data_oe(i) = '1'
-                then
-                    value(i) := board_drive.cpu_data(i);
-                end if;
-            end loop;
-
-            if console_pins.cpu_data_oe and board_drive.cpu_data_oe /= x"00"
-            then
-                report "nes_de1_bench: CPU data bus driven by both sides"
-                    severity error;
-            end if;
-
-            board_pins.cpu_data <= value;
-        end process;
-
-        process(console_pins, board_drive)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            if console_pins.ppu_data_oe and board_drive.ppu_data_oe
-            then
-                report "nes_de1_bench: PPU data bus driven by both sides"
-                    severity error;
-                value := (others => 'X');
-            elsif console_pins.ppu_data_oe
-            then
-                value := console_pins.ppu_data;
-            elsif board_drive.ppu_data_oe
-            then
-                value := board_drive.ppu_data;
-            end if;
-            board_pins.ppu_data <= value;
-        end process;
-
-        -- /IRQ is pulled up by the console
-        board_pins.irq_n <= '0' when board_drive.irq_n = '0' else '1';
-        board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
-        board_pins.ciram_a10 <= board_drive.ciram_a10;
+        pin_bus : cart_pin_bus
+        generic map
+        (
+            NAME => "nes_de1_bench"
+        )
+        port map
+        (
+            console => console_pins,
+            drive => board_drive,
+            board => board_pins
+        );
 
         cart_ram : sram_16
         generic map

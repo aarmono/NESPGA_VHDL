@@ -329,10 +329,7 @@ begin
 
     -- A real NROM cartridge at the pins (see nrom_cart)
     gen_nrom : if BENCH_CART = CART_NROM_SLOT generate
-        signal cart_cpu_data    : data_t;
-        signal cart_cpu_data_oe : boolean;
-        signal cart_ppu_data    : data_t;
-        signal cart_ppu_data_oe : boolean;
+        signal board_drive : cart_board_drive_t;
     begin
         cart_audio <= 0;
         cart_ready <= true;
@@ -370,7 +367,7 @@ begin
         end if;
         end process;
 
-        cart : entity work.nrom_cart
+        cart : nrom_cart
         generic map
         (
             NES_FILEPATH => NES_FILEPATH,
@@ -389,57 +386,20 @@ begin
         port map
         (
             pins => slot_pins,
-
-            cpu_data => cart_cpu_data,
-            cpu_data_oe => cart_cpu_data_oe,
-            irq_n => slot_board_pins.irq_n,
-
-            ppu_data => cart_ppu_data,
-            ppu_data_oe => cart_ppu_data_oe,
-            ciram_ce_n => slot_board_pins.ciram_ce_n,
-            ciram_a10 => slot_board_pins.ciram_a10
+            pins_out => board_drive
         );
 
-        -- The shared data buses. An undriven bus keeps its last value, which
-        -- a board would do with bus hold
-        process(slot_pins, cart_cpu_data, cart_cpu_data_oe)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            if slot_pins.cpu_data_oe and cart_cpu_data_oe
-            then
-                report "nes_bench: CPU data bus driven by both sides"
-                    severity error;
-                value := (others => 'X');
-            elsif slot_pins.cpu_data_oe
-            then
-                value := slot_pins.cpu_data;
-            elsif cart_cpu_data_oe
-            then
-                value := cart_cpu_data;
-            end if;
-            slot_board_pins.cpu_data <= value;
-        end process;
-
-        process(slot_pins, cart_ppu_data, cart_ppu_data_oe)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            if slot_pins.ppu_data_oe and cart_ppu_data_oe
-            then
-                report "nes_bench: PPU data bus driven by both sides"
-                    severity error;
-                value := (others => 'X');
-            elsif slot_pins.ppu_data_oe
-            then
-                value := slot_pins.ppu_data;
-            elsif cart_ppu_data_oe
-            then
-                value := cart_ppu_data;
-            end if;
-            slot_board_pins.ppu_data <= value;
-        end process;
-
+        pin_bus : cart_pin_bus
+        generic map
+        (
+            NAME => "nes_bench"
+        )
+        port map
+        (
+            console => slot_pins,
+            drive => board_drive,
+            board => slot_board_pins
+        );
     end generate;
 
     -- The emulated cartridge through the pins: the console's cart_slot
@@ -599,58 +559,17 @@ begin
             console_pins <= pins;
         end process;
 
-        -- The shared data buses. A bit nobody drives keeps its last value,
-        -- which a board would do with bus hold
-        process(console_pins, board_drive)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            for i in value'range
-            loop
-                if console_pins.cpu_data_oe and board_drive.cpu_data_oe(i) = '1'
-                then
-                    value(i) := 'X';
-                elsif console_pins.cpu_data_oe
-                then
-                    value(i) := console_pins.cpu_data(i);
-                elsif board_drive.cpu_data_oe(i) = '1'
-                then
-                    value(i) := board_drive.cpu_data(i);
-                end if;
-            end loop;
-
-            if console_pins.cpu_data_oe and board_drive.cpu_data_oe /= x"00"
-            then
-                report "nes_bench: CPU data bus driven by both sides"
-                    severity error;
-            end if;
-
-            board_pins.cpu_data <= value;
-        end process;
-
-        process(console_pins, board_drive)
-        is
-            variable value : data_t := (others => '0');
-        begin
-            if console_pins.ppu_data_oe and board_drive.ppu_data_oe
-            then
-                report "nes_bench: PPU data bus driven by both sides"
-                    severity error;
-                value := (others => 'X');
-            elsif console_pins.ppu_data_oe
-            then
-                value := console_pins.ppu_data;
-            elsif board_drive.ppu_data_oe
-            then
-                value := board_drive.ppu_data;
-            end if;
-            board_pins.ppu_data <= value;
-        end process;
-
-        -- /IRQ is pulled up by the console
-        board_pins.irq_n <= '0' when board_drive.irq_n = '0' else '1';
-        board_pins.ciram_ce_n <= board_drive.ciram_ce_n;
-        board_pins.ciram_a10 <= board_drive.ciram_a10;
+        pin_bus : cart_pin_bus
+        generic map
+        (
+            NAME => "nes_bench"
+        )
+        port map
+        (
+            console => console_pins,
+            drive => board_drive,
+            board => board_pins
+        );
 
         -- A clock of its own even at the console's period: assigning clk
         -- to edge_clk would delay it by a delta, and the edge would sample
